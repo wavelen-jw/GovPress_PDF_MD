@@ -160,8 +160,10 @@ class MarkdownPreviewWidget(QWidget):
         if current_maximum <= 0:
             scroll_bar.setValue(0)
             return
-        ratio = previous_value / previous_maximum
-        scroll_bar.setValue(int(current_maximum * ratio))
+        if previous_maximum <= 0:
+            scroll_bar.setValue(min(previous_value, current_maximum))
+            return
+        scroll_bar.setValue(min(previous_value, current_maximum))
 
     def scroll_to_ratio(self, ratio: float) -> None:
         scroll_bar = self.browser.verticalScrollBar()

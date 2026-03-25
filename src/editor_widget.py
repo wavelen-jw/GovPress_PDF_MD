@@ -31,6 +31,16 @@ class MarkdownEditor(QPlainTextEdit):
 
     def get_cursor_scroll_ratio(self) -> float:
         document = self.document()
-        block_count = max(document.blockCount() - 1, 1)
         block_number = self.textCursor().blockNumber()
+        total_blocks = document.blockCount()
+        if total_blocks <= 1:
+            return 0.0
+
+        # Snap near the document edges so the preview can reach the true top/bottom.
+        if block_number <= 2:
+            return 0.0
+        if block_number >= total_blocks - 3:
+            return 1.0
+
+        block_count = max(total_blocks - 1, 1)
         return min(max(block_number / block_count, 0.0), 1.0)

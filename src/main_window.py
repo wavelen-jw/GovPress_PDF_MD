@@ -230,6 +230,7 @@ class MainWindow(QMainWindow):
         self.preview.render_markdown(
             self.editor.get_markdown(),
             self.editor.get_current_block_text(),
+            preserve_scroll=True,
         )
 
     def _highlight_current_cursor_line(self) -> None:
