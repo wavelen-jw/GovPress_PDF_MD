@@ -52,12 +52,12 @@ li p {
 
 hr {
   border: 0;
-  border-top: 2px solid #64748b;
-  margin: 1.3em 0 1.5em;
+  border-top: 2px solid #000000;
+  margin: 0.7em 0 0.8em;
 }
 
 blockquote {
-  border-left: 5px solid #64748b;
+  border-left: 5px solid #000000;
   color: #475569;
   background: #f8fafc;
   margin: 1em 0 1.15em;
