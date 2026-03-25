@@ -1,0 +1,39 @@
+body {
+  font-family: "Malgun Gothic", "Segoe UI", sans-serif;
+  color: #1e293b;
+  background: #f8fafc;
+  margin: 0;
+  padding: 24px 28px;
+  line-height: 1.7;
+}
+
+h1, h2, h3 {
+  color: #0f172a;
+  margin-top: 1.2em;
+}
+
+h1 {
+  border-bottom: 2px solid #cbd5e1;
+  padding-bottom: 0.35em;
+}
+
+blockquote {
+  border-left: 4px solid #0f766e;
+  background: #ecfeff;
+  margin: 1em 0;
+  padding: 0.8em 1em;
+}
+
+code, pre {
+  background: #e2e8f0;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th, td {
+  border: 1px solid #cbd5e1;
+  padding: 8px 10px;
+}
