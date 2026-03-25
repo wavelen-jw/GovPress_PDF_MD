@@ -6,5 +6,6 @@ __pycache__/
 
 tests/converted_md/
 tests/fixtures/**/*.json
+*:Zone.Identifier
 
 -o/
