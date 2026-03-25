@@ -19,7 +19,7 @@ Windows 환경에서 PDF를 드래그 앤 드롭으로 받아 `opendataloader-pd
 
 - Windows 10/11 권장
 - Python 3.10+
-- Java 11+
+- Java 11+ 별도 설치
 - 제한된 인터넷 환경에서도 실행 가능
 
 ## 사전 요구사항
@@ -36,9 +36,7 @@ python --version
 java -version
 ```
 
-Java가 없다면 사내 표준 배포 경로 또는 공식 배포본으로 Java 11 이상을 먼저 설치합니다.
-
-배포용 빌드 PC에서는 번들 가능한 OpenJDK 계열을 권장합니다. 이 프로젝트는 `Temurin 17` 기준으로 빌드하는 것을 권장합니다.
+Java는 실행파일에 포함하지 않습니다. 사내 표준 배포 경로 또는 공식 배포본으로 Java 11 이상을 먼저 설치합니다.
 
 ### opendataloader-pdf
 
@@ -89,8 +87,7 @@ pyinstaller --noconfirm --windowed --name pdf-to-md --add-data "assets/styles/pr
 비개발자용 배포를 위해 `build_windows.bat`는 아래를 함께 구성합니다.
 
 - PyInstaller 앱 빌드
-- `runtime\python` 가상환경 생성 및 `opendataloader-pdf` 설치
-- `JAVA_HOME` 기준 Java 런타임 복사
+- `opendataloader-pdf` 패키지를 앱 내부에 번들
 - `licenses\` 폴더 생성 및 오픈소스 고지 파일 복사
 - Inno Setup(`ISCC`)가 있으면 설치 파일 생성
 
@@ -103,7 +100,7 @@ build_windows.bat
 권장 빌드 환경:
 
 - Python 3.10+
-- `JAVA_HOME` = Temurin 17 경로
+- Java 11+가 시스템에 설치된 Windows 환경
 - Inno Setup 6.x 선택 설치
 
 빌드 결과 기본 경로:
@@ -122,14 +119,6 @@ dist_installer\GovPress_PDF_MD_Setup.exe
 
 ```text
 dist\GovPress_PDF_MD\licenses\
-```
-
-Temurin 17 예시:
-
-```bat
-set JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-17
-set PATH=%JAVA_HOME%\bin;%PATH%
-build_windows.bat
 ```
 
 ## 폴더 구조

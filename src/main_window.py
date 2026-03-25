@@ -10,15 +10,18 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QSizePolicy,
     QSplitter,
     QStatusBar,
     QToolBar,
+    QWidget,
 )
 
 from .editor_widget import MarkdownEditor
 from .preview_widget import MarkdownPreviewWidget
 from .app_metadata import (
     APP_DISPLAY_NAME,
+    APP_GITHUB_URL,
     APP_NAME,
     SETTINGS_APPLICATION,
     SETTINGS_ORGANIZATION,
@@ -95,6 +98,14 @@ class MainWindow(QMainWindow):
         split_action = QAction("분할 보기", self)
         split_action.triggered.connect(lambda: self._set_view_mode("split"))
         toolbar.addAction(split_action)
+
+        spacer = QWidget(self)
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        toolbar.addWidget(spacer)
+
+        info_action = QAction("정보", self)
+        info_action.triggered.connect(self._show_info_dialog)
+        toolbar.addAction(info_action)
 
     def _build_status_bar(self) -> None:
         """Create the status bar widgets."""
@@ -278,6 +289,15 @@ class MainWindow(QMainWindow):
         dialog.setWindowTitle("오류")
         dialog.setText(message)
         dialog.setDetailedText(details)
+        dialog.exec()
+
+    def _show_info_dialog(self) -> None:
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle("정보")
+        dialog.setIcon(QMessageBox.Information)
+        dialog.setText(f"만든이 : 행정안전부 정준우")
+        dialog.setInformativeText(f"GitHub 주소 : {APP_GITHUB_URL}")
+        dialog.setTextInteractionFlags(Qt.TextSelectableByMouse)
         dialog.exec()
 
 

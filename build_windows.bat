@@ -96,29 +96,7 @@ if errorlevel 1 (
 )
 
 rem --------------------------------------------------
-rem 2) Java runtime copy
-rem --------------------------------------------------
-if "%JAVA_HOME%"=="" (
-    echo ERROR: JAVA_HOME is not set.
-    echo Set JAVA_HOME to a Java 11+ installation before running this script.
-    exit /b 1
-)
-
-if not exist "%JAVA_HOME%\bin\java.exe" (
-    echo ERROR: JAVA_HOME does not point to a valid Java installation.
-    echo Current JAVA_HOME: %JAVA_HOME%
-    exit /b 1
-)
-
-if exist dist\GovPress_PDF_MD\runtime\java rmdir /s /q dist\GovPress_PDF_MD\runtime\java
-xcopy /e /i /y "%JAVA_HOME%" "dist\GovPress_PDF_MD\runtime\java" >nul
-if errorlevel 1 (
-    echo ERROR: Failed to copy Java runtime.
-    exit /b 1
-)
-
-rem --------------------------------------------------
-rem 3) Optional installer build
+rem 2) Optional installer build
 rem --------------------------------------------------
 where ISCC >nul 2>nul
 if %ERRORLEVEL%==0 (

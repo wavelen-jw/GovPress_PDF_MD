@@ -3,13 +3,15 @@ body {
   color: #1e293b;
   background: #f8fafc;
   margin: 0;
-  padding: 24px 28px;
-  line-height: 1.7;
+  padding: 26px 30px;
+  line-height: 1.45;
 }
 
 h1, h2, h3 {
   color: #0f172a;
-  margin-top: 1.2em;
+  margin-top: 1.4em;
+  margin-bottom: 0.65em;
+  line-height: 1.25;
 }
 
 h1 {
@@ -17,23 +19,84 @@ h1 {
   padding-bottom: 0.35em;
 }
 
-blockquote {
-  border-left: 4px solid #0f766e;
-  background: #ecfeff;
-  margin: 1em 0;
-  padding: 0.8em 1em;
+h1:first-child,
+h2:first-child,
+h3:first-child,
+p:first-child,
+blockquote:first-child {
+  margin-top: 0;
 }
 
-code, pre {
+p,
+li {
+  line-height: 1.42;
+}
+
+p {
+  margin: 0.15em 0 1em;
+}
+
+ul,
+ol {
+  margin: 0.35em 0 1.1em;
+  padding-left: 1.4em;
+}
+
+li + li {
+  margin-top: 0.25em;
+}
+
+li p {
+  margin: 0.1em 0;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid #cbd5e1;
+  margin: 1.3em 0 1.5em;
+}
+
+blockquote {
+  border-left: 3px solid #cbd5e1;
+  color: #475569;
+  background: transparent;
+  margin: 1em 0 1.15em;
+  padding: 0.1em 0 0.1em 1em;
+}
+
+blockquote p {
+  margin: 0.2em 0;
+}
+
+code,
+pre {
   background: #e2e8f0;
+}
+
+pre {
+  padding: 12px 14px;
+  overflow-x: auto;
+}
+
+code {
+  padding: 0.12em 0.35em;
+  border-radius: 4px;
 }
 
 table {
   border-collapse: collapse;
   width: 100%;
+  margin: 0.4em 0 1.3em;
 }
 
-th, td {
+th,
+td {
   border: 1px solid #cbd5e1;
   padding: 8px 10px;
+  vertical-align: top;
+}
+
+th {
+  background: #f1f5f9;
+  font-weight: 700;
 }
