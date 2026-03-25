@@ -1,22 +1,39 @@
 body {
-  font-family: "Malgun Gothic", "Segoe UI", sans-serif;
-  color: #1e293b;
-  background: #f8fafc;
-  margin: 0;
-  padding: 26px 30px;
-  line-height: 1.45;
+  font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", sans-serif;
+  font-size: 17px;
+  color: #333333;
+  background: #ffffff;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 34px 44px 42px;
+  line-height: 1.58;
 }
 
 h1, h2, h3 {
-  color: #0f172a;
-  margin-top: 1.4em;
-  margin-bottom: 0.65em;
-  line-height: 1.25;
+  color: #2f2f2f;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-top: 1.25em;
+  margin-bottom: 0.58em;
+  line-height: 1.28;
 }
 
 h1 {
-  border-bottom: 2px solid #cbd5e1;
-  padding-bottom: 0.35em;
+  font-size: 2.35em;
+  border-bottom: 1px solid #ebebeb;
+  padding-bottom: 0.42em;
+  margin-top: 0;
+  margin-bottom: 0.6em;
+}
+
+h2 {
+  font-size: 1.62em;
+  margin-top: 1.45em;
+}
+
+h3 {
+  font-size: 1.18em;
+  margin-top: 1.1em;
 }
 
 h1:first-child,
@@ -29,21 +46,21 @@ blockquote:first-child {
 
 p,
 li {
-  line-height: 1.42;
+  line-height: 1.52;
 }
 
 p {
-  margin: 0.15em 0 1em;
+  margin: 0.18em 0 1.08em;
 }
 
 ul,
 ol {
-  margin: 0.35em 0 1.1em;
-  padding-left: 1.4em;
+  margin: 0.28em 0 1.05em;
+  padding-left: 1.25em;
 }
 
 li + li {
-  margin-top: 0.25em;
+  margin-top: 0.18em;
 }
 
 li p {
@@ -53,29 +70,30 @@ li p {
 hr {
   border: 0;
   border-top: 2px solid #000000;
-  margin: 0.7em 0 0.8em;
+  margin: 0.55em 0 0.7em;
 }
 
 blockquote {
   border-left: 5px solid #000000;
-  color: #475569;
-  background: #f8fafc;
-  margin: 1em 0 1.15em;
-  padding: 0.2em 0 0.2em 1em;
+  color: #555555;
+  background: transparent;
+  margin: 0.95em 0 1.05em;
+  padding: 0.05em 0 0.05em 0.95em;
 }
 
 blockquote p {
-  margin: 0.2em 0;
+  margin: 0.16em 0;
 }
 
 code,
 pre {
-  background: #e2e8f0;
+  background: #f5f5f5;
 }
 
 pre {
   padding: 12px 14px;
   overflow-x: auto;
+  border: 1px solid #ebebeb;
 }
 
 code {
@@ -86,7 +104,8 @@ code {
 table {
   border-collapse: collapse;
   width: 100%;
-  margin: 0.4em 0 1.3em;
+  margin: 0.45em 0 1.3em;
+  font-size: 0.98em;
 }
 
 th,
@@ -97,6 +116,6 @@ td {
 }
 
 th {
-  background: #f1f5f9;
+  background: #f7f7f7;
   font-weight: 700;
 }
