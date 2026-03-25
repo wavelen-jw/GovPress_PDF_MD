@@ -82,7 +82,7 @@ CSS 자산은 번들 실행도 고려해 런타임 경로 처리돼 있습니다
 pyinstaller --noconfirm --windowed --name pdf-to-md --add-data "assets/styles/preview.css;assets/styles" app.py
 ```
 
-프로젝트에는 Windows 빌드용 [.spec 파일](/home/wavel/pdf_to_md_app/GovPress_PDF_MD.spec), [Inno Setup 스크립트](/home/wavel/pdf_to_md_app/installer/GovPress_PDF_MD.iss), [배치 스크립트](/home/wavel/pdf_to_md_app/build_windows.bat)도 포함되어 있습니다.
+프로젝트에는 Windows 빌드용 [.spec 파일](/home/wavel/pdf_to_md_app/GovPress_PDF_MD.spec), [Inno Setup 스크립트](/home/wavel/pdf_to_md_app/installer/GovPress_PDF_MD.iss), [PyInstaller 배치 스크립트](/home/wavel/pdf_to_md_app/build_windows.bat), [Nuitka 배치 스크립트](/home/wavel/pdf_to_md_app/build_windows_nuitka.bat)도 포함되어 있습니다.
 
 비개발자용 배포를 위해 `build_windows.bat`는 아래를 함께 구성합니다.
 
@@ -95,6 +95,12 @@ Windows에서 바로 실행하려면:
 
 ```bat
 build_windows.bat
+```
+
+Nuitka 배포본을 시험해보려면:
+
+```bat
+build_windows_nuitka.bat
 ```
 
 권장 빌드 환경:
@@ -113,6 +119,12 @@ dist\GovPress_PDF_MD\GovPress_PDF_MD.exe
 
 ```text
 dist_installer\GovPress_PDF_MD_Setup.exe
+```
+
+Nuitka 빌드 결과 기본 경로:
+
+```text
+dist_nuitka\app.dist\app.exe
 ```
 
 배포본에는 아래와 같은 라이선스 고지 폴더가 함께 포함됩니다.
@@ -191,6 +203,7 @@ python -m unittest discover -s tests
 - 스캔 PDF와 OCR 품질은 이번 버전의 핵심 범위가 아닙니다.
 - 다중 PDF 드롭 시 첫 번째 PDF만 편집기로 열고 나머지는 무시합니다.
 - 형식 차이가 큰 보도자료는 기존 공통 규칙에 바로 섞기보다 별도 템플릿으로 다루는 편이 안전합니다.
+- Nuitka 빌드는 Windows 컴파일 환경 영향이 커서, 실제 크기·호환성은 빌드 PC마다 달라질 수 있습니다.
 
 ## 문제 해결 가이드
 

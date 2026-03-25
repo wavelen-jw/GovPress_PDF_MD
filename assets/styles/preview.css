@@ -52,16 +52,16 @@ li p {
 
 hr {
   border: 0;
-  border-top: 1px solid #cbd5e1;
+  border-top: 2px solid #64748b;
   margin: 1.3em 0 1.5em;
 }
 
 blockquote {
-  border-left: 3px solid #cbd5e1;
+  border-left: 5px solid #64748b;
   color: #475569;
-  background: transparent;
+  background: #f8fafc;
   margin: 1em 0 1.15em;
-  padding: 0.1em 0 0.1em 1em;
+  padding: 0.2em 0 0.2em 1em;
 }
 
 blockquote p {
