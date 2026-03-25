@@ -109,9 +109,12 @@ def _resolve_runtime_python() -> str | None:
     bundled_candidates = [
         _application_root() / "runtime" / "python" / "Scripts" / "python.exe",
         _application_root() / "runtime" / "python" / "bin" / "python",
-        Path(sys.executable),
     ]
     for candidate in bundled_candidates:
+        if candidate.exists():
+            return str(candidate)
+    if not getattr(sys, "frozen", False):
+        candidate = Path(sys.executable)
         if candidate.exists():
             return str(candidate)
     return None
