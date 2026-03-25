@@ -7,6 +7,7 @@ from src.converter import (
     DependencyStatus,
     _load_opendataloader_convert,
     _parse_java_major_version,
+    _stage_input_pdf_for_conversion,
     convert_pdf_to_markdown,
 )
 from src.json_extractor import extract_text_from_json
@@ -68,6 +69,19 @@ class ConverterTests(unittest.TestCase):
             markdown = convert_pdf_to_markdown(pdf_path)
             self.assertIn("# 제목 줄", markdown)
             self.assertIn("본문", markdown)
+
+    def test_stage_input_pdf_for_conversion_copies_to_temp_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_path = Path(temp_dir) / "sample.pdf"
+            source_path.write_bytes(b"%PDF-1.4")
+            temp_root = Path(temp_dir) / "work"
+            temp_root.mkdir()
+
+            staged_path = _stage_input_pdf_for_conversion(source_path, temp_root)
+
+            self.assertEqual(staged_path, temp_root / source_path.name)
+            self.assertTrue(staged_path.exists())
+            self.assertEqual(staged_path.read_bytes(), b"%PDF-1.4")
 
     def test_postprocessor_formats_contacts(self) -> None:
         raw = (

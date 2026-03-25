@@ -187,6 +187,12 @@ def _find_json_file(output_dir: Path, source_path: Path) -> Path:
     return candidates[0]
 
 
+def _stage_input_pdf_for_conversion(source_path: Path, temp_root: Path) -> Path:
+    staged_path = temp_root / source_path.name
+    shutil.copy2(source_path, staged_path)
+    return staged_path
+
+
 def convert_pdf_to_markdown(
     pdf_path: str | Path,
     timeout_seconds: int = 180,
@@ -209,11 +215,12 @@ def convert_pdf_to_markdown(
 
     temp_root = Path(tempfile.mkdtemp(prefix="pdf_to_md_"))
     try:
+        staged_source_path = _stage_input_pdf_for_conversion(source_path, temp_root)
         convert = _load_opendataloader_convert()
         try:
             with _RuntimeEnvironmentContext(status.java_command):
                 convert(
-                    input_path=[str(source_path)],
+                    input_path=[str(staged_source_path)],
                     output_dir=str(temp_root),
                     format="markdown,json",
                     quiet=True,
