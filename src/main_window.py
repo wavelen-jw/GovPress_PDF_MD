@@ -25,6 +25,7 @@ from .app_metadata import (
     APP_NAME,
     SETTINGS_APPLICATION,
     SETTINGS_ORGANIZATION,
+    TEMURIN_17_URL,
 )
 from .state import DocumentState
 from .utils import (
@@ -50,6 +51,8 @@ class MainWindow(QMainWindow):
         self.logger = configure_logging(Path.home() / f".{APP_NAME}" / "app.log")
         self.thread_pool = QThreadPool.globalInstance()
         self.state = DocumentState()
+        self._last_cursor_block_number = 0
+        self._follow_cursor_preview = False
 
         self.editor = MarkdownEditor(self)
         self.preview = MarkdownPreviewWidget(
@@ -66,6 +69,7 @@ class MainWindow(QMainWindow):
         self.preview_timer.setSingleShot(True)
         self.preview_timer.timeout.connect(self._refresh_preview)
         self.editor.markdown_changed.connect(self._handle_markdown_changed)
+        self.editor.cursorPositionChanged.connect(self._highlight_current_cursor_line)
 
         self._build_toolbar()
         self._build_status_bar()
@@ -99,6 +103,12 @@ class MainWindow(QMainWindow):
         split_action.triggered.connect(lambda: self._set_view_mode("split"))
         toolbar.addAction(split_action)
 
+        follow_cursor_action = QAction("커서 따라가기", self)
+        follow_cursor_action.setCheckable(True)
+        follow_cursor_action.setChecked(False)
+        follow_cursor_action.toggled.connect(self._set_follow_cursor_preview)
+        toolbar.addAction(follow_cursor_action)
+
         spacer = QWidget(self)
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         toolbar.addWidget(spacer)
@@ -114,6 +124,12 @@ class MainWindow(QMainWindow):
         self.status_file = QLabel("새 문서", self)
         self.statusBar().addPermanentWidget(self.status_file, 1)
         self.statusBar().showMessage("준비")
+
+    def _set_follow_cursor_preview(self, enabled: bool) -> None:
+        self._follow_cursor_preview = enabled
+        self.statusBar().showMessage(
+            "커서 따라가기 켜짐" if enabled else "커서 따라가기 꺼짐"
+        )
 
     def _apply_drop_target_style(self, active: bool) -> None:
         """Highlight the main window while a valid PDF drag is active."""
@@ -191,7 +207,8 @@ class MainWindow(QMainWindow):
         clean_markdown = ensure_utf8_text(markdown)
         self.state.load_markdown(clean_markdown, pdf_path)
         self.editor.set_markdown(clean_markdown)
-        self.preview.render_markdown(clean_markdown)
+        self._last_cursor_block_number = self.editor.get_current_block_number()
+        self.preview.render_markdown(clean_markdown, self.editor.get_current_block_text())
         self._update_status_widgets("변환 완료")
 
     def _on_conversion_failure(
@@ -210,7 +227,23 @@ class MainWindow(QMainWindow):
 
     def _refresh_preview(self) -> None:
         """Render the current editor content in the preview pane."""
-        self.preview.render_markdown(self.editor.get_markdown())
+        self.preview.render_markdown(
+            self.editor.get_markdown(),
+            self.editor.get_current_block_text(),
+        )
+
+    def _highlight_current_cursor_line(self) -> None:
+        current_block_number = self.editor.get_current_block_number()
+        target_ratio = None
+        if self._follow_cursor_preview and current_block_number != self._last_cursor_block_number:
+            target_ratio = self.editor.get_cursor_scroll_ratio()
+        self._last_cursor_block_number = current_block_number
+        self.preview.render_markdown(
+            self.editor.get_markdown(),
+            self.editor.get_current_block_text(),
+            preserve_scroll=target_ratio is None,
+            target_ratio=target_ratio,
+        )
 
     def _set_view_mode(self, mode: str) -> None:
         """Switch between source, preview, and split layouts."""
@@ -288,6 +321,22 @@ class MainWindow(QMainWindow):
         dialog.setIcon(QMessageBox.Critical)
         dialog.setWindowTitle("오류")
         dialog.setText(message)
+        dialog.setTextFormat(Qt.RichText)
+        dialog.setTextInteractionFlags(Qt.TextBrowserInteraction | Qt.TextSelectableByMouse)
+        if "java=명령을 찾을 수 없습니다." in details:
+            dialog.setInformativeText(
+                "Java 11+ 설치가 필요합니다.<br>"
+                "권장 배포본: <a href=\"{url}\">Eclipse Temurin 17 다운로드</a>".format(
+                    url=TEMURIN_17_URL
+                )
+            )
+        elif "지원되지 않는 Java 버전입니다" in details:
+            dialog.setInformativeText(
+                "Java 11 이상이 필요합니다.<br>"
+                "권장 배포본: <a href=\"{url}\">Eclipse Temurin 17 다운로드</a>".format(
+                    url=TEMURIN_17_URL
+                )
+            )
         dialog.setDetailedText(details)
         dialog.exec()
 

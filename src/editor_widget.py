@@ -22,3 +22,15 @@ class MarkdownEditor(QPlainTextEdit):
 
     def get_markdown(self) -> str:
         return self.toPlainText()
+
+    def get_current_block_text(self) -> str:
+        return self.textCursor().block().text()
+
+    def get_current_block_number(self) -> int:
+        return self.textCursor().blockNumber()
+
+    def get_cursor_scroll_ratio(self) -> float:
+        document = self.document()
+        block_count = max(document.blockCount() - 1, 1)
+        block_number = self.textCursor().blockNumber()
+        return min(max(block_number / block_count, 0.0), 1.0)

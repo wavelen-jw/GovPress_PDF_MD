@@ -20,8 +20,8 @@ h1, h2, h3 {
 
 h1 {
   font-size: 2.35em;
-  border-bottom: 1px solid #ebebeb;
-  padding-bottom: 0.42em;
+  border-bottom: 0;
+  padding-bottom: 0;
   margin-top: 0;
   margin-bottom: 0.6em;
 }

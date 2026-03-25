@@ -25,8 +25,16 @@ class ConversionWorker(QRunnable):
         except Exception as exc:  # pragma: no cover
             self.signals.failed.emit(
                 self.pdf_path,
-                "PDF 변환에 실패했습니다. OpenDataLoader PDF 또는 Java 설치 상태를 확인하세요.",
+                _user_message_from_exception(str(exc)),
                 str(exc),
             )
             return
         self.signals.finished.emit(self.pdf_path, markdown)
+
+
+def _user_message_from_exception(detail: str) -> str:
+    if "java=명령을 찾을 수 없습니다." in detail:
+        return "Java 11+가 설치되어 있지 않아 PDF 변환을 진행할 수 없습니다."
+    if "지원되지 않는 Java 버전입니다" in detail:
+        return "설치된 Java 버전이 낮아 PDF 변환을 진행할 수 없습니다."
+    return "PDF 변환에 실패했습니다. OpenDataLoader PDF 또는 Java 설치 상태를 확인하세요."
