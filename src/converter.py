@@ -28,7 +28,9 @@ class DependencyStatus:
     java_detail: str
     opendataloader_detail: str
     java_version: int | None = None
+    java_command: str | None = None
     opendataloader_command: str | None = None
+    opendataloader_module_command: list[str] | None = None
 
     @property
     def is_ready(self) -> bool:
@@ -54,7 +56,44 @@ def _check_command(command: list[str]) -> tuple[bool, str]:
     return result.returncode == 0, detail
 
 
+def _application_root() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent.parent
+
+
+def _windows_suffixes() -> tuple[str, ...]:
+    return (".exe", ".cmd", ".bat") if sys.platform.startswith("win") else ("",)
+
+
+def _resolve_java_command() -> str | None:
+    bundled_candidates = [
+        _application_root() / "runtime" / "java" / "bin" / "java.exe",
+        _application_root() / "runtime" / "java" / "bin" / "java",
+        _application_root() / "java" / "bin" / "java.exe",
+        _application_root() / "java" / "bin" / "java",
+    ]
+    for candidate in bundled_candidates:
+        if candidate.exists():
+            return str(candidate)
+
+    direct = shutil_lib.which("java")
+    if direct:
+        return direct
+    return None
+
+
 def _resolve_opendataloader_command() -> str | None:
+    for suffix in _windows_suffixes():
+        bundled_candidates = [
+            _application_root() / "runtime" / "python" / "Scripts" / f"opendataloader-pdf{suffix}",
+            _application_root() / "runtime" / "python" / "bin" / f"opendataloader-pdf{suffix}",
+            _application_root() / f"opendataloader-pdf{suffix}",
+        ]
+        for candidate in bundled_candidates:
+            if candidate.exists():
+                return str(candidate)
+
     direct = shutil_lib.which("opendataloader-pdf")
     if direct:
         return direct
@@ -63,6 +102,18 @@ def _resolve_opendataloader_command() -> str | None:
     if sibling.exists():
         return str(sibling)
 
+    return None
+
+
+def _resolve_runtime_python() -> str | None:
+    bundled_candidates = [
+        _application_root() / "runtime" / "python" / "Scripts" / "python.exe",
+        _application_root() / "runtime" / "python" / "bin" / "python",
+        Path(sys.executable),
+    ]
+    for candidate in bundled_candidates:
+        if candidate.exists():
+            return str(candidate)
     return None
 
 
@@ -80,14 +131,63 @@ def _parse_java_major_version(version_output: str) -> int | None:
     return int(major) if major.isdigit() else None
 
 
+def _runtime_environment(java_command: str | None = None) -> dict[str, str]:
+    env = dict(**shutil_lib.os.environ)
+    if java_command:
+        java_bin = str(Path(java_command).resolve().parent)
+        env["PATH"] = java_bin + shutil_lib.os.pathsep + env.get("PATH", "")
+        env["JAVA_HOME"] = str(Path(java_command).resolve().parent.parent)
+    return env
+
+
 def check_runtime_dependencies() -> DependencyStatus:
     """Check whether the required local runtime dependencies are installed."""
-    java_ok, java_detail = _check_command(["java", "-version"])
-    opendataloader_command = _resolve_opendataloader_command()
-    if opendataloader_command:
-        odl_ok, odl_detail = _check_command([opendataloader_command, "--help"])
+    java_command = _resolve_java_command()
+    if java_command:
+        java_ok, java_detail = _check_command([java_command, "-version"])
     else:
-        odl_ok, odl_detail = False, "명령을 찾을 수 없습니다."
+        java_ok, java_detail = False, "명령을 찾을 수 없습니다."
+    opendataloader_command = _resolve_opendataloader_command()
+    opendataloader_module_command: list[str] | None = None
+    if opendataloader_command:
+        try:
+            result = subprocess.run(
+                [opendataloader_command, "--help"],
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=_runtime_environment(java_command),
+            )
+            odl_ok = result.returncode == 0
+            odl_detail = (result.stderr or result.stdout).strip() or f"return code={result.returncode}"
+        except FileNotFoundError:
+            odl_ok, odl_detail = False, "명령을 찾을 수 없습니다."
+        except OSError as exc:
+            odl_ok, odl_detail = False, str(exc)
+    else:
+        runtime_python = _resolve_runtime_python()
+        if runtime_python:
+            opendataloader_module_command = [runtime_python, "-m", "opendataloader_pdf"]
+            try:
+                result = subprocess.run(
+                    [*opendataloader_module_command, "--help"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    env=_runtime_environment(java_command),
+                )
+                odl_ok = result.returncode == 0
+                odl_detail = (result.stderr or result.stdout).strip() or f"return code={result.returncode}"
+            except FileNotFoundError:
+                odl_ok, odl_detail = False, "명령을 찾을 수 없습니다."
+            except OSError as exc:
+                odl_ok, odl_detail = False, str(exc)
+        else:
+            odl_ok, odl_detail = False, "명령을 찾을 수 없습니다."
     java_version = _parse_java_major_version(java_detail) if java_ok else None
     java_ok = java_ok and java_version is not None and java_version >= 11
     if java_version is not None and java_version < 11:
@@ -98,7 +198,9 @@ def check_runtime_dependencies() -> DependencyStatus:
         java_detail=java_detail,
         opendataloader_detail=odl_detail,
         java_version=java_version,
+        java_command=java_command,
         opendataloader_command=opendataloader_command,
+        opendataloader_module_command=opendataloader_module_command,
     )
 
 
@@ -157,7 +259,7 @@ def convert_pdf_to_markdown(
     temp_root = Path(tempfile.mkdtemp(prefix="pdf_to_md_"))
     try:
         command = [
-            status.opendataloader_command or "opendataloader-pdf",
+            *(status.opendataloader_module_command or [status.opendataloader_command or "opendataloader-pdf"]),
             str(source_path),
             "-o",
             str(temp_root),
@@ -172,6 +274,7 @@ def convert_pdf_to_markdown(
             encoding="utf-8",
             errors="replace",
             timeout=timeout_seconds,
+            env=_runtime_environment(status.java_command),
         )
         if result.returncode != 0:
             raise ConversionError(
