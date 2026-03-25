@@ -123,6 +123,12 @@ if errorlevel 1 (
     exit /b 1
 )
 
+dist\GovPress_PDF_MD\runtime\python\Scripts\python.exe -m opendataloader_pdf --help >nul 2>nul
+if errorlevel 1 (
+    echo ERROR: Bundled opendataloader_pdf runtime check failed.
+    exit /b 1
+)
+
 rem --------------------------------------------------
 rem 3) Java runtime copy
 rem --------------------------------------------------

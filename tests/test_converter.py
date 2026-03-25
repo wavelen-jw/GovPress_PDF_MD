@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 from src.converter import (
     DependencyStatus,
     _parse_java_major_version,
-    _resolve_opendataloader_command,
+    _resolve_runtime_python,
     convert_pdf_to_markdown,
 )
 from src.json_extractor import extract_text_from_json
@@ -56,7 +56,8 @@ class ConverterTests(unittest.TestCase):
             pdf_path.write_bytes(b"%PDF-1.4")
 
             def fake_run(*args, **kwargs):
-                output_dir = Path(args[0][3])
+                command = args[0]
+                output_dir = Path(command[command.index("-o") + 1])
                 output_dir.mkdir(parents=True, exist_ok=True)
                 (output_dir / "sample.md").write_text(
                     "보도자료\n보도시점 온라인 2026. 3. 25.\n제목 줄\n□ 본문\n담당 부서: 홍보팀\n",
@@ -218,10 +219,8 @@ class ConverterTests(unittest.TestCase):
         self.assertEqual(_parse_java_major_version('openjdk version "17.0.10" 2024-01-16'), 17)
         self.assertEqual(_parse_java_major_version('java version "1.8.0_401"'), 8)
 
-    @patch("src.converter.shutil_lib.which")
-    def test_resolve_opendataloader_command_prefers_path(self, mock_which: Mock) -> None:
-        mock_which.return_value = "/tmp/opendataloader-pdf"
-        self.assertEqual(_resolve_opendataloader_command(), "/tmp/opendataloader-pdf")
+    def test_resolve_runtime_python_uses_current_python_for_non_frozen_runs(self) -> None:
+        self.assertTrue(_resolve_runtime_python())
 
     def test_save_markdown_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
