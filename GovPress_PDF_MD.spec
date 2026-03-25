@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 
 project_dir = Path.cwd()
@@ -10,6 +11,8 @@ datas = [
     (str(project_dir / "assets" / "styles" / "preview.css"), "assets/styles"),
     (str(icon_path), "assets/icons"),
 ]
+datas += collect_data_files("opendataloader_pdf")
+hiddenimports = collect_submodules("opendataloader_pdf")
 
 
 a = Analysis(
@@ -17,7 +20,7 @@ a = Analysis(
     pathex=[str(project_dir)],
     binaries=[],
     datas=datas,
-    hiddenimports=[],
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

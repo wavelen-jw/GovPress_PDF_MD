@@ -5,8 +5,8 @@ from unittest.mock import Mock, patch
 
 from src.converter import (
     DependencyStatus,
+    _load_opendataloader_convert,
     _parse_java_major_version,
-    _resolve_runtime_python,
     convert_pdf_to_markdown,
 )
 from src.json_extractor import extract_text_from_json
@@ -45,27 +45,26 @@ class ConverterTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 convert_pdf_to_markdown(handle.name)
 
+    @patch("src.converter._load_opendataloader_convert")
     @patch("src.converter.check_runtime_dependencies")
-    @patch("src.converter.subprocess.run")
     def test_conversion_reads_generated_markdown(
-        self, mock_run: Mock, mock_deps: Mock
+        self, mock_deps: Mock, mock_load_convert: Mock
     ) -> None:
         mock_deps.return_value = DependencyStatus(True, True, "ok", "ok")
         with tempfile.TemporaryDirectory() as temp_dir:
             pdf_path = Path(temp_dir) / "sample.pdf"
             pdf_path.write_bytes(b"%PDF-1.4")
 
-            def fake_run(*args, **kwargs):
-                command = args[0]
-                output_dir = Path(command[command.index("-o") + 1])
+            def fake_convert(*, input_path, output_dir, format, quiet):
+                output_dir = Path(output_dir)
                 output_dir.mkdir(parents=True, exist_ok=True)
                 (output_dir / "sample.md").write_text(
                     "보도자료\n보도시점 온라인 2026. 3. 25.\n제목 줄\n□ 본문\n담당 부서: 홍보팀\n",
                     encoding="utf-8",
                 )
-                return Mock(returncode=0, stdout="", stderr="")
+                return None
 
-            mock_run.side_effect = fake_run
+            mock_load_convert.return_value = fake_convert
             markdown = convert_pdf_to_markdown(pdf_path)
             self.assertIn("# 제목 줄", markdown)
             self.assertIn("본문", markdown)
@@ -219,8 +218,8 @@ class ConverterTests(unittest.TestCase):
         self.assertEqual(_parse_java_major_version('openjdk version "17.0.10" 2024-01-16'), 17)
         self.assertEqual(_parse_java_major_version('java version "1.8.0_401"'), 8)
 
-    def test_resolve_runtime_python_uses_current_python_for_non_frozen_runs(self) -> None:
-        self.assertTrue(_resolve_runtime_python())
+    def test_load_opendataloader_convert_is_available(self) -> None:
+        self.assertTrue(callable(_load_opendataloader_convert()))
 
     def test_save_markdown_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

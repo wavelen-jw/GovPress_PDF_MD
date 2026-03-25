@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import importlib
 from pathlib import Path
+import os
 import re
 import shutil
 import subprocess
@@ -29,7 +31,6 @@ class DependencyStatus:
     opendataloader_detail: str
     java_version: int | None = None
     java_command: str | None = None
-    opendataloader_module_command: list[str] | None = None
 
     @property
     def is_ready(self) -> bool:
@@ -77,19 +78,10 @@ def _resolve_java_command() -> str | None:
         return direct
     return None
 
-def _resolve_runtime_python() -> str | None:
-    bundled_candidates = [
-        _application_root() / "runtime" / "python" / "Scripts" / "python.exe",
-        _application_root() / "runtime" / "python" / "bin" / "python",
-    ]
-    for candidate in bundled_candidates:
-        if candidate.exists():
-            return str(candidate)
-    if not getattr(sys, "frozen", False):
-        candidate = Path(sys.executable)
-        if candidate.exists():
-            return str(candidate)
-    return None
+
+def _load_opendataloader_convert():
+    module = importlib.import_module("opendataloader_pdf")
+    return module.convert
 
 
 def _parse_java_major_version(version_output: str) -> int | None:
@@ -115,6 +107,25 @@ def _runtime_environment(java_command: str | None = None) -> dict[str, str]:
     return env
 
 
+class _RuntimeEnvironmentContext:
+    def __init__(self, java_command: str | None) -> None:
+        self._java_command = java_command
+        self._original: dict[str, str | None] = {}
+
+    def __enter__(self) -> None:
+        updates = _runtime_environment(self._java_command)
+        for key, value in updates.items():
+            self._original.setdefault(key, os.environ.get(key))
+            os.environ[key] = value
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        for key, original_value in self._original.items():
+            if original_value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = original_value
+
+
 def check_runtime_dependencies() -> DependencyStatus:
     """Check whether the required local runtime dependencies are installed."""
     java_command = _resolve_java_command()
@@ -122,28 +133,14 @@ def check_runtime_dependencies() -> DependencyStatus:
         java_ok, java_detail = _check_command([java_command, "-version"])
     else:
         java_ok, java_detail = False, "명령을 찾을 수 없습니다."
-    opendataloader_module_command: list[str] | None = None
-    runtime_python = _resolve_runtime_python()
-    if runtime_python:
-        opendataloader_module_command = [runtime_python, "-m", "opendataloader_pdf"]
-        try:
-            result = subprocess.run(
-                [*opendataloader_module_command, "--help"],
-                check=False,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                env=_runtime_environment(java_command),
-            )
-            odl_ok = result.returncode == 0
-            odl_detail = (result.stderr or result.stdout).strip() or f"return code={result.returncode}"
-        except FileNotFoundError:
-            odl_ok, odl_detail = False, "명령을 찾을 수 없습니다."
-        except OSError as exc:
-            odl_ok, odl_detail = False, str(exc)
-    else:
+    try:
+        convert = _load_opendataloader_convert()
+        odl_ok = callable(convert)
+        odl_detail = "Python module loaded"
+    except ModuleNotFoundError:
         odl_ok, odl_detail = False, "명령을 찾을 수 없습니다."
+    except Exception as exc:
+        odl_ok, odl_detail = False, str(exc)
     java_version = _parse_java_major_version(java_detail) if java_ok else None
     java_ok = java_ok and java_version is not None and java_version >= 11
     if java_version is not None and java_version < 11:
@@ -155,7 +152,6 @@ def check_runtime_dependencies() -> DependencyStatus:
         opendataloader_detail=odl_detail,
         java_version=java_version,
         java_command=java_command,
-        opendataloader_module_command=opendataloader_module_command,
     )
 
 
@@ -213,32 +209,22 @@ def convert_pdf_to_markdown(
 
     temp_root = Path(tempfile.mkdtemp(prefix="pdf_to_md_"))
     try:
-        command = [
-            *(status.opendataloader_module_command or []),
-            str(source_path),
-            "-o",
-            str(temp_root),
-            "-f",
-            "markdown,json",
-        ]
-        result = subprocess.run(
-            command,
-            check=False,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout_seconds,
-            env=_runtime_environment(status.java_command),
-        )
-        if result.returncode != 0:
+        convert = _load_opendataloader_convert()
+        try:
+            with _RuntimeEnvironmentContext(status.java_command):
+                convert(
+                    input_path=[str(source_path)],
+                    output_dir=str(temp_root),
+                    format="markdown,json",
+                    quiet=True,
+                )
+        except Exception as exc:
             raise ConversionError(
                 "PDF 변환에 실패했습니다.\n"
-                f"command={command}\n"
-                f"return_code={result.returncode}\n"
-                f"stderr={result.stderr.strip()}\n"
-                f"temp_dir={temp_root}"
-            )
+                f"source={source_path}\n"
+                f"temp_dir={temp_root}\n"
+                f"error={exc}"
+            ) from exc
 
         try:
             json_path = _find_json_file(temp_root, source_path)
@@ -248,8 +234,6 @@ def convert_pdf_to_markdown(
             raw_text = markdown_path.read_text(encoding="utf-8", errors="replace")
 
         return postprocess_markdown(raw_text)
-    except subprocess.TimeoutExpired as exc:
-        raise ConversionError(f"PDF 변환 시간이 초과되었습니다: {source_path}") from exc
     finally:
         if not keep_temp_dir:
             shutil.rmtree(temp_root, ignore_errors=True)

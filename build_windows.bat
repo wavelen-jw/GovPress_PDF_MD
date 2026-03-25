@@ -96,47 +96,7 @@ if errorlevel 1 (
 )
 
 rem --------------------------------------------------
-rem 2) Runtime Python environment
-rem --------------------------------------------------
-if exist dist\GovPress_PDF_MD\runtime rmdir /s /q dist\GovPress_PDF_MD\runtime
-
-.venv-build\Scripts\python.exe -m venv dist\GovPress_PDF_MD\runtime\python
-if errorlevel 1 (
-    echo ERROR: Failed to create runtime Python environment.
-    exit /b 1
-)
-
-if not exist dist\GovPress_PDF_MD\runtime\python\Scripts\python.exe (
-    echo ERROR: Runtime Python environment is invalid.
-    exit /b 1
-)
-
-call dist\GovPress_PDF_MD\runtime\python\Scripts\activate.bat
-if errorlevel 1 (
-    echo ERROR: Failed to activate runtime Python environment.
-    exit /b 1
-)
-
-python -m pip install --upgrade pip
-if errorlevel 1 (
-    echo ERROR: Failed to upgrade pip in runtime environment.
-    exit /b 1
-)
-
-python -m pip install opendataloader-pdf
-if errorlevel 1 (
-    echo ERROR: Failed to install opendataloader-pdf in runtime environment.
-    exit /b 1
-)
-
-dist\GovPress_PDF_MD\runtime\python\Scripts\python.exe -m opendataloader_pdf --help >nul 2>nul
-if errorlevel 1 (
-    echo ERROR: Bundled opendataloader_pdf runtime check failed.
-    exit /b 1
-)
-
-rem --------------------------------------------------
-rem 3) Java runtime copy
+rem 2) Java runtime copy
 rem --------------------------------------------------
 if "%JAVA_HOME%"=="" (
     echo ERROR: JAVA_HOME is not set.
@@ -158,7 +118,7 @@ if errorlevel 1 (
 )
 
 rem --------------------------------------------------
-rem 4) Optional installer build
+rem 3) Optional installer build
 rem --------------------------------------------------
 where ISCC >nul 2>nul
 if %ERRORLEVEL%==0 (
