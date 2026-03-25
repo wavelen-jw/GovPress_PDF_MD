@@ -38,6 +38,8 @@ java -version
 
 Java가 없다면 사내 표준 배포 경로 또는 공식 배포본으로 Java 11 이상을 먼저 설치합니다.
 
+배포용 빌드 PC에서는 번들 가능한 OpenJDK 계열을 권장합니다. 이 프로젝트는 `Temurin 17` 기준으로 빌드하는 것을 권장합니다.
+
 ### opendataloader-pdf
 
 ```bash
@@ -80,6 +82,54 @@ CSS 자산은 번들 실행도 고려해 런타임 경로 처리돼 있습니다
 
 ```bash
 pyinstaller --noconfirm --windowed --name pdf-to-md --add-data "assets/styles/preview.css;assets/styles" app.py
+```
+
+프로젝트에는 Windows 빌드용 [.spec 파일](/home/wavel/pdf_to_md_app/GovPress_PDF_MD.spec), [Inno Setup 스크립트](/home/wavel/pdf_to_md_app/installer/GovPress_PDF_MD.iss), [배치 스크립트](/home/wavel/pdf_to_md_app/build_windows.bat)도 포함되어 있습니다.
+
+비개발자용 배포를 위해 `build_windows.bat`는 아래를 함께 구성합니다.
+
+- PyInstaller 앱 빌드
+- `runtime\python` 가상환경 생성 및 `opendataloader-pdf` 설치
+- `JAVA_HOME` 기준 Java 런타임 복사
+- `licenses\` 폴더 생성 및 오픈소스 고지 파일 복사
+- Inno Setup(`ISCC`)가 있으면 설치 파일 생성
+
+Windows에서 바로 실행하려면:
+
+```bat
+build_windows.bat
+```
+
+권장 빌드 환경:
+
+- Python 3.10+
+- `JAVA_HOME` = Temurin 17 경로
+- Inno Setup 6.x 선택 설치
+
+빌드 결과 기본 경로:
+
+```text
+dist\GovPress_PDF_MD\GovPress_PDF_MD.exe
+```
+
+설치 파일까지 생성되면 기본 경로는 아래입니다.
+
+```text
+dist_installer\GovPress_PDF_MD_Setup.exe
+```
+
+배포본에는 아래와 같은 라이선스 고지 폴더가 함께 포함됩니다.
+
+```text
+dist\GovPress_PDF_MD\licenses\
+```
+
+Temurin 17 예시:
+
+```bat
+set JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-17
+set PATH=%JAVA_HOME%\bin;%PATH%
+build_windows.bat
 ```
 
 ## 폴더 구조
