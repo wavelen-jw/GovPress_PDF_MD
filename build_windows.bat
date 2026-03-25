@@ -83,6 +83,12 @@ if errorlevel 1 (
     exit /b 1
 )
 
+python tools\generate_icon.py
+if errorlevel 1 (
+    echo ERROR: Failed to generate application icon.
+    exit /b 1
+)
+
 python -m PyInstaller --noconfirm GovPress_PDF_MD.spec
 if errorlevel 1 (
     echo ERROR: PyInstaller build failed.

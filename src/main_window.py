@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt, QThreadPool, QTimer
-from PySide6.QtGui import QAction, QCloseEvent, QDragEnterEvent, QDropEvent
+from PySide6.QtGui import QAction, QCloseEvent, QDragEnterEvent, QDropEvent, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -17,6 +17,12 @@ from PySide6.QtWidgets import (
 
 from .editor_widget import MarkdownEditor
 from .preview_widget import MarkdownPreviewWidget
+from .app_metadata import (
+    APP_DISPLAY_NAME,
+    APP_NAME,
+    SETTINGS_APPLICATION,
+    SETTINGS_ORGANIZATION,
+)
 from .state import DocumentState
 from .utils import (
     configure_logging,
@@ -30,12 +36,15 @@ from .workers import ConversionWorker
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("GovPress_PDF_MD")
+        self.setWindowTitle(APP_DISPLAY_NAME)
         self.resize(1280, 840)
         self.setAcceptDrops(True)
+        icon_path = resolve_resource_path("assets", "icons", "govpress.ico")
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
 
-        self.settings = QSettings("Codex", "PdfToMarkdownApp")
-        self.logger = configure_logging(Path.home() / ".GovPress_PDF_MD" / "app.log")
+        self.settings = QSettings(SETTINGS_ORGANIZATION, SETTINGS_APPLICATION)
+        self.logger = configure_logging(Path.home() / f".{APP_NAME}" / "app.log")
         self.thread_pool = QThreadPool.globalInstance()
         self.state = DocumentState()
 
@@ -275,6 +284,7 @@ class MainWindow(QMainWindow):
 def run() -> None:
     """Launch the application event loop."""
     app = QApplication.instance() or QApplication([])
+    app.setApplicationName(APP_NAME)
     window = MainWindow()
     window.show()
     app.exec()

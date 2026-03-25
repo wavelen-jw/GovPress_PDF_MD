@@ -4,8 +4,11 @@ from pathlib import Path
 
 
 project_dir = Path.cwd()
+icon_path = project_dir / "assets" / "icons" / "govpress.ico"
+version_info_path = project_dir / "windows_version_info.txt"
 datas = [
     (str(project_dir / "assets" / "styles" / "preview.css"), "assets/styles"),
+    (str(icon_path), "assets/icons"),
 ]
 
 
@@ -43,4 +46,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=str(icon_path) if icon_path.exists() else None,
+    version=str(version_info_path) if version_info_path.exists() else None,
 )
