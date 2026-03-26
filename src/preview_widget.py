@@ -21,11 +21,31 @@ HR_PATTERN = re.compile(r"<hr\s*/?>", re.IGNORECASE)
 HIGHLIGHT_TOKEN = "GOVPRESS_CURSOR_HIGHLIGHT_TOKEN"
 
 
+def _normalize_indented_markdown_line(line: str) -> str:
+    leading_width = len(line) - len(line.lstrip(" "))
+    if leading_width <= 0:
+        return line
+
+    stripped = line.lstrip(" ")
+    if not (
+        BULLET_PATTERN.match(stripped)
+        or NUMBERED_LIST_PATTERN.match(stripped)
+        or stripped.startswith(">")
+    ):
+        return line
+
+    nesting_level = leading_width // 2
+    if nesting_level <= 0:
+        return line
+    return f"{' ' * (nesting_level * 4)}{stripped}"
+
+
 def normalize_preview_markdown(markdown_text: str) -> str:
     lines = markdown_text.splitlines()
     normalized: list[str] = []
 
-    for line in lines:
+    for raw_line in lines:
+        line = _normalize_indented_markdown_line(raw_line)
         stripped = line.strip()
         previous_nonempty = next((item.strip() for item in reversed(normalized) if item.strip()), "")
 

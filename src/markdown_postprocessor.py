@@ -266,9 +266,7 @@ def _normalize_body_line(text: str, template: PressReleaseTemplate) -> list[str]
         return [f"  - {text[1:].strip('-* ').strip()}"]
     if text.startswith("※"):
         note = text[1:].strip()
-        if note.startswith("(주요 중대범죄)"):
-            return [f"  > {note}"]
-        return [f"  - {note}"]
+        return [f"> {note}"]
     if text.startswith("* "):
         return [f"  - {text[2:].strip()}"]
     return [text]
@@ -298,10 +296,51 @@ def _expand_inline_bullets(lines: list[str]) -> list[str]:
     return expanded
 
 
+def _quote_indent_for_context(rendered: list[str]) -> str:
+    previous_nonblank = next((line for line in reversed(rendered) if line.strip()), "")
+    if not previous_nonblank:
+        return ""
+
+    leading = previous_nonblank[: len(previous_nonblank) - len(previous_nonblank.lstrip(" "))]
+    stripped = previous_nonblank.lstrip()
+    if stripped.startswith("-"):
+        return f"{leading}  "
+    if stripped.startswith(">"):
+        return leading
+    return leading
+
+
+def _starts_new_body_block(text: str, template: PressReleaseTemplate) -> bool:
+    if not text:
+        return False
+    if HTML_TABLE_TAG_PATTERN.match(text):
+        return True
+    if is_reference_line(text):
+        return True
+    if text.startswith(("<", "※", "* ")):
+        return True
+    if any(
+        text.startswith(marker)
+        for marker in (
+            template.top_level_bullets
+            + template.second_level_bullets
+            + template.third_level_bullets
+            + ("ㅇ ", "￭", "▸", "- ", "- - ", "n ")
+        )
+    ):
+        return True
+    if HEADING_BULLET_PATTERN.match(text) or PLAIN_HEADING_PATTERN.match(text):
+        return True
+    if DATE_ONLY_PATTERN.fullmatch(text):
+        return True
+    return False
+
+
 def _render_body(lines: list[str], template: PressReleaseTemplate) -> list[str]:
     rendered: list[str] = []
     inside_reference_block = False
     reference_block_mode: str | None = None
+    note_quote_indent: str | None = None
     reference_breakers = (
         "- 먼저",
         "- 특히",
@@ -318,6 +357,12 @@ def _render_body(lines: list[str], template: PressReleaseTemplate) -> list[str]:
         text = clean_line(line)
         if not text:
             continue
+        if note_quote_indent is not None:
+            if _starts_new_body_block(text, template):
+                note_quote_indent = None
+            else:
+                rendered.append(f"{note_quote_indent}> {text}")
+                continue
         if inside_reference_block and text.startswith(reference_breakers):
             if rendered and rendered[-1] != "":
                 rendered.append("")
@@ -347,6 +392,11 @@ def _render_body(lines: list[str], template: PressReleaseTemplate) -> list[str]:
                 continue
 
         normalized = _normalize_body_line(text, template)
+        if text.startswith("※") and normalized:
+            note_quote_indent = _quote_indent_for_context(rendered)
+            normalized = [
+                f"{note_quote_indent}{line}" if line.startswith(">") else line for line in normalized
+            ]
         if text.startswith("*") and normalized and normalized[0].startswith(">"):
             previous_nonblank = next((line for line in reversed(rendered) if line), "")
             if previous_nonblank.lstrip().startswith("-"):

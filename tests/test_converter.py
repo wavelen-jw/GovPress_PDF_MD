@@ -523,8 +523,24 @@ class ConverterTests(unittest.TestCase):
         markdown = postprocess_markdown(raw)
         self.assertIn("> 행정안전부 보도자료", markdown)
         self.assertIn("> 보도시점: (온라인,지면) 2026. 3. 24. 국무회의 종료 시", markdown)
-        self.assertIn("  - (주요 사항) 예시 설명", markdown)
+        self.assertIn("> (주요 사항) 예시 설명", markdown)
         self.assertIn("- 혁신팀 책임자: 홍길동", markdown)
+
+    def test_press_release_note_continuations_follow_parent_list_depth(self) -> None:
+        raw = (
+            "보도자료\n"
+            "보도시점 (온라인) 2026. 3. 24.\n"
+            "제목\n"
+            "□ 본문\n"
+            "○ 상위 항목\n"
+            "※ 유의사항 첫 줄\n"
+            "추가 설명\n"
+            "○ 다음 항목\n"
+        )
+        markdown = postprocess_markdown(raw)
+        self.assertIn("- 상위 항목", markdown)
+        self.assertIn("  > 유의사항 첫 줄\n  > 추가 설명", markdown)
+        self.assertIn("- 다음 항목", markdown)
 
     def test_press_release_top_level_body_paragraphs_are_separated(self) -> None:
         raw = (
