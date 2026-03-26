@@ -6,6 +6,20 @@ cd /d %~dp0
 rem --------------------------------------------------
 rem 0) Find Python
 rem --------------------------------------------------
+if defined GOVPRESS_PY_CMD (
+    %GOVPRESS_PY_CMD% -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>nul
+    if %ERRORLEVEL%==0 (
+        set "PY_CMD=%GOVPRESS_PY_CMD%"
+        goto :python_found
+    )
+)
+
+python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>nul
+if %ERRORLEVEL%==0 (
+    set "PY_CMD=python"
+    goto :python_found
+)
+
 py -3.14 -c "import sys; print(sys.version)" >nul 2>nul
 if %ERRORLEVEL%==0 (
     set "PY_CMD=py -3.14"

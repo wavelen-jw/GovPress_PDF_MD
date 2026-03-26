@@ -32,6 +32,8 @@ jobs:
 
       - name: Build application
         shell: cmd
+        env:
+          GOVPRESS_PY_CMD: python
         run: build_windows.bat
 
       - name: Package portable build
