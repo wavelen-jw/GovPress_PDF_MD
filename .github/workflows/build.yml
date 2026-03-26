@@ -31,10 +31,24 @@ jobs:
           java-version: "17"
 
       - name: Build application
-        shell: cmd
+        shell: pwsh
         env:
           GOVPRESS_PY_CMD: python
-        run: build_windows.bat
+        run: |
+          New-Item -ItemType Directory -Force -Path logs | Out-Null
+          cmd /c build_windows.bat 2>&1 | Tee-Object -FilePath logs/build_windows.log
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content logs/build_windows.log -Tail 200 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            exit $LASTEXITCODE
+          }
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GovPress_PDF_MD-build-logs
+          path: logs/build_windows.log
+          if-no-files-found: ignore
 
       - name: Package portable build
         shell: pwsh
