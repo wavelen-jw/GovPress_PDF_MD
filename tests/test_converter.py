@@ -378,6 +378,74 @@ class ConverterTests(unittest.TestCase):
             self.assertIn("> < 2026년 자치인재원 지방의회 교육계획 >", extracted)
             self.assertIn("> △ 지방의회 의원교육", extracted)
 
+    def test_json_extractor_preserves_heading_nodes_inside_single_cell_quote(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            json_path = Path(temp_dir) / "sample.json"
+            json_path.write_text(
+                """
+                {
+                  "kids": [
+                    {
+                      "type": "table",
+                      "rows": [
+                        {
+                          "cells": [
+                            {
+                              "column number": 1,
+                              "row span": 1,
+                              "column span": 1,
+                              "kids": [
+                                {"type": "heading", "content": "높은 수익률의 투자 정보, 확인하고 투자하는 ㄱ씨"},
+                                {"type": "paragraph", "content": "직장인 ㄱ씨는 최근 광고를 접했다."}
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """,
+                encoding="utf-8",
+            )
+            extracted = extract_text_from_json(json_path)
+            self.assertIn("> ## 높은 수익률의 투자 정보, 확인하고 투자하는 ㄱ씨", extracted)
+            self.assertIn("> 직장인 ㄱ씨는 최근 광고를 접했다.", extracted)
+
+    def test_json_extractor_preserves_angle_heading_nodes_inside_single_cell_quote(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            json_path = Path(temp_dir) / "sample.json"
+            json_path.write_text(
+                """
+                {
+                  "kids": [
+                    {
+                      "type": "table",
+                      "rows": [
+                        {
+                          "cells": [
+                            {
+                              "column number": 1,
+                              "row span": 1,
+                              "column span": 1,
+                              "kids": [
+                                {"type": "heading", "content": "< 2025년도 데이터기반행정 추진 사례 >"},
+                                {"type": "paragraph", "content": "(해양수산부) 어업용 면세유 부정 유통 감독을 위한 데이터 분석"}
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """,
+                encoding="utf-8",
+            )
+            extracted = extract_text_from_json(json_path)
+            self.assertIn("> #### < 2025년도 데이터기반행정 추진 사례 >", extracted)
+            self.assertIn("> (해양수산부) 어업용 면세유 부정 유통 감독을 위한 데이터 분석", extracted)
+
     def test_json_extractor_splits_inline_items_inside_table_cells(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             json_path = Path(temp_dir) / "sample.json"
@@ -410,7 +478,7 @@ class ConverterTests(unittest.TestCase):
             extracted = extract_text_from_json(json_path)
             self.assertIn("• 단편적 통계자료 활용<br>• 부처간 정보 활용 제한", extracted)
 
-    def test_json_extractor_renders_complex_table_as_html_table(self) -> None:
+    def test_json_extractor_renders_complex_table_as_markdown_table(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             json_path = Path(temp_dir) / "sample.json"
             json_path.write_text(
@@ -439,11 +507,11 @@ class ConverterTests(unittest.TestCase):
                 encoding="utf-8",
             )
             extracted = extract_text_from_json(json_path)
-            self.assertIn("<table>", extracted)
-            self.assertIn('rowspan="2"', extracted)
-            self.assertIn("<tr><th", extracted)
+            self.assertIn("| 구분 | 현행 |", extracted)
+            self.assertIn("| --- | --- |", extracted)
+            self.assertIn("| 구분 | 개선 |", extracted)
 
-    def test_json_extractor_splits_inline_items_inside_html_table_cells(self) -> None:
+    def test_json_extractor_splits_inline_items_inside_markdown_table_cells(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             json_path = Path(temp_dir) / "sample.json"
             json_path.write_text(
@@ -473,6 +541,8 @@ class ConverterTests(unittest.TestCase):
             )
             extracted = extract_text_from_json(json_path)
             self.assertIn("• 항목1<br>• 항목2", extracted)
+            self.assertIn("| 구분 | • 항목1<br>• 항목2 |", extracted)
+            self.assertNotIn("<table>", extracted)
 
     def test_generic_document_cleanup_removes_toc_and_images(self) -> None:
         raw = (

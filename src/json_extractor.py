@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import html
 import json
 from pathlib import Path
 from typing import Any
@@ -53,6 +52,44 @@ def _collect_cell_text(cell: dict[str, Any]) -> str:
     return clean_line(" ".join(parts))
 
 
+def _collect_single_cell_quote_lines(node: dict[str, Any]) -> list[str]:
+    node_type = node.get("type")
+    if node_type in IGNORED_NODE_TYPES:
+        return []
+
+    if node_type == "heading":
+        content = clean_line(str(node.get("content") or ""))
+        if not content:
+            return []
+        if content.startswith("<") and content.endswith(">"):
+            return [f"#### {content}"]
+        return [f"## {content}"]
+
+    if node_type in {"paragraph", "caption"}:
+        content = clean_line(str(node.get("content") or ""))
+        return [content] if content else []
+
+    if node_type == "list":
+        lines: list[str] = []
+        for item in node.get("list items", []):
+            lines.extend(_collect_single_cell_quote_lines(item))
+        return lines
+
+    if node_type == "list item":
+        lines: list[str] = []
+        content = clean_line(str(node.get("content") or ""))
+        if content:
+            lines.append(content)
+        for child in node.get("kids", []):
+            lines.extend(_collect_single_cell_quote_lines(child))
+        return lines
+
+    lines: list[str] = []
+    for child in node.get("kids", []):
+        lines.extend(_collect_single_cell_quote_lines(child))
+    return lines
+
+
 def _table_row_to_line(row: dict[str, Any]) -> str:
     cells = [_collect_cell_text(cell) for cell in row.get("cells", [])]
     cells = [cell for cell in cells if cell]
@@ -92,7 +129,7 @@ def _single_cell_table_to_lines(rows: list[dict[str, Any]]) -> list[str]:
     cell = _sorted_row_cells(rows[0])[0]
     parts: list[str] = []
     for child in cell.get("kids", []):
-        parts.extend(_collect_text(child))
+        parts.extend(_collect_single_cell_quote_lines(child))
     lines = [clean_line(part) for part in parts if clean_line(part)]
     if not lines:
         text = _collect_cell_text(cell)
@@ -181,23 +218,57 @@ def _complex_table_to_lines(rows: list[dict[str, Any]]) -> list[str]:
     if not rows:
         return []
 
-    lines = ["<table>"]
-    for row_index, row in enumerate(rows):
-        cell_tag = "th" if row_index == 0 else "td"
-        rendered_cells: list[str] = []
+    max_columns = max(
+        (
+            int(cell.get("column number", 0)) + int(cell.get("column span", 1)) - 1
+            for row in rows
+            for cell in row.get("cells", [])
+        ),
+        default=0,
+    )
+    if max_columns <= 0:
+        return []
+
+    active_spans: dict[int, tuple[int, str]] = {}
+    matrix: list[list[str]] = []
+    for row in rows:
+        current_row = [""] * max_columns
+        next_active_spans: dict[int, tuple[int, str]] = {}
+
+        for column_index, (remaining_rows, value) in active_spans.items():
+            current_row[column_index] = value
+            if remaining_rows > 1:
+                next_active_spans[column_index] = (remaining_rows - 1, value)
+
         for cell in _sorted_row_cells(row):
-            attrs: list[str] = []
-            row_span = int(cell.get("row span", 1))
-            column_span = int(cell.get("column span", 1))
-            if row_span > 1:
-                attrs.append(f' rowspan="{row_span}"')
-            if column_span > 1:
-                attrs.append(f' colspan="{column_span}"')
-            formatted = _format_table_cell_text(_collect_cell_text(cell))
-            cell_text = html.escape(formatted).replace("&lt;br&gt;", "<br>")
-            rendered_cells.append(f"<{cell_tag}{''.join(attrs)}>{cell_text}</{cell_tag}>")
-        lines.append(f"<tr>{''.join(rendered_cells)}</tr>")
-    lines.append("</table>")
+            start_column = max(int(cell.get("column number", 1)) - 1, 0)
+            row_span = max(int(cell.get("row span", 1)), 1)
+            column_span = max(int(cell.get("column span", 1)), 1)
+            formatted = _escape_markdown_table_cell(_format_table_cell_text(_collect_cell_text(cell)))
+
+            for offset in range(column_span):
+                column_index = start_column + offset
+                if column_index >= max_columns:
+                    break
+                value = formatted if offset == 0 else ""
+                current_row[column_index] = value
+                if row_span > 1:
+                    next_active_spans[column_index] = (row_span - 1, value)
+
+        matrix.append(current_row)
+        active_spans = next_active_spans
+
+    if not matrix:
+        return []
+
+    header = matrix[0]
+    separator = ["---"] * len(header)
+    lines = [
+        f"| {' | '.join(header)} |",
+        f"| {' | '.join(separator)} |",
+    ]
+    for row in matrix[1:]:
+        lines.append(f"| {' | '.join(row)} |")
     return lines
 
 
