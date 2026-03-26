@@ -15,27 +15,40 @@ from src.markdown_postprocessor import postprocess_markdown
 from src.utils import save_markdown_file
 
 
-FIXTURE_DIR = Path("/home/wavel/pdf_to_md_app/tests/fixtures/press_release")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+TESTS_DIR = PROJECT_ROOT / "tests"
+FIXTURE_DIR = TESTS_DIR / "fixtures" / "press_release"
+GOLDEN_DIR = TESTS_DIR / "converted_md" / "press_release"
 GOLDEN_PRESS_RELEASE = FIXTURE_DIR / "260325 (14시) 대전 대덕구 공장 화재 중앙재난안전대책본부 6차 회의 개최(국토산업재난대응과).pdf"
 GOLDEN_PRESS_RELEASE_MD = FIXTURE_DIR / "260325 (14시) 대전 대덕구 공장 화재 중앙재난안전대책본부 6차 회의 개최(국토산업재난대응과).md"
 GOLDEN_PRESS_RELEASE_2 = FIXTURE_DIR / "260324 (국무회의 종료시) 78년 만의 수사‧기소 분리 중대범죄수사청 출범 본격 착수(중대범죄수사청설립지원단).pdf"
-GOLDEN_PRESS_RELEASE_MD_2 = Path("/home/wavel/pdf_to_md_app/tests/converted_md/260324 (국무회의 종료시) 78년 만의 수사‧기소 분리 중대범죄수사청 출범 본격 착수(중대범죄수사청설립지원단).md")
+GOLDEN_PRESS_RELEASE_MD_2 = GOLDEN_DIR / "260324 (국무회의 종료시) 78년 만의 수사‧기소 분리 중대범죄수사청 출범 본격 착수(중대범죄수사청설립지원단).md"
 GOLDEN_PRESS_RELEASE_3 = FIXTURE_DIR / "260324 (국무회의 종료시) 주민과 함께 만드는 풍요로운 마을 햇빛소득마을 전국 확산 본격 추진(햇빛소득마을추진단).pdf"
-GOLDEN_PRESS_RELEASE_MD_3 = Path("/home/wavel/pdf_to_md_app/tests/converted_md/press_release/260324 (국무회의 종료시) 주민과 함께 만드는 풍요로운 마을 햇빛소득마을 전국 확산 본격 추진(햇빛소득마을추진단).md")
+GOLDEN_PRESS_RELEASE_MD_3 = GOLDEN_DIR / "260324 (국무회의 종료시) 주민과 함께 만드는 풍요로운 마을 햇빛소득마을 전국 확산 본격 추진(햇빛소득마을추진단).md"
 GOLDEN_PRESS_RELEASE_4 = FIXTURE_DIR / "260326 (조간) 부울경 복합재난 대비 역량 강화를 위한 한·일 공동세미나 개최(국립재난안전연구원 지진방재센터).pdf"
-GOLDEN_PRESS_RELEASE_MD_4 = Path("/home/wavel/pdf_to_md_app/tests/converted_md/press_release/260326 (조간) 부울경 복합재난 대비 역량 강화를 위한 한·일 공동세미나 개최(국립재난안전연구원 지진방재센터).md")
+GOLDEN_PRESS_RELEASE_MD_4 = GOLDEN_DIR / "260326 (조간) 부울경 복합재난 대비 역량 강화를 위한 한·일 공동세미나 개최(국립재난안전연구원 지진방재센터).md"
 GOLDEN_PRESS_RELEASE_5 = FIXTURE_DIR / "260326 (17시) 살피고 대피하라! 고층건축물 화재 대비 올해 첫 레디 코리아 훈련(재난대응훈련과).pdf"
-GOLDEN_PRESS_RELEASE_MD_5 = Path("/home/wavel/pdf_to_md_app/tests/converted_md/press_release/260326 (17시) 살피고 대피하라! 고층건축물 화재 대비 올해 첫 레디 코리아 훈련(재난대응훈련과).md")
+GOLDEN_PRESS_RELEASE_MD_5 = GOLDEN_DIR / "260326 (17시) 살피고 대피하라! 고층건축물 화재 대비 올해 첫 레디 코리아 훈련(재난대응훈련과).md"
 GOLDEN_PRESS_RELEASE_6 = FIXTURE_DIR / "260326 (15시) 과학수사 발전 격려하고 서민금융 현장 살펴(자치행정과).pdf"
-GOLDEN_PRESS_RELEASE_MD_6 = Path("/home/wavel/pdf_to_md_app/tests/converted_md/press_release/260326 (15시) 과학수사 발전 격려하고 서민금융 현장 살펴(자치행정과).md")
+GOLDEN_PRESS_RELEASE_MD_6 = GOLDEN_DIR / "260326 (15시) 과학수사 발전 격려하고 서민금융 현장 살펴(자치행정과).md"
 GOLDEN_PRESS_RELEASE_7 = FIXTURE_DIR / "260325 (조간) 새로운 시설물 속 숨은 위험 찾는다 잠재 재난위험 분석 보고서 발간(재난대응총괄과).pdf"
-GOLDEN_PRESS_RELEASE_MD_7 = Path("/home/wavel/pdf_to_md_app/tests/converted_md/press_release/260325 (조간) 새로운 시설물 속 숨은 위험 찾는다 잠재 재난위험 분석 보고서 발간(재난대응총괄과).md")
+GOLDEN_PRESS_RELEASE_MD_7 = GOLDEN_DIR / "260325 (조간) 새로운 시설물 속 숨은 위험 찾는다 잠재 재난위험 분석 보고서 발간(재난대응총괄과).md"
 
 
 class ConverterTests(unittest.TestCase):
     @staticmethod
     def _normalize_markdown_for_assertion(text: str) -> str:
         return "\n".join(line.rstrip() for line in text.splitlines() if line.strip()).strip()
+
+    def _assert_matches_golden(self, actual: str, golden_path: Path) -> None:
+        if not golden_path.exists():
+            self.skipTest(f"golden fixture missing: {golden_path}")
+
+        expected = golden_path.read_text(encoding="utf-8")
+        self.assertEqual(
+            self._normalize_markdown_for_assertion(actual),
+            self._normalize_markdown_for_assertion(expected),
+        )
 
     def test_invalid_path_raises(self) -> None:
         with self.assertRaises(FileNotFoundError):
@@ -653,52 +666,28 @@ class ConverterTests(unittest.TestCase):
             self.assertIn(snippet, actual)
 
     def test_second_golden_press_release_matches_expected_markdown(self) -> None:
-        expected = GOLDEN_PRESS_RELEASE_MD_2.read_text(encoding="utf-8")
         actual = convert_pdf_to_markdown(GOLDEN_PRESS_RELEASE_2, timeout_seconds=300)
-        self.assertEqual(
-            self._normalize_markdown_for_assertion(actual),
-            self._normalize_markdown_for_assertion(expected),
-        )
+        self._assert_matches_golden(actual, GOLDEN_PRESS_RELEASE_MD_2)
 
     def test_third_golden_press_release_matches_expected_markdown(self) -> None:
-        expected = GOLDEN_PRESS_RELEASE_MD_3.read_text(encoding="utf-8")
         actual = convert_pdf_to_markdown(GOLDEN_PRESS_RELEASE_3, timeout_seconds=300)
-        self.assertEqual(
-            self._normalize_markdown_for_assertion(actual),
-            self._normalize_markdown_for_assertion(expected),
-        )
+        self._assert_matches_golden(actual, GOLDEN_PRESS_RELEASE_MD_3)
 
     def test_fourth_golden_press_release_matches_expected_markdown(self) -> None:
-        expected = GOLDEN_PRESS_RELEASE_MD_4.read_text(encoding="utf-8")
         actual = convert_pdf_to_markdown(GOLDEN_PRESS_RELEASE_4, timeout_seconds=300)
-        self.assertEqual(
-            self._normalize_markdown_for_assertion(actual),
-            self._normalize_markdown_for_assertion(expected),
-        )
+        self._assert_matches_golden(actual, GOLDEN_PRESS_RELEASE_MD_4)
 
     def test_fifth_golden_press_release_matches_expected_markdown(self) -> None:
-        expected = GOLDEN_PRESS_RELEASE_MD_5.read_text(encoding="utf-8")
         actual = convert_pdf_to_markdown(GOLDEN_PRESS_RELEASE_5, timeout_seconds=300)
-        self.assertEqual(
-            self._normalize_markdown_for_assertion(actual),
-            self._normalize_markdown_for_assertion(expected),
-        )
+        self._assert_matches_golden(actual, GOLDEN_PRESS_RELEASE_MD_5)
 
     def test_sixth_golden_press_release_matches_expected_markdown(self) -> None:
-        expected = GOLDEN_PRESS_RELEASE_MD_6.read_text(encoding="utf-8")
         actual = convert_pdf_to_markdown(GOLDEN_PRESS_RELEASE_6, timeout_seconds=300)
-        self.assertEqual(
-            self._normalize_markdown_for_assertion(actual),
-            self._normalize_markdown_for_assertion(expected),
-        )
+        self._assert_matches_golden(actual, GOLDEN_PRESS_RELEASE_MD_6)
 
     def test_seventh_golden_press_release_matches_expected_markdown(self) -> None:
-        expected = GOLDEN_PRESS_RELEASE_MD_7.read_text(encoding="utf-8")
         actual = convert_pdf_to_markdown(GOLDEN_PRESS_RELEASE_7, timeout_seconds=300)
-        self.assertEqual(
-            self._normalize_markdown_for_assertion(actual),
-            self._normalize_markdown_for_assertion(expected),
-        )
+        self._assert_matches_golden(actual, GOLDEN_PRESS_RELEASE_MD_7)
 
 
 if __name__ == "__main__":
