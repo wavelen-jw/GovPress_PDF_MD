@@ -1,5 +1,5 @@
 #ifndef AppSourceDir
-#define AppSourceDir "..\dist\GovPress_PDF_MD"
+#define AppSourceFile "..\dist\GovPress_PDF_MD.exe"
 #endif
 
 #ifndef OutputBaseFilename
@@ -36,7 +36,7 @@ Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
 Name: "desktopicon"; Description: "바탕 화면 바로 가기 생성"; GroupDescription: "추가 작업:"
 
 [Files]
-Source: "{#AppSourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#AppSourceFile}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\GovPress_PDF_MD"; Filename: "{app}\GovPress_PDF_MD.exe"

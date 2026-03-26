@@ -54,7 +54,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release | Out-Null
-          Compress-Archive -Path dist/GovPress_PDF_MD/* -DestinationPath release/GovPress_PDF_MD-windows.zip -Force
+          Compress-Archive -Path dist/GovPress_PDF_MD.exe -DestinationPath release/GovPress_PDF_MD-windows.zip -Force
 
       - name: Upload application artifact
         uses: actions/upload-artifact@v4
@@ -62,7 +62,7 @@ jobs:
           name: GovPress_PDF_MD-windows
           path: |
             release/GovPress_PDF_MD-windows.zip
-            dist/GovPress_PDF_MD/**
+            dist/GovPress_PDF_MD.exe
             build/**
           if-no-files-found: error
 

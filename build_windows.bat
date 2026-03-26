@@ -123,7 +123,7 @@ if %ERRORLEVEL%==0 (
 
 echo.
 echo Build complete.
-echo Output: %CD%\dist\GovPress_PDF_MD\GovPress_PDF_MD.exe
+echo Output: %CD%\dist\GovPress_PDF_MD.exe
 if exist dist_installer\GovPress_PDF_MD_Setup.exe echo Installer: %CD%\dist_installer\GovPress_PDF_MD_Setup.exe
 
 endlocal
