@@ -92,7 +92,7 @@ class ConverterTests(unittest.TestCase):
 
             staged_path = _stage_input_pdf_for_conversion(source_path, temp_root)
 
-            self.assertEqual(staged_path, temp_root / source_path.name)
+            self.assertEqual(staged_path, temp_root / "input.pdf")
             self.assertTrue(staged_path.exists())
             self.assertEqual(staged_path.read_bytes(), b"%PDF-1.4")
 
@@ -741,6 +741,56 @@ class ConverterTests(unittest.TestCase):
         self.assertIn("> ## 흩어진 금융자산 파악하고 투자 계획 세우는 ㄴ씨", markdown)
         self.assertIn("> 자영업자 ㄴ씨는 여러 금융기관 정보를 확인했다.", markdown)
         self.assertIn("행정안전부는 서비스를 선정했다고 밝혔다.", markdown)
+
+    def test_press_release_data_report_lead_lines_become_quote_instead_of_bullets(self) -> None:
+        raw = (
+            "보도자료\n"
+            "보도시점 (온라인) 2026. 3. 24.\n"
+            "제목\n"
+            "- 실태점검 결과 발표\n"
+            "- 우수 사례 확산 및 미흡 기관 지원\n"
+            "#### < 2025년도 데이터기반행정 추진 사례 >\n"
+            "(해양수산부) 어업용 면세유 부정 유통 감독을 위한 데이터 분석\n"
+            "§ 면세유 거래 데이터 등을 활용하여 이상 패턴 분석\n"
+            "§ 이상 탐지 모델 구축\n"
+            "□ 행정안전부는 결과를 발표했다.\n"
+        )
+        markdown = postprocess_markdown(raw)
+        self.assertIn("보도시점: (온라인) 2026. 3. 24.", markdown)
+        self.assertIn("> 실태점검 결과 발표", markdown)
+        self.assertIn("> 우수 사례 확산 및 미흡 기관 지원", markdown)
+        self.assertNotIn("- 실태점검 결과 발표", markdown)
+        self.assertIn("#### < 2025년도 데이터기반행정 추진 사례 >", markdown)
+        self.assertIn("> (해양수산부) 어업용 면세유 부정 유통 감독을 위한 데이터 분석", markdown)
+        self.assertIn("> - 면세유 거래 데이터 등을 활용하여 이상 패턴 분석", markdown)
+        self.assertIn("> - 이상 탐지 모델 구축", markdown)
+
+    def test_press_release_case_study_mode_splits_nested_note_and_continuation(self) -> None:
+        raw = (
+            "보도자료\n"
+            "보도시점 (온라인) 2026. 3. 24. 실태점검\n"
+            "제목\n"
+            "- 실태점검 결과 발표\n"
+            "#### < 2025년도 데이터기반행정 추진 사례 >\n"
+            "(서울특별시) 전세사기 위험 분석 보고서 서비스\n"
+            "§ 임대차계약 전에 주택 위험 요인을 확인할 수 있도록 서비스 제공\n"
+            "※ 내집스캔을 통해 서비스 제공 중 § 임차인이 사전에 위험 징후를 인지하도록 지원\n"
+            "(한국도로공사) 눈으로 보이지 않던 교통사고의 원인을 밝히는 디지털 도로안전진단\n"
+            "§ 차량형 라이다 장비로 사고 원인 진단\n"
+            "빗길 교통사고 취약 구간 분석\n"
+            "△ 전국 도로로 확산 적용하기 위해 시범사업 추진 예정\n"
+            "□ 본문 시작\n"
+        )
+        markdown = postprocess_markdown(raw)
+        self.assertIn("행정안전부 보도자료", markdown)
+        self.assertNotIn("> 행정안전부 보도자료", markdown)
+        self.assertIn("> 실태점검 결과 발표", markdown)
+        self.assertIn("> (서울특별시) 전세사기 위험 분석 보고서 서비스", markdown)
+        self.assertIn("> - 임대차계약 전에 주택 위험 요인을 확인할 수 있도록 서비스 제공", markdown)
+        self.assertIn(">   - 내집스캔을 통해 서비스 제공 중 § 임차인이 사전에 위험 징후를 인지하도록 지원", markdown)
+        self.assertIn("> - 차량형 라이다 장비로 사고 원인 진단", markdown)
+        self.assertIn("> - 빗길 교통사고 취약 구간 분석", markdown)
+        self.assertIn(">    - 전국 도로로 확산 적용하기 위해 시범사업 추진 예정", markdown)
 
     def test_press_release_top_level_body_paragraphs_are_separated(self) -> None:
         raw = (

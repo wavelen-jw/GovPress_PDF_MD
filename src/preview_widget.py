@@ -18,6 +18,8 @@ BULLET_PATTERN = re.compile(r"^\s*[-+*]\s+")
 NUMBERED_LIST_PATTERN = re.compile(r"^\s*\d+\.\s+")
 BLOCKQUOTE_PATTERN = re.compile(r"<blockquote>(.*?)</blockquote>", re.IGNORECASE | re.DOTALL)
 HR_PATTERN = re.compile(r"<hr\s*/?>", re.IGNORECASE)
+H4_OPEN_PATTERN = re.compile(r"<h4\b[^>]*>", re.IGNORECASE)
+H4_CLOSE_PATTERN = re.compile(r"</h4>", re.IGNORECASE)
 HIGHLIGHT_TOKEN = "GOVPRESS_CURSOR_HIGHLIGHT_TOKEN"
 
 
@@ -118,6 +120,11 @@ def decorate_preview_html(html: str) -> str:
         '<hr class="md-rule" style="display:block;border:0;border-top:2px solid #000000;height:0;margin:8px 0 10px 0;" />',
         html,
     )
+    html = H4_OPEN_PATTERN.sub(
+        '<p class="md-h4" style="font-size:22px;font-weight:700;line-height:1.34;margin:0.95em 0 0.42em 0;color:#2f2f2f;">',
+        html,
+    )
+    html = H4_CLOSE_PATTERN.sub("</p>", html)
     html = BLOCKQUOTE_PATTERN.sub(_replace_blockquote_with_callout_table, html)
     html = html.replace(
         HIGHLIGHT_TOKEN,

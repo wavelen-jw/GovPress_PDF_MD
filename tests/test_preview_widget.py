@@ -51,6 +51,12 @@ class PreviewWidgetTests(unittest.TestCase):
         self.assertIn('class="quote-block"', decorated)
         self.assertIn("background:#000000", decorated)
 
+    def test_decorate_preview_html_inlines_h4_font_size(self) -> None:
+        html = "<h4>소제목</h4>"
+        decorated = decorate_preview_html(html)
+        self.assertIn('font-size:22px', decorated)
+        self.assertIn('class="md-h4"', decorated)
+
     def test_inject_cursor_highlight_marks_matching_plain_line(self) -> None:
         markdown = "첫 줄\n둘째 줄"
         highlighted = inject_cursor_highlight(markdown, "둘째 줄")
@@ -64,4 +70,5 @@ class PreviewWidgetTests(unittest.TestCase):
     def test_preview_html_styles_h4_slightly_larger_than_body(self) -> None:
         widget = MarkdownPreviewWidget()
         html = widget._to_html("#### 소제목", None)
-        self.assertIn("<h4>소제목</h4>", html)
+        self.assertIn('class="md-h4"', html)
+        self.assertIn("소제목", html)

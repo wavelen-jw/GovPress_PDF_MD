@@ -36,6 +36,29 @@ APPENDIX_FIELD_PATTERN = re.compile(r"^[○ㅇ]\s*([^:：]+)\s*[:：]\s*(.+)$")
 PRESS_CALLOUT_MARKER_PATTERN = re.compile(r"\s+(?=▴\()")
 TRAILING_ANGLE_LABEL_PATTERN = re.compile(r"^(.*?[.!?])\s*(<[^>]+>)$")
 ANGLE_LABEL_WITH_TRIANGLE_PATTERN = re.compile(r"^(<[^>]+>)\s*(△.+)$")
+CASE_STUDY_HEADING_PATTERN = re.compile(r"^####\s*<\s*20\d{2}.*추진 사례\s*>$")
+MARKDOWN_TABLE_SEPARATOR_PATTERN = re.compile(r"^\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|$")
+INLINE_SERVICE_TABLE_BUNDLE_PATTERN = re.compile(r"(\|[^|]+\|[^|]+\|[^|]+\|)")
+
+
+def _split_inline_service_table_bundle(text: str) -> list[str]:
+    if "|서비스|주요내용|신청방법|" not in text:
+        return [text]
+
+    prefix, _, remainder = text.partition("|서비스|주요내용|신청방법|")
+    lines: list[str] = []
+    prefix = clean_line(prefix)
+    if prefix:
+        lines.append(prefix)
+
+    bundle = f"|서비스|주요내용|신청방법|{remainder}"
+    rows = [clean_line(match.group(1)) for match in INLINE_SERVICE_TABLE_BUNDLE_PATTERN.finditer(bundle)]
+    if rows:
+        lines.extend(rows)
+        return lines
+
+    lines.append(clean_line(bundle))
+    return lines
 
 
 def _join_title(lines: Iterable[str]) -> str:
@@ -45,12 +68,21 @@ def _join_title(lines: Iterable[str]) -> str:
 def _split_lines(raw_text: str) -> list[str]:
     expanded: list[str] = []
     for raw_line in raw_text.splitlines():
+        service_parts = _split_inline_service_table_bundle(raw_line)
+        if len(service_parts) > 1 or service_parts[0] != raw_line:
+            for part in service_parts:
+                if part:
+                    expanded.append(part)
+            continue
+
         if raw_line.strip().startswith("|") and raw_line.strip().endswith("|"):
             line = IMAGE_ARTIFACT_PATTERN.sub("", raw_line).strip()
             if not line:
                 expanded.append("")
                 continue
             if TABLE_NOISE_PATTERN.fullmatch(line):
+                if MARKDOWN_TABLE_SEPARATOR_PATTERN.fullmatch(line):
+                    expanded.append(clean_line(line))
                 continue
             expanded.append(clean_line(IMAGE_PATTERN.sub("", line)))
             continue
@@ -145,7 +177,7 @@ def _has_press_release_markers(lines: list[str]) -> bool:
     return sum(1 for marker in markers if marker in joined) >= 2
 
 
-def _render_metadata(lines: list[str]) -> list[str]:
+def _render_metadata(lines: list[str], plain_metadata: bool = False) -> list[str]:
     if not lines:
         return []
 
@@ -154,16 +186,17 @@ def _render_metadata(lines: list[str]) -> list[str]:
         normalized = re.sub(r"(\d{1,2}:\d{2})\s+\(", r"\1 / (", normalized)
         return normalized
 
-    rendered = ["> 행정안전부 보도자료"]
+    rendered = ["행정안전부 보도자료"] if plain_metadata else ["> 행정안전부 보도자료"]
     for line in lines:
         text = clean_line(line)
         if text.startswith("보도시점"):
             suffix = text[len("보도시점") :].strip(" :")
             suffix = normalize_metadata_text(suffix)
             if suffix:
-                rendered.append(f"> 보도시점: {suffix}")
+                rendered.append(f"보도시점: {suffix}" if plain_metadata else f"> 보도시점: {suffix}")
         else:
-            rendered.append(f"> 보도시점: {normalize_metadata_text(text)}")
+            normalized = normalize_metadata_text(text)
+            rendered.append(f"보도시점: {normalized}" if plain_metadata else f"> 보도시점: {normalized}")
     return rendered
 
 
@@ -277,6 +310,9 @@ def _normalize_body_line(text: str, template: PressReleaseTemplate) -> list[str]
 def _expand_inline_bullets(lines: list[str]) -> list[str]:
     expanded: list[str] = []
     for line in lines:
+        if line.lstrip().startswith(">"):
+            expanded.append(line.rstrip())
+            continue
         leading = line[: len(line) - len(line.lstrip(" "))]
         text = clean_line(line)
         if text.startswith(("#", ">", "- ", "  - ")):
@@ -350,6 +386,14 @@ def _starts_main_press_body(text: str, template: PressReleaseTemplate) -> bool:
     return False
 
 
+def _is_case_study_bullet(text: str) -> bool:
+    return text.startswith(("§", "- ", "○ ", "△", "※"))
+
+
+def _is_case_study_intro(text: str) -> bool:
+    return text.startswith("(") and ")" in text[:20]
+
+
 def _render_body(lines: list[str], template: PressReleaseTemplate) -> list[str]:
     rendered: list[str] = []
     inside_reference_block = False
@@ -357,6 +401,8 @@ def _render_body(lines: list[str], template: PressReleaseTemplate) -> list[str]:
     note_quote_indent: str | None = None
     intro_quote_mode = False
     main_body_started = False
+    case_study_mode = False
+    previous_case_study_bullet_was_split = False
     reference_breakers = (
         "- 먼저",
         "- 특히",
@@ -373,6 +419,49 @@ def _render_body(lines: list[str], template: PressReleaseTemplate) -> list[str]:
         text = clean_line(line)
         if not text:
             continue
+        if case_study_mode:
+            if text.startswith("□"):
+                if rendered and rendered[-1] != "":
+                    rendered.append("")
+                case_study_mode = False
+                main_body_started = True
+            elif _is_case_study_intro(text):
+                if rendered and rendered[-1] != "":
+                    rendered.append("")
+                rendered.append(f"> {text}")
+                previous_case_study_bullet_was_split = False
+                continue
+            elif _is_case_study_bullet(text):
+                bullet_text = text[1:].strip() if text.startswith(("§", "※")) else text.lstrip("○").strip()
+                if text.startswith(("○ ", "§", "※")):
+                    if text.startswith("§") and "§" in bullet_text:
+                        parts = [clean_line(part) for part in bullet_text.split("§") if clean_line(part)]
+                        for index, part in enumerate(parts):
+                            prefix = "> - "
+                            rendered.append(f"{prefix}{part}")
+                        previous_case_study_bullet_was_split = True
+                    else:
+                        prefix = ">   - " if text.startswith("※") else "> - "
+                        rendered.append(f"{prefix}{bullet_text}")
+                        previous_case_study_bullet_was_split = False
+                else:
+                    if text.startswith("△"):
+                        rendered.append(f">    - {text[1:].strip()}")
+                    elif text.startswith("- "):
+                        prefix = ">    - " if previous_case_study_bullet_was_split else "> - "
+                        rendered.append(f"{prefix}{text[1:].strip()}")
+                    else:
+                        rendered.append(f"> {text}")
+                    previous_case_study_bullet_was_split = False
+                continue
+            elif text and not text.startswith("□"):
+                rendered.append(f"> - {text}")
+                previous_case_study_bullet_was_split = False
+                continue
+            else:
+                rendered.append(f"> {text}")
+                previous_case_study_bullet_was_split = False
+                continue
         if not main_body_started:
             if text.startswith("# "):
                 intro_quote_mode = True
@@ -422,6 +511,8 @@ def _render_body(lines: list[str], template: PressReleaseTemplate) -> list[str]:
                 continue
 
         normalized = _normalize_body_line(text, template)
+        if normalized and CASE_STUDY_HEADING_PATTERN.match(normalized[0]):
+            case_study_mode = True
         if text.startswith("※") and normalized:
             note_quote_indent = _quote_indent_for_context(rendered)
             normalized = [
@@ -576,6 +667,9 @@ def _collapse_wrapped_lines(lines: list[str]) -> list[str]:
         if previous.endswith((".", ":", ">", ")")):
             collapsed.append(text)
             continue
+        if text.startswith("〈") or previous.startswith("〈"):
+            collapsed.append(text)
+            continue
         if text.startswith(("#", "-", ">", "|")):
             collapsed.append(text)
             continue
@@ -594,7 +688,10 @@ def _post_clean(lines: list[str]) -> list[str]:
     previous_blank = False
     for line in lines:
         stripped_leading = line[: len(line) - len(line.lstrip(" "))]
-        text = clean_line(line)
+        if line.lstrip().startswith(">"):
+            text = line.rstrip()
+        else:
+            text = clean_line(line)
         if stripped_leading and text.startswith(("-", ">")):
             text = f"{stripped_leading}{text}"
         if not text:
@@ -611,11 +708,27 @@ def _post_clean(lines: list[str]) -> list[str]:
             and cleaned
             and cleaned[-1].lstrip().startswith(("-", "△"))
         ):
+            if cleaned[-1].lstrip().startswith("-") and cleaned[-1].rstrip().endswith(","):
+                cleaned[-1] = f"{cleaned[-1].rstrip()}   {text}"
+                previous_blank = False
+                continue
             cleaned.append(f"  {text}")
             previous_blank = False
             continue
         if text.startswith("-") and cleaned and cleaned[-1].lstrip().startswith("△"):
             cleaned.append("")
+        if text.startswith("|"):
+            if cleaned and cleaned[-1] != "" and not cleaned[-1].startswith("|"):
+                cleaned.append("")
+            cleaned.append(text)
+            previous_blank = False
+            continue
+        if text.startswith("〈"):
+            if cleaned and cleaned[-1] != "":
+                cleaned.append("")
+            cleaned.append(text)
+            previous_blank = False
+            continue
         if "현장지원단 구성:" in text:
             if cleaned and cleaned[-1] != "":
                 cleaned.append("")
@@ -636,9 +749,14 @@ def _post_clean(lines: list[str]) -> list[str]:
             cleaned
             and cleaned[-1]
             and cleaned[-1].lstrip().startswith("-")
-            and not text.lstrip().startswith(("#", "-", ">", "---"))
+            and not text.lstrip().startswith(("#", "-", ">", "---", "|"))
         ):
-            cleaned.append("")
+            if text.lstrip().startswith("△"):
+                cleaned.append("")
+            else:
+                cleaned[-1] = f"{cleaned[-1].rstrip()} {text}"
+                previous_blank = False
+                continue
         previous_blank = False
         cleaned.append(text)
     while cleaned and not cleaned[-1]:
@@ -698,18 +816,20 @@ def _postprocess_press_release(
 ) -> str:
     sections = extract_sections(raw_text, template)
     blocks: list[str] = []
+    subtitle_items = [clean_line(line).lstrip("- ").strip() for line in sections.subtitle_lines]
+    use_quote_subtitles = any("실태점검" in item for item in subtitle_items)
 
     title = _join_title(sections.title_lines)
     if title:
         blocks.append(f"# {title}")
 
-    metadata = _render_metadata(sections.metadata_lines)
+    metadata = _render_metadata(sections.metadata_lines, plain_metadata=use_quote_subtitles)
     if metadata:
         blocks.append("\n".join(metadata))
 
     if sections.subtitle_lines:
         subtitles = "\n".join(
-            f"- {clean_line(line).lstrip('- ').strip()}" for line in sections.subtitle_lines
+            f"> {item}" if use_quote_subtitles else f"- {item}" for item in subtitle_items
         )
         if sections.body_lines:
             blocks.append(f"{subtitles}\n---")

@@ -37,9 +37,26 @@ h3 {
 }
 
 h4 {
-  font-size: 1.16em;
+  font-size: 1.32em;
   margin-top: 0.95em;
   margin-bottom: 0.42em;
+  line-height: 1.34;
+}
+
+blockquote h4,
+.quote-block h4 {
+  font-size: 1.32em;
+  font-weight: 700;
+  line-height: 1.34;
+}
+
+.md-h4 {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.34;
+  letter-spacing: -0.02em;
+  margin: 0.95em 0 0.42em;
+  color: #2f2f2f;
 }
 
 h1:first-child,
@@ -113,6 +130,10 @@ table {
   width: 100%;
   margin: 0.45em 0 1.3em;
   font-size: 0.98em;
+}
+
+table.quote-block {
+  font-size: 1em;
 }
 
 th,
