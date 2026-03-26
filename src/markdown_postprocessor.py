@@ -338,11 +338,25 @@ def _starts_new_body_block(text: str, template: PressReleaseTemplate) -> bool:
     return False
 
 
+def _starts_main_press_body(text: str, template: PressReleaseTemplate) -> bool:
+    if any(text.startswith(marker) for marker in template.top_level_bullets):
+        return True
+    if any(text.startswith(marker) for marker in template.second_level_bullets):
+        return True
+    if text.startswith(("<", "※", "* ", "- ", "ㅇ ", "▸", "￭")):
+        return True
+    if is_reference_line(text):
+        return True
+    return False
+
+
 def _render_body(lines: list[str], template: PressReleaseTemplate) -> list[str]:
     rendered: list[str] = []
     inside_reference_block = False
     reference_block_mode: str | None = None
     note_quote_indent: str | None = None
+    intro_quote_mode = False
+    main_body_started = False
     reference_breakers = (
         "- 먼저",
         "- 특히",
@@ -359,6 +373,20 @@ def _render_body(lines: list[str], template: PressReleaseTemplate) -> list[str]:
         text = clean_line(line)
         if not text:
             continue
+        if not main_body_started:
+            if text.startswith("# "):
+                intro_quote_mode = True
+                rendered.append(f"> ## {text[2:].strip()}")
+                continue
+            if intro_quote_mode and not _starts_main_press_body(text, template):
+                rendered.append(f"> {text}")
+                continue
+            if intro_quote_mode:
+                if rendered and rendered[-1] != "":
+                    rendered.append("")
+                intro_quote_mode = False
+            if _starts_main_press_body(text, template):
+                main_body_started = True
         if note_quote_indent is not None:
             if _starts_new_body_block(text, template):
                 note_quote_indent = None

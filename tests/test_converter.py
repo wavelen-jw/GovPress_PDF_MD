@@ -446,6 +446,117 @@ class ConverterTests(unittest.TestCase):
             self.assertIn("> #### < 2025년도 데이터기반행정 추진 사례 >", extracted)
             self.assertIn("> (해양수산부) 어업용 면세유 부정 유통 감독을 위한 데이터 분석", extracted)
 
+    def test_json_extractor_preserves_nested_lists_inside_single_cell_quote(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            json_path = Path(temp_dir) / "sample.json"
+            json_path.write_text(
+                """
+                {
+                  "kids": [
+                    {
+                      "type": "table",
+                      "rows": [
+                        {
+                          "cells": [
+                            {
+                              "column number": 1,
+                              "kids": [
+                                {"type": "paragraph", "content": "(서울특별시) 전세사기 위험 분석 보고서 서비스"},
+                                {
+                                  "type": "list",
+                                  "list items": [
+                                    {
+                                      "type": "list item",
+                                      "content": "임대차계약 전에 주택 위험 요인을 확인 할수 있도록 서비스 제공",
+                                      "kids": []
+                                    },
+                                    {
+                                      "type": "list item",
+                                      "content": "전세사기 가담 임대인 약 1,500명의 데이터 분석 후 정보 제공",
+                                      "kids": [
+                                        {
+                                          "type": "list",
+                                          "list items": [
+                                            {
+                                              "type": "list item",
+                                              "content": "내집스캔을 통해 서비스 제공 중",
+                                              "kids": [
+                                                {
+                                                  "type": "list",
+                                                  "list items": [
+                                                    {
+                                                      "type": "list item",
+                                                      "content": "임차인이 숨겨진 위험 징후를 인지하도록 지원",
+                                                      "kids": []
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """,
+                encoding="utf-8",
+            )
+            extracted = extract_text_from_json(json_path)
+            self.assertIn("> (서울특별시) 전세사기 위험 분석 보고서 서비스", extracted)
+            self.assertIn("> - 임대차계약 전에 주택 위험 요인을 확인 할수 있도록 서비스 제공", extracted)
+            self.assertIn("> - 전세사기 가담 임대인 약 1,500명의 데이터 분석 후 정보 제공", extracted)
+            self.assertIn(">   - 내집스캔을 통해 서비스 제공 중", extracted)
+            self.assertIn(">     - 임차인이 숨겨진 위험 징후를 인지하도록 지원", extracted)
+
+    def test_json_extractor_rebuilds_single_column_service_table(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            json_path = Path(temp_dir) / "sample.json"
+            json_path.write_text(
+                """
+                {
+                  "kids": [
+                    {
+                      "type": "table",
+                      "rows": [
+                        {
+                          "cells": [
+                            {"column number": 1, "kids": [{"type": "paragraph", "content": "서비스 주요 내용 신청 방법"}]}
+                          ]
+                        },
+                        {
+                          "cells": [
+                            {
+                              "column number": 1,
+                              "kids": [
+                                {"type": "paragraph", "content": "금융소비자 포털 (금융감독원)"},
+                                {"type": "paragraph", "content": "금융상품 한눈에, 제도권 금융회사 조회"},
+                                {"type": "paragraph", "content": "금융소비자 포털 파인 접속 후 이용"},
+                                {"type": "paragraph", "content": "* 문의: 콜센터 1332"}
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """,
+                encoding="utf-8",
+            )
+            extracted = extract_text_from_json(json_path)
+            self.assertIn("|서비스|주요내용|신청방법|", extracted)
+            self.assertIn("|:---:|:---:|:---:|", extracted)
+            self.assertIn("|금융소비자 포털 (금융감독원)|금융상품 한눈에, 제도권 금융회사 조회|금융소비자 포털 파인 접속 후 이용 * 문의: 콜센터 1332|", extracted)
+
     def test_json_extractor_splits_inline_items_inside_table_cells(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             json_path = Path(temp_dir) / "sample.json"
@@ -611,6 +722,25 @@ class ConverterTests(unittest.TestCase):
         self.assertIn("- 상위 항목", markdown)
         self.assertIn("  > 유의사항 첫 줄\n  > 추가 설명", markdown)
         self.assertIn("- 다음 항목", markdown)
+
+    def test_press_release_intro_story_headings_are_rendered_as_quote_block(self) -> None:
+        raw = (
+            "보도자료\n"
+            "보도시점 (온라인) 2026. 3. 24.\n"
+            "제목\n"
+            "- 부제\n"
+            "# 높은 수익률의 투자 정보, 확인하고 투자하는 ㄱ씨\n"
+            "직장인 ㄱ씨는 최근 광고를 접했다.\n"
+            "# 흩어진 금융자산 파악하고 투자 계획 세우는 ㄴ씨\n"
+            "자영업자 ㄴ씨는 여러 금융기관 정보를 확인했다.\n"
+            "□ 행정안전부는 서비스를 선정했다고 밝혔다.\n"
+        )
+        markdown = postprocess_markdown(raw)
+        self.assertIn("> ## 높은 수익률의 투자 정보, 확인하고 투자하는 ㄱ씨", markdown)
+        self.assertIn("> 직장인 ㄱ씨는 최근 광고를 접했다.", markdown)
+        self.assertIn("> ## 흩어진 금융자산 파악하고 투자 계획 세우는 ㄴ씨", markdown)
+        self.assertIn("> 자영업자 ㄴ씨는 여러 금융기관 정보를 확인했다.", markdown)
+        self.assertIn("행정안전부는 서비스를 선정했다고 밝혔다.", markdown)
 
     def test_press_release_top_level_body_paragraphs_are_separated(self) -> None:
         raw = (

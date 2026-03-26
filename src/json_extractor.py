@@ -10,6 +10,7 @@ from .parser_rules import clean_line
 IGNORED_NODE_TYPES = {"image", "footer"}
 CONTACT_LABELS = {"담당 부서", "담당부서", "책임자", "담당자"}
 TABLE_LIST_MARKERS = ("§", "•", "‧")
+SERVICE_TABLE_HEADER = "서비스 주요 내용 신청 방법"
 
 
 def _collect_text(node: dict[str, Any]) -> list[str]:
@@ -52,7 +53,7 @@ def _collect_cell_text(cell: dict[str, Any]) -> str:
     return clean_line(" ".join(parts))
 
 
-def _collect_single_cell_quote_lines(node: dict[str, Any]) -> list[str]:
+def _collect_single_cell_quote_lines(node: dict[str, Any], list_depth: int = 0) -> list[str]:
     node_type = node.get("type")
     if node_type in IGNORED_NODE_TYPES:
         return []
@@ -72,21 +73,22 @@ def _collect_single_cell_quote_lines(node: dict[str, Any]) -> list[str]:
     if node_type == "list":
         lines: list[str] = []
         for item in node.get("list items", []):
-            lines.extend(_collect_single_cell_quote_lines(item))
+            lines.extend(_collect_single_cell_quote_lines(item, list_depth + 1))
         return lines
 
     if node_type == "list item":
         lines: list[str] = []
         content = clean_line(str(node.get("content") or ""))
         if content:
-            lines.append(content)
+            indent = "  " * max(list_depth - 1, 0)
+            lines.append(f"{indent}- {content}")
         for child in node.get("kids", []):
-            lines.extend(_collect_single_cell_quote_lines(child))
+            lines.extend(_collect_single_cell_quote_lines(child, list_depth))
         return lines
 
     lines: list[str] = []
     for child in node.get("kids", []):
-        lines.extend(_collect_single_cell_quote_lines(child))
+        lines.extend(_collect_single_cell_quote_lines(child, list_depth))
     return lines
 
 
@@ -107,6 +109,8 @@ def _table_to_lines(table: dict[str, Any]) -> list[str]:
     rows = table.get("rows", [])
     if _is_contact_table(rows):
         return _contact_table_to_lines(rows)
+    if _is_single_column_service_table(rows):
+        return _single_column_service_table_to_lines(rows)
     if _is_single_cell_table(rows):
         return _single_cell_table_to_lines(rows)
     if _is_simple_table(rows):
@@ -122,6 +126,23 @@ def _is_single_cell_table(rows: list[dict[str, Any]]) -> bool:
     return len(rows) == 1 and len(_sorted_row_cells(rows[0])) == 1
 
 
+def _is_single_column_service_table(rows: list[dict[str, Any]]) -> bool:
+    if len(rows) < 2:
+        return False
+    if any(len(_sorted_row_cells(row)) != 1 for row in rows):
+        return False
+
+    header = _collect_cell_text(_sorted_row_cells(rows[0])[0])
+    if header.replace(" ", "") != SERVICE_TABLE_HEADER.replace(" ", ""):
+        return False
+
+    for row in rows[1:]:
+        cell = _sorted_row_cells(row)[0]
+        if len(cell.get("kids", [])) < 3:
+            return False
+    return True
+
+
 def _single_cell_table_to_lines(rows: list[dict[str, Any]]) -> list[str]:
     if not rows:
         return []
@@ -130,11 +151,43 @@ def _single_cell_table_to_lines(rows: list[dict[str, Any]]) -> list[str]:
     parts: list[str] = []
     for child in cell.get("kids", []):
         parts.extend(_collect_single_cell_quote_lines(child))
-    lines = [clean_line(part) for part in parts if clean_line(part)]
+    lines: list[str] = []
+    for part in parts:
+        stripped = clean_line(part)
+        if not stripped:
+            continue
+        leading = part[: len(part) - len(part.lstrip(" "))]
+        lines.append(f"{leading}{stripped}" if leading else stripped)
     if not lines:
         text = _collect_cell_text(cell)
         lines = [text] if text else []
     return [f"> {line}" if line else ">" for line in lines]
+
+
+def _single_column_service_table_to_lines(rows: list[dict[str, Any]]) -> list[str]:
+    if not rows:
+        return []
+
+    header = ["서비스", "주요내용", "신청방법"]
+    lines = [
+        f"|{'|'.join(header)}|",
+        "|:---:|:---:|:---:|",
+    ]
+
+    for row in rows[1:]:
+        cell = _sorted_row_cells(row)[0]
+        parts = [
+            clean_line(str(child.get("content") or ""))
+            for child in cell.get("kids", [])
+            if clean_line(str(child.get("content") or ""))
+        ]
+        if len(parts) < 3:
+            continue
+        service = _escape_markdown_table_cell(parts[0])
+        details = _escape_markdown_table_cell(parts[1])
+        method = _escape_markdown_table_cell(" ".join(parts[2:]))
+        lines.append(f"|{service}|{details}|{method}|")
+    return lines
 
 
 def _is_simple_table(rows: list[dict[str, Any]]) -> bool:
