@@ -1,5 +1,5 @@
 #ifndef AppSourceDir
-#define AppSourceDir "dist\GovPress_PDF_MD"
+#define AppSourceDir "..\dist\GovPress_PDF_MD"
 #endif
 
 #ifndef OutputBaseFilename
@@ -22,7 +22,7 @@ VersionInfoCopyright=Copyright (c) 2026 wavelen-jw
 DefaultDirName={autopf}\GovPress_PDF_MD
 DefaultGroupName=GovPress_PDF_MD
 DisableProgramGroupPage=yes
-OutputDir=dist_installer
+OutputDir=..\dist_installer
 OutputBaseFilename={#OutputBaseFilename}
 Compression=lzma
 SolidCompression=yes
