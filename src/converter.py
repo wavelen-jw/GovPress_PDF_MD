@@ -62,6 +62,92 @@ def _application_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+def _windows_registry_java_candidates() -> list[Path]:
+    if sys.platform != "win32":
+        return []
+
+    try:
+        import winreg
+    except ImportError:
+        return []
+
+    candidates: list[Path] = []
+    registry_locations = [
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Eclipse Adoptium\JDK"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Eclipse Adoptium\JRE"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Adoptium\JDK"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Adoptium\JRE"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\JavaSoft\JDK"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\JavaSoft\JRE"),
+        (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Eclipse Adoptium\JDK"),
+        (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Eclipse Adoptium\JRE"),
+        (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Adoptium\JDK"),
+        (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Adoptium\JRE"),
+    ]
+
+    for hive, key_path in registry_locations:
+        try:
+            with winreg.OpenKey(hive, key_path) as root_key:
+                subkey_count, _, _ = winreg.QueryInfoKey(root_key)
+                for index in range(subkey_count):
+                    try:
+                        version_name = winreg.EnumKey(root_key, index)
+                        with winreg.OpenKey(root_key, version_name) as version_key:
+                            for value_name in ("Path", "InstallationPath", "JavaHome"):
+                                try:
+                                    value, _ = winreg.QueryValueEx(version_key, value_name)
+                                except OSError:
+                                    continue
+                                candidates.append(Path(value) / "bin" / "java.exe")
+                                break
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+
+    return candidates
+
+
+def _windows_installed_java_candidates() -> list[Path]:
+    if sys.platform != "win32":
+        return []
+
+    search_roots = [
+        os.environ.get("ProgramW6432"),
+        os.environ.get("ProgramFiles"),
+        os.environ.get("ProgramFiles(x86)"),
+        str(Path.home() / "AppData" / "Local" / "Programs"),
+    ]
+    vendor_dirs = (
+        "Eclipse Adoptium",
+        "Adoptium",
+        "Java",
+    )
+    version_patterns = (
+        "jdk-*",
+        "jre-*",
+        "temurin-*",
+    )
+
+    candidates: list[Path] = []
+    for root in search_roots:
+        if not root:
+            continue
+        root_path = Path(root)
+        for vendor_dir in vendor_dirs:
+            vendor_path = root_path / vendor_dir
+            if not vendor_path.exists():
+                continue
+            for pattern in version_patterns:
+                for install_dir in sorted(vendor_path.glob(pattern), reverse=True):
+                    candidates.append(install_dir / "bin" / "java.exe")
+            direct_java = vendor_path / "bin" / "java.exe"
+            if direct_java.exists():
+                candidates.append(direct_java)
+
+    return candidates
+
+
 def _resolve_java_command() -> str | None:
     bundled_candidates = [
         _application_root() / "runtime" / "java" / "bin" / "java.exe",
@@ -69,7 +155,30 @@ def _resolve_java_command() -> str | None:
         _application_root() / "java" / "bin" / "java.exe",
         _application_root() / "java" / "bin" / "java",
     ]
-    for candidate in bundled_candidates:
+
+    env_candidates = []
+    java_home = os.environ.get("JAVA_HOME")
+    if java_home:
+        env_candidates.extend(
+            [
+                Path(java_home) / "bin" / "java.exe",
+                Path(java_home) / "bin" / "java",
+            ]
+        )
+
+    candidates = (
+        bundled_candidates
+        + env_candidates
+        + _windows_registry_java_candidates()
+        + _windows_installed_java_candidates()
+    )
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        candidate_key = str(candidate).lower()
+        if candidate_key in seen:
+            continue
+        seen.add(candidate_key)
         if candidate.exists():
             return str(candidate)
 
