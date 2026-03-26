@@ -41,7 +41,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(APP_DISPLAY_NAME)
-        self.resize(1280, 840)
+        self._resize_to_screen_ratio()
         self.setAcceptDrops(True)
         icon_path = resolve_resource_path("assets", "icons", "govpress.ico")
         if icon_path.exists():
@@ -76,6 +76,19 @@ class MainWindow(QMainWindow):
         self._apply_drop_target_style(False)
         self._set_view_mode("split")
         self._refresh_preview()
+
+    def _resize_to_screen_ratio(self) -> None:
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            self.resize(1728, 972)
+            return
+
+        available = screen.availableGeometry()
+        width = max(int(available.width() * 0.9), 1728)
+        height = max(int(available.height() * 0.9), 972)
+        width = min(width, available.width())
+        height = min(height, available.height())
+        self.resize(width, height)
 
     def _build_toolbar(self) -> None:
         """Create the main toolbar and actions."""

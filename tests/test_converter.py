@@ -632,6 +632,21 @@ class ConverterTests(unittest.TestCase):
         self.assertIn("| --- | --- | --- |", markdown)
         self.assertIn("| AI 가독성 | 개조식 문장 | 정확한 학습 |", markdown)
 
+    def test_postprocessor_drops_dotted_table_separator_lines_like_solid_ones(self) -> None:
+        raw = (
+            "보도자료\n"
+            "보도시점 (온라인) 2026. 3. 24.\n"
+            "제목\n"
+            "□ 본문\n"
+            "| 구분 | 현행 | 개선 |\n"
+            "| ··· | ··· | ··· |\n"
+            "| AI 가독성 | 개조식 문장 | 정확한 학습 |\n"
+        )
+        markdown = postprocess_markdown(raw)
+        self.assertIn("| 구분 | 현행 | 개선 |", markdown)
+        self.assertNotIn("| ··· | ··· | ··· |", markdown)
+        self.assertIn("| AI 가독성 | 개조식 문장 | 정확한 학습 |", markdown)
+
     def test_triangle_bullets_after_dash_line_are_indented(self) -> None:
         raw = (
             "보도자료\n"

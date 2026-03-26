@@ -1,6 +1,7 @@
 import unittest
 
 from src.preview_widget import (
+    MarkdownPreviewWidget,
     decorate_preview_html,
     inject_cursor_highlight,
     normalize_preview_markdown,
@@ -28,6 +29,11 @@ class PreviewWidgetTests(unittest.TestCase):
         normalized = normalize_preview_markdown(markdown)
         self.assertIn("- 상위 항목\n    - 하위 항목", normalized)
 
+    def test_normalize_preview_markdown_adds_spacing_before_nested_quote_after_bullet(self) -> None:
+        markdown = "- 상위 항목\n  > 참고 문장"
+        normalized = normalize_preview_markdown(markdown)
+        self.assertIn("- 상위 항목\n\n    > 참고 문장", normalized)
+
     def test_decorate_preview_html_does_not_add_rule_below_headings(self) -> None:
         html = "<h1>제목</h1><p>본문</p><h2>소제목</h2>"
         decorated = decorate_preview_html(html)
@@ -54,3 +60,8 @@ class PreviewWidgetTests(unittest.TestCase):
         markdown = "- 첫 항목"
         highlighted = inject_cursor_highlight(markdown, "- 첫 항목")
         self.assertEqual(highlighted, "- GOVPRESS_CURSOR_HIGHLIGHT_TOKEN첫 항목")
+
+    def test_preview_html_styles_h4_slightly_larger_than_body(self) -> None:
+        widget = MarkdownPreviewWidget()
+        html = widget._to_html("#### 소제목", None)
+        self.assertIn("<h4>소제목</h4>", html)

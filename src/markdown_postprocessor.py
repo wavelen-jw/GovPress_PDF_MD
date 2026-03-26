@@ -8,7 +8,7 @@ from .parser_rules import clean_line, extract_sections, is_reference_line, split
 
 
 IMAGE_PATTERN = re.compile(r"!\[[^\]]*\]\((?:[^()]|\([^)]*\))*\)")
-TABLE_NOISE_PATTERN = re.compile(r"^\|[\|\-\d\s]*\|?$|^\|?(?:---|\d+|\s)*\|?$")
+TABLE_NOISE_PATTERN = re.compile(r"^\|[\|\-·.\u2024\u2025\u2026\u22ef\d\s]*\|?$|^\|?(?:[-·.\u2024\u2025\u2026\u22ef]{3,}|\d+|\s)*\|?$")
 TOC_DOTS_PATTERN = re.compile(r"[·\.]{4,}\s*\d+\s*$")
 DATE_ONLY_PATTERN = re.compile(r"^\d{4}\.\s*\d{1,2}\.?$")
 HEADING_BULLET_PATTERN = re.compile(r"^(#{1,6})\s*([□○ㅇ￭▸※-])\s*(.+)$")
@@ -49,6 +49,8 @@ def _split_lines(raw_text: str) -> list[str]:
             line = IMAGE_ARTIFACT_PATTERN.sub("", raw_line).strip()
             if not line:
                 expanded.append("")
+                continue
+            if TABLE_NOISE_PATTERN.fullmatch(line):
                 continue
             expanded.append(clean_line(IMAGE_PATTERN.sub("", line)))
             continue

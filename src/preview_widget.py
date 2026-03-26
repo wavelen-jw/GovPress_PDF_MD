@@ -47,7 +47,8 @@ def normalize_preview_markdown(markdown_text: str) -> str:
     for raw_line in lines:
         line = _normalize_indented_markdown_line(raw_line)
         stripped = line.strip()
-        previous_nonempty = next((item.strip() for item in reversed(normalized) if item.strip()), "")
+        previous_nonempty = next((item for item in reversed(normalized) if item.strip()), "")
+        previous_nonempty_stripped = previous_nonempty.strip()
 
         if HORIZONTAL_RULE_PATTERN.match(line):
             if normalized and normalized[-1].strip():
@@ -56,11 +57,24 @@ def normalize_preview_markdown(markdown_text: str) -> str:
             normalized.append("")
             continue
 
-        if BULLET_PATTERN.match(line) and previous_nonempty:
+        if BULLET_PATTERN.match(line) and previous_nonempty_stripped:
             if not (
-                BULLET_PATTERN.match(previous_nonempty)
-                or NUMBERED_LIST_PATTERN.match(previous_nonempty)
-                or previous_nonempty.startswith("#")
+                BULLET_PATTERN.match(previous_nonempty_stripped)
+                or NUMBERED_LIST_PATTERN.match(previous_nonempty_stripped)
+                or previous_nonempty_stripped.startswith("#")
+            ):
+                normalized.append("")
+
+        if stripped.startswith(">") and previous_nonempty_stripped:
+            current_indent = len(line) - len(line.lstrip(" "))
+            previous_indent = len(previous_nonempty) - len(previous_nonempty.lstrip(" "))
+            if (
+                current_indent > previous_indent
+                and (
+                    BULLET_PATTERN.match(previous_nonempty_stripped)
+                    or NUMBERED_LIST_PATTERN.match(previous_nonempty_stripped)
+                )
+                and normalized[-1].strip()
             ):
                 normalized.append("")
 
