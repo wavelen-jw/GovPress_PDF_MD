@@ -188,7 +188,7 @@ def _find_json_file(output_dir: Path, source_path: Path) -> Path:
 
 
 def _stage_input_pdf_for_conversion(source_path: Path, temp_root: Path) -> Path:
-    staged_path = temp_root / source_path.name
+    staged_path = temp_root / "input.pdf"
     shutil.copy2(source_path, staged_path)
     return staged_path
 
@@ -234,10 +234,10 @@ def convert_pdf_to_markdown(
             ) from exc
 
         try:
-            json_path = _find_json_file(temp_root, source_path)
+            json_path = _find_json_file(temp_root, staged_source_path)
             raw_text = extract_text_from_json(json_path)
         except ConversionError:
-            markdown_path = _find_markdown_file(temp_root, source_path)
+            markdown_path = _find_markdown_file(temp_root, staged_source_path)
             raw_text = markdown_path.read_text(encoding="utf-8", errors="replace")
 
         return postprocess_markdown(raw_text)
