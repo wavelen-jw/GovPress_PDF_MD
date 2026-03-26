@@ -18,6 +18,11 @@ class PreviewWidgetTests(unittest.TestCase):
         normalized = normalize_preview_markdown(markdown)
         self.assertIn("문단 마지막 줄\n\n- 첫 항목\n- 둘째 항목", normalized)
 
+    def test_normalize_preview_markdown_breaks_quote_before_top_level_bullet(self) -> None:
+        markdown = "> 인용문\n- 다음 항목"
+        normalized = normalize_preview_markdown(markdown)
+        self.assertIn("> 인용문\n\n- 다음 항목", normalized)
+
     def test_decorate_preview_html_does_not_add_rule_below_headings(self) -> None:
         html = "<h1>제목</h1><p>본문</p><h2>소제목</h2>"
         decorated = decorate_preview_html(html)

@@ -40,7 +40,6 @@ def normalize_preview_markdown(markdown_text: str) -> str:
             if not (
                 BULLET_PATTERN.match(previous_nonempty)
                 or NUMBERED_LIST_PATTERN.match(previous_nonempty)
-                or previous_nonempty.startswith(">")
                 or previous_nonempty.startswith("#")
             ):
                 normalized.append("")
