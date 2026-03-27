@@ -699,6 +699,18 @@ def _post_clean(lines: list[str]) -> list[str]:
                 cleaned.append("")
             previous_blank = True
             continue
+        if text == "---":
+            if cleaned and cleaned[-1] != "":
+                cleaned.append("")
+            cleaned.append(text)
+            previous_blank = False
+            continue
+        if text.startswith("#### "):
+            if cleaned and cleaned[-1] != "":
+                cleaned.append("")
+            cleaned.append(text)
+            previous_blank = False
+            continue
         if text.startswith("▴") and cleaned and cleaned[-1].lstrip().startswith("-"):
             cleaned[-1] = f"{cleaned[-1].rstrip()} {text}"
             previous_blank = False
@@ -849,7 +861,7 @@ def _postprocess_press_release(
         blocks.append("\n".join(_post_clean(contacts)).strip())
 
     output = "\n\n".join(block for block in blocks if block).strip() + "\n"
-    return output.replace("\n\n---\n\n", "\n---\n")
+    return output
 
 
 def postprocess_markdown(

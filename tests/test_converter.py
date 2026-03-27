@@ -182,6 +182,10 @@ class ConverterTests(unittest.TestCase):
         markdown = postprocess_markdown(raw)
         self.assertIn("이번 보고서에는 이러한 시설의 위험 요소 분석과 그 개선 방안을 담았다.", markdown)
         self.assertIn("#### <지하 복합형 자원순환시설에서의 화재·침수>", markdown)
+        self.assertIn(
+            "이번 보고서에는 이러한 시설의 위험 요소 분석과 그 개선 방안을 담았다.\n\n#### <지하 복합형 자원순환시설에서의 화재·침수>",
+            markdown,
+        )
 
     def test_press_release_table_header_is_split_correctly(self) -> None:
         raw = (
@@ -710,6 +714,10 @@ class ConverterTests(unittest.TestCase):
         self.assertIn("- 혁신팀 책임자: 홍길동", markdown)
         self.assertLess(markdown.index("# 제목"), markdown.index("- 부제"))
         self.assertLess(markdown.index("- 부제"), markdown.index("> 행정안전부 보도자료"))
+        self.assertIn(
+            "> 보도시점: (온라인,지면) 2026. 3. 24. 국무회의 종료 시\n\n---\n\n본문 문장이다.",
+            markdown,
+        )
 
     def test_press_release_note_continuations_follow_parent_list_depth(self) -> None:
         raw = (
