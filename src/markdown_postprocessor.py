@@ -842,10 +842,11 @@ def _postprocess_press_release(
         blocks.append(subtitles)
 
     metadata = _render_metadata(sections.metadata_lines, plain_metadata=use_quote_subtitles)
+    has_metadata = bool(metadata)
     if metadata:
         blocks.append("\n".join(metadata))
 
-    if sections.body_lines and sections.subtitle_lines:
+    if sections.body_lines and (sections.subtitle_lines or has_metadata):
         blocks.append("---")
 
     body = _render_body(sections.body_lines, template)

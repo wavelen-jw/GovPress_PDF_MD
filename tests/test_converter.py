@@ -719,6 +719,19 @@ class ConverterTests(unittest.TestCase):
             markdown,
         )
 
+    def test_press_release_without_subtitle_keeps_rule_before_body(self) -> None:
+        raw = (
+            "보도자료\n"
+            "보도시점 (온라인) 2026. 3. 24.\n"
+            "제목\n"
+            "□ 본문 문장이다.\n"
+        )
+        markdown = postprocess_markdown(raw)
+        self.assertIn(
+            "> 보도시점: (온라인) 2026. 3. 24.\n\n---\n\n본문 문장이다.",
+            markdown,
+        )
+
     def test_press_release_note_continuations_follow_parent_list_depth(self) -> None:
         raw = (
             "보도자료\n"

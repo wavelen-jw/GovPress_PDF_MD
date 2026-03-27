@@ -55,7 +55,7 @@ def normalize_preview_markdown(markdown_text: str) -> str:
         if HORIZONTAL_RULE_PATTERN.match(line):
             if normalized and normalized[-1].strip():
                 normalized.append("")
-            normalized.append("<hr />")
+            normalized.append("---")
             normalized.append("")
             continue
 

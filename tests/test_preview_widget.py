@@ -1,5 +1,7 @@
 import unittest
 
+from PySide6.QtWidgets import QApplication
+
 from src.preview_widget import (
     MarkdownPreviewWidget,
     decorate_preview_html,
@@ -9,10 +11,14 @@ from src.preview_widget import (
 
 
 class PreviewWidgetTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._app = QApplication.instance() or QApplication([])
+
     def test_normalize_preview_markdown_adds_spacing_before_horizontal_rule(self) -> None:
         markdown = "# 제목\n---\n다음 문장"
         normalized = normalize_preview_markdown(markdown)
-        self.assertIn("# 제목\n\n<hr />\n\n다음 문장", normalized)
+        self.assertIn("# 제목\n\n---\n\n다음 문장", normalized)
 
     def test_normalize_preview_markdown_adds_spacing_before_first_bullet(self) -> None:
         markdown = "문단 마지막 줄\n- 첫 항목\n- 둘째 항목"
@@ -72,3 +78,9 @@ class PreviewWidgetTests(unittest.TestCase):
         html = widget._to_html("#### 소제목", None)
         self.assertIn('class="md-h4"', html)
         self.assertIn("소제목", html)
+
+    def test_preview_html_renders_markdown_horizontal_rule(self) -> None:
+        widget = MarkdownPreviewWidget()
+        html = widget._to_html("# 제목\n\n> 메타\n\n---\n\n본문", None)
+        self.assertIn('class="md-rule"', html)
+        self.assertIn("border-top:2px solid #000000", html)
