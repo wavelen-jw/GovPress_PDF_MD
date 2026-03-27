@@ -14,12 +14,30 @@ datas = [
 datas += collect_data_files("opendataloader_pdf")
 hiddenimports = collect_submodules("opendataloader_pdf")
 excludes = [
+    # Python stdlib rarely needed in a GUI app
     "tkinter",
     "unittest",
     "test",
     "pydoc",
     "doctest",
     "pdb",
+    "difflib",
+    "ftplib",
+    "imaplib",
+    "mailbox",
+    "smtplib",
+    "telnetlib",
+    "xmlrpc",
+    "distutils",
+    "ensurepip",
+    "lib2to3",
+    "curses",
+    "turtle",
+    "turtledemo",
+    "idlelib",
+    "antigravity",
+    "this",
+    # Unused PySide6 submodules
     "PySide6.Qt3DAnimation",
     "PySide6.Qt3DCore",
     "PySide6.Qt3DExtras",
@@ -38,6 +56,7 @@ excludes = [
     "PySide6.QtLocation",
     "PySide6.QtMultimedia",
     "PySide6.QtMultimediaWidgets",
+    "PySide6.QtNetwork",
     "PySide6.QtNetworkAuth",
     "PySide6.QtNfc",
     "PySide6.QtOpenGL",
@@ -45,6 +64,8 @@ excludes = [
     "PySide6.QtPdf",
     "PySide6.QtPdfWidgets",
     "PySide6.QtPositioning",
+    "PySide6.QtPrintSupport",
+    "PySide6.QtProtobuf",
     "PySide6.QtQml",
     "PySide6.QtQuick",
     "PySide6.QtQuick3D",
@@ -69,6 +90,14 @@ excludes = [
     "PySide6.QtWebEngineQuick",
     "PySide6.QtWebEngineWidgets",
     "PySide6.QtWebSockets",
+    "PySide6.QtXml",
+    # Heavy optional packages unlikely to be present but safe to exclude
+    "numpy",
+    "scipy",
+    "pandas",
+    "matplotlib",
+    "PIL",
+    "cv2",
 ]
 
 
@@ -83,7 +112,7 @@ a = Analysis(
     runtime_hooks=[],
     excludes=excludes,
     noarchive=False,
-    optimize=1,
+    optimize=2,
 )
 pyz = PYZ(a.pure)
 
@@ -96,9 +125,9 @@ exe = EXE(
     name="GovPress_PDF_MD",
     debug=False,
     bootloader_ignore_signals=False,
-    strip=False,
+    strip=True,
     upx=True,
-    upx_exclude=[],
+    upx_exclude=["vcruntime140.dll", "python3*.dll"],
     runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,

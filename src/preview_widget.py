@@ -174,6 +174,33 @@ class MarkdownPreviewWidget(QWidget):
         layout.addWidget(self.browser)
         self._css = css_path.read_text(encoding="utf-8") if css_path and css_path.exists() else ""
 
+    def render_welcome(self) -> None:
+        """Display a startup guide in the preview area."""
+        html = (
+            "<html><head><meta charset='utf-8'>"
+            f"<style>{self._css}</style>"
+            "<style>"
+            "body{display:flex;flex-direction:column;align-items:center;justify-content:center;"
+            "min-height:80vh;text-align:center;color:#555;}"
+            ".icon{font-size:56px;margin-bottom:16px;}"
+            "h2{color:#1a56db;margin-bottom:8px;}"
+            "kbd{background:#f0f0f0;border:1px solid #ccc;border-radius:4px;"
+            "padding:2px 8px;font-size:0.9em;font-family:Consolas,monospace;}"
+            ".hint{margin:6px 0;font-size:0.97em;}"
+            "</style></head><body>"
+            "<div class='icon'>&#128196;</div>"
+            "<h2>GovPress PDF MD</h2>"
+            "<p>정부 보도자료 PDF를 Markdown으로 변환합니다.</p>"
+            "<p class='hint'><kbd>Ctrl+O</kbd> &nbsp; PDF 파일 열기</p>"
+            "<p class='hint'>또는 PDF 파일을 이 창에 <strong>드래그 앤 드롭</strong></p>"
+            "<hr style='width:60%;margin:20px auto;border-top:1px solid #ddd;'>"
+            "<p class='hint'><kbd>Ctrl+S</kbd> &nbsp; Markdown 저장</p>"
+            "<p class='hint'><kbd>Ctrl+Shift+C</kbd> &nbsp; 클립보드 복사</p>"
+            "<p class='hint'><kbd>Ctrl+1/2/3</kbd> &nbsp; 소스 / 분할 / 미리보기 전환</p>"
+            "</body></html>"
+        )
+        self.browser.setHtml(html)
+
     def render_markdown(
         self,
         markdown_text: str,

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt, QThreadPool, QTimer
-from PySide6.QtGui import QAction, QCloseEvent, QDragEnterEvent, QDropEvent, QIcon
+from PySide6.QtGui import QAction, QCloseEvent, QDragEnterEvent, QDropEvent, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSplitter,
     QStatusBar,
+    QStyle,
     QToolBar,
     QWidget,
 )
@@ -75,7 +76,7 @@ class MainWindow(QMainWindow):
         self._build_status_bar()
         self._apply_drop_target_style(False)
         self._set_view_mode("split")
-        self._refresh_preview()
+        self._show_welcome()
 
     def _resize_to_screen_ratio(self) -> None:
         screen = QApplication.primaryScreen()
@@ -92,33 +93,63 @@ class MainWindow(QMainWindow):
 
     def _build_toolbar(self) -> None:
         """Create the main toolbar and actions."""
+        style = self.style()
         toolbar = QToolBar("Main", self)
         toolbar.setMovable(False)
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.addToolBar(toolbar)
 
-        open_action = QAction("PDF 열기", self)
+        open_action = QAction(
+            style.standardIcon(QStyle.StandardPixmap.SP_DirOpenIcon), "PDF 열기", self
+        )
+        open_action.setShortcut(QKeySequence.StandardKey.Open)
+        open_action.setToolTip("PDF 파일 열기 (Ctrl+O)")
         open_action.triggered.connect(self.open_pdf_dialog)
         toolbar.addAction(open_action)
 
-        save_action = QAction("저장", self)
+        save_action = QAction(
+            style.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton), "저장", self
+        )
+        save_action.setShortcut(QKeySequence.StandardKey.Save)
+        save_action.setToolTip("Markdown 저장 (Ctrl+S)")
         save_action.triggered.connect(self.save_markdown)
         toolbar.addAction(save_action)
 
-        source_action = QAction("소스 모드", self)
+        copy_action = QAction(
+            style.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView), "복사", self
+        )
+        copy_action.setShortcut(QKeySequence("Ctrl+Shift+C"))
+        copy_action.setToolTip("Markdown을 클립보드에 복사 (Ctrl+Shift+C)")
+        copy_action.triggered.connect(self._copy_to_clipboard)
+        toolbar.addAction(copy_action)
+
+        toolbar.addSeparator()
+
+        source_action = QAction("소스", self)
+        source_action.setShortcut(QKeySequence("Ctrl+1"))
+        source_action.setToolTip("소스 편집기만 표시 (Ctrl+1)")
         source_action.triggered.connect(lambda: self._set_view_mode("source"))
         toolbar.addAction(source_action)
 
-        preview_action = QAction("미리보기 모드", self)
-        preview_action.triggered.connect(lambda: self._set_view_mode("preview"))
-        toolbar.addAction(preview_action)
-
-        split_action = QAction("분할 보기", self)
+        split_action = QAction("분할", self)
+        split_action.setShortcut(QKeySequence("Ctrl+2"))
+        split_action.setToolTip("편집기+미리보기 분할 표시 (Ctrl+2)")
         split_action.triggered.connect(lambda: self._set_view_mode("split"))
         toolbar.addAction(split_action)
 
-        follow_cursor_action = QAction("커서 따라가기", self)
+        preview_action = QAction("미리보기", self)
+        preview_action.setShortcut(QKeySequence("Ctrl+3"))
+        preview_action.setToolTip("미리보기만 표시 (Ctrl+3)")
+        preview_action.triggered.connect(lambda: self._set_view_mode("preview"))
+        toolbar.addAction(preview_action)
+
+        toolbar.addSeparator()
+
+        follow_cursor_action = QAction("커서 동기화", self)
         follow_cursor_action.setCheckable(True)
         follow_cursor_action.setChecked(False)
+        follow_cursor_action.setShortcut(QKeySequence("Ctrl+Shift+F"))
+        follow_cursor_action.setToolTip("커서 위치를 미리보기에 동기화 (Ctrl+Shift+F)")
         follow_cursor_action.toggled.connect(self._set_follow_cursor_preview)
         toolbar.addAction(follow_cursor_action)
 
@@ -126,7 +157,10 @@ class MainWindow(QMainWindow):
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         toolbar.addWidget(spacer)
 
-        info_action = QAction("정보", self)
+        info_action = QAction(
+            style.standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation), "정보", self
+        )
+        info_action.setToolTip("앱 정보")
         info_action.triggered.connect(self._show_info_dialog)
         toolbar.addAction(info_action)
 
@@ -214,6 +248,19 @@ class MainWindow(QMainWindow):
         worker.signals.finished.connect(self._on_conversion_success)
         worker.signals.failed.connect(self._on_conversion_failure)
         self.thread_pool.start(worker)
+
+    def _show_welcome(self) -> None:
+        """Render a welcome/guide page in the preview when no document is loaded."""
+        self.preview.render_welcome()
+
+    def _copy_to_clipboard(self) -> None:
+        """Copy the current Markdown source to the system clipboard."""
+        text = self.editor.get_markdown()
+        if text.strip():
+            QApplication.clipboard().setText(text)
+            self.statusBar().showMessage("클립보드에 복사됨")
+        else:
+            self.statusBar().showMessage("복사할 내용이 없습니다")
 
     def _on_conversion_success(self, pdf_path: Path, markdown: str) -> None:
         """Load converted markdown into the editor and preview panes."""
