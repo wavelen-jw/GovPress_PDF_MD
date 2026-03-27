@@ -823,18 +823,18 @@ def _postprocess_press_release(
     if title:
         blocks.append(f"# {title}")
 
-    metadata = _render_metadata(sections.metadata_lines, plain_metadata=use_quote_subtitles)
-    if metadata:
-        blocks.append("\n".join(metadata))
-
     if sections.subtitle_lines:
         subtitles = "\n".join(
             f"> {item}" if use_quote_subtitles else f"- {item}" for item in subtitle_items
         )
-        if sections.body_lines:
-            blocks.append(f"{subtitles}\n---")
-        else:
-            blocks.append(subtitles)
+        blocks.append(subtitles)
+
+    metadata = _render_metadata(sections.metadata_lines, plain_metadata=use_quote_subtitles)
+    if metadata:
+        blocks.append("\n".join(metadata))
+
+    if sections.body_lines and sections.subtitle_lines:
+        blocks.append("---")
 
     body = _render_body(sections.body_lines, template)
     if body:

@@ -201,6 +201,8 @@ class ConverterTests(unittest.TestCase):
         self.assertIn("> 보도시점: (온라인) 2026. 3. 25. 12:00", markdown)
         self.assertIn("- 부제 1", markdown)
         self.assertIn("본문 시작", markdown)
+        self.assertLess(markdown.index("- 부제 1"), markdown.index("> 행정안전부 보도자료"))
+        self.assertLess(markdown.index("> 행정안전부 보도자료"), markdown.index("> 보도시점: (온라인) 2026. 3. 25. 12:00"))
 
     def test_press_release_without_square_bullets_starts_body_after_subtitle(self) -> None:
         raw = (
@@ -706,6 +708,8 @@ class ConverterTests(unittest.TestCase):
         self.assertIn("> 보도시점: (온라인,지면) 2026. 3. 24. 국무회의 종료 시", markdown)
         self.assertIn("> (주요 사항) 예시 설명", markdown)
         self.assertIn("- 혁신팀 책임자: 홍길동", markdown)
+        self.assertLess(markdown.index("# 제목"), markdown.index("- 부제"))
+        self.assertLess(markdown.index("- 부제"), markdown.index("> 행정안전부 보도자료"))
 
     def test_press_release_note_continuations_follow_parent_list_depth(self) -> None:
         raw = (
