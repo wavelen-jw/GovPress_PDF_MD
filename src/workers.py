@@ -33,8 +33,6 @@ class ConversionWorker(QRunnable):
 
 
 def _user_message_from_exception(detail: str) -> str:
-    if "java=명령을 찾을 수 없습니다." in detail:
-        return "Java 11+가 설치되어 있지 않아 PDF 변환을 진행할 수 없습니다."
-    if "지원되지 않는 Java 버전입니다" in detail:
-        return "설치된 Java 버전이 낮아 PDF 변환을 진행할 수 없습니다."
-    return "PDF 변환에 실패했습니다. OpenDataLoader PDF 또는 Java 설치 상태를 확인하세요."
+    if "PDF 텍스트 추출에 실패했습니다" in detail:
+        return "PDF에서 텍스트를 추출하지 못했습니다. 파일이 손상되었거나 지원되지 않는 형식일 수 있습니다."
+    return "PDF 변환에 실패했습니다. 입력 파일 상태를 확인하세요."

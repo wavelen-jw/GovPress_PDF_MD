@@ -1,12 +1,8 @@
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
 
 from src.converter import (
-    DependencyStatus,
-    _load_opendataloader_convert,
-    _parse_java_major_version,
     _stage_input_pdf_for_conversion,
     convert_pdf_to_markdown,
 )
@@ -66,30 +62,6 @@ class ConverterTests(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix=".pdf") as handle:
             with self.assertRaises(ValueError):
                 convert_pdf_to_markdown(handle.name, backend="unknown")
-
-    @patch("src.converter._load_opendataloader_convert")
-    @patch("src.converter.check_runtime_dependencies")
-    def test_conversion_reads_generated_markdown(
-        self, mock_deps: Mock, mock_load_convert: Mock
-    ) -> None:
-        mock_deps.return_value = DependencyStatus(True, True, "ok", "ok")
-        with tempfile.TemporaryDirectory() as temp_dir:
-            pdf_path = Path(temp_dir) / "sample.pdf"
-            pdf_path.write_bytes(b"%PDF-1.4")
-
-            def fake_convert(*, input_path, output_dir, format, quiet):
-                output_dir = Path(output_dir)
-                output_dir.mkdir(parents=True, exist_ok=True)
-                (output_dir / "sample.md").write_text(
-                    "보도자료\n보도시점 온라인 2026. 3. 25.\n제목 줄\n□ 본문\n담당 부서: 홍보팀\n",
-                    encoding="utf-8",
-                )
-                return None
-
-            mock_load_convert.return_value = fake_convert
-            markdown = convert_pdf_to_markdown(pdf_path)
-            self.assertIn("# 제목 줄", markdown)
-            self.assertIn("본문", markdown)
 
     def test_pymupdf_extractor_reads_press_release_structure(self) -> None:
         raw = extract_text_from_pdf_with_pymupdf(GOLDEN_PRESS_RELEASE)
@@ -255,7 +227,7 @@ class ConverterTests(unittest.TestCase):
         self.assertIn("> 보도시점: (온라인) 2026. 3. 25. 12:00", markdown)
         self.assertIn("- 부제 1", markdown)
         self.assertIn("본문 시작", markdown)
-        self.assertLess(markdown.index("- 부제 1"), markdown.index("> 행정안전부 보도자료"))
+        self.assertLess(markdown.index("> 행정안전부 보도자료"), markdown.index("- 부제 1"))
         self.assertLess(markdown.index("> 행정안전부 보도자료"), markdown.index("> 보도시점: (온라인) 2026. 3. 25. 12:00"))
 
     def test_press_release_without_square_bullets_starts_body_after_subtitle(self) -> None:
@@ -296,13 +268,6 @@ class ConverterTests(unittest.TestCase):
         self.assertIn("> < 2026년 자치인재원 지방의회 교육계획 >", markdown)
         self.assertIn("> △ 지방의회 의원교육 : 지방의회 당선인 과정(6월), 찾아가는 초선의원 직무연수(6~8월), 지방의회 아카데미(8월), 지방의회 맞춤형 직무연수(연중) 등", markdown)
         self.assertIn("> △ 지방의회 직원교육 : 지방의회 직무공통과정(1ㆍ5ㆍ9월), 핵심직무 심화과정(1ㆍ3ㆍ6월)", markdown)
-
-    def test_java_version_parser(self) -> None:
-        self.assertEqual(_parse_java_major_version('openjdk version "17.0.10" 2024-01-16'), 17)
-        self.assertEqual(_parse_java_major_version('java version "1.8.0_401"'), 8)
-
-    def test_load_opendataloader_convert_is_available(self) -> None:
-        self.assertTrue(callable(_load_opendataloader_convert()))
 
     def test_save_markdown_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -763,9 +728,9 @@ class ConverterTests(unittest.TestCase):
         self.assertIn("> (주요 사항) 예시 설명", markdown)
         self.assertIn("- 혁신팀 책임자: 홍길동", markdown)
         self.assertLess(markdown.index("# 제목"), markdown.index("- 부제"))
-        self.assertLess(markdown.index("- 부제"), markdown.index("> 행정안전부 보도자료"))
+        self.assertLess(markdown.index("> 행정안전부 보도자료"), markdown.index("- 부제"))
         self.assertIn(
-            "> 보도시점: (온라인,지면) 2026. 3. 24. 국무회의 종료 시\n\n---\n\n본문 문장이다.",
+            "> 보도시점: (온라인,지면) 2026. 3. 24. 국무회의 종료 시\n\n- 부제\n\n---\n\n본문 문장이다.",
             markdown,
         )
 

@@ -1,9 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
-
-
 project_dir = Path.cwd()
 icon_path = project_dir / "assets" / "icons" / "govpress.ico"
 version_info_path = project_dir / "windows_version_info.txt"
@@ -11,8 +8,7 @@ datas = [
     (str(project_dir / "assets" / "styles" / "preview.css"), "assets/styles"),
     (str(icon_path), "assets/icons"),
 ]
-datas += collect_data_files("opendataloader_pdf")
-hiddenimports = collect_submodules("opendataloader_pdf")
+hiddenimports = []
 excludes = [
     "tkinter",
     "unittest",
