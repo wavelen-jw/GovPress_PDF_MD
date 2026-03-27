@@ -922,6 +922,14 @@ class ConverterTests(unittest.TestCase):
         self.assertIn("| --- | --- | --- |", markdown)
         self.assertIn("| AI 가독성 | 개조식 문장 | 정확한 학습 |", markdown)
 
+    def test_pymupdf_table_cells_replace_section_marker_with_plain_bullet(self) -> None:
+        pdf = Path(
+            "/home/wavel/GovPress_PDF_MD/re_test/press/260325 (조간) 보고서 꾸미는 시간에 민생 현장으로 행정안전부 AI친화 행정문서 혁신 시범 실시(혁신행정담당관).pdf"
+        )
+        markdown = convert_pdf_to_markdown(pdf, backend="pymupdf")
+        self.assertIn("AI 가독성 | • 주어·서술어가 생략된 개조식 문장 이나 복잡한 표 등으로 학습에 제한 | • 정부 공문서를 정확하게 학습", markdown)
+        self.assertNotIn("§ 정부 공문서를 정확하게 학습", markdown)
+
     def test_postprocessor_drops_dotted_table_separator_lines_like_solid_ones(self) -> None:
         raw = (
             "보도자료\n"

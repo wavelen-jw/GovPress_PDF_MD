@@ -57,6 +57,7 @@ HARD_BREAK_PREFIXES = (
     "<",
     "* ",
 )
+TABLE_HEADER_SKIP_VALUES = {"", None}
 
 
 def _normalize_contact_block(text: str) -> str:
@@ -197,6 +198,10 @@ def _looks_like_noise(text: str) -> bool:
     return len(text) == 1 and text in NOISE_PREFIXES
 
 
+def _is_table_row_text(text: str) -> bool:
+    return text.count(" | ") >= 1
+
+
 def _coalesce_lines(lines: list[str]) -> list[str]:
     merged: list[str] = []
     for line in lines:
@@ -208,6 +213,9 @@ def _coalesce_lines(lines: list[str]) -> list[str]:
             continue
 
         previous = merged[-1]
+        if _is_table_row_text(previous) or _is_table_row_text(text):
+            merged.append(text)
+            continue
         if previous in {"보도자료", "보도시점"}:
             merged.append(text)
             continue
@@ -284,6 +292,9 @@ def _coalesce_block_lines(block_lines: list[str]) -> list[str]:
             merged.append(text)
             continue
         previous = merged[-1]
+        if _is_table_row_text(previous) or _is_table_row_text(text):
+            merged.append(text)
+            continue
         if _starts_hard_break_line(previous) or _starts_new_logical_line(text) or _ends_paragraph(previous):
             merged.append(text)
             continue
@@ -302,6 +313,49 @@ def _is_contact_continuation_block(block_lines: list[str]) -> bool:
         or _looks_like_department_continuation(line)
         or (not any(char.isdigit() for char in line) and len(line) <= 6)
         for line in block_lines
+    )
+
+
+def _normalize_table_cell(cell: object) -> str:
+    if cell is None:
+        return ""
+    normalized = clean_line(str(cell).replace("\n", " "))
+    normalized = re.sub(r"\s*§\s*", " • ", normalized).strip()
+    return re.sub(r"\s{2,}", " ", normalized)
+
+
+def _render_table_lines(table: fitz.table.Table) -> list[str]:
+    rendered: list[str] = []
+    for row in table.extract():
+        cells = [_normalize_table_cell(cell) for cell in row]
+        non_empty = [cell for cell in cells if cell not in TABLE_HEADER_SKIP_VALUES]
+        if len(non_empty) < 2:
+            continue
+        rendered.append(" | ".join(non_empty))
+    return rendered
+
+
+def _is_contact_table(table: fitz.table.Table) -> bool:
+    extracted = table.extract()
+    return any(
+        _normalize_table_cell(cell) in {"담당 부서", "담당부서"}
+        for row in extracted
+        for cell in row
+    )
+
+
+def _is_supported_content_table(table: fitz.table.Table) -> bool:
+    return table.row_count >= 2 and table.col_count >= 2 and not _is_contact_table(table)
+
+
+def _bbox_overlaps(left: tuple[float, float, float, float], right: tuple[float, float, float, float]) -> bool:
+    left_x0, left_y0, left_x1, left_y1 = left
+    right_x0, right_y0, right_x1, right_y1 = right
+    return not (
+        left_x1 <= right_x0
+        or right_x1 <= left_x0
+        or left_y1 <= right_y0
+        or right_y1 <= left_y0
     )
 
 
@@ -324,7 +378,23 @@ def extract_text_from_pdf_with_pymupdf(pdf_path: str | Path) -> str:
                 contact_buffer = []
                 contact_seen = True
 
-            text_blocks: list[tuple[float, float, list[str]]] = []
+            table_blocks: list[tuple[float, float, tuple[float, float, float, float], list[str]]] = []
+            try:
+                found_tables = page.find_tables()
+                tables = found_tables.tables if found_tables else []
+            except Exception:
+                tables = []
+
+            for table in tables:
+                if not _is_supported_content_table(table):
+                    continue
+                table_lines = _render_table_lines(table)
+                if not table_lines:
+                    continue
+                bbox = tuple(float(value) for value in table.bbox)
+                table_blocks.append((bbox[1], bbox[0], bbox, table_lines))
+
+            text_blocks: list[tuple[float, float, tuple[float, float, float, float], list[str]]] = []
             for block in page.get_text("dict").get("blocks", []):
                 if block.get("type") != 0:
                     continue
@@ -338,10 +408,19 @@ def extract_text_from_pdf_with_pymupdf(pdf_path: str | Path) -> str:
                         block_lines.append(text)
 
                 if block_lines:
-                    bbox = block.get("bbox", (0, 0, 0, 0))
-                    text_blocks.append((float(bbox[1]), float(bbox[0]), block_lines))
+                    bbox = tuple(float(value) for value in block.get("bbox", (0, 0, 0, 0)))
+                    text_blocks.append((bbox[1], bbox[0], bbox, block_lines))
 
-            for _, _, block_lines in sorted(text_blocks):
+            content_blocks = sorted(
+                [("text", *item) for item in text_blocks] + [("table", *item) for item in table_blocks],
+                key=lambda item: (item[1], item[2]),
+            )
+
+            for block_type, _, _, bbox, block_lines in content_blocks:
+                if block_type == "text" and any(
+                    _bbox_overlaps(bbox, table_bbox) for _, _, table_bbox, _ in table_blocks
+                ):
+                    continue
                 if len(block_lines) == 1 and PAGE_NUMBER_PATTERN.match(block_lines[0]):
                     continue
                 if len(block_lines) == 1 and _looks_like_noise(block_lines[0]):
