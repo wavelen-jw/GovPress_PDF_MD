@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>GovPress PDF MD</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ── Toolbar ─────────────────────────────────────────── -->
+  <div id="toolbar">
+    <button class="btn" id="btn-open" title="PDF 열기 (Ctrl+O)">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h4l2 2h4a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>
+      PDF 열기
+    </button>
+    <button class="btn" id="btn-save" title="저장 (Ctrl+S)" disabled>
+      <svg viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 00-2 2v8a2 2 0 002 2h10a2 2 0 002-2V8.414A2 2 0 0016.414 7L13 3.586A2 2 0 0011.586 3H7a2 2 0 00-2 2v1zm5 9a2 2 0 100-4 2 2 0 000 4zm3-9v2H7V4h4l2 2h-3V4z"/></svg>
+      저장
+    </button>
+    <button class="btn" id="btn-copy" title="클립보드 복사 (Ctrl+Shift+C)" disabled>
+      <svg viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1zM6 3a3 3 0 000 6h8a3 3 0 000-6H6zm0 8a1 1 0 000 2h8a1 1 0 100-2H6zm0 4a1 1 0 000 2h4a1 1 0 100-2H6z"/></svg>
+      복사
+    </button>
+    <div class="sep"></div>
+    <div class="btn-group" id="view-toggle">
+      <button class="btn toggle" id="btn-source" title="소스 편집기만 표시 (Ctrl+1)">소스</button>
+      <button class="btn toggle active" id="btn-split"  title="분할 보기 (Ctrl+2)">분할</button>
+      <button class="btn toggle" id="btn-preview" title="미리보기만 표시 (Ctrl+3)">미리보기</button>
+    </div>
+    <div class="sep"></div>
+    <label class="follow-label" title="커서 위치를 미리보기에 동기화 (Ctrl+Shift+F)">
+      <input type="checkbox" id="follow-cursor"> 커서 동기화
+    </label>
+    <div class="spacer"></div>
+    <span id="status-file"></span>
+    <span id="status-msg">준비</span>
+  </div>
+
+  <!-- ── Main area ────────────────────────────────────────── -->
+  <div id="main">
+    <div id="editor-pane">
+      <textarea id="editor"
+        placeholder="PDF를 열거나 드래그하면 Markdown이 여기에 표시됩니다."
+        spellcheck="false"
+        autocorrect="off"
+        autocapitalize="off"
+      ></textarea>
+    </div>
+
+    <div id="divider" title="드래그하여 크기 조절"></div>
+
+    <div id="preview-pane">
+      <div id="preview-scroll">
+        <div id="preview-content">
+          <!-- welcome -->
+          <div id="welcome">
+            <div class="wl-icon">&#128196;</div>
+            <h2>GovPress PDF MD</h2>
+            <p class="wl-sub">정부 보도자료 PDF → Markdown 변환기</p>
+            <div class="wl-shortcuts">
+              <div class="wl-row"><kbd>Ctrl+O</kbd><span>PDF 파일 열기</span></div>
+              <div class="wl-row"><span class="wl-or">또는 PDF를 이 창에</span> <strong>드래그 앤 드롭</strong></div>
+              <hr>
+              <div class="wl-row"><kbd>Ctrl+S</kbd><span>Markdown 저장</span></div>
+              <div class="wl-row"><kbd>Ctrl+Shift+C</kbd><span>클립보드 복사</span></div>
+              <div class="wl-row"><kbd>Ctrl+1/2/3</kbd><span>소스 / 분할 / 미리보기</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Drop overlay ─────────────────────────────────────── -->
+  <div id="drop-overlay" aria-hidden="true">
+    <div class="drop-msg">&#128196; PDF를 놓으면 변환을 시작합니다.</div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

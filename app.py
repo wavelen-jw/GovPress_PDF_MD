@@ -1,4 +1,4 @@
-from src.main_window import run
+from src.webview_app import run
 
 
 if __name__ == "__main__":

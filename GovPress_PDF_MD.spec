@@ -3,95 +3,46 @@
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
-
 project_dir = Path.cwd()
 icon_path = project_dir / "assets" / "icons" / "govpress.ico"
 version_info_path = project_dir / "windows_version_info.txt"
+
 datas = [
-    (str(project_dir / "assets" / "styles" / "preview.css"), "assets/styles"),
-    (str(icon_path), "assets/icons"),
+    (str(project_dir / "assets"), "assets"),
+    (str(project_dir / "ui"), "ui"),
 ]
 datas += collect_data_files("opendataloader_pdf")
+datas += collect_data_files("webview")
+
 hiddenimports = collect_submodules("opendataloader_pdf")
+hiddenimports += collect_submodules("webview")
+hiddenimports += ["clr_loader", "pythonnet"]
+
 excludes = [
-    # Python stdlib rarely needed in a GUI app
+    # Unused stdlib
     "tkinter",
     "unittest",
     "test",
     "pydoc",
     "doctest",
     "pdb",
-    "difflib",
-    "ftplib",
-    "imaplib",
-    "mailbox",
-    "smtplib",
-    "telnetlib",
-    "xmlrpc",
-    "distutils",
     "ensurepip",
     "lib2to3",
     "curses",
     "turtle",
     "turtledemo",
     "idlelib",
-    "antigravity",
-    "this",
-    # Unused PySide6 submodules
-    "PySide6.Qt3DAnimation",
-    "PySide6.Qt3DCore",
-    "PySide6.Qt3DExtras",
-    "PySide6.Qt3DInput",
-    "PySide6.Qt3DLogic",
-    "PySide6.Qt3DRender",
-    "PySide6.QtBluetooth",
-    "PySide6.QtCharts",
-    "PySide6.QtConcurrent",
-    "PySide6.QtDataVisualization",
-    "PySide6.QtDesigner",
-    "PySide6.QtGraphs",
-    "PySide6.QtGrpc",
-    "PySide6.QtHelp",
-    "PySide6.QtHttpServer",
-    "PySide6.QtLocation",
-    "PySide6.QtMultimedia",
-    "PySide6.QtMultimediaWidgets",
-    "PySide6.QtNetwork",
-    "PySide6.QtNetworkAuth",
-    "PySide6.QtNfc",
-    "PySide6.QtOpenGL",
-    "PySide6.QtOpenGLWidgets",
-    "PySide6.QtPdf",
-    "PySide6.QtPdfWidgets",
-    "PySide6.QtPositioning",
-    "PySide6.QtPrintSupport",
-    "PySide6.QtProtobuf",
-    "PySide6.QtQml",
-    "PySide6.QtQuick",
-    "PySide6.QtQuick3D",
-    "PySide6.QtQuickControls2",
-    "PySide6.QtQuickTest",
-    "PySide6.QtQuickWidgets",
-    "PySide6.QtRemoteObjects",
-    "PySide6.QtScxml",
-    "PySide6.QtSensors",
-    "PySide6.QtSerialBus",
-    "PySide6.QtSerialPort",
-    "PySide6.QtSpatialAudio",
-    "PySide6.QtSql",
-    "PySide6.QtStateMachine",
-    "PySide6.QtSvg",
-    "PySide6.QtSvgWidgets",
-    "PySide6.QtTest",
-    "PySide6.QtTextToSpeech",
-    "PySide6.QtUiTools",
-    "PySide6.QtWebChannel",
-    "PySide6.QtWebEngineCore",
-    "PySide6.QtWebEngineQuick",
-    "PySide6.QtWebEngineWidgets",
-    "PySide6.QtWebSockets",
-    "PySide6.QtXml",
-    # Heavy optional packages unlikely to be present but safe to exclude
+    "ftplib",
+    "imaplib",
+    "smtplib",
+    "xmlrpc",
+    # Entire PySide6 / Qt (no longer needed)
+    "PySide6",
+    "shiboken6",
+    # Other heavy GUI/science libs that may be present
+    "PyQt5",
+    "PyQt6",
+    "wx",
     "numpy",
     "scipy",
     "pandas",
@@ -99,7 +50,6 @@ excludes = [
     "PIL",
     "cv2",
 ]
-
 
 a = Analysis(
     ["app.py"],
