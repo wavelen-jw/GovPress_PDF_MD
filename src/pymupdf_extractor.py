@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 import re
+import tempfile
 
 import fitz
 
@@ -58,6 +60,12 @@ HARD_BREAK_PREFIXES = (
     "* ",
 )
 TABLE_HEADER_SKIP_VALUES = {"", None}
+
+
+@dataclass
+class ExtractedPdfContent:
+    raw_text: str
+    image_dir: Path | None = None
 
 
 def _normalize_contact_block(text: str) -> str:
@@ -359,10 +367,13 @@ def _bbox_overlaps(left: tuple[float, float, float, float], right: tuple[float, 
     )
 
 
-def extract_text_from_pdf_with_pymupdf(pdf_path: str | Path) -> str:
+def extract_pdf_content_with_pymupdf(pdf_path: str | Path) -> ExtractedPdfContent:
     document = fitz.open(str(pdf_path))
     try:
+        source_path = Path(pdf_path)
         lines: list[str] = []
+        image_dir: Path | None = None
+        image_counter = 0
         stop_after_contact_appendix = False
         for page in document:
             if stop_after_contact_appendix:
@@ -395,8 +406,28 @@ def extract_text_from_pdf_with_pymupdf(pdf_path: str | Path) -> str:
                 table_blocks.append((bbox[1], bbox[0], bbox, table_lines))
 
             text_blocks: list[tuple[float, float, tuple[float, float, float, float], list[str]]] = []
+            image_blocks: list[tuple[float, float, tuple[float, float, float, float], list[str]]] = []
             for block in page.get_text("dict").get("blocks", []):
-                if block.get("type") != 0:
+                block_type = block.get("type")
+                if block_type == 1:
+                    image_bytes = block.get("image")
+                    image_ext = clean_line(str(block.get("ext", "png"))).lower() or "png"
+                    if image_bytes:
+                        if image_dir is None:
+                            temp_root = Path(tempfile.mkdtemp(prefix="govpress_pdf_images_"))
+                            image_dir = temp_root / f"{source_path.stem}_images"
+                            image_dir.mkdir(parents=True, exist_ok=True)
+                        image_counter += 1
+                        image_name = f"page_{page.number + 1:03d}_image_{image_counter:03d}.{image_ext}"
+                        image_path = image_dir / image_name
+                        image_path.write_bytes(image_bytes)
+                        bbox = tuple(float(value) for value in block.get("bbox", (0, 0, 0, 0)))
+                        relative_path = f"{image_dir.name}/{image_name}"
+                        image_blocks.append(
+                            (bbox[1], bbox[0], bbox, [f"![image {image_counter}]({relative_path})"])
+                        )
+                    continue
+                if block_type != 0:
                     continue
 
                 block_lines: list[str] = []
@@ -412,7 +443,9 @@ def extract_text_from_pdf_with_pymupdf(pdf_path: str | Path) -> str:
                     text_blocks.append((bbox[1], bbox[0], bbox, block_lines))
 
             content_blocks = sorted(
-                [("text", *item) for item in text_blocks] + [("table", *item) for item in table_blocks],
+                [("text", *item) for item in text_blocks]
+                + [("table", *item) for item in table_blocks]
+                + [("image", *item) for item in image_blocks],
                 key=lambda item: (item[1], item[2]),
             )
 
@@ -457,6 +490,13 @@ def extract_text_from_pdf_with_pymupdf(pdf_path: str | Path) -> str:
 
             flush_contact_buffer()
 
-        return "\n".join(_normalize_briefing_lines(_coalesce_lines(lines)))
+        return ExtractedPdfContent(
+            raw_text="\n".join(_normalize_briefing_lines(_coalesce_lines(lines))),
+            image_dir=image_dir,
+        )
     finally:
         document.close()
+
+
+def extract_text_from_pdf_with_pymupdf(pdf_path: str | Path) -> str:
+    return extract_pdf_content_with_pymupdf(pdf_path).raw_text

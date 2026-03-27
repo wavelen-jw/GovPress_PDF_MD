@@ -91,9 +91,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
-python -m pip install pyinstaller opendataloader-pdf
+python -m pip install pyinstaller
 if errorlevel 1 (
-    echo ERROR: Failed to install pyinstaller or opendataloader-pdf.
+    echo ERROR: Failed to install pyinstaller.
     exit /b 1
 )
 

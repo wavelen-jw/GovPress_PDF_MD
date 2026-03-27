@@ -4,7 +4,7 @@ from html import escape
 from pathlib import Path
 import re
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, QUrl
 from PySide6.QtWidgets import QTextBrowser, QWidget, QVBoxLayout
 
 try:
@@ -185,12 +185,14 @@ class MarkdownPreviewWidget(QWidget):
         cursor_line: str | None = None,
         preserve_scroll: bool = False,
         target_ratio: float | None = None,
+        base_path: Path | None = None,
     ) -> None:
         """Render markdown text into the preview browser."""
         scroll_bar = self.browser.verticalScrollBar()
         previous_value = scroll_bar.value()
         previous_maximum = max(scroll_bar.maximum(), 1)
-        self.browser.setHtml(self._to_html(markdown_text, cursor_line))
+        base_url = QUrl.fromLocalFile(str(base_path.resolve()) + "/") if base_path else QUrl()
+        self.browser.setHtml(self._to_html(markdown_text, cursor_line), base_url)
         if target_ratio is not None:
             QTimer.singleShot(0, lambda: self.scroll_to_ratio(target_ratio))
         elif preserve_scroll:

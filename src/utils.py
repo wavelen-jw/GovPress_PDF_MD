@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+import shutil
 import sys
 
 
@@ -37,9 +38,12 @@ def ensure_utf8_text(text: str) -> str:
     return text.encode("utf-8", errors="ignore").decode("utf-8")
 
 
-def save_markdown_file(path: Path, markdown: str) -> None:
+def save_markdown_file(path: Path, markdown: str, image_dir: Path | None = None) -> None:
     """Write markdown content to disk with UTF-8 encoding."""
     path.write_text(markdown, encoding="utf-8")
+    if image_dir and image_dir.exists():
+        target_dir = path.parent / image_dir.name
+        shutil.copytree(image_dir, target_dir, dirs_exist_ok=True)
 
 
 def resolve_resource_path(*parts: str) -> Path:

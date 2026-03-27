@@ -16,6 +16,8 @@ excludes = [
     "pydoc",
     "doctest",
     "pdb",
+    "PIL",
+    "pkg_resources",
     "PySide6.Qt3DAnimation",
     "PySide6.Qt3DCore",
     "PySide6.Qt3DExtras",

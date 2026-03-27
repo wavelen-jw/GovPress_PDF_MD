@@ -1,9 +1,11 @@
 from pathlib import Path
+import base64
 import tempfile
 import unittest
 
 from src.converter import (
     _stage_input_pdf_for_conversion,
+    convert_pdf_to_document,
     convert_pdf_to_markdown,
 )
 from src.json_extractor import extract_text_from_json
@@ -32,6 +34,9 @@ GOLDEN_PRESS_RELEASE_7 = FIXTURE_DIR / "260325 (조간) 새로운 시설물 속 
 GOLDEN_PRESS_RELEASE_MD_7 = GOLDEN_DIR / "260325 (조간) 새로운 시설물 속 숨은 위험 찾는다 잠재 재난위험 분석 보고서 발간(재난대응총괄과).md"
 COMBINED_BRIEFING_PRESS_RELEASE = FIXTURE_DIR / "260326 (18시) 전남·광주 통합 지역소멸 극복과 대한민국 대도약의 마중물 만들 것(자치행정과).pdf"
 MULTILINE_TITLE_PRESS_RELEASE = FIXTURE_DIR / "260325 (조간) 공공부문에서 인공지능(AI) 어떻게 써야해 「AI 정부 서비스 사례집」에 우수사례 총집합(공공인공지능혁신과).pdf"
+SAMPLE_PNG_BYTES = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP1cAAAAASUVORK5CYII="
+)
 
 
 class ConverterTests(unittest.TestCase):
@@ -117,6 +122,41 @@ class ConverterTests(unittest.TestCase):
             self.assertEqual(staged_path, temp_root / "input.pdf")
             self.assertTrue(staged_path.exists())
             self.assertEqual(staged_path.read_bytes(), b"%PDF-1.4")
+
+    def test_pymupdf_document_extracts_images_and_save_copies_them(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            import fitz
+
+            temp_root = Path(temp_dir)
+            pdf_path = temp_root / "sample.pdf"
+            document = fitz.open()
+            page = document.new_page()
+            page.insert_text((72, 72), "보도자료\n보도시점 (온라인) 2026. 3. 24.\n제목\n□ 본문")
+            page.insert_image(fitz.Rect(72, 120, 144, 192), stream=SAMPLE_PNG_BYTES)
+            document.save(pdf_path)
+            document.close()
+
+            converted = convert_pdf_to_document(pdf_path, backend="pymupdf")
+
+            self.assertIsNotNone(converted.image_dir)
+            image_files = list(converted.image_dir.glob("*")) if converted.image_dir else []
+            self.assertTrue(image_files)
+
+            save_path = temp_root / "saved.md"
+            save_markdown_file(save_path, "![image 1](sample_images/test.png)\n", converted.image_dir)
+
+            copied_dir = temp_root / converted.image_dir.name
+            self.assertTrue(copied_dir.exists())
+            self.assertTrue(any(path.is_file() for path in copied_dir.iterdir()))
+            self.assertIn("sample_images/test.png", save_path.read_text(encoding="utf-8"))
+
+    def test_pymupdf_document_keeps_image_links_in_real_fixture(self) -> None:
+        pdf = Path(
+            "/home/wavel/GovPress_PDF_MD/re_test/press/260325 (조간) 보고서 꾸미는 시간에 민생 현장으로 행정안전부 AI친화 행정문서 혁신 시범 실시(혁신행정담당관).pdf"
+        )
+        converted = convert_pdf_to_document(pdf, backend="pymupdf")
+        self.assertIn("![image 1](", converted.markdown)
+        self.assertIsNotNone(converted.image_dir)
 
     def test_postprocessor_formats_contacts(self) -> None:
         raw = (
@@ -691,7 +731,7 @@ class ConverterTests(unittest.TestCase):
         )
         markdown = postprocess_markdown(raw)
         self.assertIn("# 2025년 주요업무 추진계획", markdown)
-        self.assertNotIn("![image", markdown)
+        self.assertIn("![image 1](file.png)", markdown)
         self.assertNotIn("순 서", markdown)
         self.assertIn("## 국민안전 확보", markdown)
         self.assertIn("- 정책 설명", markdown)

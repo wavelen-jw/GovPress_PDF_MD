@@ -8,12 +8,19 @@ from pathlib import Path
 class DocumentState:
     current_pdf_path: Path | None = None
     current_markdown: str = ""
+    current_image_dir: Path | None = None
     save_path: Path | None = None
     is_dirty: bool = False
 
-    def load_markdown(self, markdown: str, pdf_path: Path | None = None) -> None:
+    def load_markdown(
+        self,
+        markdown: str,
+        pdf_path: Path | None = None,
+        image_dir: Path | None = None,
+    ) -> None:
         self.current_pdf_path = pdf_path
         self.current_markdown = markdown
+        self.current_image_dir = image_dir
         self.save_path = None
         self.is_dirty = False
 

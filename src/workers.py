@@ -4,11 +4,11 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
-from .converter import convert_pdf_to_markdown
+from .converter import convert_pdf_to_document
 
 
 class ConversionWorkerSignals(QObject):
-    finished = Signal(Path, str)
+    finished = Signal(Path, str, object)
     failed = Signal(Path, str, str)
 
 
@@ -21,7 +21,7 @@ class ConversionWorker(QRunnable):
     @Slot()
     def run(self) -> None:
         try:
-            markdown = convert_pdf_to_markdown(self.pdf_path)
+            converted = convert_pdf_to_document(self.pdf_path)
         except Exception as exc:  # pragma: no cover
             self.signals.failed.emit(
                 self.pdf_path,
@@ -29,7 +29,7 @@ class ConversionWorker(QRunnable):
                 str(exc),
             )
             return
-        self.signals.finished.emit(self.pdf_path, markdown)
+        self.signals.finished.emit(self.pdf_path, converted.markdown, converted.image_dir)
 
 
 def _user_message_from_exception(detail: str) -> str:

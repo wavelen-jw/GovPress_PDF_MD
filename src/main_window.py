@@ -215,13 +215,17 @@ class MainWindow(QMainWindow):
         worker.signals.failed.connect(self._on_conversion_failure)
         self.thread_pool.start(worker)
 
-    def _on_conversion_success(self, pdf_path: Path, markdown: str) -> None:
+    def _on_conversion_success(self, pdf_path: Path, markdown: str, image_dir: Path | None) -> None:
         """Load converted markdown into the editor and preview panes."""
         clean_markdown = ensure_utf8_text(markdown)
-        self.state.load_markdown(clean_markdown, pdf_path)
+        self.state.load_markdown(clean_markdown, pdf_path, image_dir)
         self.editor.set_markdown(clean_markdown)
         self._last_cursor_block_number = self.editor.get_current_block_number()
-        self.preview.render_markdown(clean_markdown, self.editor.get_current_block_text())
+        self.preview.render_markdown(
+            clean_markdown,
+            self.editor.get_current_block_text(),
+            base_path=image_dir.parent if image_dir else None,
+        )
         self._update_status_widgets("변환 완료")
 
     def _on_conversion_failure(
@@ -244,6 +248,7 @@ class MainWindow(QMainWindow):
             self.editor.get_markdown(),
             self.editor.get_current_block_text(),
             preserve_scroll=True,
+            base_path=self.state.current_image_dir.parent if self.state.current_image_dir else None,
         )
 
     def _highlight_current_cursor_line(self) -> None:
@@ -257,6 +262,7 @@ class MainWindow(QMainWindow):
             self.editor.get_current_block_text(),
             preserve_scroll=target_ratio is None,
             target_ratio=target_ratio,
+            base_path=self.state.current_image_dir.parent if self.state.current_image_dir else None,
         )
 
     def _set_view_mode(self, mode: str) -> None:
@@ -291,7 +297,7 @@ class MainWindow(QMainWindow):
 
         save_path = Path(file_name)
         try:
-            save_markdown_file(save_path, self.editor.get_markdown())
+            save_markdown_file(save_path, self.editor.get_markdown(), self.state.current_image_dir)
         except OSError as exc:
             self.logger.error("Save failed for %s: %s", save_path, exc)
             self._show_error("Markdown 저장에 실패했습니다.", str(exc))
@@ -358,7 +364,13 @@ class MainWindow(QMainWindow):
         dialog = QMessageBox(self)
         dialog.setWindowTitle("정보")
         dialog.setIcon(QMessageBox.Information)
-        dialog.setText(f"만든이 : 행정안전부 정준우")
+        dialog.setText(
+            "기획 : 행정안전부 정준우 <br>"
+            "갈굼 : 행정안전부 정준우 <br>"
+            "코딩 : ChatGPT 5.4 <br>"
+            "제작 : ChatGPT 5.4 <br>"
+        )
+        dialog.setTextFormat(Qt.RichText)
         dialog.setInformativeText(f"GitHub 주소 : {APP_GITHUB_URL}")
         dialog.setTextInteractionFlags(Qt.TextSelectableByMouse)
         dialog.exec()

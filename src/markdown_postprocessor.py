@@ -39,6 +39,7 @@ ANGLE_LABEL_WITH_TRIANGLE_PATTERN = re.compile(r"^(<[^>]+>)\s*(△.+)$")
 CASE_STUDY_HEADING_PATTERN = re.compile(r"^####\s*<\s*20\d{2}.*추진 사례\s*>$")
 MARKDOWN_TABLE_SEPARATOR_PATTERN = re.compile(r"^\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|$")
 INLINE_SERVICE_TABLE_BUNDLE_PATTERN = re.compile(r"(\|[^|]+\|[^|]+\|[^|]+\|)")
+MARKDOWN_IMAGE_LINE_PATTERN = re.compile(r"^!\[[^\]]*\]\((?:[^()]|\([^)]*\))*\)$")
 
 
 def _split_inline_service_table_bundle(text: str) -> list[str]:
@@ -65,9 +66,24 @@ def _join_title(lines: Iterable[str]) -> str:
     return " ".join(clean_line(line) for line in lines if clean_line(line)).strip()
 
 
+def _extract_markdown_image_lines(lines: Iterable[str]) -> tuple[list[str], list[str]]:
+    text_lines: list[str] = []
+    image_lines: list[str] = []
+    for line in lines:
+        cleaned = clean_line(line)
+        if MARKDOWN_IMAGE_LINE_PATTERN.fullmatch(cleaned):
+            image_lines.append(cleaned)
+            continue
+        text_lines.append(cleaned if "\n" not in line else line)
+    return text_lines, image_lines
+
+
 def _split_lines(raw_text: str) -> list[str]:
     expanded: list[str] = []
     for raw_line in raw_text.splitlines():
+        if raw_line.strip().startswith("![") and "](" in raw_line:
+            expanded.append(clean_line(raw_line))
+            continue
         service_parts = _split_inline_service_table_bundle(raw_line)
         if len(service_parts) > 1 or service_parts[0] != raw_line:
             for part in service_parts:
@@ -139,6 +155,9 @@ def _preclean_lines(raw_text: str) -> list[str]:
     in_toc = False
 
     for line in lines:
+        if line.strip().startswith("![") and "](" in line:
+            cleaned.append(clean_line(line))
+            continue
         text = clean_line(IMAGE_PATTERN.sub("", line))
         if text.startswith("|") and text.endswith("|") and "|" in text.strip("|"):
             cleaned.append(text)
@@ -259,6 +278,8 @@ def _normalize_body_line(text: str, template: PressReleaseTemplate) -> list[str]
         return [f">{item}" for item in items]
     if is_reference_line(text):
         return [f"> {text}"]
+    if text.startswith("![") and "](" in text:
+        return [text, ""]
     if text.startswith("<") and text.endswith(">"):
         return [f"#### {text}", ""]
 
@@ -813,6 +834,7 @@ def _nest_schedule_subitems(lines: list[str]) -> list[str]:
 
 def _postprocess_generic_markdown(raw_text: str) -> str:
     lines = _preclean_lines(raw_text)
+    lines, image_lines = _extract_markdown_image_lines(lines)
     meaningful = [line for line in lines if _is_meaningful_line(line)]
     if not meaningful:
         return ""
@@ -825,6 +847,9 @@ def _postprocess_generic_markdown(raw_text: str) -> str:
         rendered.append(f"> {body_lines[0].lstrip('# ').strip()}")
         rendered.append("")
         body_lines = body_lines[1:]
+    if image_lines:
+        rendered.extend(image_lines)
+        rendered.append("")
     for line in body_lines:
         rendered.extend(_normalize_generic_line(line))
 
@@ -835,7 +860,8 @@ def _postprocess_generic_markdown(raw_text: str) -> str:
 def _postprocess_press_release(
     raw_text: str, template: PressReleaseTemplate = DEFAULT_TEMPLATE
 ) -> str:
-    sections = extract_sections(raw_text, template)
+    sanitized_lines, image_lines = _extract_markdown_image_lines(raw_text.splitlines())
+    sections = extract_sections("\n".join(sanitized_lines), template)
     blocks: list[str] = []
     subtitle_items = [clean_line(line).lstrip("- ").strip() for line in sections.subtitle_lines]
     use_quote_subtitles = any("실태점검" in item for item in subtitle_items)
@@ -857,6 +883,9 @@ def _postprocess_press_release(
 
     if sections.body_lines and (sections.subtitle_lines or has_metadata):
         blocks.append("---")
+
+    if image_lines:
+        blocks.append("\n".join(image_lines))
 
     body = _render_body(sections.body_lines, template)
     if body:
