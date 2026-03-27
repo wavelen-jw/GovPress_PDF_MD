@@ -2,7 +2,10 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+.venv-build/
 .env
+build/
+dist/
 
 tests/converted_md/
 tests/fixtures/**/*.json
