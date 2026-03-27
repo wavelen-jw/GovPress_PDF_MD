@@ -49,6 +49,7 @@ class PreviewWidgetTests(unittest.TestCase):
         html = "<p>앞문단</p><hr><p>뒷문단</p>"
         decorated = decorate_preview_html(html)
         self.assertIn('<table class="md-rule"', decorated)
+        self.assertIn('width="100%"', decorated)
         self.assertIn("border-top:2px solid #000000", decorated)
 
     def test_decorate_preview_html_replaces_blockquote_with_table_bar(self) -> None:
@@ -83,4 +84,5 @@ class PreviewWidgetTests(unittest.TestCase):
         widget = MarkdownPreviewWidget()
         html = widget._to_html("# 제목\n\n> 메타\n\n---\n\n본문", None)
         self.assertIn('<table class="md-rule"', html)
+        self.assertIn('width="100%"', html)
         self.assertIn("border-top:2px solid #000000", html)

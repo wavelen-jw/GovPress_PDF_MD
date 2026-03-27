@@ -117,10 +117,10 @@ def inject_cursor_highlight(markdown_text: str, cursor_line: str) -> str:
 
 def decorate_preview_html(html: str) -> str:
     html = HR_PATTERN.sub(
-        '<table class="md-rule" cellspacing="0" cellpadding="0" '
-        'style="border-collapse:collapse;width:100%;margin:8px 0 10px 0;">'
+        '<table class="md-rule" width="100%" cellspacing="0" cellpadding="0" border="0" '
+        'style="border-collapse:collapse;margin:8px 0 10px 0;">'
         "<tr>"
-        '<td style="padding:0;height:0;line-height:0;font-size:0;border-top:2px solid #000000;"></td>'
+        '<td style="padding:0;height:1px;line-height:1px;font-size:1px;border-top:2px solid #000000;">&nbsp;</td>'
         "</tr>"
         "</table>",
         html,
