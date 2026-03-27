@@ -237,6 +237,11 @@ def _split_press_callout_items(text: str) -> list[str]:
 def _normalize_body_line(text: str, template: PressReleaseTemplate) -> list[str]:
     if HTML_TABLE_TAG_PATTERN.match(text):
         return [text]
+    if text.startswith("<") and text.endswith(">") and "교육계획" in text:
+        return [f"> {text}"]
+    topic_match = TOPIC_BULLET_PATTERN.match(text)
+    if topic_match:
+        return [f"#### {topic_match.group(1).strip()}", ""]
     angle_triangle_match = ANGLE_LABEL_WITH_TRIANGLE_PATTERN.match(text)
     if angle_triangle_match:
         label = clean_line(angle_triangle_match.group(1))
@@ -369,6 +374,8 @@ def _starts_new_body_block(text: str, template: PressReleaseTemplate) -> bool:
         return True
     if HEADING_BULLET_PATTERN.match(text) or PLAIN_HEADING_PATTERN.match(text):
         return True
+    if TOPIC_BULLET_PATTERN.match(text):
+        return True
     if DATE_ONLY_PATTERN.fullmatch(text):
         return True
     return False
@@ -382,6 +389,8 @@ def _starts_main_press_body(text: str, template: PressReleaseTemplate) -> bool:
     if text.startswith(("<", "※", "* ", "- ", "ㅇ ", "▸", "￭")):
         return True
     if is_reference_line(text):
+        return True
+    if TOPIC_BULLET_PATTERN.match(text):
         return True
     return False
 
@@ -835,16 +844,16 @@ def _postprocess_press_release(
     if title:
         blocks.append(f"# {title}")
 
+    metadata = _render_metadata(sections.metadata_lines, plain_metadata=use_quote_subtitles)
+    has_metadata = bool(metadata)
+    if metadata:
+        blocks.append("\n".join(metadata))
+
     if sections.subtitle_lines:
         subtitles = "\n".join(
             f"> {item}" if use_quote_subtitles else f"- {item}" for item in subtitle_items
         )
         blocks.append(subtitles)
-
-    metadata = _render_metadata(sections.metadata_lines, plain_metadata=use_quote_subtitles)
-    has_metadata = bool(metadata)
-    if metadata:
-        blocks.append("\n".join(metadata))
 
     if sections.body_lines and (sections.subtitle_lines or has_metadata):
         blocks.append("---")

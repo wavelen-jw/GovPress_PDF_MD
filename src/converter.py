@@ -13,6 +13,7 @@ import shutil as shutil_lib
 
 from .json_extractor import extract_text_from_json
 from .markdown_postprocessor import postprocess_markdown
+from .pymupdf_extractor import extract_text_from_pdf_with_pymupdf
 
 
 class DependencyError(RuntimeError):
@@ -306,6 +307,7 @@ def convert_pdf_to_markdown(
     pdf_path: str | Path,
     timeout_seconds: int = 180,
     keep_temp_dir: bool = False,
+    backend: str = "opendataloader",
 ) -> str:
     """Convert a PDF into normalized markdown text."""
     source_path = Path(pdf_path)
@@ -313,6 +315,12 @@ def convert_pdf_to_markdown(
         raise FileNotFoundError(f"PDF 파일을 찾을 수 없습니다: {source_path}")
     if source_path.suffix.lower() != ".pdf":
         raise ValueError("PDF 파일만 변환할 수 있습니다.")
+    if backend not in {"opendataloader", "pymupdf"}:
+        raise ValueError(f"지원하지 않는 backend입니다: {backend}")
+
+    if backend == "pymupdf":
+        raw_text = extract_text_from_pdf_with_pymupdf(source_path)
+        return postprocess_markdown(raw_text)
 
     status = check_runtime_dependencies()
     if not status.is_ready:
