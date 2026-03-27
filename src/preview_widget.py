@@ -192,7 +192,8 @@ class MarkdownPreviewWidget(QWidget):
         previous_value = scroll_bar.value()
         previous_maximum = max(scroll_bar.maximum(), 1)
         base_url = QUrl.fromLocalFile(str(base_path.resolve()) + "/") if base_path else QUrl()
-        self.browser.setHtml(self._to_html(markdown_text, cursor_line), base_url)
+        self.browser.document().setBaseUrl(base_url)
+        self.browser.setHtml(self._to_html(markdown_text, cursor_line))
         if target_ratio is not None:
             QTimer.singleShot(0, lambda: self.scroll_to_ratio(target_ratio))
         elif preserve_scroll:
