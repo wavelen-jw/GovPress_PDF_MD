@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 
 import webview
 
@@ -11,7 +12,7 @@ logging.getLogger("pywebview").setLevel(logging.CRITICAL)
 os.environ.setdefault("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-features=msSmartScreenProtection")
 
 from .webview_api import GovPressAPI
-from .app_metadata import APP_DISPLAY_NAME
+from .app_metadata import APP_DISPLAY_NAME, APP_NAME
 from .utils import resolve_resource_path
 
 
@@ -31,4 +32,8 @@ def run() -> None:
     )
     api.set_window(window)
 
-    webview.start(gui="edgechromium", debug=False)
+    # storage_path를 안정적인 위치로 고정.
+    # PyInstaller one-file 빌드에서 WebView2 UserDataFolder가 임시 추출 디렉터리를
+    # 기본값으로 사용하면 WinForms 다이얼로그 dispatch가 실패할 수 있음.
+    storage_path = str(Path.home() / f".{APP_NAME}" / "webview_storage")
+    webview.start(gui="edgechromium", debug=False, storage_path=storage_path)

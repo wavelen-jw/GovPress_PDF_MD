@@ -44,12 +44,19 @@ class GovPressAPI:
 
     def open_pdf_dialog(self) -> None:
         """Open a native file dialog and start conversion if a PDF is chosen."""
-        result = self.window.create_file_dialog(
-            webview.FileDialog.OPEN,
-            file_types=("PDF Files (*.pdf)",),
-        )
+        try:
+            result = self.window.create_file_dialog(
+                webview.FileDialog.OPEN,
+                file_types=("PDF Files (*.pdf)",),
+            )
+        except Exception as exc:
+            self._logger.error("파일 선택 창 오류: %s", exc, exc_info=True)
+            self._js(f"onConversionError({json.dumps('파일 선택 창을 열 수 없습니다. 로그를 확인해주세요.')})")
+            return
         if result:
             self._start_conversion(Path(result[0]))
+        else:
+            self._js("onPdfDialogCancelled()")
 
     def convert_pdf(self, path: str) -> None:
         """Start PDF conversion for the given absolute file path (drag-and-drop)."""

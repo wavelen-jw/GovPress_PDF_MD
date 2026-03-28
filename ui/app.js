@@ -72,6 +72,10 @@ function onConversionSuccess(payload) {
   schedulePreview();
 }
 
+function onPdfDialogCancelled() {
+  setStatus('준비');
+}
+
 function onConversionError(msg) {
   setStatus('변환 실패', 'err');
   showError(msg);
