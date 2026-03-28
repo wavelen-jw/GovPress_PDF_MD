@@ -12,13 +12,13 @@ try:
 except ImportError:
     markdown_lib = None  # type: ignore[assignment]
 
+import webview
+
 from .converter import convert_pdf_to_markdown
 from .preview_widget import normalize_preview_markdown, decorate_preview_html, inject_cursor_highlight
 from .state import DocumentState
 from .utils import configure_logging, ensure_utf8_text, save_markdown_file
 from .app_metadata import APP_NAME
-from .powershell_dialog import open_file_dialog as ps_open_dialog
-from .powershell_dialog import save_file_dialog as ps_save_dialog
 
 
 _MAX_CONTENT_CHARS = 2_000_000   # 2 MB hard cap on editor content
@@ -33,7 +33,7 @@ class GovPressAPI:
         self._state = DocumentState()
         self._lock = threading.Lock()  # guards _state across the bg conversion thread and JS callbacks
         self._logger = configure_logging(Path.home() / f".{APP_NAME}" / "app.log")
-        self._logger.info("GovPressAPI 초기화 완료 (v1.0.28)")
+        self._logger.info("GovPressAPI 초기화 완료 (v1.0.29)")
 
     def set_window(self, window) -> None:
         self.window = window
@@ -43,23 +43,18 @@ class GovPressAPI:
     def open_pdf_dialog(self) -> None:
         """Open a native file dialog and start conversion if a PDF is chosen."""
         self._logger.info("open_pdf_dialog: Python 호출됨")
-        threading.Thread(target=self._do_open_dialog, daemon=True).start()
-
-    def _do_open_dialog(self) -> None:
-        """Background thread: show dialog via PowerShell subprocess, then start conversion or cancel."""
-        self._logger.info("_do_open_dialog: 다이얼로그 표시 시작")
         try:
-            path = ps_open_dialog(
-                title="PDF 파일 선택",
-                file_types="PDF Files (*.pdf)|*.pdf|All Files (*.*)|*.*",
+            result = self.window.create_file_dialog(
+                webview.FileDialog.OPEN,
+                file_types=("PDF Files (*.pdf)",),
             )
         except Exception as exc:
             self._logger.error("파일 선택 창 오류: %s", exc, exc_info=True)
-            self._js(f"onConversionError({json.dumps('파일 선택 창을 열 수 없습니다. 로그를 확인해주세요.')})")
+            self._js(f"onConversionError({json.dumps('파일 선택 창을 열 수 없습니다.')})")
             return
-        self._logger.info("_do_open_dialog: 결과=%s", path)
-        if path:
-            self._start_conversion(Path(path))
+        if result:
+            self._logger.info("open_pdf_dialog: 선택=%s", result[0])
+            self._start_conversion(Path(result[0]))
         else:
             self._js("onPdfDialogCancelled()")
 
@@ -117,30 +112,14 @@ class GovPressAPI:
                 if self._state.save_path
                 else f"{self._state.current_pdf_path.stem if self._state.current_pdf_path else 'document'}.md"
             )
-
-        result_holder: list = [None]
-        done = threading.Event()
-
-        def _show_save() -> None:
-            try:
-                result_holder[0] = ps_save_dialog(
-                    title="Markdown 파일 저장",
-                    file_types="Markdown Files (*.md)|*.md|All Files (*.*)|*.*",
-                    default_name=suggested,
-                    default_ext="md",
-                )
-            except Exception as exc:
-                self._logger.error("저장 대화창 오류: %s", exc, exc_info=True)
-            finally:
-                done.set()
-
-        threading.Thread(target=_show_save, daemon=True).start()
-        done.wait(timeout=120)
-
-        result = result_holder[0]
+        result = self.window.create_file_dialog(
+            webview.FileDialog.SAVE,
+            save_filename=suggested,
+            file_types=("Markdown Files (*.md)",),
+        )
         if not result:
             return {"saved": False}
-        save_path = Path(result)
+        save_path = Path(result if isinstance(result, str) else result[0])
         try:
             save_markdown_file(save_path, content)
             with self._lock:
