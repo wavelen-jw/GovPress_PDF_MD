@@ -112,7 +112,7 @@ def inject_cursor_highlight(markdown_text: str, cursor_line: str) -> str:
         if line != cursor_line:
             continue
 
-        for prefix in ("# ", "## ", "### ", "- ", "* ", "> "):
+        for prefix in ("# ", "## ", "### ", "#### ", "##### ", "###### ", "- ", "* ", "> "):
             if line.startswith(prefix):
                 lines[index] = f"{prefix}{HIGHLIGHT_TOKEN}{line[len(prefix):]}"
                 return "\n".join(lines)

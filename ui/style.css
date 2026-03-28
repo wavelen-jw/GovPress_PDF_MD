@@ -393,3 +393,31 @@ body.mode-preview #divider      { display: none; }
   padding: 2px 6px; border-radius: 4px;
 }
 #modal-close:hover { background: var(--bg3); color: var(--text); }
+
+/* capability list */
+.modal-caps {
+  margin: 10px 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.modal-cap-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+.cap-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 1px 7px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.cap-good     { background: #d3f9d8; color: #1a7431; }
+.cap-learning { background: #fff3bf; color: #7d5a00; }
+.cap-bad      { background: #ffe3e3; color: #b02525; }

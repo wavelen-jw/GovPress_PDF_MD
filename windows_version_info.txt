@@ -15,14 +15,14 @@ VSVersionInfo(
         StringTable(
           "040904B0",
           [
-            StringStruct("CompanyName", "wavelen-jw"),
-            StringStruct("FileDescription", "Government press-release PDF to Markdown converter and editor."),
-            StringStruct("FileVersion", "1.0.0"),
+            StringStruct("CompanyName", "행정안전부"),
+            StringStruct("FileDescription", "정부 보도자료 PDF to Markdown converter and editor."),
+            StringStruct("FileVersion", "1.2.6"),
             StringStruct("InternalName", "GovPress_PDF_MD"),
-            StringStruct("LegalCopyright", "Copyright (c) 2026 wavelen-jw"),
+            StringStruct("LegalCopyright", "Copyright (c) 2026 행정안전부"),
             StringStruct("OriginalFilename", "GovPress_PDF_MD.exe"),
-            StringStruct("ProductName", "GovPress_PDF_MD"),
-            StringStruct("ProductVersion", "1.0.0"),
+            StringStruct("ProductName", "GovPress PDF MD"),
+            StringStruct("ProductVersion", "1.2.6"),
             StringStruct("Comments", "GitHub: https://github.com/wavelen-jw/GovPress_PDF_MD"),
           ],
         )
