@@ -3,6 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <title>GovPress PDF MD</title>
+  <!--
+    Content Security Policy:
+    - script-src 'self'        : only load scripts from this origin; blocks <script> injected via innerHTML
+    - style-src 'self' 'unsafe-inline' : allow inline styles (used by Python preview decoration)
+    - img-src 'self' data:     : allow local images and data URIs
+    - default-src 'none'       : deny everything else (frames, fetch, connect, etc.)
+  -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>

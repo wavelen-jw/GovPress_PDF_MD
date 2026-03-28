@@ -2,6 +2,7 @@ import unittest
 
 from src.preview_widget import (
     MarkdownPreviewWidget,
+    _strip_unsafe_html,
     decorate_preview_html,
     inject_cursor_highlight,
     normalize_preview_markdown,
@@ -74,3 +75,50 @@ class PreviewWidgetTests(unittest.TestCase):
         html = widget._to_html("#### 소제목", None)
         self.assertIn('class="md-h4"', html)
         self.assertIn("소제목", html)
+
+
+class HtmlSanitizationTests(unittest.TestCase):
+    """_strip_unsafe_html removes executable HTML while preserving safe markup."""
+
+    def test_script_tag_is_removed(self) -> None:
+        html = '<p>본문</p><script>alert("xss")</script>'
+        result = _strip_unsafe_html(html)
+        self.assertNotIn("<script>", result)
+        self.assertNotIn("alert", result)
+        self.assertIn("<p>본문</p>", result)
+
+    def test_script_with_attributes_is_removed(self) -> None:
+        html = '<p>a</p><script type="text/javascript">evil()</script><p>b</p>'
+        result = _strip_unsafe_html(html)
+        self.assertNotIn("script", result.lower())
+        self.assertNotIn("evil", result)
+
+    def test_iframe_is_removed(self) -> None:
+        html = '<p>텍스트</p><iframe src="http://evil.example"></iframe>'
+        result = _strip_unsafe_html(html)
+        self.assertNotIn("iframe", result.lower())
+        self.assertIn("텍스트", result)
+
+    def test_event_handler_attribute_is_removed(self) -> None:
+        html = '<p onclick="pywebview.api.show_error(\'x\')">클릭</p>'
+        result = _strip_unsafe_html(html)
+        self.assertNotIn("onclick", result)
+        self.assertIn("클릭", result)
+
+    def test_onerror_attribute_is_removed(self) -> None:
+        html = '<img src="x" onerror="alert(1)">'
+        result = _strip_unsafe_html(html)
+        self.assertNotIn("onerror", result)
+
+    def test_safe_html_is_preserved(self) -> None:
+        html = '<p><strong>굵게</strong> 일반 <em>이탤릭</em></p>'
+        result = _strip_unsafe_html(html)
+        self.assertEqual(result, html)
+
+    def test_decorate_preview_html_strips_injected_script(self) -> None:
+        """decorate_preview_html calls _strip_unsafe_html as its first step."""
+        html = '<p>내용</p><script>pywebview.api.convert_pdf("c:/evil")</script>'
+        decorated = decorate_preview_html(html)
+        self.assertNotIn("script", decorated.lower())
+        self.assertNotIn("pywebview", decorated)
+        self.assertIn("내용", decorated)

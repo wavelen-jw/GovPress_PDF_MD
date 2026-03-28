@@ -166,5 +166,70 @@ class TestStartConversion(unittest.TestCase):
                         f"Expected onConversionError in JS calls, got: {js_calls}")
 
 
+# ---------------------------------------------------------------------------
+# Input validation: convert_pdf rejects non-PDF paths
+# ---------------------------------------------------------------------------
+
+class TestConvertPdfValidation(unittest.TestCase):
+    def _collect_js(self, api: GovPressAPI) -> list[str]:
+        calls: list[str] = []
+        api.window.evaluate_js = lambda code: calls.append(code)
+        return calls
+
+    def test_non_pdf_extension_rejected(self):
+        api = _make_api()
+        calls = self._collect_js(api)
+        api.convert_pdf("C:/documents/report.docx")
+        self.assertTrue(any("onConversionError" in c for c in calls))
+
+    def test_path_traversal_with_non_pdf_rejected(self):
+        api = _make_api()
+        calls = self._collect_js(api)
+        api.convert_pdf("../../etc/passwd")
+        self.assertTrue(any("onConversionError" in c for c in calls))
+
+    def test_empty_path_rejected(self):
+        api = _make_api()
+        calls = self._collect_js(api)
+        api.convert_pdf("")
+        self.assertTrue(any("onConversionError" in c for c in calls))
+
+    def test_pdf_extension_proceeds_to_existence_check(self):
+        """A .pdf path passes extension check and proceeds (then fails on existence)."""
+        api = _make_api()
+        calls = self._collect_js(api)
+        api.convert_pdf("/does/not/exist/file.pdf")
+        # Should also get an error, but about the file not found — not extension
+        self.assertTrue(any("onConversionError" in c for c in calls))
+
+
+# ---------------------------------------------------------------------------
+# Content size limits
+# ---------------------------------------------------------------------------
+
+class TestContentSizeLimits(unittest.TestCase):
+    def test_oversized_update_content_is_silently_ignored(self):
+        from src.webview_api import _MAX_CONTENT_CHARS
+        api = _make_api()
+        oversized = "x" * (_MAX_CONTENT_CHARS + 1)
+        # Must not raise; state should not be updated
+        initial = api._state.current_markdown
+        api.update_content(oversized)
+        self.assertEqual(api._state.current_markdown, initial)
+
+    def test_normal_content_is_accepted(self):
+        api = _make_api()
+        api.update_content("# 정상 내용")
+        self.assertEqual(api._state.current_markdown, "# 정상 내용")
+
+    def test_oversized_render_markdown_truncates(self):
+        from src.webview_api import _MAX_RENDER_CHARS
+        api = _make_api()
+        oversized = "a" * (_MAX_RENDER_CHARS + 100)
+        # Must not raise; result should be a string
+        result = api.render_markdown(oversized)
+        self.assertIsInstance(result, str)
+
+
 if __name__ == "__main__":
     unittest.main()

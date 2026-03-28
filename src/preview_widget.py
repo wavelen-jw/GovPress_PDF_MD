@@ -26,6 +26,28 @@ H4_CLOSE_PATTERN = re.compile(r"</h4>", re.IGNORECASE)
 TRAILING_BR_PATTERN = re.compile(r"<br\s*/?>\s*</p>", re.IGNORECASE)
 HIGHLIGHT_TOKEN = "GOVPRESS_CURSOR_HIGHLIGHT_TOKEN"
 
+# Defense-in-depth: strip executable HTML that python-markdown may pass through
+# from raw-HTML blocks inside user content.  The CSP is the primary control;
+# this is a second layer so that QTextBrowser (which ignores CSP) is also safe.
+_UNSAFE_TAG_PATTERN = re.compile(
+    r"<script[\s\S]*?</script\s*>"          # <script>…</script>
+    r"|<iframe[\s\S]*?(?:</iframe\s*>|/>)"  # <iframe>…</iframe>
+    r"|<object[\s\S]*?(?:</object\s*>|/>)"  # <object>…</object>
+    r"|<embed\b[^>]*>",                     # <embed>
+    re.IGNORECASE,
+)
+_UNSAFE_ATTR_PATTERN = re.compile(
+    r"""\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|\S+)""",  # on* event handlers
+    re.IGNORECASE,
+)
+
+
+def _strip_unsafe_html(html: str) -> str:
+    """Remove executable HTML injected via raw-HTML pass-through in Markdown."""
+    html = _UNSAFE_TAG_PATTERN.sub("", html)
+    html = _UNSAFE_ATTR_PATTERN.sub("", html)
+    return html
+
 
 def _normalize_indented_markdown_line(line: str) -> str:
     leading_width = len(line) - len(line.lstrip(" "))
@@ -123,6 +145,7 @@ def inject_cursor_highlight(markdown_text: str, cursor_line: str) -> str:
 
 
 def decorate_preview_html(html: str) -> str:
+    html = _strip_unsafe_html(html)
     html = HR_PATTERN.sub(
         '<hr class="md-rule" style="display:block;border:0;border-top:2px solid #000000;height:0;margin:8px 0 10px 0;" />',
         html,

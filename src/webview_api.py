@@ -24,6 +24,10 @@ from .utils import configure_logging, ensure_utf8_text, save_markdown_file
 from .app_metadata import APP_NAME
 
 
+_MAX_CONTENT_CHARS = 2_000_000   # 2 MB hard cap on editor content
+_MAX_RENDER_CHARS  =   500_000   # 500 KB soft cap on markdown-to-HTML rendering
+
+
 class GovPressAPI:
     """All public methods are callable from JavaScript as `pywebview.api.<method>()`."""
 
@@ -49,6 +53,9 @@ class GovPressAPI:
 
     def convert_pdf(self, path: str) -> None:
         """Start PDF conversion for the given absolute file path (drag-and-drop)."""
+        if not isinstance(path, str) or not path.lower().endswith(".pdf"):
+            self._js("onConversionError('PDF 파일만 변환할 수 있습니다.')")
+            return
         self._start_conversion(Path(path))
 
     def _start_conversion(self, pdf_path: Path) -> None:
@@ -74,6 +81,8 @@ class GovPressAPI:
 
     def render_markdown(self, content: str, cursor_line: str | None = None) -> str:
         """Return rendered HTML body for the given Markdown content."""
+        if len(content) > _MAX_RENDER_CHARS:
+            content = content[:_MAX_RENDER_CHARS]
         normalized = normalize_preview_markdown(content)
         if cursor_line:
             normalized = inject_cursor_highlight(normalized, cursor_line)
@@ -116,6 +125,8 @@ class GovPressAPI:
 
     def update_content(self, content: str) -> None:
         """Called on every editor change to keep dirty-state in sync."""
+        if len(content) > _MAX_CONTENT_CHARS:
+            return  # silently ignore; UI already has the oversized content
         with self._lock:
             self._state.update_markdown(content)
 

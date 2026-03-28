@@ -80,7 +80,7 @@ function onConversionError(msg) {
 // ── Save ───────────────────────────────────────────────────
 document.getElementById('btn-save').addEventListener('click', saveMarkdown);
 async function saveMarkdown() {
-  if (!_hasContent) return;
+  if (!state.hasContent) return;
   setStatus('저장 중…', 'busy');
   const result = await pywebview.api.save_markdown(editor.value);
   if (result.saved) {
@@ -97,7 +97,7 @@ async function saveMarkdown() {
 // ── Copy ───────────────────────────────────────────────────
 document.getElementById('btn-copy').addEventListener('click', copyMarkdown);
 async function copyMarkdown() {
-  if (!_hasContent) return;
+  if (!state.hasContent) return;
   await navigator.clipboard.writeText(editor.value);
   setStatus('클립보드에 복사됨', 'ok');
   setTimeout(() => setStatus('준비'), 1500);
