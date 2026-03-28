@@ -20,7 +20,6 @@ hiddenimports += ["clr_loader", "pythonnet"]
 
 excludes = [
     # Unused stdlib
-    "tkinter",
     "unittest",
     "test",
     "pydoc",

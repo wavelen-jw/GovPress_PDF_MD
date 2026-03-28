@@ -109,7 +109,7 @@ python -m nuitka ^
     --copyright="Copyright (c) 2026 wavelen-jw" ^
     --trademarks="https://github.com/wavelen-jw/GovPress_PDF_MD" ^
     --windows-icon-from-ico=assets\icons\govpress.ico ^
-    --nofollow-import-to=tkinter,unittest,test,pydoc,doctest,pdb ^
+    --nofollow-import-to=unittest,test,pydoc,doctest,pdb ^
     app.py
 if errorlevel 1 (
     echo ERROR: Nuitka build failed.

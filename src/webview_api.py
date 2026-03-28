@@ -43,20 +43,27 @@ class GovPressAPI:
     # ── PDF conversion ─────────────────────────────────────────────────────
 
     def open_pdf_dialog(self) -> None:
-        """Open a native file dialog and start conversion if a PDF is chosen."""
-        try:
-            result = self.window.create_file_dialog(
-                webview.FileDialog.OPEN,
-                file_types=("PDF Files (*.pdf)",),
-            )
-        except Exception as exc:
-            self._logger.error("파일 선택 창 오류: %s", exc, exc_info=True)
-            self._js(f"onConversionError({json.dumps('파일 선택 창을 열 수 없습니다. 로그를 확인해주세요.')})")
-            return
-        if result:
-            self._start_conversion(Path(result[0]))
-        else:
-            self._js("onPdfDialogCancelled()")
+        """Open a native file dialog and start conversion if a PDF is chosen.
+
+        pywebview calls JS API methods in a worker thread, but
+        ``create_file_dialog`` requires the GUI thread on Windows
+        (EdgeChromium / MSHTML).  Calling it directly from the JS-bridge
+        thread can silently fail — the dialog never appears.
+
+        We work around this by spawning a short-lived thread so that the
+        JS-bridge thread is released immediately, then attempting the
+        pywebview dialog.  If that still fails we fall back to a tkinter
+        file dialog which always works on Windows.
+        """
+
+        def _show():
+            result = self._open_file_dialog_safe()
+            if result:
+                self._start_conversion(Path(result[0]))
+            else:
+                self._js("onPdfDialogCancelled()")
+
+        threading.Thread(target=_show, daemon=True).start()
 
     def convert_pdf(self, path: str) -> None:
         """Start PDF conversion for the given absolute file path (drag-and-drop)."""
@@ -111,11 +118,7 @@ class GovPressAPI:
                 if self._state.save_path
                 else f"{self._state.current_pdf_path.stem if self._state.current_pdf_path else 'document'}.md"
             )
-        result = self.window.create_file_dialog(
-            webview.FileDialog.SAVE,
-            save_filename=suggested,
-            file_types=("Markdown Files (*.md)",),
-        )
+        result = self._save_file_dialog_safe(suggested)
         if not result:
             return {"saved": False}
         save_path = Path(result if isinstance(result, str) else result[0])
@@ -143,6 +146,77 @@ class GovPressAPI:
         """Display a native error dialog."""
         if self.window:
             self.window.create_confirmation_dialog("오류", message)
+
+    # ── File-dialog helpers (thread-safe) ───────────────────────────────────
+
+    def _open_file_dialog_safe(self):
+        """Try pywebview native dialog first, fall back to tkinter."""
+        try:
+            result = self.window.create_file_dialog(
+                webview.FileDialog.OPEN,
+                file_types=("PDF Files (*.pdf)",),
+            )
+            if result is not None:
+                return result
+        except Exception as exc:
+            self._logger.warning("pywebview 파일 열기 다이얼로그 실패, tkinter로 전환: %s", exc)
+        return self._tk_open_dialog()
+
+    def _save_file_dialog_safe(self, suggested: str):
+        """Try pywebview native save dialog first, fall back to tkinter."""
+        try:
+            result = self.window.create_file_dialog(
+                webview.FileDialog.SAVE,
+                save_filename=suggested,
+                file_types=("Markdown Files (*.md)",),
+            )
+            if result is not None:
+                return result
+        except Exception as exc:
+            self._logger.warning("pywebview 저장 다이얼로그 실패, tkinter로 전환: %s", exc)
+        return self._tk_save_dialog(suggested)
+
+    @staticmethod
+    def _tk_open_dialog():
+        """Tkinter-based fallback open-file dialog (always works on Windows)."""
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            root.focus_force()
+            path = filedialog.askopenfilename(
+                title="PDF 파일 선택",
+                filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")],
+            )
+            root.destroy()
+            return [path] if path else None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _tk_save_dialog(suggested: str):
+        """Tkinter-based fallback save-file dialog."""
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            root.focus_force()
+            path = filedialog.asksaveasfilename(
+                title="마크다운 저장",
+                initialfile=suggested,
+                defaultextension=".md",
+                filetypes=[("Markdown Files", "*.md"), ("All Files", "*.*")],
+            )
+            root.destroy()
+            return path if path else None
+        except Exception:
+            return None
 
     # ── Internal helpers ────────────────────────────────────────────────────
 
