@@ -8,11 +8,6 @@ from html import escape
 from pathlib import Path
 
 try:
-    import webview
-except ImportError:
-    webview = None  # type: ignore[assignment]
-
-try:
     import markdown as markdown_lib
 except ImportError:
     markdown_lib = None  # type: ignore[assignment]
@@ -22,6 +17,7 @@ from .preview_widget import normalize_preview_markdown, decorate_preview_html, i
 from .state import DocumentState
 from .utils import configure_logging, ensure_utf8_text, save_markdown_file
 from .app_metadata import APP_NAME
+from .win32_dialog import open_file_dialog, save_file_dialog
 
 
 _MAX_CONTENT_CHARS = 2_000_000   # 2 MB hard cap on editor content
@@ -45,16 +41,16 @@ class GovPressAPI:
     def open_pdf_dialog(self) -> None:
         """Open a native file dialog and start conversion if a PDF is chosen."""
         try:
-            result = self.window.create_file_dialog(
-                webview.FileDialog.OPEN,
-                file_types=("PDF Files (*.pdf)",),
+            path = open_file_dialog(
+                title="PDF 파일 선택",
+                filter_str="PDF 파일\0*.pdf\0모든 파일\0*.*\0",
             )
         except Exception as exc:
             self._logger.error("파일 선택 창 오류: %s", exc, exc_info=True)
             self._js(f"onConversionError({json.dumps('파일 선택 창을 열 수 없습니다. 로그를 확인해주세요.')})")
             return
-        if result:
-            self._start_conversion(Path(result[0]))
+        if path:
+            self._start_conversion(Path(path))
         else:
             self._js("onPdfDialogCancelled()")
 
@@ -111,14 +107,15 @@ class GovPressAPI:
                 if self._state.save_path
                 else f"{self._state.current_pdf_path.stem if self._state.current_pdf_path else 'document'}.md"
             )
-        result = self.window.create_file_dialog(
-            webview.FileDialog.SAVE,
-            save_filename=suggested,
-            file_types=("Markdown Files (*.md)",),
+        result = save_file_dialog(
+            title="Markdown 파일 저장",
+            filter_str="Markdown 파일\0*.md\0모든 파일\0*.*\0",
+            default_name=suggested,
+            default_ext="md",
         )
         if not result:
             return {"saved": False}
-        save_path = Path(result if isinstance(result, str) else result[0])
+        save_path = Path(result)
         try:
             save_markdown_file(save_path, content)
             with self._lock:
