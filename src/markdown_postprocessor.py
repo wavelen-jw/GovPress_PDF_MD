@@ -5,6 +5,7 @@ from typing import Iterable
 
 from .document_template import DEFAULT_TEMPLATE, PressReleaseTemplate
 from .parser_rules import clean_line, extract_sections, is_reference_line, split_contact_chunks
+from .report_postprocessor import postprocess_report
 
 
 IMAGE_PATTERN = re.compile(r"!\[[^\]]*\]\((?:[^()]|\([^)]*\))*\)")
@@ -34,6 +35,7 @@ PRESS_PARAGRAPH_ENDINGS = (
 INLINE_SPLIT_MARKERS = ("￭", "▲")
 APPENDIX_FIELD_PATTERN = re.compile(r"^[○ㅇ]\s*([^:：]+)\s*[:：]\s*(.+)$")
 PRESS_CALLOUT_MARKER_PATTERN = re.compile(r"\s+(?=▴\()")
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=다\.)\s+(?=[가-힣])")
 TRAILING_ANGLE_LABEL_PATTERN = re.compile(r"^(.*?[.!?])\s*(<[^>]+>)$")
 ANGLE_LABEL_WITH_TRIANGLE_PATTERN = re.compile(r"^(<[^>]+>)\s*(△.+)$")
 CASE_STUDY_HEADING_PATTERN = re.compile(r"^####\s*<\s*20\d{2}.*추진 사례\s*>$")
@@ -171,10 +173,32 @@ def _preclean_lines(raw_text: str) -> list[str]:
     return cleaned
 
 
-def _has_press_release_markers(lines: list[str]) -> bool:
-    joined = "\n".join(lines)
-    markers = ("보도자료", "보도시점", "담당 부서", "담당부서")
-    return sum(1 for marker in markers if marker in joined) >= 2
+_PRESS_STAMP_RE = re.compile(r'^(?:.+\s+)?보도자료\s*$')
+
+# 보고서 구조 지표: 로마자 섹션 또는 요약/참고 헤더
+_REPORT_SECTION_RE = re.compile(
+    r'^(Ⅰ|Ⅱ|Ⅲ|Ⅳ|Ⅴ|Ⅵ|Ⅶ|Ⅷ|Ⅸ|Ⅹ|I{1,3}V?|VI{0,3}|IX|IV)\s*[.．]'
+    r'|^요\s*약\s*$'
+    r'|^[<＜]\s*참고',
+    re.MULTILINE,
+)
+
+
+def _is_government_report(raw_text: str) -> bool:
+    """로마자 섹션(I. II. III.), 요약, 또는 <참고> 섹션이 있으면 보고서 형식."""
+    return bool(_REPORT_SECTION_RE.search(raw_text))
+
+
+def _is_press_release(raw_text: str) -> bool:
+    """문서 최상단(첫 10줄)에 '보도자료'가 독립 스탬프로 있는지로 판단.
+
+    '행정안전부 보도자료' 같은 짧은 스탬프 줄만 인정.
+    '행안부 보도자료·홈페이지 개선 방안' 처럼 제목에 포함된 경우는 제외.
+    """
+    for line in raw_text.splitlines()[:10]:
+        if _PRESS_STAMP_RE.match(line.strip()):
+            return True
+    return False
 
 
 def _render_metadata(lines: list[str], plain_metadata: bool = False) -> list[str]:
@@ -186,17 +210,17 @@ def _render_metadata(lines: list[str], plain_metadata: bool = False) -> list[str
         normalized = re.sub(r"(\d{1,2}:\d{2})\s+\(", r"\1 / (", normalized)
         return normalized
 
-    rendered = ["행정안전부 보도자료"] if plain_metadata else ["> 행정안전부 보도자료"]
+    rendered = ["행정안전부 보도자료"]
     for line in lines:
         text = clean_line(line)
         if text.startswith("보도시점"):
             suffix = text[len("보도시점") :].strip(" :")
             suffix = normalize_metadata_text(suffix)
             if suffix:
-                rendered.append(f"보도시점: {suffix}" if plain_metadata else f"> 보도시점: {suffix}")
+                rendered.append(f"보도시점: {suffix}")
         else:
             normalized = normalize_metadata_text(text)
-            rendered.append(f"보도시점: {normalized}" if plain_metadata else f"> 보도시점: {normalized}")
+            rendered.append(f"보도시점: {normalized}")
     return rendered
 
 
@@ -232,6 +256,92 @@ def _should_render_press_heading(content: str) -> bool:
 
 def _split_press_callout_items(text: str) -> list[str]:
     return [clean_line(part) for part in PRESS_CALLOUT_MARKER_PATTERN.split(text) if clean_line(part)]
+
+
+_STRUCTURAL_STARTS = frozenset("#>|-*◆■□○\u20dd§※▴▲△＜<￭▸ㅇ")
+
+
+def _join_body_lines(lines: list[str]) -> list[str]:
+    """PDF에서 문장 중간에 끊긴 줄을 이어 붙임.
+
+    1) 이전 줄이 마침표로 끝나지 않고 구조 요소가 아닌 경우 → 다음 줄과 합침.
+    2) ◆/■ 소제목 직후 줄도 마침표 없이 끝나면 합침 (◆ 뒤 본문 연결).
+    """
+    joined: list[str] = []
+    for line in lines:
+        text = clean_line(line)
+        if not text:
+            joined.append(text)
+            continue
+        is_structural = text[0] in _STRUCTURAL_STARTS
+        prev = joined[-1] if joined else ""
+        prev_is_structural = bool(prev and prev[0] in _STRUCTURAL_STARTS)
+        if (
+            prev
+            and not prev.rstrip().endswith(".")
+            and not prev_is_structural
+            and not is_structural
+        ):
+            # 일반 연속 줄 합치기
+            joined[-1] = f"{prev.rstrip()} {text}"
+        elif (
+            prev
+            and not prev.rstrip().endswith(".")
+            and prev_is_structural
+            and prev.lstrip()[0] in "◆■"
+            and not is_structural
+        ):
+            # ◆/■ 소제목 뒤 이어지는 본문 줄도 합침
+            joined[-1] = f"{prev.rstrip()} {text}"
+        else:
+            joined.append(text)
+    return joined
+
+
+def _join_continuation_rendered(lines: list[str]) -> list[str]:
+    """렌더링 후에도 문장이 끊긴 경우 이어 붙임 (예: ◆ 분리 후 나머지 줄)."""
+    joined: list[str] = []
+    for line in lines:
+        if not line:
+            joined.append(line)
+            continue
+        is_structural = line.lstrip()[:1] in "#>|-" or line.startswith(("  -", "  >"))
+        prev = joined[-1] if joined else ""
+        prev_is_structural = not prev or prev.lstrip()[:1] in "#>|-" or prev.startswith(("  -", "  >"))
+        if (
+            prev
+            and not prev.rstrip().endswith(".")
+            and not prev_is_structural
+            and not is_structural
+        ):
+            joined[-1] = f"{prev.rstrip()} {line}"
+        else:
+            joined.append(line)
+    return joined
+
+
+def _split_topic_heading(content: str) -> tuple[str, str]:
+    """◆/■ 뒤 content를 (제목, 본문)으로 분리.
+
+    전략 1: 앞 2-4 단어가 뒤에서 반복되면 반복 직전에서 분리.
+    전략 2: 누적 길이 6-24 내의 마지막 공백에서 분리.
+    """
+    if len(content) <= 22:
+        return content, ""
+    words = content.split()
+    for n in range(2, min(5, len(words))):
+        prefix_with_space = " ".join(words[:n]) + " "
+        remainder = content[len(prefix_with_space):]
+        if prefix_with_space in remainder:
+            split_pos = len(prefix_with_space) + remainder.index(prefix_with_space)
+            return content[:split_pos].strip(), content[split_pos:].strip()
+    best_pos = -1
+    for i, ch in enumerate(content):
+        if ch == " " and 6 <= i <= 24:
+            best_pos = i
+    if best_pos == -1:
+        return content, ""
+    return content[:best_pos].strip(), content[best_pos + 1:].strip()
 
 
 def _normalize_body_line(text: str, template: PressReleaseTemplate) -> list[str]:
@@ -297,14 +407,34 @@ def _normalize_body_line(text: str, template: PressReleaseTemplate) -> list[str]
             and len(text) > 1
             and "일정(안)" not in text
         ):
-            return [f"> {text[1:].strip()}"]
+            return [f"> {text[1:].strip()}", ""]
         return [f"  - {text[1:].strip('-* ').strip()}"]
     if text.startswith("※"):
         note = text[1:].strip()
+        if note.startswith("(붙임") or note.startswith("(참고"):
+            return [f"- {note}"]
         return [f"> {note}"]
     if text.startswith("* "):
         return [f"  - {text[2:].strip()}"]
-    return [text]
+    topic_match = TOPIC_BULLET_PATTERN.match(text)
+    if topic_match:
+        content = topic_match.group(1).strip()
+        heading, body = _split_topic_heading(content)
+        if not body:
+            return [f"#### {heading}", ""]
+        body_result: list[str] = []
+        for part in _SENTENCE_SPLIT_RE.split(body):
+            body_result.append(part)
+            if part.endswith("다."):
+                body_result.append("")
+        return [f"#### {heading}", ""] + body_result
+    parts = _SENTENCE_SPLIT_RE.split(text)
+    result: list[str] = []
+    for part in parts:
+        result.append(part)
+        if part.endswith("다."):
+            result.append("")
+    return result
 
 
 def _expand_inline_bullets(lines: list[str]) -> list[str]:
@@ -395,6 +525,7 @@ def _is_case_study_intro(text: str) -> bool:
 
 
 def _render_body(lines: list[str], template: PressReleaseTemplate) -> list[str]:
+    lines = _join_body_lines(lines)
     rendered: list[str] = []
     inside_reference_block = False
     reference_block_mode: str | None = None
@@ -824,12 +955,10 @@ def _postprocess_press_release(
         blocks.append(f"# {title}")
 
     if sections.subtitle_lines:
-        subtitles = "\n".join(
-            f"> {item}" if use_quote_subtitles else f"- {item}" for item in subtitle_items
-        )
+        subtitles = "\n".join(f"> {item}" for item in subtitle_items)
         blocks.append(subtitles)
 
-    metadata = _render_metadata(sections.metadata_lines, plain_metadata=use_quote_subtitles)
+    metadata = _render_metadata(sections.metadata_lines)
     if metadata:
         blocks.append("\n".join(metadata))
 
@@ -855,7 +984,9 @@ def _postprocess_press_release(
 def postprocess_markdown(
     raw_text: str, template: PressReleaseTemplate = DEFAULT_TEMPLATE
 ) -> str:
-    cleaned_lines = _preclean_lines(raw_text)
-    if _has_press_release_markers(cleaned_lines):
+    if _is_press_release(raw_text):
+        cleaned_lines = _preclean_lines(raw_text)
         return _postprocess_press_release("\n".join(cleaned_lines), template)
-    return _postprocess_generic_markdown("\n".join(cleaned_lines))
+    if _is_government_report(raw_text):
+        return postprocess_report(raw_text)
+    return _postprocess_generic_markdown(raw_text)

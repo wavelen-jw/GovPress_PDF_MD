@@ -6,7 +6,7 @@ let _currentFile = '';
 let _isDirty     = false;
 let _hasContent  = false;
 let _previewTimer = null;
-let _followCursor = false;
+let _followCursor = true;
 const PREVIEW_DEBOUNCE_MS = 250;
 
 // ── DOM refs ───────────────────────────────────────────────
@@ -89,36 +89,46 @@ async function copyMarkdown() {
 editor.addEventListener('input', () => {
   pywebview.api.update_content(editor.value);
   setFileLabel(_currentFile, true);
-  schedulePreview();
+  schedulePreview(true);
 });
 
-function schedulePreview() {
+function schedulePreview(scrollToHighlight = false) {
   clearTimeout(_previewTimer);
-  _previewTimer = setTimeout(renderPreview, PREVIEW_DEBOUNCE_MS);
+  _previewTimer = setTimeout(() => renderPreview(scrollToHighlight), PREVIEW_DEBOUNCE_MS);
 }
 
-async function renderPreview() {
-  const content  = editor.value;
+async function renderPreview(scrollToHighlight = false) {
+  const content    = editor.value;
   const cursorLine = _followCursor ? getCurrentLine() : null;
   const html = await pywebview.api.render_markdown(content, cursorLine);
-  const scrollTop = document.getElementById('preview-scroll').scrollTop;
-  previewContent.innerHTML = html;
-  document.getElementById('preview-scroll').scrollTop = scrollTop;
+  const scrollEl   = document.getElementById('preview-scroll');
+
+  if (_followCursor && scrollToHighlight) {
+    previewContent.innerHTML = html;
+    const highlight = previewContent.querySelector('.cursor-highlight');
+    if (highlight) {
+      highlight.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  } else {
+    const savedTop = scrollEl.scrollTop;
+    previewContent.innerHTML = html;
+    scrollEl.scrollTop = savedTop;
+  }
 }
 
 function getCurrentLine() {
-  const pos = editor.selectionStart;
-  const lines = editor.value.substring(0, pos).split('\n');
-  return lines[lines.length - 1] || null;
+  const pos  = editor.selectionStart;
+  const text = editor.value;
+  const lineStart = text.lastIndexOf('\n', pos - 1) + 1;
+  const lineEnd   = text.indexOf('\n', pos);
+  return text.slice(lineStart, lineEnd === -1 ? text.length : lineEnd) || null;
 }
 
-// cursor sync
+// cursor sync toggle
 document.getElementById('follow-cursor').addEventListener('change', e => {
   _followCursor = e.target.checked;
   setStatus(_followCursor ? '커서 동기화 켜짐' : '커서 동기화 꺼짐');
 });
-editor.addEventListener('keyup', () => { if (_followCursor) schedulePreview(); });
-editor.addEventListener('click', () => { if (_followCursor) schedulePreview(); });
 
 // ── View modes ─────────────────────────────────────────────
 const modes = { source: 'btn-source', split: 'btn-split', preview: 'btn-preview' };
@@ -148,6 +158,7 @@ document.addEventListener('keydown', e => {
     cb.checked = !cb.checked;
     cb.dispatchEvent(new Event('change'));
   }
+  if (e.key === 'Escape') closeModal();
 });
 
 // Tab key in editor → insert spaces
@@ -235,13 +246,24 @@ function hasPDF(e) {
 
 // ── Error dialog (simple alert fallback) ───────────────────
 function showError(msg) {
-  // Use pywebview dialog if available, else alert
   if (pywebview && pywebview.api && pywebview.api.show_error) {
     pywebview.api.show_error(msg);
   } else {
     alert(msg);
   }
 }
+
+// ── Info modal ─────────────────────────────────────────────
+const modalBackdrop = document.getElementById('modal-backdrop');
+
+document.getElementById('btn-info').addEventListener('click', openModal);
+document.getElementById('modal-close').addEventListener('click', closeModal);
+modalBackdrop.addEventListener('click', e => {
+  if (e.target === modalBackdrop) closeModal();
+});
+
+function openModal()  { modalBackdrop.classList.add('open'); }
+function closeModal() { modalBackdrop.classList.remove('open'); }
 
 // ── Init ───────────────────────────────────────────────────
 setHasContent(false);

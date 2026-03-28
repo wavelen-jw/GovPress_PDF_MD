@@ -1,7 +1,14 @@
 """PyWebView window entry point (replaces PySide6 main_window)."""
 from __future__ import annotations
 
+import logging
+import os
+
 import webview
+
+# Edge WebView2 접근성 폴링 노이즈 억제
+logging.getLogger("pywebview").setLevel(logging.CRITICAL)
+os.environ.setdefault("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-features=msSmartScreenProtection")
 
 from .webview_api import GovPressAPI
 from .app_metadata import APP_DISPLAY_NAME

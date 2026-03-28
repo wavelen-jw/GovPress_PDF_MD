@@ -40,7 +40,7 @@ class GovPressAPI:
     def open_pdf_dialog(self) -> None:
         """Open a native file dialog and start conversion if a PDF is chosen."""
         result = self.window.create_file_dialog(
-            webview.OPEN_DIALOG,
+            webview.FileDialog.OPEN,
             file_types=("PDF Files (*.pdf)",),
         )
         if result:
@@ -93,7 +93,7 @@ class GovPressAPI:
             else f"{self._state.current_pdf_path.stem if self._state.current_pdf_path else 'document'}.md"
         )
         result = self.window.create_file_dialog(
-            webview.SAVE_DIALOG,
+            webview.FileDialog.SAVE,
             save_filename=suggested,
             file_types=("Markdown Files (*.md)",),
         )

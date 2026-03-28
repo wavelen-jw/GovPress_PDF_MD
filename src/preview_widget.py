@@ -16,10 +16,10 @@ except ImportError:  # pragma: no cover
 HORIZONTAL_RULE_PATTERN = re.compile(r"^ {0,3}([-*_])(?:\s*\1){2,}\s*$")
 BULLET_PATTERN = re.compile(r"^\s*[-+*]\s+")
 NUMBERED_LIST_PATTERN = re.compile(r"^\s*\d+\.\s+")
-BLOCKQUOTE_PATTERN = re.compile(r"<blockquote>(.*?)</blockquote>", re.IGNORECASE | re.DOTALL)
 HR_PATTERN = re.compile(r"<hr\s*/?>", re.IGNORECASE)
 H4_OPEN_PATTERN = re.compile(r"<h4\b[^>]*>", re.IGNORECASE)
 H4_CLOSE_PATTERN = re.compile(r"</h4>", re.IGNORECASE)
+TRAILING_BR_PATTERN = re.compile(r"<br\s*/?>\s*</p>", re.IGNORECASE)
 HIGHLIGHT_TOKEN = "GOVPRESS_CURSOR_HIGHLIGHT_TOKEN"
 
 
@@ -68,6 +68,9 @@ def normalize_preview_markdown(markdown_text: str) -> str:
                 normalized.append("")
 
         if stripped.startswith(">") and previous_nonempty_stripped:
+            # Ensure blank line between table row and blockquote
+            if previous_nonempty_stripped.startswith("|") and normalized and normalized[-1].strip():
+                normalized.append("")
             current_indent = len(line) - len(line.lstrip(" "))
             previous_indent = len(previous_nonempty) - len(previous_nonempty.lstrip(" "))
             if (
@@ -125,7 +128,7 @@ def decorate_preview_html(html: str) -> str:
         html,
     )
     html = H4_CLOSE_PATTERN.sub("</p>", html)
-    html = BLOCKQUOTE_PATTERN.sub(_replace_blockquote_with_callout_table, html)
+    html = TRAILING_BR_PATTERN.sub("</p>", html)
     html = html.replace(
         HIGHLIGHT_TOKEN,
         '<span class="cursor-highlight" style="background:#fff8c6;padding:0 2px;border-radius:2px;">',
@@ -135,21 +138,6 @@ def decorate_preview_html(html: str) -> str:
         html = html.replace("</span>", "</span>", 1)
         html = _close_first_highlight_span(html)
     return html
-
-
-def _replace_blockquote_with_callout_table(match: re.Match[str]) -> str:
-    inner = match.group(1).strip()
-    return (
-        '<table class="quote-block" cellspacing="0" cellpadding="0" '
-        'style="border-collapse:collapse;margin:12px 0 14px 0;width:100%;">'
-        "<tr>"
-        '<td style="width:5px;background:#000000;padding:0;margin:0;"></td>'
-        '<td style="padding:2px 0 2px 14px;color:#555555;">'
-        f"{inner}"
-        "</td>"
-        "</tr>"
-        "</table>"
-    )
 
 
 def _close_first_highlight_span(html: str) -> str:

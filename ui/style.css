@@ -303,12 +303,48 @@ body.mode-preview #divider      { display: none; }
 }
 #preview-content th { background: #f7f7f7; font-weight: 700; }
 
-/* callout blockquote (table-based) */
-#preview-content table.quote-block { font-size: 1em; }
-
 /* cursor highlight */
 #preview-content .cursor-highlight {
   background: #fff8c6;
   padding: 0 2px;
   border-radius: 2px;
 }
+
+/* ── Info modal ───────────────────────────────────────────── */
+#modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s;
+}
+#modal-backdrop.open { opacity: 1; pointer-events: auto; }
+#modal-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 28px 32px 24px;
+  min-width: 320px;
+  max-width: 420px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  position: relative;
+}
+#modal-box h3 { font-size: 17px; color: var(--accent); margin-bottom: 16px; }
+#modal-box .modal-row { font-size: 13px; color: var(--text); margin: 6px 0; line-height: 1.6; }
+#modal-box .modal-row span { color: var(--text2); margin-right: 6px; }
+#modal-box a { color: var(--accent); text-decoration: none; }
+#modal-box a:hover { text-decoration: underline; }
+#modal-close {
+  position: absolute;
+  top: 12px; right: 14px;
+  background: none; border: none;
+  font-size: 18px; color: var(--text2);
+  cursor: pointer; line-height: 1;
+  padding: 2px 6px; border-radius: 4px;
+}
+#modal-close:hover { background: var(--bg3); color: var(--text); }
