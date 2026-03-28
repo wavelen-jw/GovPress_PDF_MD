@@ -23,7 +23,7 @@ from .converter import convert_pdf_to_markdown
 from .preview_widget import normalize_preview_markdown, decorate_preview_html, inject_cursor_highlight
 from .state import DocumentState
 from .utils import configure_logging, ensure_utf8_text, save_markdown_file
-from .app_metadata import APP_NAME
+from .app_metadata import APP_NAME, APP_VERSION
 
 
 _MAX_CONTENT_CHARS = 2_000_000   # 2 MB hard cap on editor content
@@ -38,7 +38,7 @@ class GovPressAPI:
         self._state = DocumentState()
         self._lock = threading.Lock()  # guards _state across the bg conversion thread and JS callbacks
         self._logger = configure_logging(Path.home() / f".{APP_NAME}" / "app.log")
-        self._logger.info("GovPressAPI 초기화 완료 (v1.0.30)")
+        self._logger.info("GovPressAPI 초기화 완료 (v%s)", APP_VERSION)
 
     def set_window(self, window) -> None:
         self.window = window
@@ -62,6 +62,37 @@ class GovPressAPI:
             self._start_conversion(Path(result[0]))
         else:
             self._js("onPdfDialogCancelled()")
+
+    def open_md_dialog(self) -> None:
+        """Open a native file dialog to load an existing Markdown file."""
+        self._logger.info("open_md_dialog: Python 호출됨")
+        try:
+            result = self.window.create_file_dialog(
+                _OPEN_DIALOG,
+                file_types=("Markdown Files (*.md)",),
+            )
+        except Exception as exc:
+            self._logger.error("MD 파일 선택 창 오류: %s", exc, exc_info=True)
+            self._js(f"onConversionError({json.dumps('파일 선택 창을 열 수 없습니다.')})")
+            return
+        if not result:
+            self._js("onPdfDialogCancelled()")
+            return
+        md_path = Path(result[0])
+        try:
+            content = ensure_utf8_text(md_path.read_text(encoding="utf-8", errors="replace"))
+        except OSError as exc:
+            self._logger.error("MD 파일 읽기 오류: %s", exc)
+            self._js(f"onConversionError({json.dumps('MD 파일을 읽을 수 없습니다.')})")
+            return
+        with self._lock:
+            self._state.load_markdown(content, md_path)
+        payload = json.dumps({"markdown": content, "filename": md_path.name, "path": str(md_path)})
+        self._js(f"onMdLoaded({payload})")
+
+    def get_version(self) -> str:
+        """Return the application version string."""
+        return APP_VERSION
 
     def convert_pdf(self, path: str) -> None:
         """Start PDF conversion for the given absolute file path (drag-and-drop)."""

@@ -42,6 +42,8 @@ def run() -> None:
         """
         api._logger.info("Window loaded — API 함수 명시 등록 시작")
         window.expose(api.open_pdf_dialog)
+        window.expose(api.open_md_dialog)
+        window.expose(api.get_version)
         window.expose(api.convert_pdf)
         window.expose(api.render_markdown)
         window.expose(api.save_markdown)

@@ -61,6 +61,9 @@ let _apiReady = (typeof pywebview !== 'undefined' && pywebview.api);
 window.addEventListener('pywebviewready', () => {
   _apiReady = true;
   console.log('[GovPress] pywebview API ready');
+  pywebview.api.get_version().then(v => {
+    document.getElementById('modal-version').textContent = 'v' + v;
+  }).catch(() => {});
 });
 
 function ensureApi() {
@@ -84,6 +87,28 @@ function openPDF() {
     setStatus('PDF 열기 실패: ' + e.message, 'err');
     console.error('[GovPress] open_pdf_dialog error:', e);
   }
+}
+
+// ── MD open ────────────────────────────────────────────────
+document.getElementById('btn-open-md').addEventListener('click', openMD);
+function openMD() {
+  if (!ensureApi()) return;
+  try {
+    setStatus('MD 선택 중…', 'busy');
+    pywebview.api.open_md_dialog();
+  } catch (e) {
+    setStatus('MD 열기 실패: ' + e.message, 'err');
+    console.error('[GovPress] open_md_dialog error:', e);
+  }
+}
+
+function onMdLoaded(payload) {
+  const { markdown, filename, path } = payload;
+  editor.value = markdown;
+  setFileLabel(filename, false, path);
+  setHasContent(true);
+  setStatus('MD 열림', 'ok');
+  schedulePreview();
 }
 
 // ── Conversion callbacks (called from Python) ──────────────
@@ -194,6 +219,7 @@ document.getElementById('btn-preview').addEventListener('click', () => setMode('
 document.addEventListener('keydown', e => {
   const ctrl = e.ctrlKey || e.metaKey;
   if (ctrl && e.key === 'o') { e.preventDefault(); openPDF(); }
+  if (ctrl && e.key === 'm') { e.preventDefault(); openMD(); }
   if (ctrl && e.key === 's') { e.preventDefault(); saveMarkdown(); }
   if (ctrl && e.shiftKey && e.key === 'C') { e.preventDefault(); copyMarkdown(); }
   if (ctrl && e.key === '1') { e.preventDefault(); setMode('source'); }
