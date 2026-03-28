@@ -4,8 +4,12 @@ from html import escape
 from pathlib import Path
 import re
 
-from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QTextBrowser, QWidget, QVBoxLayout
+try:
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QTextBrowser, QWidget, QVBoxLayout
+    _PYSIDE6_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _PYSIDE6_AVAILABLE = False
 
 try:
     import markdown as markdown_lib
@@ -152,7 +156,10 @@ def _close_first_highlight_span(html: str) -> str:
     return html[:next_tag] + "</span>" + html[next_tag:]
 
 
-class MarkdownPreviewWidget(QWidget):
+_WidgetBase = QWidget if _PYSIDE6_AVAILABLE else object
+
+
+class MarkdownPreviewWidget(_WidgetBase):  # type: ignore[valid-type,misc]
     def __init__(self, css_path: Path | None = None, parent=None) -> None:
         super().__init__(parent)
         self.browser = QTextBrowser(self)
