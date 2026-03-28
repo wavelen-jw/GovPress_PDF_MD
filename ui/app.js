@@ -55,11 +55,35 @@ function setFollowCursor(on) {
   setStatus(on ? '커서 동기화 켜짐' : '커서 동기화 꺼짐');
 }
 
+// ── pywebview API readiness ────────────────────────────────
+let _apiReady = (typeof pywebview !== 'undefined' && pywebview.api);
+
+window.addEventListener('pywebviewready', () => {
+  _apiReady = true;
+  console.log('[GovPress] pywebview API ready');
+});
+
+function ensureApi() {
+  if (typeof pywebview !== 'undefined' && pywebview.api) {
+    _apiReady = true;
+    return true;
+  }
+  setStatus('API 초기화 대기 중… 잠시 후 다시 시도하세요', 'err');
+  console.error('[GovPress] pywebview.api not available');
+  return false;
+}
+
 // ── PDF open ───────────────────────────────────────────────
 document.getElementById('btn-open').addEventListener('click', openPDF);
 function openPDF() {
-  setStatus('PDF 선택 중…', 'busy');
-  pywebview.api.open_pdf_dialog();
+  if (!ensureApi()) return;
+  try {
+    setStatus('PDF 선택 중…', 'busy');
+    pywebview.api.open_pdf_dialog();
+  } catch (e) {
+    setStatus('PDF 열기 실패: ' + e.message, 'err');
+    console.error('[GovPress] open_pdf_dialog error:', e);
+  }
 }
 
 // ── Conversion callbacks (called from Python) ──────────────
@@ -85,6 +109,7 @@ function onConversionError(msg) {
 document.getElementById('btn-save').addEventListener('click', saveMarkdown);
 async function saveMarkdown() {
   if (!state.hasContent) return;
+  if (!ensureApi()) return;
   setStatus('저장 중…', 'busy');
   const result = await pywebview.api.save_markdown(editor.value);
   if (result.saved) {

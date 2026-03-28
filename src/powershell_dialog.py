@@ -57,11 +57,18 @@ def open_file_dialog(
 $t   = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{title_b64}'))
 $flt = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{filter_b64}'))
 Add-Type -AssemblyName System.Windows.Forms | Out-Null
+$owner = New-Object System.Windows.Forms.Form
+$owner.TopMost = $true
+$owner.StartPosition = 'Manual'
+$owner.Location = New-Object System.Drawing.Point(-32000, -32000)
+$owner.Size = New-Object System.Drawing.Size(1, 1)
+$owner.ShowInTaskbar = $false
+$owner.Show()
 $d = New-Object System.Windows.Forms.OpenFileDialog
 $d.Title   = $t
 $d.Filter  = $flt
-$d.TopMost = $true
-$null = $d.ShowDialog()
+$null = $d.ShowDialog($owner)
+$owner.Close()
 if ($d.FileName) {{
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($d.FileName)
     [Convert]::ToBase64String($bytes)
@@ -95,13 +102,20 @@ $flt = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{filt
 $fn  = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{name_b64}'))
 $ext = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{ext_b64}'))
 Add-Type -AssemblyName System.Windows.Forms | Out-Null
+$owner = New-Object System.Windows.Forms.Form
+$owner.TopMost = $true
+$owner.StartPosition = 'Manual'
+$owner.Location = New-Object System.Drawing.Point(-32000, -32000)
+$owner.Size = New-Object System.Drawing.Size(1, 1)
+$owner.ShowInTaskbar = $false
+$owner.Show()
 $d = New-Object System.Windows.Forms.SaveFileDialog
 $d.Title      = $t
 $d.Filter     = $flt
 $d.FileName   = $fn
 $d.DefaultExt = $ext
-$d.TopMost    = $true
-$null = $d.ShowDialog()
+$null = $d.ShowDialog($owner)
+$owner.Close()
 if ($d.FileName) {{
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($d.FileName)
     [Convert]::ToBase64String($bytes)
