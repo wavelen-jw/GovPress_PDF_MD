@@ -54,13 +54,13 @@ class GovPressAPI:
     def convert_pdf(self, path: str) -> None:
         """Start PDF conversion for the given absolute file path (drag-and-drop)."""
         if not isinstance(path, str) or not path.lower().endswith(".pdf"):
-            self._js("onConversionError('PDF 파일만 변환할 수 있습니다.')")
+            self._js(f"onConversionError({json.dumps('PDF 파일만 변환할 수 있습니다.')})")
             return
         self._start_conversion(Path(path))
 
     def _start_conversion(self, pdf_path: Path) -> None:
         if not pdf_path.exists():
-            self._js("onConversionError('선택한 PDF 파일을 찾을 수 없습니다.')")
+            self._js(f"onConversionError({json.dumps('선택한 PDF 파일을 찾을 수 없습니다.')})")
             return
         threading.Thread(target=self._do_convert, args=(pdf_path,), daemon=True).start()
 

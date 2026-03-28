@@ -5,12 +5,15 @@ import importlib
 from pathlib import Path
 import os
 import re
+import logging
 import shutil
 import subprocess
 import sys
 import tempfile
 import threading
 import shutil as shutil_lib
+
+_logger = logging.getLogger(__name__)
 
 from .json_extractor import extract_text_from_json
 from .markdown_postprocessor import postprocess_markdown
@@ -359,4 +362,7 @@ def convert_pdf_to_markdown(
         return postprocess_markdown(raw_text)
     finally:
         if not keep_temp_dir:
-            shutil.rmtree(temp_root, ignore_errors=True)
+            try:
+                shutil.rmtree(temp_root)
+            except OSError as exc:
+                _logger.warning("임시 디렉터리 삭제 실패 (민감 파일 잔류 가능): %s — %s", temp_root, exc)
