@@ -115,8 +115,8 @@ editor.addEventListener('input', () => {
 });
 
 function schedulePreview(scrollToHighlight = false) {
-  clearTimeout(_previewTimer);
-  _previewTimer = setTimeout(() => renderPreview(scrollToHighlight), PREVIEW_DEBOUNCE_MS);
+  clearTimeout(state.previewTimer);
+  state.previewTimer = setTimeout(() => renderPreview(scrollToHighlight), PREVIEW_DEBOUNCE_MS);
 }
 
 async function renderPreview(scrollToHighlight = false) {
