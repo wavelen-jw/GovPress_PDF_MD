@@ -45,11 +45,13 @@ class PreviewWidgetTests(unittest.TestCase):
         self.assertIn('class="md-rule"', decorated)
         self.assertIn("border-top:2px solid #000000", decorated)
 
-    def test_decorate_preview_html_replaces_blockquote_with_table_bar(self) -> None:
+    def test_decorate_preview_html_passes_blockquote_through(self) -> None:
+        # blockquote elements are not transformed by decorate_preview_html;
+        # styling is handled via CSS in style.css
         html = "<blockquote><p>인용문</p></blockquote>"
         decorated = decorate_preview_html(html)
-        self.assertIn('class="quote-block"', decorated)
-        self.assertIn("background:#000000", decorated)
+        self.assertIn("<blockquote>", decorated)
+        self.assertIn("인용문", decorated)
 
     def test_decorate_preview_html_inlines_h4_font_size(self) -> None:
         html = "<h4>소제목</h4>"

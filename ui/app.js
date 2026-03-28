@@ -2,11 +2,16 @@
 'use strict';
 
 // ── State ──────────────────────────────────────────────────
-let _currentFile = '';
-let _isDirty     = false;
-let _hasContent  = false;
-let _previewTimer = null;
-let _followCursor = true;
+// All mutable UI state lives here. Read via state.*, mutate via the
+// setFile/setHasContent/setFollowCursor helpers so side-effects stay central.
+const state = {
+  currentFile:  '',   // basename shown in status bar
+  currentPath:  '',   // full save path (for tooltip / future use)
+  isDirty:      false,
+  hasContent:   false,
+  previewTimer: null,
+  followCursor: true,
+};
 const PREVIEW_DEBOUNCE_MS = 250;
 
 // ── DOM refs ───────────────────────────────────────────────
@@ -21,21 +26,33 @@ const btnCopy      = document.getElementById('btn-copy');
 const divider      = document.getElementById('divider');
 const main         = document.getElementById('main');
 
-// ── Status helpers ─────────────────────────────────────────
+// ── State helpers ──────────────────────────────────────────
+// Centralise all side-effects that accompany state changes.
+
 function setStatus(msg, type = '') {
   statusMsg.textContent = msg;
   statusMsg.className = type;
 }
-function setFileLabel(name, dirty) {
-  _currentFile = name || '';
-  _isDirty = !!dirty;
+
+function setFileLabel(name, dirty, fullPath = '') {
+  state.currentFile = name || '';
+  state.currentPath = fullPath || name || '';
+  state.isDirty = !!dirty;
   statusFile.textContent = name ? `${name}${dirty ? '  ●' : ''}` : '';
+  statusFile.title = fullPath || name || '';  // tooltip shows full save path
 }
+
 function setHasContent(yes) {
-  _hasContent = yes;
+  state.hasContent = yes;
   btnSave.disabled = !yes;
   btnCopy.disabled = !yes;
   welcome.style.display = yes ? 'none' : '';
+}
+
+function setFollowCursor(on) {
+  state.followCursor = on;
+  document.getElementById('follow-cursor').checked = on;
+  setStatus(on ? '커서 동기화 켜짐' : '커서 동기화 꺼짐');
 }
 
 // ── PDF open ───────────────────────────────────────────────
@@ -54,6 +71,7 @@ function onConversionSuccess(payload) {
   setStatus('변환 완료', 'ok');
   schedulePreview();
 }
+
 function onConversionError(msg) {
   setStatus('변환 실패', 'err');
   showError(msg);
@@ -66,7 +84,7 @@ async function saveMarkdown() {
   setStatus('저장 중…', 'busy');
   const result = await pywebview.api.save_markdown(editor.value);
   if (result.saved) {
-    setFileLabel(result.path, false);
+    setFileLabel(result.name || result.path, false, result.path);
     setStatus('저장 완료', 'ok');
   } else if (result.error) {
     setStatus('저장 실패', 'err');
@@ -88,7 +106,7 @@ async function copyMarkdown() {
 // ── Preview rendering ──────────────────────────────────────
 editor.addEventListener('input', () => {
   pywebview.api.update_content(editor.value);
-  setFileLabel(_currentFile, true);
+  setFileLabel(state.currentFile, true, state.currentPath);
   schedulePreview(true);
 });
 
@@ -99,11 +117,11 @@ function schedulePreview(scrollToHighlight = false) {
 
 async function renderPreview(scrollToHighlight = false) {
   const content    = editor.value;
-  const cursorLine = _followCursor ? getCurrentLine() : null;
+  const cursorLine = state.followCursor ? getCurrentLine() : null;
   const html = await pywebview.api.render_markdown(content, cursorLine);
   const scrollEl   = document.getElementById('preview-scroll');
 
-  if (_followCursor && scrollToHighlight) {
+  if (state.followCursor && scrollToHighlight) {
     previewContent.innerHTML = html;
     const highlight = previewContent.querySelector('.cursor-highlight');
     if (highlight) {
@@ -126,8 +144,8 @@ function getCurrentLine() {
 
 // cursor sync toggle
 document.getElementById('follow-cursor').addEventListener('change', e => {
-  _followCursor = e.target.checked;
-  setStatus(_followCursor ? '커서 동기화 켜짐' : '커서 동기화 꺼짐');
+  state.followCursor = e.target.checked;
+  setStatus(state.followCursor ? '커서 동기화 켜짐' : '커서 동기화 꺼짐');
 });
 
 // ── View modes ─────────────────────────────────────────────
@@ -154,9 +172,7 @@ document.addEventListener('keydown', e => {
   if (ctrl && e.key === '3') { e.preventDefault(); setMode('preview'); }
   if (ctrl && e.shiftKey && e.key === 'F') {
     e.preventDefault();
-    const cb = document.getElementById('follow-cursor');
-    cb.checked = !cb.checked;
-    cb.dispatchEvent(new Event('change'));
+    setFollowCursor(!state.followCursor);
   }
   if (e.key === 'Escape') closeModal();
 });
@@ -239,7 +255,10 @@ function hasPDF(e) {
   const items = e.dataTransfer && e.dataTransfer.items;
   if (!items) return false;
   for (const item of items) {
-    if (item.kind === 'file') return true;
+    if (item.kind !== 'file') continue;
+    // item.type is often empty in WebView2/Edge for local files.
+    // Accept when type is PDF or unknown; reject only when a non-PDF type is explicit.
+    if (!item.type || item.type === 'application/pdf') return true;
   }
   return false;
 }

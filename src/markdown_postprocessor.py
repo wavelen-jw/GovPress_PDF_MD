@@ -1,3 +1,25 @@
+"""Markdown post-processor – routes raw PDF-extracted text to the right formatter.
+
+Responsibility map
+------------------
+postprocess_markdown()          Public entry point; detects document type and dispatches.
+_is_press_release()             Detects 보도자료 stamp in first 10 lines.
+_is_government_report()         Detects Roman-numeral sections / 요약 / 참고 headers.
+
+_postprocess_press_release()    Formats 보도자료: title → metadata → subtitle → body.
+_postprocess_generic_markdown() Formats annual plans, white papers, and other docs.
+postprocess_report()            Formats government reports (imported from report_postprocessor).
+
+Internal helpers (press release body):
+  _render_body()                Stateful line-by-line rendering of the body section.
+  _normalize_body_line()        Maps a single raw line to rendered Markdown lines.
+  _join_body_lines()            Joins lines broken mid-sentence by the PDF extractor.
+  _post_clean()                 Final blank-line and formatting cleanup pass.
+
+Internal helpers (shared / pre-cleaning):
+  _preclean_lines()             Strips table noise, TOC, images before routing.
+  _split_lines()                Expands <br>, inline service-table bundles, etc.
+"""
 from __future__ import annotations
 
 import re
@@ -7,6 +29,8 @@ from .document_template import DEFAULT_TEMPLATE, PressReleaseTemplate
 from .parser_rules import clean_line, extract_sections, is_reference_line, split_contact_chunks
 from .report_postprocessor import postprocess_report
 
+
+# ── Patterns & constants ─────────────────────────────────────────────────────
 
 IMAGE_PATTERN = re.compile(r"!\[[^\]]*\]\((?:[^()]|\([^)]*\))*\)")
 TABLE_NOISE_PATTERN = re.compile(r"^\|[\|\-·.\u2024\u2025\u2026\u22ef\d\s]*\|?$|^\|?(?:[-·.\u2024\u2025\u2026\u22ef]{3,}|\d+|\s)*\|?$")
@@ -42,6 +66,8 @@ CASE_STUDY_HEADING_PATTERN = re.compile(r"^####\s*<\s*20\d{2}.*추진 사례\s*>
 MARKDOWN_TABLE_SEPARATOR_PATTERN = re.compile(r"^\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|$")
 INLINE_SERVICE_TABLE_BUNDLE_PATTERN = re.compile(r"(\|[^|]+\|[^|]+\|[^|]+\|)")
 
+
+# ── Line splitting & pre-cleaning ────────────────────────────────────────────
 
 def _split_inline_service_table_bundle(text: str) -> list[str]:
     if "|서비스|주요내용|신청방법|" not in text:
@@ -173,6 +199,8 @@ def _preclean_lines(raw_text: str) -> list[str]:
     return cleaned
 
 
+# ── Document type detection ───────────────────────────────────────────────────
+
 _PRESS_STAMP_RE = re.compile(r'^(?:.+\s+)?보도자료\s*$')
 
 # 보고서 구조 지표: 로마자 섹션 또는 요약/참고 헤더
@@ -200,6 +228,8 @@ def _is_press_release(raw_text: str) -> bool:
             return True
     return False
 
+
+# ── Metadata & section rendering ─────────────────────────────────────────────
 
 def _render_metadata(lines: list[str], plain_metadata: bool = False) -> list[str]:
     if not lines:
@@ -257,6 +287,11 @@ def _should_render_press_heading(content: str) -> bool:
 def _split_press_callout_items(text: str) -> list[str]:
     return [clean_line(part) for part in PRESS_CALLOUT_MARKER_PATTERN.split(text) if clean_line(part)]
 
+
+# ── Press release body rendering ─────────────────────────────────────────────
+# _render_body() and its helpers form a self-contained rendering pipeline.
+# Next step: extract this block into press_body_renderer.py once patterns are
+# consolidated into a shared _md_patterns module.
 
 _STRUCTURAL_STARTS = frozenset("#>|-*◆■□○\u20dd§※▴▲△＜<￭▸ㅇ")
 
@@ -921,6 +956,8 @@ def _nest_schedule_subitems(lines: list[str]) -> list[str]:
     return nested
 
 
+# ── Generic document processing ──────────────────────────────────────────────
+
 def _postprocess_generic_markdown(raw_text: str) -> str:
     lines = _preclean_lines(raw_text)
     meaningful = [line for line in lines if _is_meaningful_line(line)]
@@ -980,6 +1017,8 @@ def _postprocess_press_release(
     output = "\n\n".join(block for block in blocks if block).strip() + "\n"
     return output.replace("\n\n---\n\n", "\n---\n")
 
+
+# ── Public API ───────────────────────────────────────────────────────────────
 
 def postprocess_markdown(
     raw_text: str, template: PressReleaseTemplate = DEFAULT_TEMPLATE

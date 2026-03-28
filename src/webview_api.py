@@ -30,6 +30,7 @@ class GovPressAPI:
     def __init__(self) -> None:
         self.window = None
         self._state = DocumentState()
+        self._lock = threading.Lock()  # guards _state across the bg conversion thread and JS callbacks
         self._logger = configure_logging(Path.home() / f".{APP_NAME}" / "app.log")
 
     def set_window(self, window) -> None:
@@ -60,7 +61,8 @@ class GovPressAPI:
         try:
             markdown = convert_pdf_to_markdown(pdf_path)
             clean = ensure_utf8_text(markdown)
-            self._state.load_markdown(clean, pdf_path)
+            with self._lock:
+                self._state.load_markdown(clean, pdf_path)
             payload = json.dumps({"markdown": clean, "filename": pdf_path.name})
             self._js(f"onConversionSuccess({payload})")
         except Exception as exc:
@@ -87,11 +89,12 @@ class GovPressAPI:
 
     def save_markdown(self, content: str) -> dict:
         """Open a save dialog and write the Markdown file. Returns status dict."""
-        suggested = (
-            self._state.save_path.name
-            if self._state.save_path
-            else f"{self._state.current_pdf_path.stem if self._state.current_pdf_path else 'document'}.md"
-        )
+        with self._lock:
+            suggested = (
+                self._state.save_path.name
+                if self._state.save_path
+                else f"{self._state.current_pdf_path.stem if self._state.current_pdf_path else 'document'}.md"
+            )
         result = self.window.create_file_dialog(
             webview.FileDialog.SAVE,
             save_filename=suggested,
@@ -102,8 +105,9 @@ class GovPressAPI:
         save_path = Path(result if isinstance(result, str) else result[0])
         try:
             save_markdown_file(save_path, content)
-            self._state.mark_saved(save_path)
-            return {"saved": True, "path": save_path.name}
+            with self._lock:
+                self._state.mark_saved(save_path)
+            return {"saved": True, "path": str(save_path), "name": save_path.name}
         except OSError as exc:
             self._logger.error("Save failed: %s", exc)
             return {"saved": False, "error": str(exc)}
@@ -112,7 +116,8 @@ class GovPressAPI:
 
     def update_content(self, content: str) -> None:
         """Called on every editor change to keep dirty-state in sync."""
-        self._state.update_markdown(content)
+        with self._lock:
+            self._state.update_markdown(content)
 
     # ── Misc ────────────────────────────────────────────────────────────────
 

@@ -9,10 +9,16 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import shutil as shutil_lib
 
 from .json_extractor import extract_text_from_json
 from .markdown_postprocessor import postprocess_markdown
+
+# Prevents two concurrent conversions from corrupting each other's os.environ patch.
+# opendataloader_pdf.convert() spawns a Java subprocess and reads PATH/JAVA_HOME;
+# we must patch os.environ before calling it and cannot pass env= to the library call.
+_conversion_lock = threading.Lock()
 
 
 class DependencyError(RuntimeError):
@@ -327,13 +333,14 @@ def convert_pdf_to_markdown(
         staged_source_path = _stage_input_pdf_for_conversion(source_path, temp_root)
         convert = _load_opendataloader_convert()
         try:
-            with _RuntimeEnvironmentContext(status.java_command):
-                convert(
-                    input_path=[str(staged_source_path)],
-                    output_dir=str(temp_root),
-                    format="markdown,json",
-                    quiet=True,
-                )
+            with _conversion_lock:
+                with _RuntimeEnvironmentContext(status.java_command):
+                    convert(
+                        input_path=[str(staged_source_path)],
+                        output_dir=str(temp_root),
+                        format="markdown,json",
+                        quiet=True,
+                    )
         except Exception as exc:
             raise ConversionError(
                 "PDF 변환에 실패했습니다.\n"

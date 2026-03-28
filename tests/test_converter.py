@@ -184,6 +184,7 @@ class ConverterTests(unittest.TestCase):
         self.assertIn("#### <지하 복합형 자원순환시설에서의 화재·침수>", markdown)
 
     def test_press_release_table_header_is_split_correctly(self) -> None:
+        # Order: title → metadata (plain) → subtitle (blockquote) → --- → body
         raw = (
             "보도자료\n"
             "보도시점\n"
@@ -198,11 +199,12 @@ class ConverterTests(unittest.TestCase):
         )
         markdown = postprocess_markdown(raw)
         self.assertIn("# 제목 줄", markdown)
-        self.assertIn("> 보도시점: (온라인) 2026. 3. 25. 12:00", markdown)
-        self.assertIn("- 부제 1", markdown)
+        self.assertIn("보도시점: (온라인) 2026. 3. 25. 12:00", markdown)
+        self.assertIn("> 부제 1", markdown)
         self.assertIn("본문 시작", markdown)
-        self.assertLess(markdown.index("- 부제 1"), markdown.index("> 행정안전부 보도자료"))
-        self.assertLess(markdown.index("> 행정안전부 보도자료"), markdown.index("> 보도시점: (온라인) 2026. 3. 25. 12:00"))
+        # Metadata (plain text) comes after title but before subtitle
+        self.assertLess(markdown.index("# 제목 줄"), markdown.index("행정안전부 보도자료"))
+        self.assertLess(markdown.index("행정안전부 보도자료"), markdown.index("> 부제 1"))
 
     def test_press_release_without_square_bullets_starts_body_after_subtitle(self) -> None:
         raw = (
@@ -694,6 +696,7 @@ class ConverterTests(unittest.TestCase):
         self.assertNotIn("붙임 세미나 계획", markdown)
 
     def test_press_release_metadata_and_note_style(self) -> None:
+        # Metadata is plain text (not blockquote); order: title → metadata → subtitle → body
         raw = (
             "보도자료\n"
             "보도시점 (온라인,지면) 2026. 3. 24. 국무회의 종료 시\n"
@@ -704,12 +707,13 @@ class ConverterTests(unittest.TestCase):
             "담당 부서: 혁신팀 책임자: 홍길동\n"
         )
         markdown = postprocess_markdown(raw)
-        self.assertIn("> 행정안전부 보도자료", markdown)
-        self.assertIn("> 보도시점: (온라인,지면) 2026. 3. 24. 국무회의 종료 시", markdown)
+        self.assertIn("행정안전부 보도자료", markdown)
+        self.assertIn("보도시점: (온라인,지면) 2026. 3. 24. 국무회의 종료 시", markdown)
         self.assertIn("> (주요 사항) 예시 설명", markdown)
         self.assertIn("- 혁신팀 책임자: 홍길동", markdown)
-        self.assertLess(markdown.index("# 제목"), markdown.index("- 부제"))
-        self.assertLess(markdown.index("- 부제"), markdown.index("> 행정안전부 보도자료"))
+        # Title comes first, then metadata, then subtitle
+        self.assertLess(markdown.index("# 제목"), markdown.index("행정안전부 보도자료"))
+        self.assertLess(markdown.index("행정안전부 보도자료"), markdown.index("> 부제"))
 
     def test_press_release_note_continuations_follow_parent_list_depth(self) -> None:
         raw = (
@@ -940,10 +944,11 @@ class ConverterTests(unittest.TestCase):
                     self.assertIn(snippet, markdown)
 
     def test_golden_press_release_matches_expected_structure(self) -> None:
+        # Subtitles are rendered as blockquotes (> ...) since v1.2.5
         actual = convert_pdf_to_markdown(GOLDEN_PRESS_RELEASE, timeout_seconds=300)
         for snippet in (
             "# 대전 대덕구 공장 화재 중앙재난안전대책본부 6차 회의 개최",
-            "- 피해 유가족과 부상자·근로자에 대한 심리·치료·생활안정 지원 지속",
+            "> 피해 유가족과 부상자·근로자에 대한 심리·치료·생활안정 지원 지속",
             "정부는 유가족, 피해자 및 피해자 보호자 분들에 대한 지원에 소홀함이 없도록 최선을 다하고 있다.",
             "김광용 재난안전관리본부장은",
             "## 담당부서",
