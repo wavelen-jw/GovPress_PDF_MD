@@ -10,8 +10,11 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.wintypes
+import logging
 import sys
 import threading
+
+_log = logging.getLogger("GovPress_PDF_MD.dialog")
 
 
 def open_file_dialog(
@@ -96,21 +99,31 @@ def _show_ofn(
 ) -> str | None:
     """STA 스레드에서 GetOpenFileNameW / GetSaveFileNameW 를 호출한다."""
     if sys.platform != "win32":
+        _log.warning("_show_ofn: non-Windows platform, skipping")
         return None
+
+    _log.info("_show_ofn: start (save=%s, title=%r)", save, title)
 
     result: list[str | None] = [None]
     done = threading.Event()
 
     def _sta_worker() -> None:
-        # COM STA 초기화 — 파일 대화창은 STA 스레드에서만 올바르게 동작함
-        ctypes.windll.ole32.CoInitializeEx(None, _COINIT_APARTMENTTHREADED)
+        _log.info("_sta_worker: thread started (tid=%d)", threading.get_ident())
+        hr = ctypes.windll.ole32.CoInitializeEx(None, _COINIT_APARTMENTTHREADED)
+        _log.info("_sta_worker: CoInitializeEx hr=0x%08X", hr & 0xFFFFFFFF)
         try:
             buf = ctypes.create_unicode_buffer(32768)
             if default_name:
                 buf.value = default_name
 
+            # hwndOwner: 현재 포어그라운드 창을 부모로 설정하여
+            # 다이얼로그가 앱 창 뒤에 숨지 않도록 한다
+            hwnd = ctypes.windll.user32.GetForegroundWindow()
+            _log.info("_sta_worker: hwndOwner=0x%X", hwnd or 0)
+
             ofn = _OPENFILENAMEW()
             ofn.lStructSize  = ctypes.sizeof(_OPENFILENAMEW)
+            ofn.hwndOwner    = hwnd
             ofn.lpstrFilter  = filter_str
             ofn.nFilterIndex = 1
             ofn.lpstrFile    = ctypes.cast(buf, ctypes.c_wchar_p)
@@ -126,23 +139,35 @@ def _show_ofn(
                     _OFN_PATHMUSTEXIST | _OFN_NOCHANGEDIR
                     | _OFN_OVERWRITEPROMPT | _OFN_NOREADONLYRETURN
                 )
-                ok = ctypes.windll.comdlg32.GetSaveFileNameW(ctypes.byref(ofn))
+                fn = ctypes.windll.comdlg32.GetSaveFileNameW
             else:
                 ofn.Flags = (
                     _OFN_FILEMUSTEXIST | _OFN_PATHMUSTEXIST
                     | _OFN_NOCHANGEDIR | _OFN_HIDEREADONLY
                 )
-                ok = ctypes.windll.comdlg32.GetOpenFileNameW(ctypes.byref(ofn))
+                fn = ctypes.windll.comdlg32.GetOpenFileNameW
+
+            _log.info("_sta_worker: calling %s", fn.__name__ if hasattr(fn, '__name__') else ('GetSaveFileNameW' if save else 'GetOpenFileNameW'))
+            ok = fn(ctypes.byref(ofn))
+            _log.info("_sta_worker: dialog returned ok=%d", ok)
 
             if ok:
                 result[0] = buf.value
-        except Exception:
-            pass
+                _log.info("_sta_worker: selected path=%r", result[0])
+            else:
+                err = ctypes.windll.comdlg32.CommDlgExtendedError()
+                _log.info("_sta_worker: cancelled or error, CommDlgExtendedError=0x%X", err)
+
+        except Exception as exc:
+            _log.error("_sta_worker: exception: %s", exc, exc_info=True)
         finally:
             ctypes.windll.ole32.CoUninitialize()
             done.set()
+            _log.info("_sta_worker: done.set() called")
 
-    t = threading.Thread(target=_sta_worker, daemon=True)
+    t = threading.Thread(target=_sta_worker, daemon=True, name="win32-dialog")
     t.start()
-    done.wait(timeout=120)  # 최대 2분 대기
+    _log.info("_show_ofn: waiting for dialog thread (timeout=120s)")
+    completed = done.wait(timeout=120)
+    _log.info("_show_ofn: wait returned completed=%s, result=%s", completed, result[0])
     return result[0]

@@ -40,6 +40,7 @@ class GovPressAPI:
 
     def open_pdf_dialog(self) -> None:
         """Open a native file dialog and start conversion if a PDF is chosen."""
+        self._logger.info("open_pdf_dialog: called (thread=%s)", __import__('threading').current_thread().name)
         try:
             path = open_file_dialog(
                 title="PDF 파일 선택",
