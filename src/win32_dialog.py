@@ -109,8 +109,10 @@ def _show_ofn(
 
     def _sta_worker() -> None:
         _log.info("_sta_worker: thread started (tid=%d)", threading.get_ident())
-        hr = ctypes.windll.ole32.CoInitializeEx(None, _COINIT_APARTMENTTHREADED)
-        _log.info("_sta_worker: CoInitializeEx hr=0x%08X", hr & 0xFFFFFFFF)
+        # CoInitializeEx를 호출하지 않음:
+        # GetOpenFileNameW 는 내부적으로 COM을 초기화하며,
+        # 외부에서 COINIT_APARTMENTTHREADED로 먼저 초기화하면
+        # 내부 apartment 충돌로 hang이 발생할 수 있음.
         try:
             buf = ctypes.create_unicode_buffer(32768)
             if default_name:
@@ -161,7 +163,6 @@ def _show_ofn(
         except Exception as exc:
             _log.error("_sta_worker: exception: %s", exc, exc_info=True)
         finally:
-            ctypes.windll.ole32.CoUninitialize()
             done.set()
             _log.info("_sta_worker: done.set() called")
 
