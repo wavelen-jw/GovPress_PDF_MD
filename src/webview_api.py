@@ -14,6 +14,11 @@ except ImportError:
 
 import webview
 
+# webview.FileDialog는 pywebview 일부 버전/PyInstaller 빌드에서 누락될 수 있음.
+# 호환성을 위해 정수 상수를 직접 정의한다.
+_OPEN_DIALOG = getattr(webview, 'OPEN_DIALOG', None) or 10
+_SAVE_DIALOG = getattr(webview, 'SAVE_DIALOG', None) or 20
+
 from .converter import convert_pdf_to_markdown
 from .preview_widget import normalize_preview_markdown, decorate_preview_html, inject_cursor_highlight
 from .state import DocumentState
@@ -33,7 +38,7 @@ class GovPressAPI:
         self._state = DocumentState()
         self._lock = threading.Lock()  # guards _state across the bg conversion thread and JS callbacks
         self._logger = configure_logging(Path.home() / f".{APP_NAME}" / "app.log")
-        self._logger.info("GovPressAPI 초기화 완료 (v1.0.29)")
+        self._logger.info("GovPressAPI 초기화 완료 (v1.0.30)")
 
     def set_window(self, window) -> None:
         self.window = window
@@ -45,7 +50,7 @@ class GovPressAPI:
         self._logger.info("open_pdf_dialog: Python 호출됨")
         try:
             result = self.window.create_file_dialog(
-                webview.FileDialog.OPEN,
+                _OPEN_DIALOG,
                 file_types=("PDF Files (*.pdf)",),
             )
         except Exception as exc:
@@ -113,7 +118,7 @@ class GovPressAPI:
                 else f"{self._state.current_pdf_path.stem if self._state.current_pdf_path else 'document'}.md"
             )
         result = self.window.create_file_dialog(
-            webview.FileDialog.SAVE,
+            _SAVE_DIALOG,
             save_filename=suggested,
             file_types=("Markdown Files (*.md)",),
         )
