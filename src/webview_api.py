@@ -40,13 +40,6 @@ class GovPressAPI:
 
     def open_pdf_dialog(self) -> None:
         """Open a native file dialog and start conversion if a PDF is chosen."""
-        # ── 진단용 MessageBox: Python 진입 여부 확인 ──────────────────────
-        import ctypes as _ct
-        _ct.windll.user32.MessageBoxW(
-            0, "open_pdf_dialog: Python 진입 확인", "진단", 0
-        )
-        # ─────────────────────────────────────────────────────────────────
-        self._logger.info("open_pdf_dialog: called (thread=%s)", __import__('threading').current_thread().name)
         threading.Thread(target=self._do_open_dialog, daemon=True).start()
 
     def _do_open_dialog(self) -> None:

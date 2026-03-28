@@ -102,17 +102,10 @@ def _show_ofn(
         _log.warning("_show_ofn: non-Windows platform, skipping")
         return None
 
-    _log.info("_show_ofn: start (save=%s, title=%r)", save, title)
-
     result: list[str | None] = [None]
     done = threading.Event()
 
     def _sta_worker() -> None:
-        _log.info("_sta_worker: thread started (tid=%d)", threading.get_ident())
-        # CoInitializeEx를 호출하지 않음:
-        # GetOpenFileNameW 는 내부적으로 COM을 초기화하며,
-        # 외부에서 COINIT_APARTMENTTHREADED로 먼저 초기화하면
-        # 내부 apartment 충돌로 hang이 발생할 수 있음.
         try:
             buf = ctypes.create_unicode_buffer(32768)
             if default_name:
@@ -121,7 +114,6 @@ def _show_ofn(
             # hwndOwner: 현재 포어그라운드 창을 부모로 설정하여
             # 다이얼로그가 앱 창 뒤에 숨지 않도록 한다
             hwnd = ctypes.windll.user32.GetForegroundWindow()
-            _log.info("_sta_worker: hwndOwner=0x%X", hwnd or 0)
 
             ofn = _OPENFILENAMEW()
             ofn.lStructSize  = ctypes.sizeof(_OPENFILENAMEW)
@@ -141,34 +133,23 @@ def _show_ofn(
                     _OFN_PATHMUSTEXIST | _OFN_NOCHANGEDIR
                     | _OFN_OVERWRITEPROMPT | _OFN_NOREADONLYRETURN
                 )
-                fn = ctypes.windll.comdlg32.GetSaveFileNameW
+                ok = ctypes.windll.comdlg32.GetSaveFileNameW(ctypes.byref(ofn))
             else:
                 ofn.Flags = (
                     _OFN_FILEMUSTEXIST | _OFN_PATHMUSTEXIST
                     | _OFN_NOCHANGEDIR | _OFN_HIDEREADONLY
                 )
-                fn = ctypes.windll.comdlg32.GetOpenFileNameW
-
-            _log.info("_sta_worker: calling %s", fn.__name__ if hasattr(fn, '__name__') else ('GetSaveFileNameW' if save else 'GetOpenFileNameW'))
-            ok = fn(ctypes.byref(ofn))
-            _log.info("_sta_worker: dialog returned ok=%d", ok)
+                ok = ctypes.windll.comdlg32.GetOpenFileNameW(ctypes.byref(ofn))
 
             if ok:
                 result[0] = buf.value
-                _log.info("_sta_worker: selected path=%r", result[0])
-            else:
-                err = ctypes.windll.comdlg32.CommDlgExtendedError()
-                _log.info("_sta_worker: cancelled or error, CommDlgExtendedError=0x%X", err)
 
         except Exception as exc:
-            _log.error("_sta_worker: exception: %s", exc, exc_info=True)
+            _log.error("파일 선택 창 오류: %s", exc, exc_info=True)
         finally:
             done.set()
-            _log.info("_sta_worker: done.set() called")
 
     t = threading.Thread(target=_sta_worker, daemon=True, name="win32-dialog")
     t.start()
-    _log.info("_show_ofn: waiting for dialog thread (timeout=120s)")
-    completed = done.wait(timeout=120)
-    _log.info("_show_ofn: wait returned completed=%s, result=%s", completed, result[0])
+    done.wait(timeout=120)
     return result[0]

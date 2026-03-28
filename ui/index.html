@@ -11,7 +11,12 @@
     - default-src 'none'       : deny everything else (frames, fetch, connect, etc.)
   -->
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+        content="default-src 'none'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <!--
+    'unsafe-eval' 이유: pywebview 5.x JS 브릿지가 API 프록시 함수 등록 시
+    new Function()을 사용함. 이 없으면 pywebview.api 메서드가 등록되지 않아
+    Python 호출이 무음 실패함.
+  -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
