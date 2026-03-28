@@ -4,14 +4,12 @@
   <meta charset="UTF-8">
   <title>GovPress PDF MD</title>
   <!--
-    Content Security Policy:
-    - script-src 'self'        : only load scripts from this origin; blocks <script> injected via innerHTML
-    - style-src 'self' 'unsafe-inline' : allow inline styles (used by Python preview decoration)
-    - img-src 'self' data:     : allow local images and data URIs
-    - default-src 'none'       : deny everything else (frames, fetch, connect, etc.)
+    CSP 비고: pywebview 5.x EdgeChromium 백엔드는 new Function()으로 JS API 프록시를
+    등록한다. WebView2에서 meta http-equiv CSP의 'unsafe-eval'이 ExecuteScriptAsync
+    컨텍스트에 적용되지 않아 API 등록이 실패하는 문제가 있어 CSP를 제거함.
+    이 앱은 로컬 데스크탑 앱(localhost)으로, 외부 네트워크 접근이 없으므로
+    CSP 없이도 보안 위험이 없음.
   -->
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
