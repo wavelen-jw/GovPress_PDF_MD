@@ -33,6 +33,7 @@ class GovPressAPI:
         self._state = DocumentState()
         self._lock = threading.Lock()  # guards _state across the bg conversion thread and JS callbacks
         self._logger = configure_logging(Path.home() / f".{APP_NAME}" / "app.log")
+        self._logger.info("GovPressAPI 초기화 완료 (v1.0.28)")
 
     def set_window(self, window) -> None:
         self.window = window
