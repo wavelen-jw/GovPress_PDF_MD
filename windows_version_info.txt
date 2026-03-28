@@ -1,7 +1,7 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 0, 0, 0),
-    prodvers=(1, 0, 0, 0),
+    filevers=(1, 2, 18, 0),
+    prodvers=(1, 2, 18, 0),
     mask=0x3F,
     flags=0x0,
     OS=0x40004,
@@ -17,12 +17,12 @@ VSVersionInfo(
           [
             StringStruct("CompanyName", "행정안전부"),
             StringStruct("FileDescription", "정부 보도자료 PDF to Markdown converter and editor."),
-            StringStruct("FileVersion", "1.2.12"),
+            StringStruct("FileVersion", "1.2.18"),
             StringStruct("InternalName", "GovPress_PDF_MD"),
             StringStruct("LegalCopyright", "Copyright (c) 2026 행정안전부"),
             StringStruct("OriginalFilename", "GovPress_PDF_MD.exe"),
             StringStruct("ProductName", "GovPress PDF MD"),
-            StringStruct("ProductVersion", "1.2.12"),
+            StringStruct("ProductVersion", "1.2.18"),
             StringStruct("Comments", "GitHub: https://github.com/wavelen-jw/GovPress_PDF_MD"),
           ],
         )

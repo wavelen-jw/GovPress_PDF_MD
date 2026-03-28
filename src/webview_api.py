@@ -12,12 +12,13 @@ try:
 except ImportError:
     markdown_lib = None  # type: ignore[assignment]
 
+import webview
+
 from .converter import convert_pdf_to_markdown
 from .preview_widget import normalize_preview_markdown, decorate_preview_html, inject_cursor_highlight
 from .state import DocumentState
 from .utils import configure_logging, ensure_utf8_text, save_markdown_file
 from .app_metadata import APP_NAME
-from .win32_dialog import open_file_dialog, save_file_dialog
 
 
 _MAX_CONTENT_CHARS = 2_000_000   # 2 MB hard cap on editor content
@@ -45,16 +46,17 @@ class GovPressAPI:
     def _do_open_dialog(self) -> None:
         """Background thread: show dialog, then start conversion or cancel."""
         try:
-            path = open_file_dialog(
-                title="PDF 파일 선택",
-                filter_str="PDF 파일\0*.pdf\0모든 파일\0*.*\0",
+            result = self.window.create_file_dialog(
+                webview.OPEN_DIALOG,
+                allow_multiple=False,
+                file_types=("PDF Files (*.pdf)", "All Files (*.*)"),
             )
         except Exception as exc:
             self._logger.error("파일 선택 창 오류: %s", exc, exc_info=True)
             self._js(f"onConversionError({json.dumps('파일 선택 창을 열 수 없습니다. 로그를 확인해주세요.')})")
             return
-        if path:
-            self._start_conversion(Path(path))
+        if result:
+            self._start_conversion(Path(result[0]))
         else:
             self._js("onPdfDialogCancelled()")
 
@@ -111,15 +113,31 @@ class GovPressAPI:
                 if self._state.save_path
                 else f"{self._state.current_pdf_path.stem if self._state.current_pdf_path else 'document'}.md"
             )
-        result = save_file_dialog(
-            title="Markdown 파일 저장",
-            filter_str="Markdown 파일\0*.md\0모든 파일\0*.*\0",
-            default_name=suggested,
-            default_ext="md",
-        )
+
+        # create_file_dialog must not be called from the pywebview JS-bridge thread
+        # directly — marshal via a dedicated thread to avoid WinForms deadlock.
+        result_holder: list = [None]
+        done = threading.Event()
+
+        def _show_save_dialog() -> None:
+            try:
+                result_holder[0] = self.window.create_file_dialog(
+                    webview.SAVE_DIALOG,
+                    save_filename=suggested,
+                    file_types=("Markdown Files (*.md)", "All Files (*.*)"),
+                )
+            except Exception as exc:
+                self._logger.error("저장 대화창 오류: %s", exc, exc_info=True)
+            finally:
+                done.set()
+
+        threading.Thread(target=_show_save_dialog, daemon=True).start()
+        done.wait(timeout=120)
+
+        result = result_holder[0]
         if not result:
             return {"saved": False}
-        save_path = Path(result)
+        save_path = Path(result[0] if isinstance(result, (list, tuple)) else result)
         try:
             save_markdown_file(save_path, content)
             with self._lock:
