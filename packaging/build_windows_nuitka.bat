@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-cd /d %~dp0
+cd /d %~dp0\..
 
 rem --------------------------------------------------
 rem 0) Find Python
@@ -120,7 +120,7 @@ where ISCC >nul 2>nul
 if %ERRORLEVEL%==0 (
     set "APP_SOURCE=dist_nuitka\app.dist"
     if exist dist_nuitka\app.dist (
-        ISCC /DAppSourceDir="%CD%\dist_nuitka\app.dist" /DOutputBaseFilename=GovPress_PDF_MD_Nuitka_Setup installer\GovPress_PDF_MD.iss
+        ISCC /DAppSourceDir="%CD%\dist_nuitka\app.dist" /DOutputBaseFilename=GovPress_PDF_MD_Nuitka_Setup packaging\inno\GovPress_PDF_MD.iss
         if errorlevel 1 (
             echo ERROR: Inno Setup build failed.
             exit /b 1

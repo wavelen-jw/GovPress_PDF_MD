@@ -5,7 +5,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 project_dir = Path.cwd()
 icon_path = project_dir / "assets" / "icons" / "govpress.ico"
-version_info_path = project_dir / "windows_version_info.txt"
+version_info_path = project_dir / "packaging" / "pyinstaller" / "windows_version_info.txt"
 
 datas = [
     (str(project_dir / "assets"), "assets"),

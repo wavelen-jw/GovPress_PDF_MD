@@ -36,7 +36,7 @@ jobs:
           GOVPRESS_PY_CMD: python
         run: |
           New-Item -ItemType Directory -Force -Path logs | Out-Null
-          cmd /c build_windows.bat 2>&1 | Tee-Object -FilePath logs/build_windows.log
+          cmd /c packaging\build_windows.bat 2>&1 | Tee-Object -FilePath logs/build_windows.log
           if ($LASTEXITCODE -ne 0) {
             Get-Content logs/build_windows.log -Tail 200 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
             exit $LASTEXITCODE

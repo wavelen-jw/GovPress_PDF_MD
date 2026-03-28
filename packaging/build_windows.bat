@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-cd /d %~dp0
+cd /d %~dp0\..
 
 rem --------------------------------------------------
 rem 0) Find Python
@@ -103,7 +103,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-python -m PyInstaller --noconfirm GovPress_PDF_MD.spec
+python -m PyInstaller --noconfirm packaging\pyinstaller\GovPress_PDF_MD.spec
 if errorlevel 1 (
     echo ERROR: PyInstaller build failed.
     exit /b 1
@@ -114,7 +114,7 @@ rem 2) Optional installer build
 rem --------------------------------------------------
 where ISCC >nul 2>nul
 if %ERRORLEVEL%==0 (
-    ISCC installer\GovPress_PDF_MD.iss
+    ISCC packaging\inno\GovPress_PDF_MD.iss
     if errorlevel 1 (
         echo ERROR: Inno Setup build failed.
         exit /b 1

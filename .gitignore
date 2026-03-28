@@ -3,12 +3,18 @@ __pycache__/
 .pytest_cache/
 .venv/
 .venv-build/
+.venv-*/
 .env
 build/
 dist/
+dist_*/
+build_*/
+logs/
 
 tests/converted_md/
 tests/fixtures/**/*.json
+tests/manual_samples/*
+!tests/manual_samples/README.md
 *:Zone.Identifier
 
 -o/
