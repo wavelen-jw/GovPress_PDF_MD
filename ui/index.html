@@ -4,18 +4,11 @@
   <meta charset="UTF-8">
   <title>GovPress PDF MD</title>
   <!--
-    Content Security Policy:
-    - script-src 'self'        : only load scripts from this origin; blocks <script> injected via innerHTML
-    - style-src 'self' 'unsafe-inline' : allow inline styles (used by Python preview decoration)
-    - img-src 'self' data:     : allow local images and data URIs
-    - default-src 'none'       : deny everything else (frames, fetch, connect, etc.)
-  -->
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'none'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
-  <!--
-    'unsafe-eval' 이유: pywebview 5.x JS 브릿지가 API 프록시 함수 등록 시
-    new Function()을 사용함. 이 없으면 pywebview.api 메서드가 등록되지 않아
-    Python 호출이 무음 실패함.
+    CSP 비고: pywebview 5.x EdgeChromium 백엔드는 new Function()으로 JS API 프록시를
+    등록한다. WebView2에서 meta http-equiv CSP의 'unsafe-eval'이 ExecuteScriptAsync
+    컨텍스트에 적용되지 않아 API 등록이 실패하는 문제가 있어 CSP를 제거함.
+    이 앱은 로컬 데스크탑 앱(localhost)으로, 외부 네트워크 접근이 없으므로
+    CSP 없이도 보안 위험이 없음.
   -->
   <link rel="stylesheet" href="style.css">
 </head>
@@ -135,7 +128,7 @@
         <div class="modal-icon">&#128196;</div>
         <div>
           <div class="modal-title">정부문서 PDF-MD 변환</div>
-          <div class="modal-version">v1.2.19</div>
+          <div class="modal-version">v1.2.20</div>
         </div>
       </div>
       <div class="modal-divider"></div>
