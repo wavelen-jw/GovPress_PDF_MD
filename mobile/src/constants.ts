@@ -8,7 +8,7 @@ export const STORAGE_KEYS = {
   draftPrefix: "govpress.mobile.draft",
 } as const;
 
-export const BUILD_TAG = "mobile-web-2026-03-29-2370";
+export const BUILD_TAG = "mobile-web-2026-03-29-2245-ui";
 
 export function defaultBaseUrl(): string {
   if (Platform.OS === "web" && typeof window !== "undefined") {

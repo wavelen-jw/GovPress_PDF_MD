@@ -74,6 +74,15 @@ export const styles = StyleSheet.create({
     fontWeight: "700",
   },
   heroSubtitle: { marginTop: 10, color: "#5d4a38", fontSize: 15, lineHeight: 22 },
+  heroChecklist: {
+    marginTop: 14,
+    gap: 6,
+  },
+  heroChecklistItem: {
+    color: "#6a5642",
+    fontSize: 13,
+    lineHeight: 20,
+  },
   heroActions: { flexDirection: "row", gap: 10, marginTop: 18, flexWrap: "wrap" },
   serverHint: { marginTop: 14, color: "#7c6a55", fontSize: 12 },
   workspaceToolbar: {
@@ -207,6 +216,11 @@ export const styles = StyleSheet.create({
   },
   listControlsShellDesktop: {
     paddingBottom: 2,
+  },
+  listSelectionHint: {
+    color: "#7d6954",
+    fontSize: 12,
+    lineHeight: 18,
   },
   listControlsDivider: {
     height: 1,
@@ -351,6 +365,14 @@ export const styles = StyleSheet.create({
     color: "#5f5144",
     lineHeight: 22,
   },
+  emptyDetailChecklist: {
+    marginTop: 8,
+    gap: 6,
+  },
+  emptyDetailChecklistItem: {
+    color: "#6f5b48",
+    lineHeight: 20,
+  },
   progressSteps: {
     flexDirection: "row",
     gap: 10,
@@ -479,8 +501,27 @@ export const styles = StyleSheet.create({
     width: 280,
     flexShrink: 0,
   },
+  resultMetaEyebrow: {
+    color: "#8a7661",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
   resultMetaTitle: { color: "#34261c", fontSize: 18, fontWeight: "700" },
   resultMetaBody: { color: "#705a45", lineHeight: 20 },
+  detailActionsHeader: {
+    gap: 4,
+  },
+  detailActionsTitle: {
+    color: "#2f2318",
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  detailActionsHint: {
+    color: "#75624f",
+    lineHeight: 20,
+  },
   toolbar: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
   toolbarDesktopCompact: {
     justifyContent: "flex-start",

@@ -7,6 +7,7 @@ import type { Job, ResultPayload } from "../types";
 import { formatDate } from "../utils/format";
 import { detailBadgeStyle } from "../utils/statusStyles";
 import { DiffPreview } from "./DiffPreview";
+import { EmptyDetailState } from "./EmptyDetailState";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { ResultTabs } from "./ResultTabs";
 
@@ -97,13 +98,7 @@ export function JobDetailPanel({
       </View>
       <View style={[styles.panelLarge, isWideLayout && styles.panelLargeDesktop]}>
         {!selectedJob ? (
-          <View style={styles.stateCardNeutral}>
-            <Text style={styles.stateEyebrow}>선택 대기</Text>
-            <Text style={styles.stateTitle}>작업을 선택하면 변환 흐름이 여기서 이어집니다.</Text>
-            <Text style={styles.stateBody}>
-              최근 작업에서 파일을 고르거나 새 PDF를 업로드하면 상태, 결과, 수정 기능이 이 패널에 표시됩니다.
-            </Text>
-          </View>
+          <EmptyDetailState />
         ) : (
           <>
             <View style={styles.detailHeader}>
@@ -159,6 +154,7 @@ export function JobDetailPanel({
                 <View style={[styles.detailStickyShell, isWideLayout && styles.detailStickyShellDesktop]}>
                   <View style={[styles.detailTopCluster, isWideLayout && styles.detailTopClusterDesktop]}>
                     <View style={[styles.resultMetaCard, isWideLayout && styles.resultMetaCardDesktop]}>
+                      <Text style={styles.resultMetaEyebrow}>변환 결과 요약</Text>
                       <Text style={styles.resultMetaTitle}>{result.meta.title || "제목 없음"}</Text>
                       <Text style={styles.resultMetaBody}>
                         부서: {result.meta.department || "미추출"}{"\n"}
@@ -166,6 +162,10 @@ export function JobDetailPanel({
                       </Text>
                     </View>
                     <View style={styles.detailControlsCluster}>
+                      <View style={styles.detailActionsHeader}>
+                        <Text style={styles.detailActionsTitle}>검토와 후속 작업</Text>
+                        <Text style={styles.detailActionsHint}>탭으로 결과를 확인하고, 필요할 때만 편집이나 공유를 진행합니다.</Text>
+                      </View>
                       <ResultTabs
                         tabs={[
                           { key: "preview", label: "미리보기" },

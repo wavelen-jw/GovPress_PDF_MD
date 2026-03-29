@@ -595,6 +595,10 @@ export default function App(): React.JSX.Element {
           <Text style={styles.heroSubtitle}>
             PDF 업로드, 변환 상태 확인, Markdown 검토와 수정, 공유까지 한 흐름으로 처리합니다.
           </Text>
+          <View style={styles.heroChecklist}>
+            <Text style={styles.heroChecklistItem}>업로드 후 완료되면 결과가 자동으로 상세 패널에 표시됩니다.</Text>
+            <Text style={styles.heroChecklistItem}>PC에서는 목록과 상세를 함께 보고, 모바일에서는 한 화면씩 집중합니다.</Text>
+          </View>
           {notice ? <Text style={styles.noticeBox}>{notice}</Text> : null}
         </View>
 

@@ -75,6 +75,11 @@ export function JobListPanel({
               <Text style={styles.listSortButtonLabel}>{sortOrder === "desc" ? "최신순" : "오래된순"}</Text>
             </Pressable>
           </View>
+          {selectedJobId ? (
+            <Text style={styles.listSelectionHint}>
+              선택한 작업은 오른쪽 상세 패널에서 상태, 결과, 수정 흐름을 바로 이어서 확인할 수 있습니다.
+            </Text>
+          ) : null}
         </View>
         {isWideLayout ? <View style={styles.listControlsDivider} /> : null}
         <ScrollView
