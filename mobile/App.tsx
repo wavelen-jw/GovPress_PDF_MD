@@ -702,6 +702,7 @@ export default function App(): React.JSX.Element {
             hasResult={!!(selectedJob?.status === "completed" && result)}
             hasUnsavedChanges={hasUnsavedChanges}
             isWideLayout={isWideLayout}
+            isCompactLayout={isCompactLayout}
             isDarkMode={isDarkMode}
             isPdfPickReady={isPdfPickReady}
             editing={editing}

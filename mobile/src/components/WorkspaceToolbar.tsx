@@ -8,6 +8,7 @@ type Props = {
   hasResult: boolean;
   hasUnsavedChanges: boolean;
   isWideLayout: boolean;
+  isCompactLayout: boolean;
   isDarkMode: boolean;
   isPdfPickReady: boolean;
   editing: boolean;
@@ -28,6 +29,7 @@ export function WorkspaceToolbar({
   hasResult,
   hasUnsavedChanges,
   isWideLayout,
+  isCompactLayout,
   isDarkMode,
   isPdfPickReady,
   editing,
@@ -171,14 +173,16 @@ export function WorkspaceToolbar({
                 ) : null}
               </View>
               <View style={[styles.workspaceToolbarSecondaryUtility, isDarkMode && styles.workspaceToolbarSecondaryUtilityDark]}>
-                <Pressable
-                  style={[styles.utilityButton, styles.utilityIconButton, isDarkMode && styles.utilityButtonDark]}
-                  onPress={onToggleDarkMode}
-                  accessibilityLabel={isDarkMode ? "라이트 모드" : "다크 모드"}
-                  {...webTitle(isDarkMode ? "라이트 모드" : "다크 모드")}
-                >
-                  <Text style={[styles.utilityButtonLabel, styles.utilityIconLabel, isDarkMode && styles.utilityButtonLabelDark]}>{isDarkMode ? "☀" : "☾"}</Text>
-                </Pressable>
+                {!isCompactLayout ? (
+                  <Pressable
+                    style={[styles.utilityButton, styles.utilityIconButton, isDarkMode && styles.utilityButtonDark]}
+                    onPress={onToggleDarkMode}
+                    accessibilityLabel={isDarkMode ? "라이트 모드" : "다크 모드"}
+                    {...webTitle(isDarkMode ? "라이트 모드" : "다크 모드")}
+                  >
+                    <Text style={[styles.utilityButtonLabel, styles.utilityIconLabel, isDarkMode && styles.utilityButtonLabelDark]}>{isDarkMode ? "☀" : "☾"}</Text>
+                  </Pressable>
+                ) : null}
                 <Pressable
                   style={[styles.utilityButton, styles.utilityIconButton, isDarkMode && styles.utilityButtonDark]}
                   onPress={onOpenInfo}
