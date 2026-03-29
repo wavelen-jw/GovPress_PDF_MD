@@ -159,6 +159,90 @@ sudo systemctl start govpress-compose.service
 sudo systemctl status govpress-compose.service
 ```
 
+## 운영 체크리스트
+
+### 일상 점검
+
+```bash
+sudo systemctl status --no-pager govpress-compose.service
+docker-compose -f /home/wavel/GovPress_PDF_MD/deploy/wsl/docker-compose.yml ps
+curl http://127.0.0.1:8080/health
+curl -i -H 'X-API-Key: <API_KEY>' https://api.govpress.cloud/health
+```
+
+정상 기준:
+
+- systemd 서비스가 `active (exited)`
+- `govpress-api`, `govpress-worker`, `govpress-caddy`, `govpress-cloudflared`가 모두 실행 중
+- 로컬 `8080/health` 응답 정상
+- 외부 `api.govpress.cloud/health` 응답 정상
+
+### 로그 확인
+
+```bash
+docker-compose -f /home/wavel/GovPress_PDF_MD/deploy/wsl/docker-compose.yml logs --tail=100 api
+docker-compose -f /home/wavel/GovPress_PDF_MD/deploy/wsl/docker-compose.yml logs --tail=100 worker
+docker-compose -f /home/wavel/GovPress_PDF_MD/deploy/wsl/docker-compose.yml logs --tail=100 cloudflared
+```
+
+### 재시작
+
+```bash
+sudo systemctl restart govpress-compose.service
+sudo systemctl status --no-pager govpress-compose.service
+```
+
+또는 compose만 직접 재기동:
+
+```bash
+"/mnt/c/Program Files/Docker/Docker/resources/bin/docker-compose" -f /home/wavel/GovPress_PDF_MD/deploy/wsl/docker-compose.yml up -d
+```
+
+### API 키 교체
+
+1. `deploy/wsl/.env` 수정
+2. `GOVPRESS_API_KEY` 새 값 반영
+3. 스택 재기동
+
+```bash
+nano /home/wavel/GovPress_PDF_MD/deploy/wsl/.env
+sudo systemctl restart govpress-compose.service
+```
+
+4. 프론트에서도 같은 새 키 입력
+
+### CORS 변경
+
+프론트 주소가 바뀌면 아래 값을 같이 수정합니다.
+
+```env
+GOVPRESS_CORS_ALLOW_ORIGINS=https://wavelen-jw.github.io
+```
+
+반영:
+
+```bash
+sudo systemctl restart govpress-compose.service
+```
+
+### 장애 복구 순서
+
+1. `sudo systemctl status --no-pager govpress-compose.service`
+2. `docker-compose ... ps`
+3. `curl http://127.0.0.1:8080/health`
+4. `curl -i -H 'X-API-Key: <API_KEY>' https://api.govpress.cloud/health`
+5. `docker-compose ... logs --tail=100 api worker cloudflared`
+
+### 재부팅 후 확인
+
+Windows 재부팅 후 WSL에서 아래만 확인하면 됩니다.
+
+```bash
+sudo systemctl status --no-pager govpress-compose.service
+curl http://127.0.0.1:8080/health
+curl -i -H 'X-API-Key: <API_KEY>' https://api.govpress.cloud/health
+```
+
 ## VPS 이전
 
 이 디렉터리 전체를 Linux VPS에 복사한 뒤 아래만 바꾸면 됩니다.
