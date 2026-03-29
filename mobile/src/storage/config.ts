@@ -10,9 +10,10 @@ function draftStorageKey(jobId: string): string {
 
 export async function loadConfig(): Promise<AppConfig> {
   if (Platform.OS === "web" && typeof window !== "undefined") {
+    window.localStorage.removeItem(STORAGE_KEYS.apiKey);
     return {
       baseUrl: normalizeBaseUrl(window.localStorage.getItem(STORAGE_KEYS.baseUrl)),
-      apiKey: window.localStorage.getItem(STORAGE_KEYS.apiKey) || DEFAULT_CONFIG.apiKey,
+      apiKey: DEFAULT_CONFIG.apiKey,
       turnstileSiteKey: DEFAULT_CONFIG.turnstileSiteKey,
     };
   }
@@ -31,7 +32,7 @@ export async function loadConfig(): Promise<AppConfig> {
 export async function persistConfig(config: AppConfig): Promise<void> {
   if (Platform.OS === "web" && typeof window !== "undefined") {
     window.localStorage.setItem(STORAGE_KEYS.baseUrl, config.baseUrl);
-    window.localStorage.setItem(STORAGE_KEYS.apiKey, config.apiKey);
+    window.localStorage.removeItem(STORAGE_KEYS.apiKey);
     return;
   }
 

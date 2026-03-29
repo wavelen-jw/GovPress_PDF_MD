@@ -10,13 +10,11 @@ export const STORAGE_KEYS = {
 
 export const BUILD_TAG = "mobile-web-2026-03-29-2310-local";
 const TURNSTILE_SITE_KEY_FALLBACK = "0x4AAAAAACxpgXbUmIjLt9ZH";
+const API_KEY_FALLBACK = "7c99714d479e7a24dfc054753cb96c71226d6a67d9af36d6";
 
 export function defaultBaseUrl(): string {
   if (Platform.OS === "web" && typeof window !== "undefined") {
-    if (window.location.hostname.endsWith("github.io")) {
-      return "https://api.govpress.cloud";
-    }
-    return `${window.location.protocol}//${window.location.hostname}:8013`;
+    return "https://api.govpress.cloud";
   }
   return "http://127.0.0.1:8012";
 }
@@ -46,7 +44,7 @@ export function currentWebBaseUrl(): string {
 
 export const DEFAULT_CONFIG: AppConfig = {
   baseUrl: defaultBaseUrl(),
-  apiKey: "",
+  apiKey: process.env.EXPO_PUBLIC_GOVPRESS_API_KEY || API_KEY_FALLBACK,
   turnstileSiteKey:
     process.env.EXPO_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY || TURNSTILE_SITE_KEY_FALLBACK,
 };
