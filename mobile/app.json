@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "GovPress Mobile",
+    "slug": "govpress-mobile",
+    "version": "0.1.0",
+    "experiments": {
+      "baseUrl": "/GovPress_PDF_MD"
+    },
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.wavelen.govpressmobile"
+    },
+    "android": {
+      "package": "com.wavelen.govpressmobile",
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-document-picker",
+      "expo-secure-store",
+      "expo-sharing"
+    ]
+  }
+}

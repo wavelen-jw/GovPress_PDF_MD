@@ -1,0 +1,99 @@
+from __future__ import annotations
+
+import uuid
+
+from ..models import JobRecord
+from ..models import JobStatus
+from ..repositories import JobRepository
+from ..workers.converter_worker import ConverterWorker
+from .storage_service import StorageService
+
+
+class JobService:
+    def __init__(
+        self,
+        *,
+        repository: JobRepository,
+        storage: StorageService,
+        worker: ConverterWorker,
+    ) -> None:
+        self._repository = repository
+        self._storage = storage
+        self._worker = worker
+
+    def create_job(
+        self,
+        *,
+        file_name: str,
+        content: bytes,
+        source: str = "mobile",
+        client_request_id: str | None = None,
+    ) -> JobRecord:
+        if client_request_id:
+            existing = self._repository.get_by_client_request_id(client_request_id)
+            if existing is not None:
+                return existing
+
+        job_id = f"job_{uuid.uuid4().hex[:12]}"
+        original_path = self._storage.save_original_pdf(job_id, file_name, content)
+        record = self._repository.create(
+            job_id=job_id,
+            file_name=file_name,
+            source=source,
+            client_request_id=client_request_id,
+            original_pdf_path=original_path,
+        )
+        if record.job_id == job_id:
+            self._worker.enqueue(job_id)
+        return record
+
+    def get_job(self, job_id: str) -> JobRecord | None:
+        return self._repository.get(job_id)
+
+    def list_jobs(
+        self,
+        *,
+        limit: int = 20,
+        status: str | None = None,
+        cursor: str | None = None,
+    ) -> tuple[list[JobRecord], str | None]:
+        return self._repository.list_page(limit=limit, status=status, cursor=cursor)  # type: ignore[arg-type]
+
+    def retry_job(self, job_id: str) -> JobRecord:
+        record = self._repository.get(job_id)
+        if record is None:
+            raise KeyError(job_id)
+        self._repository.update_status(
+            job_id,
+            status="queued",
+            progress=0,
+            error_code=None,
+            error_message=None,
+        )
+        self._worker.enqueue(job_id)
+        updated = self._repository.get(job_id)
+        assert updated is not None
+        return updated
+
+    def recover_incomplete_jobs(self) -> int:
+        return self._repository.recover_incomplete_jobs()
+
+    def delete_job(self, job_id: str) -> JobRecord | None:
+        record = self._repository.delete(job_id)
+        if record is not None:
+            self._storage.delete_job_files(job_id, record.file_name)
+        return record
+
+    def cleanup_jobs(
+        self,
+        *,
+        older_than_days: int,
+        statuses: tuple[JobStatus, ...] | None = None,
+    ) -> list[JobRecord]:
+        records = self._repository.cleanup_old_jobs(
+            older_than_days=older_than_days,
+            statuses=statuses,
+        )
+        for record in records:
+            self._storage.delete_job_files(record.job_id, record.file_name)
+        return records

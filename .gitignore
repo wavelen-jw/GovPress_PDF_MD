@@ -1,15 +1,22 @@
 __pycache__/
 *.py[cod]
+.*.swp
 .pytest_cache/
 .venv/
 .venv-build/
 .venv-*/
 .env
+deploy/wsl/.env
+deploy/wsl/data/
+deploy/wsl/config/
 build/
 dist/
 dist_*/
 build_*/
 logs/
+storage/
+node_modules/
+mobile/.expo/
 
 tests/converted_md/
 tests/fixtures/**/*.json

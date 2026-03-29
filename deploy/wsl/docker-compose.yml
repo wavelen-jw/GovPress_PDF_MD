@@ -1,0 +1,56 @@
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/wsl/Dockerfile
+    container_name: govpress-api
+    command: python -m uvicorn server.app.main:app --host 0.0.0.0 --port 8013
+    env_file:
+      - .env
+    environment:
+      GOVPRESS_STORAGE_ROOT: /data/storage
+    volumes:
+      - ../../:/app
+      - ./data/storage:/data/storage
+    expose:
+      - "8013"
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: deploy/wsl/Dockerfile
+    container_name: govpress-worker
+    command: python -m server.run_worker --storage-root /data/storage --poll-interval 1.0
+    env_file:
+      - .env
+    environment:
+      GOVPRESS_STORAGE_ROOT: /data/storage
+    volumes:
+      - ../../:/app
+      - ./data/storage:/data/storage
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: govpress-caddy
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy:/data
+      - ./config/caddy:/config
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: govpress-cloudflared
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - caddy
+    restart: unless-stopped
+

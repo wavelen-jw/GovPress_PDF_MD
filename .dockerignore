@@ -1,0 +1,9 @@
+.git
+.venv
+node_modules
+mobile/node_modules
+mobile/dist
+storage
+deploy/wsl/data
+deploy/wsl/config
+tests/manual_samples
