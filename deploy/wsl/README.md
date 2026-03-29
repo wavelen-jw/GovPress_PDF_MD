@@ -135,6 +135,30 @@ GovPress 작업 파일:
 - 공개 API로 PDF 업로드, 작업 완료, 결과 조회 정상
 - API 키가 설정되어 있으므로 프론트에서도 같은 키를 입력해야 합니다
 
+## 자동 시작
+
+현재 WSL은 `systemd=true` 상태라 systemd 서비스로 자동 기동할 수 있습니다.
+
+예시 파일:
+
+- [deploy/wsl/systemd/govpress-compose.service](/home/wavel/GovPress_PDF_MD/deploy/wsl/systemd/govpress-compose.service)
+- [deploy/wsl/systemd/README.md](/home/wavel/GovPress_PDF_MD/deploy/wsl/systemd/README.md)
+
+핵심 절차:
+
+```bash
+sudo cp deploy/wsl/systemd/govpress-compose.service /etc/systemd/system/govpress-compose.service
+sudo systemctl daemon-reload
+sudo systemctl enable govpress-compose.service
+sudo systemctl start govpress-compose.service
+```
+
+상태 확인:
+
+```bash
+sudo systemctl status govpress-compose.service
+```
+
 ## VPS 이전
 
 이 디렉터리 전체를 Linux VPS에 복사한 뒤 아래만 바꾸면 됩니다.

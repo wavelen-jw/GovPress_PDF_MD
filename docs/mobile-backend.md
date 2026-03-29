@@ -77,3 +77,8 @@ pip install -U opendataloader-pdf
 ```bash
 .venv/bin/python -m unittest tests.test_server_services tests.test_server_api
 ```
+
+## 운영 권장
+
+- 배포 환경에서는 API와 worker를 `docker compose` 또는 `systemd`로 자동 시작되게 구성합니다.
+- WSL2 Ubuntu를 운영 환경으로 쓸 경우 `systemd=true`를 켠 뒤 compose 서비스 자동 시작을 권장합니다.
