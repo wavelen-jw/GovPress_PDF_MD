@@ -21,7 +21,7 @@ services:
       context: ../..
       dockerfile: deploy/wsl/Dockerfile
     container_name: govpress-worker
-    command: python -m server.run_worker --storage-root /data/storage --poll-interval 1.0
+    command: python -m server.run_worker --storage-root /data/storage --poll-interval 1.0 --concurrency 3
     env_file:
       - .env
     environment:
@@ -53,4 +53,3 @@ services:
     depends_on:
       - caddy
     restart: unless-stopped
-

@@ -38,6 +38,7 @@ def create_app(storage_root: Path | None = None, *, run_worker: bool = False):
     job_service = JobService(repository=repository, storage=storage, worker=worker)
     result_service = ResultService(repository=repository, storage=storage)
     job_service.recover_incomplete_jobs()
+    job_service.cleanup_jobs(older_than_hours=settings.job_ttl_hours, statuses=("completed", "failed"))
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -53,7 +54,7 @@ def create_app(storage_root: Path | None = None, *, run_worker: bool = False):
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allow_origins,
-        allow_credentials=True,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )

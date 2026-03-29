@@ -49,13 +49,23 @@ cp .env.example .env
 
 - `GOVPRESS_API_KEY`
 - `GOVPRESS_CORS_ALLOW_ORIGINS`
+- `GOVPRESS_UPLOAD_RATE_LIMIT_COUNT`
+- `GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS`
+- `GOVPRESS_JOB_TTL_HOURS`
+- `GOVPRESS_TURNSTILE_SECRET_KEY`
+- `EXPO_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY`
 - `CLOUDFLARE_TUNNEL_TOKEN`
 
 예:
 
 ```env
 GOVPRESS_API_KEY=super-secret-key
-GOVPRESS_CORS_ALLOW_ORIGINS=https://your-user.github.io/GovPress_PDF_MD
+GOVPRESS_CORS_ALLOW_ORIGINS=https://your-user.github.io,http://172.25.164.35:8084
+GOVPRESS_UPLOAD_RATE_LIMIT_COUNT=12
+GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+GOVPRESS_JOB_TTL_HOURS=72
+GOVPRESS_TURNSTILE_SECRET_KEY=0x4AAAA...
+EXPO_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY=0x4AAAA...
 CLOUDFLARE_TUNNEL_TOKEN=eyJh...
 ```
 
@@ -68,6 +78,7 @@ https://api.govpress.cloud
 주의:
 
 - `GOVPRESS_CORS_ALLOW_ORIGINS`는 실제 프론트 주소로 바꿔야 합니다.
+- 값이 비어 있으면 기본 허용 origin이 없으므로 브라우저 접근이 막힙니다.
 - 로컬 웹 테스트 중이면 `http://172.25.164.35:8084` 같은 현재 웹 주소를 임시로 추가해야 합니다.
 - GitHub Pages를 쓸 경우 보통 `https://wavelen-jw.github.io/GovPress_PDF_MD` 형식입니다.
 - 현재 웹 클라이언트는 GitHub Pages에서 기본 API를 `https://api.govpress.cloud`로 보도록 설정되어 있습니다.
@@ -126,8 +137,38 @@ GovPress 작업 파일:
 - 호스트 공개 포트는 `127.0.0.1:8080`만 사용합니다.
 - 외부 공개는 `cloudflared`만 담당합니다.
 - `GOVPRESS_API_KEY`를 설정합니다.
-- `GOVPRESS_CORS_ALLOW_ORIGINS`는 프론트 도메인으로 제한합니다.
+- `GOVPRESS_CORS_ALLOW_ORIGINS`는 실제 프론트 도메인만 허용합니다.
+- 업로드 요청은 서버 보조 rate limit으로 제한됩니다.
+  - 기본값: `12 requests / 60 seconds`
+- 완료/실패 작업은 TTL이 지나면 자동 정리됩니다.
+  - 기본값: `72 hours`
+- 필요하면 `Turnstile`을 켜서 업로드 전에 사람 확인 절차를 추가합니다.
 - CORS는 예시값 그대로 두지 말고 실제 프론트 주소만 허용합니다.
+
+## 작업 접근 모델
+
+- 작업 생성 시 `job_id`와 `edit_token`이 함께 발급됩니다.
+- 상태 조회, 결과 조회, 수정 저장, 재시도는 `X-Edit-Token`이 있어야만 가능합니다.
+- 공개 최근 작업 목록은 제공하지 않습니다.
+
+## Cloudflare 권장 규칙
+
+업로드 엔드포인트만 보호하는 것이 좋습니다.
+
+- 대상: `POST /v1/jobs`
+- 표현식:
+
+```txt
+http.request.uri.path eq "/v1/jobs" and http.request.method eq "POST"
+```
+
+- 권장 시작값:
+  - Requests: `5`
+  - Period: `10 seconds`
+  - Action: `Block`
+  - Duration: `10 seconds`
+
+이 값은 현재 Cloudflare 화면 제약에 맞춘 최소 방어선입니다.
 
 ## 현재 확인된 상태
 
@@ -216,7 +257,7 @@ sudo systemctl restart govpress-compose.service
 프론트 주소가 바뀌면 아래 값을 같이 수정합니다.
 
 ```env
-GOVPRESS_CORS_ALLOW_ORIGINS=https://wavelen-jw.github.io
+GOVPRESS_CORS_ALLOW_ORIGINS=https://wavelen-jw.github.io,http://172.25.164.35:8084
 ```
 
 반영:
@@ -232,6 +273,24 @@ sudo systemctl restart govpress-compose.service
 3. `curl http://127.0.0.1:8080/health`
 4. `curl -i -H 'X-API-Key: <API_KEY>' https://api.govpress.cloud/health`
 5. `docker-compose ... logs --tail=100 api worker cloudflared`
+
+### 업로드 제한 값 조정
+
+기본값:
+
+```env
+GOVPRESS_UPLOAD_RATE_LIMIT_COUNT=12
+GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+GOVPRESS_JOB_TTL_HOURS=72
+```
+
+더 보수적으로 운영하려면:
+
+```env
+GOVPRESS_UPLOAD_RATE_LIMIT_COUNT=6
+GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+GOVPRESS_JOB_TTL_HOURS=24
+```
 
 ### 재부팅 후 확인
 

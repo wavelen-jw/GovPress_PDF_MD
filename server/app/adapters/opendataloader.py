@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from html import escape
 import re
+import subprocess
+import sys
 
 try:
     import markdown as markdown_lib
 except ImportError:  # pragma: no cover
     markdown_lib = None  # type: ignore[assignment]
 
-from src.converter import convert_pdf_to_markdown
 from src.preview_widget import decorate_preview_html, normalize_preview_markdown
 
 
@@ -17,7 +18,18 @@ DEPARTMENT_RE = re.compile(r"^- ([^\n]+?(?:과|팀|실|관|국|센터))\b", re.M
 
 
 def convert_pdf(pdf_path: str) -> str:
-    return convert_pdf_to_markdown(pdf_path)
+    result = subprocess.run(
+        [sys.executable, "-m", "server.app.adapters.opendataloader_cli", pdf_path],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip() or f"return code={result.returncode}"
+        raise RuntimeError(f"PDF conversion subprocess failed: {detail}")
+    return result.stdout
 
 
 def render_preview_html(markdown_text: str) -> str:
@@ -37,4 +49,3 @@ def extract_metadata(markdown_text: str) -> tuple[str | None, str | None]:
     title = title_match.group(1).strip() if title_match else None
     department = department_match.group(1).strip() if department_match else None
     return title, department
-

@@ -17,6 +17,71 @@ function splitWords(value: string): string[] {
   return value.split(/(\s+)/).filter((token) => token.length > 0);
 }
 
+type DiffUnit = {
+  section: string;
+  text: string;
+};
+
+function isBlockBoundary(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return true;
+  }
+  return (
+    /^(#{1,6})\s+/.test(trimmed) ||
+    /^>\s?/.test(trimmed) ||
+    /^!\[([^\]]*)\]\(([^)]+)\)$/.test(trimmed) ||
+    /^[-*]\s+\[( |x|X)\]\s+/.test(trimmed) ||
+    /^[-*]\s+/.test(trimmed) ||
+    /^\d+\.\s+/.test(trimmed) ||
+    /^(-{3,}|\*{3,}|_{3,})$/.test(trimmed) ||
+    /^```/.test(trimmed) ||
+    trimmed.includes("|")
+  );
+}
+
+function normalizeForDiff(markdown: string): DiffUnit[] {
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const units: DiffUnit[] = [];
+  let currentSection = "문서 본문";
+  let paragraphBuffer: string[] = [];
+
+  const flushParagraph = () => {
+    if (!paragraphBuffer.length) {
+      return;
+    }
+    units.push({
+      section: currentSection,
+      text: paragraphBuffer.join(" ").replace(/\s+/g, " ").trim(),
+    });
+    paragraphBuffer = [];
+  };
+
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+    const sectionMatch = trimmed.match(/^#{1,6}\s+(.+)$/);
+    if (sectionMatch) {
+      flushParagraph();
+      currentSection = sectionMatch[1].trim();
+      units.push({ section: currentSection, text: trimmed });
+      continue;
+    }
+    if (!trimmed) {
+      flushParagraph();
+      continue;
+    }
+    if (isBlockBoundary(trimmed)) {
+      flushParagraph();
+      units.push({ section: currentSection, text: trimmed });
+      continue;
+    }
+    paragraphBuffer.push(trimmed);
+  }
+
+  flushParagraph();
+  return units;
+}
+
 function buildInlineDiff(before: string, after: string): { beforeTokens: DiffToken[]; afterTokens: DiffToken[] } {
   const beforeWords = splitWords(before);
   const afterWords = splitWords(after);
@@ -38,33 +103,89 @@ function buildInlineDiff(before: string, after: string): { beforeTokens: DiffTok
   return { beforeTokens, afterTokens };
 }
 
-function buildDiffRows(original: string, edited: string): DiffRow[] {
-  const before = original.split("\n");
-  const after = edited.split("\n");
-  const rows: DiffRow[] = [];
-  const count = Math.max(before.length, after.length);
-  let currentSection = "문서 본문";
+type DiffOp =
+  | { type: "equal"; before: DiffUnit; after: DiffUnit }
+  | { type: "added"; after: DiffUnit }
+  | { type: "removed"; before: DiffUnit };
 
-  for (let index = 0; index < count; index += 1) {
-    const prev = before[index] ?? "";
-    const next = after[index] ?? "";
-    const sectionSource = next || prev;
-    const sectionMatch = sectionSource.match(/^#{1,6}\s+(.+)$/);
-    if (sectionMatch) {
-      currentSection = sectionMatch[1].trim();
+function buildLcsMatrix(before: DiffUnit[], after: DiffUnit[]): number[][] {
+  const matrix = Array.from({ length: before.length + 1 }, () => Array(after.length + 1).fill(0));
+  for (let i = before.length - 1; i >= 0; i -= 1) {
+    for (let j = after.length - 1; j >= 0; j -= 1) {
+      if (before[i].text === after[j].text) {
+        matrix[i][j] = matrix[i + 1][j + 1] + 1;
+      } else {
+        matrix[i][j] = Math.max(matrix[i + 1][j], matrix[i][j + 1]);
+      }
     }
-    if (prev === next) {
+  }
+  return matrix;
+}
+
+function buildDiffOps(before: DiffUnit[], after: DiffUnit[]): DiffOp[] {
+  const matrix = buildLcsMatrix(before, after);
+  const ops: DiffOp[] = [];
+  let i = 0;
+  let j = 0;
+
+  while (i < before.length && j < after.length) {
+    if (before[i].text === after[j].text) {
+      ops.push({ type: "equal", before: before[i], after: after[j] });
+      i += 1;
+      j += 1;
       continue;
     }
-    if (!prev && next) {
-      rows.push({ type: "added", text: next, section: currentSection });
+    if (matrix[i + 1][j] >= matrix[i][j + 1]) {
+      ops.push({ type: "removed", before: before[i] });
+      i += 1;
+    } else {
+      ops.push({ type: "added", after: after[j] });
+      j += 1;
+    }
+  }
+
+  while (i < before.length) {
+    ops.push({ type: "removed", before: before[i] });
+    i += 1;
+  }
+  while (j < after.length) {
+    ops.push({ type: "added", after: after[j] });
+    j += 1;
+  }
+
+  return ops;
+}
+
+function buildDiffRows(original: string, edited: string): DiffRow[] {
+  const before = normalizeForDiff(original);
+  const after = normalizeForDiff(edited);
+  const ops = buildDiffOps(before, after);
+  const rows: DiffRow[] = [];
+
+  for (let index = 0; index < ops.length; index += 1) {
+    const op = ops[index];
+    if (op.type === "equal") {
       continue;
     }
-    if (prev && !next) {
-      rows.push({ type: "removed", text: prev, section: currentSection });
+
+    const nextOp = ops[index + 1];
+    if (op.type === "removed" && nextOp?.type === "added" && op.before.section === nextOp.after.section) {
+      rows.push({
+        type: "changed",
+        before: op.before.text,
+        after: nextOp.after.text,
+        section: op.before.section,
+      });
+      index += 1;
       continue;
     }
-    rows.push({ type: "changed", before: prev, after: next, section: currentSection });
+
+    if (op.type === "added") {
+      rows.push({ type: "added", text: op.after.text, section: op.after.section });
+      continue;
+    }
+
+    rows.push({ type: "removed", text: op.before.text, section: op.before.section });
   }
 
   return rows;
@@ -73,9 +194,11 @@ function buildDiffRows(original: string, edited: string): DiffRow[] {
 export function DiffPreview({
   original,
   edited,
+  isDarkMode = false,
 }: {
   original: string;
   edited: string;
+  isDarkMode?: boolean;
 }) {
   const rows = buildDiffRows(original, edited);
   const summary = rows.reduce(
@@ -88,24 +211,24 @@ export function DiffPreview({
   );
 
   if (!rows.length) {
-    return <Text style={styles.previewEmpty}>변경된 내용이 없습니다.</Text>;
+    return <Text style={[styles.previewEmpty, isDarkMode && styles.previewEmptyDark]}>변경된 내용이 없습니다.</Text>;
   }
 
   return (
     <View style={styles.diffPreview}>
-      <View style={styles.diffSummaryCard}>
+      <View style={[styles.diffSummaryCard, isDarkMode && styles.diffSummaryCardDark]}>
         <View style={styles.diffSummaryRow}>
           <View style={[styles.diffSummaryPill, styles.diffCardAdded]}>
-            <Text style={styles.diffSummaryLabel}>추가 {summary.added}</Text>
+            <Text style={[styles.diffSummaryLabel, isDarkMode && styles.diffSummaryLabelDark]}>추가 {summary.added}</Text>
           </View>
           <View style={[styles.diffSummaryPill, styles.diffCardRemoved]}>
-            <Text style={styles.diffSummaryLabel}>삭제 {summary.removed}</Text>
+            <Text style={[styles.diffSummaryLabel, isDarkMode && styles.diffSummaryLabelDark]}>삭제 {summary.removed}</Text>
           </View>
           <View style={[styles.diffSummaryPill, styles.diffCardChanged]}>
-            <Text style={styles.diffSummaryLabel}>변경 {summary.changed}</Text>
+            <Text style={[styles.diffSummaryLabel, isDarkMode && styles.diffSummaryLabelDark]}>변경 {summary.changed}</Text>
           </View>
         </View>
-        <Text style={styles.diffSummaryText}>
+        <Text style={[styles.diffSummaryText, isDarkMode && styles.diffSummaryTextDark]}>
           영향 섹션: {[...summary.sections].slice(0, 4).join(", ")}
           {summary.sections.size > 4 ? ` 외 ${summary.sections.size - 4}` : ""}
         </Text>
@@ -116,9 +239,8 @@ export function DiffPreview({
         if (row.type === "added") {
           return (
             <View key={key} style={[styles.diffCard, styles.diffCardAdded]}>
-              <Text style={styles.diffSection}>{row.section}</Text>
-              <Text style={styles.diffLabel}>추가</Text>
-              <Text style={styles.diffText}>{row.text || " "}</Text>
+              <Text style={[styles.diffLabel, isDarkMode && styles.diffLabelDark]}>추가</Text>
+              <Text style={[styles.diffText, isDarkMode && styles.diffTextDark]}>{row.text || " "}</Text>
             </View>
           );
         }
@@ -126,9 +248,8 @@ export function DiffPreview({
         if (row.type === "removed") {
           return (
             <View key={key} style={[styles.diffCard, styles.diffCardRemoved]}>
-              <Text style={styles.diffSection}>{row.section}</Text>
-              <Text style={styles.diffLabel}>삭제</Text>
-              <Text style={styles.diffText}>{row.text || " "}</Text>
+              <Text style={[styles.diffLabel, isDarkMode && styles.diffLabelDark]}>삭제</Text>
+              <Text style={[styles.diffText, isDarkMode && styles.diffTextDark]}>{row.text || " "}</Text>
             </View>
           );
         }
@@ -137,17 +258,16 @@ export function DiffPreview({
 
         return (
           <View key={key} style={[styles.diffCard, styles.diffCardChanged]}>
-            <Text style={styles.diffSection}>{row.section}</Text>
-            <Text style={styles.diffLabel}>변경</Text>
-            <Text style={styles.diffBefore}>
+            <Text style={[styles.diffLabel, isDarkMode && styles.diffLabelDark]}>변경</Text>
+            <Text style={[styles.diffBefore, isDarkMode && styles.diffBeforeDark]}>
               {beforeTokens.map((token, tokenIndex) => (
                 <Text key={`before-${key}-${tokenIndex}`} style={token.changed ? styles.diffBeforeChanged : undefined}>
                   {token.text}
                 </Text>
               ))}
             </Text>
-            <Text style={styles.diffArrow}>{"->"}</Text>
-            <Text style={styles.diffAfter}>
+            <Text style={[styles.diffArrow, isDarkMode && styles.diffArrowDark]}>{"->"}</Text>
+            <Text style={[styles.diffAfter, isDarkMode && styles.diffAfterDark]}>
               {afterTokens.map((token, tokenIndex) => (
                 <Text key={`after-${key}-${tokenIndex}`} style={token.changed ? styles.diffAfterChanged : undefined}>
                   {token.text}

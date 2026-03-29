@@ -1,9 +1,9 @@
 # GovPress_PDF_MD
 
-정부 보도자료 PDF를 Markdown으로 변환하고 편집할 수 있는 Windows용 데스크톱 앱입니다.
-현재 `mobile_app` 브랜치에는 모바일 앱 연동을 위한 서버형 백엔드와 Expo 기반 모바일 클라이언트 초안도 포함되어 있습니다.
+정부 보도자료 PDF를 Markdown으로 변환하고 편집할 수 있는 웹서비스입니다.
+현재 `mobile_app` 브랜치에는 Cloudflare Tunnel로 공개되는 FastAPI 백엔드와 Expo Web 기반 반응형 클라이언트가 포함되어 있습니다.
 
-현재 앱은 `pywebview` 기반 UI와 로컬 변환 파이프라인을 사용합니다. 일반 PDF 변환보다 행정기관 보도자료 형식 복원과 후처리 품질을 우선합니다.
+현재 서비스는 데스크톱에서는 편집기와 미리보기를 병렬로 보여주고, 모바일/태블릿에서는 리더 중심 UI로 동작합니다. 일반 PDF 변환보다 행정기관 보도자료 형식 복원과 후처리 품질을 우선합니다.
 
 ## 빠른 시작
 
@@ -29,7 +29,7 @@ pip install -U opendataloader-pdf
 python app.py
 ```
 
-### 모바일 백엔드 실행
+### 웹 백엔드 실행
 
 ```bash
 python3 -m venv .venv
@@ -45,7 +45,7 @@ pip install -U opendataloader-pdf
 .venv/bin/python -m server.run_worker --storage-root ./storage --poll-interval 1.0
 ```
 
-### 모바일 클라이언트 실행
+### 웹 클라이언트 실행
 
 ```bash
 cd mobile
@@ -53,25 +53,32 @@ npm install
 npx expo start
 ```
 
+정적 웹 빌드:
+
+```bash
+cd mobile
+npm run export:web
+```
+
 ## 주요 기능
 
 - PDF 드래그 앤 드롭 입력
 - JSON 우선 기반 보도자료 후처리
 - Markdown 편집
-- HTML 미리보기
-- Windows용 경량 `pywebview` UI
-- `.md` 다른 이름으로 저장
+- 실시간 미리보기
+- 데스크톱/태블릿/모바일 반응형 UI
+- PDF 또는 Markdown 파일 열기
+- `.md` 저장, 복사, 공유
+- 작업별 `edit_token` 기반 접근 분리
+- Turnstile, 업로드 제한, TTL 정리 등 기본 보안 장치
 
 ## 저장소 구조
 
 ```text
 GovPress_PDF_MD/
-├─ app.py
 ├─ mobile/
 ├─ server/
 ├─ src/
-├─ ui/
-├─ assets/
 ├─ tests/
 ├─ docs/
 │  ├─ conversion-rules.md
@@ -79,11 +86,8 @@ GovPress_PDF_MD/
 │  ├─ packaging.md
 │  ├─ troubleshooting.md
 │  └─ archive/
-├─ packaging/
-│  ├─ build_windows.bat
-│  ├─ build_windows_nuitka.bat
-│  ├─ pyinstaller/
-│  └─ inno/
+├─ deploy/
+│  └─ wsl/
 └─ archive/
 ```
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from ..core.security import require_edit_token
 from ..schemas.results import ResultMeta, ResultResponse, ResultUpdateRequest, ResultUpdateResponse
 
 
@@ -9,8 +10,12 @@ def build_router(result_service, verify_api_key) -> APIRouter:
     router = APIRouter(prefix="/v1/jobs", tags=["results"])
 
     @router.get("/{job_id}/result", response_model=ResultResponse)
-    def get_result(job_id: str, _authorized: None = Depends(verify_api_key)) -> ResultResponse:
-        record = result_service.get_result(job_id)
+    def get_result(
+        job_id: str,
+        edit_token: str = Depends(require_edit_token),
+        _authorized: None = Depends(verify_api_key),
+    ) -> ResultResponse:
+        record = result_service.get_result(job_id, edit_token)
         if record is None:
             raise HTTPException(status_code=404, detail="Job not found")
         return ResultResponse(
@@ -29,10 +34,11 @@ def build_router(result_service, verify_api_key) -> APIRouter:
     def update_result(
         job_id: str,
         payload: ResultUpdateRequest,
+        edit_token: str = Depends(require_edit_token),
         _authorized: None = Depends(verify_api_key),
     ) -> ResultUpdateResponse:
         try:
-            record = result_service.update_markdown(job_id, payload.markdown)
+            record = result_service.update_markdown(job_id, edit_token, payload.markdown)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Job not found") from exc
         return ResultUpdateResponse(

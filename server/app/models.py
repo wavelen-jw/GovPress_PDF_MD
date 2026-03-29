@@ -33,6 +33,7 @@ class JobArtifacts:
 @dataclass
 class JobRecord:
     job_id: str
+    edit_token: str
     file_name: str
     source: str
     status: JobStatus
@@ -45,4 +46,3 @@ class JobRecord:
     result_version: int = 0
     result: JobResult = field(default_factory=JobResult)
     artifacts: JobArtifacts | None = None
-

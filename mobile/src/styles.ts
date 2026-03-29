@@ -1,19 +1,23 @@
 import { StyleSheet } from "react-native";
 
+const FONT_SANS =
+  '"Pretendard GOV Variable", "Pretendard GOV", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif';
+
 export const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#f6ede1" },
+  safeAreaDark: { backgroundColor: "#201a16" },
   scrollView: { flex: 1 },
-  scrollContent: { padding: 20, gap: 18 },
+  scrollContent: { padding: 18, gap: 14 },
   scrollContentTablet: {
     paddingHorizontal: 28,
-    paddingTop: 26,
-    paddingBottom: 30,
+    paddingTop: 22,
+    paddingBottom: 26,
   },
   scrollContentDesktop: {
     width: "100%",
-    maxWidth: 1320,
+    maxWidth: 1600,
     alignSelf: "center",
-    paddingHorizontal: 32,
+    paddingHorizontal: 16,
   },
   loadingShell: {
     flex: 1,
@@ -70,7 +74,7 @@ export const styles = StyleSheet.create({
     fontSize: 30,
     lineHeight: 36,
     color: "#2f2318",
-    fontFamily: "serif",
+    fontFamily: FONT_SANS,
     fontWeight: "700",
   },
   heroSubtitle: { marginTop: 10, color: "#5d4a38", fontSize: 15, lineHeight: 22 },
@@ -87,99 +91,288 @@ export const styles = StyleSheet.create({
   serverHint: { marginTop: 14, color: "#7c6a55", fontSize: 12 },
   workspaceToolbar: {
     backgroundColor: "#fff8f1",
-    borderRadius: 28,
-    padding: 18,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: "#e8d7bf",
-    gap: 18,
+    gap: 6,
   },
   workspaceToolbarDesktop: {
-    flexDirection: "row",
     alignItems: "stretch",
   },
+  workspaceToolbarDark: {
+    backgroundColor: "#2a221d",
+    borderColor: "#45362b",
+  },
+  toolbarShell: {
+    position: "relative",
+  },
+  workspaceToolbarBar: {
+    gap: 4,
+  },
   workspaceToolbarMain: {
-    flex: 1,
-    gap: 12,
+    gap: 8,
+  },
+  workspaceToolbarTopRow: {
+    gap: 8,
+  },
+  workspaceToolbarTopRowDesktop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+  },
+  workspaceToolbarBrand: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexShrink: 0,
   },
   workspaceToolbarTitle: {
-    fontSize: 20,
-    lineHeight: 26,
+    fontSize: 30,
+    lineHeight: 36,
     color: "#2f2318",
-    fontFamily: "serif",
+    fontFamily: FONT_SANS,
     fontWeight: "700",
   },
-  workspaceToolbarBody: {
-    color: "#5d4a38",
-    lineHeight: 22,
+  workspaceToolbarTitleDark: {
+    color: "#f5e6d6",
+  },
+  workspaceToolbarStatus: {
+    color: "#7b664f",
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  workspaceToolbarStatusDark: {
+    color: "#d7b995",
+  },
+  workspaceToolbarDocument: {
+    color: "#806b56",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  workspaceToolbarDocumentDark: {
+    color: "#d8c1a7",
+  },
+  workspaceToolbarDocumentRow: {
+    minHeight: 22,
+    justifyContent: "center",
+  },
+  workspaceToolbarCluster: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    minWidth: 0,
   },
   workspaceToolbarActions: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 4,
+    flex: 1,
+    minWidth: 0,
   },
-  workspaceToolbarHint: {
-    color: "#7c6a55",
-    fontSize: 12,
-  },
-  workspaceToolbarStats: {
+  workspaceToolbarUtility: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    alignItems: "stretch",
-  },
-  workspaceStatCard: {
-    minWidth: 86,
-    borderRadius: 18,
-    backgroundColor: "#f7efe5",
-    borderWidth: 1,
-    borderColor: "#e6d6c0",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
     alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
+    gap: 14,
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
   },
-  workspaceStatValue: {
-    fontSize: 22,
-    lineHeight: 26,
-    color: "#2f2318",
-    fontWeight: "800",
+  workspaceToolbarPrimaryUtility: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flexWrap: "wrap",
   },
-  workspaceStatLabel: {
-    color: "#75624f",
-    fontSize: 12,
+  workspaceToolbarSecondaryUtility: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flexWrap: "wrap",
+    paddingLeft: 10,
+    borderLeftWidth: 1,
+    borderLeftColor: "#dccab3",
+  },
+  workspaceToolbarSecondaryUtilityDark: {
+    borderLeftColor: "#4a3b2f",
+  },
+  workspaceTabsRow: {
+    flexDirection: "row",
+    gap: 4,
+    flexWrap: "wrap",
+  },
+  workspaceToolbarInlineDivider: {
+    width: 1,
+    alignSelf: "stretch",
+    backgroundColor: "#dccab3",
+    marginHorizontal: 4,
+    minHeight: 28,
+  },
+  workspaceToolbarInlineDividerDark: {
+    backgroundColor: "#4a3b2f",
+  },
+  workspaceTabButton: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "#efe5d8",
+  },
+  workspaceTabButtonDark: {
+    backgroundColor: "#3a3028",
+  },
+  workspaceTabButtonActive: {
+    backgroundColor: "#2e6758",
+  },
+  workspaceTabLabel: {
+    color: "#5a4535",
+    fontWeight: "700",
+    fontSize: 11,
+  },
+  workspaceTabLabelDark: { color: "#e8d7c4" },
+  workspaceTabLabelActive: {
+    color: "#f8f5ef",
+  },
+  utilityButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#dfcfbb",
+    backgroundColor: "#fbf4ec",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  utilityButtonDark: {
+    backgroundColor: "#2e2620",
+    borderColor: "#47382c",
+  },
+  utilityButtonLabel: {
+    color: "#6b5743",
+    fontSize: 11,
     fontWeight: "700",
   },
+  utilityIconButton: {
+    minWidth: 34,
+    paddingHorizontal: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  utilityGithubImage: {
+    width: 16,
+    height: 16,
+  },
+  utilityIconLabel: {
+    fontSize: 14,
+    lineHeight: 16,
+  },
+  utilityInfoImage: {
+    width: 40,
+    height: 40,
+    marginLeft: -5,
+    marginTop: -2,
+  },
+  utilityInfoCrop: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    overflow: "hidden",
+  },
+  utilityButtonLabelDark: {
+    color: "#e6d2bb",
+  },
   noticeBox: {
-    marginTop: 12,
+    position: "absolute",
+    right: 10,
+    bottom: -10,
+    zIndex: 20,
     borderRadius: 14,
-    backgroundColor: "#f5e4d2",
+    backgroundColor: "#f6e9da",
     color: "#6d3d17",
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     lineHeight: 20,
+    borderWidth: 1,
+    borderColor: "#e7cfb4",
+    shadowColor: "#53321a",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+    maxWidth: 420,
+    fontSize: 12,
+  },
+  noticeBoxDark: {
+    backgroundColor: "#3a2f27",
+    borderColor: "#5a493d",
+    color: "#f0e1d1",
+  },
+  turnstileCard: {
+    alignSelf: "flex-end",
+    backgroundColor: "#fff8f1",
+    borderWidth: 1,
+    borderColor: "#e7cfb4",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+    maxWidth: 360,
+  },
+  turnstileCardDark: {
+    backgroundColor: "#2a221d",
+    borderColor: "#4a3b2f",
+  },
+  turnstileText: {
+    color: "#705a45",
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  turnstileTextDark: {
+    color: "#d6c0a7",
   },
   primaryButton: {
-    backgroundColor: "#b75e1f",
+    backgroundColor: "#a9561d",
     borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  primaryButtonLabel: { color: "#fffaf4", fontWeight: "700" },
+  primaryButtonLabel: { color: "#fffaf4", fontWeight: "700", fontSize: 11 },
   disabledButtonLabel: { opacity: 0.55 },
   secondaryButton: {
-    backgroundColor: "#efe1d1",
+    backgroundColor: "#f3e9dd",
     borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "#e5d6c4",
   },
-  secondaryButtonLabel: { color: "#5a3f2a", fontWeight: "700" },
+  secondaryButtonDark: {
+    backgroundColor: "#342b24",
+    borderColor: "#49392d",
+  },
+  toolbarDisabledButton: {
+    opacity: 0.5,
+  },
+  toolbarDisabledButtonLabel: {
+    opacity: 0.8,
+  },
+  secondaryButtonCompact: {
+    minWidth: 36,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryButtonSoft: {
+    opacity: 0.9,
+  },
+  secondaryButtonSoftDark: {
+    backgroundColor: "#2f2721",
+  },
+  secondaryButtonLabel: { color: "#5a3f2a", fontWeight: "700", fontSize: 11 },
+  secondaryButtonLabelDark: { color: "#ead8c4", fontWeight: "700", fontSize: 11 },
   sectionRow: { gap: 18 },
-  sectionRowDesktop: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-  },
+  sectionRowDesktop: {},
   column: { gap: 10 },
   columnWide: { gap: 10, flex: 1 },
   detailColumnDesktop: {
@@ -187,8 +380,15 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   listColumnDesktop: {
+    width: "100%",
+    flexShrink: 1,
+  },
+  jobsOverlayDesktop: {
+    position: "absolute",
+    top: 92,
+    right: 16,
     width: 360,
-    flexShrink: 0,
+    zIndex: 20,
   },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   detailHeaderBar: {
@@ -199,10 +399,12 @@ export const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 22,
     color: "#2f2318",
-    fontFamily: "serif",
+    fontFamily: FONT_SANS,
     fontWeight: "700",
   },
+  sectionTitleDark: { color: "#f2e2d0" },
   sectionMeta: { color: "#7c6a55", fontSize: 12, fontWeight: "700" },
+  sectionMetaDark: { color: "#cdb396", fontSize: 12, fontWeight: "700" },
   panel: {
     backgroundColor: "#fffbf7",
     borderWidth: 1,
@@ -211,9 +413,21 @@ export const styles = StyleSheet.create({
     padding: 12,
     gap: 10,
   },
+  panelDark: {
+    backgroundColor: "#2a221d",
+    borderColor: "#45362b",
+  },
   listControlsShell: {
     gap: 10,
   },
+  paletteTitle: {
+    color: "#8a7661",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  paletteTitleDark: { color: "#ccb090" },
   listControlsShellDesktop: {
     paddingBottom: 2,
   },
@@ -222,6 +436,7 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
+  listSelectionHintDark: { color: "#ccb398" },
   listControlsDivider: {
     height: 1,
     backgroundColor: "#eadcc6",
@@ -247,6 +462,7 @@ export const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
+  jobTableHeaderTextDark: { color: "#ccb090" },
   jobTableHeaderStatus: {
     width: 82,
     flexShrink: 0,
@@ -272,6 +488,11 @@ export const styles = StyleSheet.create({
     paddingVertical: 10,
     color: "#2f2318",
   },
+  listSearchInputDark: {
+    backgroundColor: "#201a16",
+    borderColor: "#4b3a2c",
+    color: "#f2e4d4",
+  },
   listFilterRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -283,6 +504,9 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
+  listFilterChipDark: {
+    backgroundColor: "#3a3028",
+  },
   listFilterChipActive: {
     backgroundColor: "#2e6758",
   },
@@ -291,6 +515,7 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
+  listFilterChipLabelDark: { color: "#dfcab3" },
   listFilterChipLabelActive: {
     color: "#fffaf4",
   },
@@ -302,22 +527,31 @@ export const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: "#fff8f1",
   },
+  listSortButtonDark: {
+    backgroundColor: "#2f2721",
+    borderColor: "#4b3a2c",
+  },
   listSortButtonLabel: {
     color: "#5a3f2a",
     fontWeight: "700",
     fontSize: 12,
   },
+  listSortButtonLabelDark: { color: "#ead8c4" },
   panelLarge: {
     backgroundColor: "#fffbf7",
     borderWidth: 1,
     borderColor: "#eadcc6",
     borderRadius: 24,
-    padding: 16,
-    gap: 14,
+    padding: 14,
+    gap: 12,
     minHeight: 420,
   },
+  panelLargeDark: {
+    backgroundColor: "#2a221d",
+    borderColor: "#45362b",
+  },
   panelLargeDesktop: {
-    minHeight: 640,
+    minHeight: 720,
   },
   stateCardNeutral: {
     borderRadius: 20,
@@ -327,6 +561,10 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#eadcc6",
   },
+  stateCardNeutralDark: {
+    backgroundColor: "#352c25",
+    borderColor: "#4b3d31",
+  },
   stateCardProcessing: {
     borderRadius: 20,
     backgroundColor: "#e4f2ef",
@@ -335,6 +573,10 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#b9d7d3",
   },
+  stateCardProcessingDark: {
+    backgroundColor: "#233431",
+    borderColor: "#3d5b55",
+  },
   stateCardError: {
     borderRadius: 20,
     backgroundColor: "#f7dfdc",
@@ -342,6 +584,10 @@ export const styles = StyleSheet.create({
     gap: 10,
     borderWidth: 1,
     borderColor: "#dfb0aa",
+  },
+  stateCardErrorDark: {
+    backgroundColor: "#3b2825",
+    borderColor: "#6b4641",
   },
   stateCardHeader: {
     flexDirection: "row",
@@ -354,16 +600,31 @@ export const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 1,
   },
+  stateEyebrowDark: {
+    color: "#ccb090",
+  },
   stateTitle: {
     fontSize: 20,
     lineHeight: 28,
     color: "#2f2318",
-    fontFamily: "serif",
+    fontFamily: FONT_SANS,
     fontWeight: "700",
   },
+  stateTitleDark: { color: "#f2e2d0" },
   stateBody: {
     color: "#5f5144",
     lineHeight: 22,
+  },
+  stateBodyDark: { color: "#d7c2ab", lineHeight: 22 },
+  markdownIntroTitle: {
+    fontSize: 17,
+    lineHeight: 26,
+    color: "#2f2318",
+    fontWeight: "700",
+    fontFamily: FONT_SANS,
+  },
+  markdownIntroTitleDark: {
+    color: "#f2e2d0",
   },
   emptyDetailChecklist: {
     marginTop: 8,
@@ -372,6 +633,142 @@ export const styles = StyleSheet.create({
   emptyDetailChecklistItem: {
     color: "#6f5b48",
     lineHeight: 20,
+  },
+  emptyDetailChecklistItemDark: {
+    color: "#cdbfae",
+  },
+  emptyDetailDivider: {
+    height: 1,
+    backgroundColor: "#e3d2bc",
+    marginVertical: 4,
+  },
+  emptyDetailDividerDark: {
+    backgroundColor: "#4b3d31",
+  },
+  emptyExampleTable: {
+    borderWidth: 1,
+    borderColor: "#ddd6cc",
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#fffdfa",
+    alignSelf: "flex-start",
+    width: "100%",
+    minWidth: 640,
+    maxWidth: 920,
+  },
+  emptyExampleTableScrollWrap: {
+    width: "100%",
+  },
+  emptyExampleTableScroll: {
+    paddingBottom: 2,
+  },
+  emptyExampleTableDark: {
+    borderColor: "#4b3d31",
+    backgroundColor: "#2a231d",
+  },
+  emptyExampleHeaderRow: {
+    backgroundColor: "#f8f6f2",
+  },
+  emptyExampleHeaderRowDark: {
+    backgroundColor: "#342b24",
+  },
+  emptyExampleRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e7e0d6",
+  },
+  emptyExampleRowDark: {
+    borderBottomColor: "#4b3d31",
+  },
+  emptyExampleRowLast: {
+    borderBottomWidth: 0,
+  },
+  emptyExampleCell: {
+    flex: 1,
+    minWidth: 180,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRightWidth: 1,
+    borderRightColor: "#e7e0d6",
+    justifyContent: "center",
+  },
+  emptyExampleCellDark: {
+    borderRightColor: "#4b3d31",
+  },
+  emptyExampleHeaderCell: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#d9d1c6",
+  },
+  emptyExampleCellLast: {
+    borderRightWidth: 0,
+  },
+  emptyExampleHeaderText: {
+    color: "#4f463d",
+    fontWeight: "700",
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  emptyExampleHeaderTextDark: {
+    color: "#eadfce",
+  },
+  emptyExampleLabel: {
+    color: "#5f5144",
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "700",
+  },
+  emptyExampleLabelDark: {
+    color: "#d7c2ab",
+  },
+  emptyExampleCode: {
+    fontFamily: "monospace",
+    color: "#6d3d17",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  emptyExampleCodeDark: {
+    color: "#f1d7b2",
+  },
+  emptyExamplePreviewTitle: {
+    color: "#2f2318",
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: "700",
+    fontFamily: FONT_SANS,
+  },
+  emptyExamplePreviewTitleDark: {
+    color: "#f2e2d0",
+  },
+  emptyExamplePreviewText: {
+    color: "#2f2318",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  emptyExamplePreviewTextDark: {
+    color: "#eadfce",
+  },
+  emptyExamplePreviewStrong: {
+    fontWeight: "700",
+  },
+  emptyExamplePreviewQuote: {
+    color: "#6f6256",
+    fontSize: 14,
+    lineHeight: 20,
+    fontStyle: "italic",
+    borderLeftWidth: 3,
+    borderLeftColor: "#cfc4b6",
+    paddingLeft: 10,
+  },
+  emptyExamplePreviewQuoteDark: {
+    color: "#cdbfae",
+    borderLeftColor: "#6a5b4f",
+  },
+  emptyExamplePreviewRule: {
+    height: 1,
+    backgroundColor: "#e3d2bc",
+  },
+  emptyExamplePreviewRuleDark: {
+    backgroundColor: "#4b3d31",
   },
   progressSteps: {
     flexDirection: "row",
@@ -398,6 +795,7 @@ export const styles = StyleSheet.create({
     fontSize: 12,
   },
   jobCard: { borderRadius: 18, backgroundColor: "#f8efe6", padding: 14, gap: 8 },
+  jobCardDark: { backgroundColor: "#352c25" },
   jobCardSelected: { backgroundColor: "#f2dcc2", borderWidth: 1, borderColor: "#d19259" },
   jobRow: {
     flexDirection: "row",
@@ -409,6 +807,9 @@ export const styles = StyleSheet.create({
     paddingVertical: 12,
     borderWidth: 1,
     borderColor: "transparent",
+  },
+  jobRowDark: {
+    backgroundColor: "#352c25",
   },
   jobRowSelected: {
     backgroundColor: "#f2dcc2",
@@ -429,11 +830,21 @@ export const styles = StyleSheet.create({
   },
   jobCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   jobTimestamp: { color: "#887561", fontSize: 11 },
+  jobTimestampDark: { color: "#ccb090", fontSize: 11 },
   jobFilename: { color: "#36281d", fontSize: 14, lineHeight: 19, fontWeight: "600" },
+  jobFilenameDark: { color: "#f0e0cf", fontSize: 14, lineHeight: 19, fontWeight: "600" },
   loadMoreButton: { paddingVertical: 12, alignItems: "center" },
   loadMoreLabel: { color: "#8b5c2e", fontWeight: "700" },
+  loadMoreLabelDark: { color: "#ddb98b", fontWeight: "700" },
   emptyState: { color: "#7c6a55", lineHeight: 22 },
-  detailHeader: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
+  emptyStateDark: { color: "#ccb398", lineHeight: 22 },
+  detailHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
+  detailHeaderMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexShrink: 0,
+  },
   detailTopCluster: {
     gap: 12,
   },
@@ -442,8 +853,6 @@ export const styles = StyleSheet.create({
   },
   detailStickyShellDesktop: {
     paddingBottom: 2,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eadcc6",
   },
   detailTopClusterDesktop: {
     flexDirection: "row",
@@ -470,7 +879,7 @@ export const styles = StyleSheet.create({
     fontSize: 21,
     lineHeight: 28,
     color: "#2f2318",
-    fontFamily: "serif",
+    fontFamily: FONT_SANS,
     fontWeight: "700",
   },
   detailSub: { marginTop: 6, color: "#887561" },
@@ -493,12 +902,19 @@ export const styles = StyleSheet.create({
     backgroundColor: "#efe5d8",
     alignItems: "center",
   },
+  tabButtonDark: {
+    backgroundColor: "#3a3028",
+  },
   tabButtonActive: { backgroundColor: "#2e6758" },
   tabLabel: { color: "#5a4535", fontWeight: "700" },
+  tabLabelDark: { color: "#ead8c4", fontWeight: "700" },
   tabLabelActive: { color: "#f8f5ef" },
   resultMetaCard: { borderRadius: 18, padding: 14, backgroundColor: "#f6efe8", gap: 6 },
+  resultMetaCardDark: {
+    backgroundColor: "#352c25",
+  },
   resultMetaCardDesktop: {
-    width: 280,
+    width: 340,
     flexShrink: 0,
   },
   resultMetaEyebrow: {
@@ -508,8 +924,11 @@ export const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
+  resultMetaEyebrowDark: { color: "#ccb090" },
   resultMetaTitle: { color: "#34261c", fontSize: 18, fontWeight: "700" },
+  resultMetaTitleDark: { color: "#f2e2d0", fontSize: 18, fontWeight: "700" },
   resultMetaBody: { color: "#705a45", lineHeight: 20 },
+  resultMetaBodyDark: { color: "#d7c2ab", lineHeight: 20 },
   detailActionsHeader: {
     gap: 4,
   },
@@ -518,19 +937,12 @@ export const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
   },
+  detailActionsTitleDark: { color: "#f2e2d0" },
   detailActionsHint: {
     color: "#75624f",
     lineHeight: 20,
   },
-  toolbar: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
-  toolbarDesktopCompact: {
-    justifyContent: "flex-start",
-    alignItems: "center",
-  },
-  toolbarStack: {
-    flexDirection: "column",
-    alignItems: "stretch",
-  },
+  detailActionsHintDark: { color: "#ccb398", lineHeight: 20 },
   editorToolbar: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -595,22 +1007,57 @@ export const styles = StyleSheet.create({
     borderColor: "#d9c7ad",
     backgroundColor: "#fffdfa",
     padding: 14,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 26,
     color: "#2f2318",
+  },
+  editorDark: {
+    color: "#f2e2d0",
   },
   editorDesktop: {
     minHeight: 520,
     flex: 1,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    padding: 0,
+    paddingTop: 2,
+    paddingRight: 10,
+  },
+  editorTablet: {
+    minHeight: 260,
+    flex: 1,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    padding: 0,
+    paddingTop: 2,
+    paddingRight: 6,
+  },
+  editorMobile: {
+    minHeight: 460,
+    flex: 1,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    padding: 0,
+    paddingTop: 2,
+    paddingRight: 4,
   },
   editorSplitLayout: {
     flexDirection: "row",
     gap: 14,
     alignItems: "stretch",
-    minHeight: 540,
+    justifyContent: "center",
+    minHeight: 722,
+  },
+  editorStackLayout: {
+    gap: 12,
+    minHeight: 0,
   },
   editorPanel: {
-    flex: 1,
+    flexGrow: 0,
+    flexShrink: 0,
+    width: "46%",
+    minWidth: 620,
+    maxWidth: 860,
     borderRadius: 20,
     backgroundColor: "#fffdfa",
     borderWidth: 1,
@@ -618,6 +1065,22 @@ export const styles = StyleSheet.create({
     padding: 14,
     gap: 10,
     minHeight: 0,
+  },
+  editorPanelDark: {
+    backgroundColor: "#241e19",
+    borderColor: "#46392d",
+  },
+  editorPanelTablet: {
+    width: "100%",
+    minWidth: 0,
+    maxWidth: undefined,
+    minHeight: 280,
+  },
+  editorPanelMobile: {
+    width: "100%",
+    minWidth: 0,
+    maxWidth: undefined,
+    minHeight: 520,
   },
   previewPanel: {
     borderRadius: 20,
@@ -628,12 +1091,33 @@ export const styles = StyleSheet.create({
     gap: 10,
     minHeight: 240,
   },
+  previewPanelDark: {
+    backgroundColor: "#241e19",
+    borderColor: "#46392d",
+  },
   previewPanelDesktop: {
-    flex: 1,
+    flexGrow: 0,
+    flexShrink: 0,
+    width: "46%",
+    minWidth: 620,
+    maxWidth: 860,
     minHeight: 0,
   },
   previewPanelSplit: {
-    minHeight: 540,
+    minHeight: 722,
+  },
+  previewPanelTablet: {
+    width: "100%",
+    minWidth: 0,
+    maxWidth: undefined,
+    minHeight: 300,
+  },
+  previewPanelMobile: {
+    minHeight: 420,
+  },
+  splitPanelBody: {
+    flex: 1,
+    paddingTop: 4,
   },
   previewLabel: {
     color: "#7b664f",
@@ -642,25 +1126,54 @@ export const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1,
   },
+  previewLabelDark: {
+    color: "#ccb090",
+  },
   previewScroll: { maxHeight: 360 },
   previewScrollDesktop: {
-    maxHeight: 520,
+    maxHeight: 702,
   },
-  previewText: { color: "#2f2318", fontSize: 14, lineHeight: 21 },
+  previewScrollTablet: {
+    maxHeight: 360,
+  },
+  previewScrollMobile: {
+    maxHeight: 620,
+  },
+  previewScrollContent: {
+    paddingTop: 2,
+    paddingBottom: 6,
+    paddingRight: 10,
+  },
+  previewText: { color: "#2f2318", fontSize: 16, lineHeight: 26 },
+  previewTextDark: { color: "#eadfce" },
   previewEmpty: { color: "#7c6a55", lineHeight: 22 },
+  previewEmptyDark: { color: "#ccb398" },
   markdownPreview: { gap: 12 },
+  markdownActiveBlock: {
+    backgroundColor: "#fff0a8",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginHorizontal: -8,
+  },
+  markdownActiveBlockDark: {
+    backgroundColor: "#4e4418",
+  },
   markdownHeading: {
     color: "#2f2318",
-    fontFamily: "serif",
+    fontFamily: FONT_SANS,
     fontWeight: "700",
   },
+  markdownHeadingDark: {
+    color: "#f2e2d0",
+  },
   markdownHeading1: {
-    fontSize: 26,
-    lineHeight: 34,
+    fontSize: 30,
+    lineHeight: 38,
   },
   markdownHeading2: {
-    fontSize: 22,
-    lineHeight: 30,
+    fontSize: 25,
+    lineHeight: 33,
   },
   markdownHeading3: {
     fontSize: 18,
@@ -668,12 +1181,52 @@ export const styles = StyleSheet.create({
   },
   markdownParagraph: {
     color: "#2f2318",
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 16,
+    lineHeight: 26,
+  },
+  markdownParagraphDark: {
+    color: "#eadfce",
+  },
+  mobileActionBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 10,
+    paddingTop: 8,
+  },
+  mobileActionBarDark: {},
+  mobileSaveButton: {
+    minWidth: 120,
+  },
+  mobileActionButton: {
+    flex: 1,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#d9c7ad",
+    backgroundColor: "#f6ede1",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mobileActionButtonDark: {
+    backgroundColor: "#302822",
+    borderColor: "#4b3d31",
+  },
+  mobileActionLabel: {
+    color: "#5a3f2a",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  mobileActionLabelDark: {
+    color: "#ead8c4",
   },
   markdownStrong: {
     fontWeight: "700",
     color: "#24190f",
+  },
+  markdownStrongDark: {
+    color: "#fff3e6",
   },
   markdownEmphasis: {
     fontStyle: "italic",
@@ -682,14 +1235,24 @@ export const styles = StyleSheet.create({
     textDecorationLine: "line-through",
     color: "#7b7064",
   },
+  markdownStrikeDark: {
+    color: "#b8ab9f",
+  },
   markdownInlineCode: {
     fontFamily: "monospace",
     backgroundColor: "#f1e6d8",
     color: "#6d3d17",
   },
+  markdownInlineCodeDark: {
+    backgroundColor: "#3a3028",
+    color: "#f1d7b2",
+  },
   markdownLink: {
     color: "#0f6f6f",
     textDecorationLine: "underline",
+  },
+  markdownLinkDark: {
+    color: "#7fd7d0",
   },
   markdownCheckbox: {
     width: 18,
@@ -702,6 +1265,10 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#fffdfa",
   },
+  markdownCheckboxDark: {
+    borderColor: "#7d6d5f",
+    backgroundColor: "#2d2621",
+  },
   markdownCheckboxChecked: {
     backgroundColor: "#d7e8e2",
     borderColor: "#7aa396",
@@ -711,9 +1278,15 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
+  markdownCheckboxMarkDark: {
+    color: "#95d2be",
+  },
   markdownChecklistDone: {
     color: "#7b7064",
     textDecorationLine: "line-through",
+  },
+  markdownChecklistDoneDark: {
+    color: "#b8ab9f",
   },
   markdownQuote: {
     borderLeftWidth: 3,
@@ -723,11 +1296,17 @@ export const styles = StyleSheet.create({
     paddingRight: 4,
     marginVertical: 2,
   },
+  markdownQuoteDark: {
+    borderLeftColor: "#6a5b4f",
+  },
   markdownQuoteText: {
     color: "#6f6256",
     fontSize: 14,
     lineHeight: 22,
     fontStyle: "italic",
+  },
+  markdownQuoteTextDark: {
+    color: "#cdbfae",
   },
   markdownQuoteParagraph: {
     marginTop: 8,
@@ -746,10 +1325,16 @@ export const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 24,
   },
+  markdownListBulletDark: {
+    color: "#ddb98b",
+  },
   markdownListText: {
     color: "#2f2318",
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 16,
+    lineHeight: 26,
+  },
+  markdownListTextDark: {
+    color: "#eadfce",
   },
   markdownListTextWrap: {
     flex: 1,
@@ -759,23 +1344,43 @@ export const styles = StyleSheet.create({
     backgroundColor: "#e3d2bc",
     marginVertical: 4,
   },
+  markdownRuleDark: {
+    backgroundColor: "#4b3d31",
+  },
   markdownTable: {
     borderWidth: 1,
     borderColor: "#ddd6cc",
     borderRadius: 6,
     overflow: "hidden",
     backgroundColor: "#fffdfa",
+    width: "100%",
+    alignSelf: "stretch",
+  },
+  markdownTableDark: {
+    borderColor: "#4b3d31",
+    backgroundColor: "#2a231d",
+  },
+  markdownTableWrap: {
+    width: "100%",
+    alignSelf: "stretch",
   },
   markdownTableScrollContent: {
     minWidth: "100%",
+    flexGrow: 1,
   },
   markdownTableHeaderRow: {
     backgroundColor: "#f8f6f2",
+  },
+  markdownTableHeaderRowDark: {
+    backgroundColor: "#342b24",
   },
   markdownTableRow: {
     flexDirection: "row",
     borderBottomWidth: 1,
     borderBottomColor: "#e7e0d6",
+  },
+  markdownTableRowDark: {
+    borderBottomColor: "#4b3d31",
   },
   markdownTableRowLast: {
     borderBottomWidth: 0,
@@ -789,9 +1394,15 @@ export const styles = StyleSheet.create({
     borderRightColor: "#e7e0d6",
     justifyContent: "center",
   },
+  markdownTableCellDark: {
+    borderRightColor: "#4b3d31",
+  },
   markdownTableHeaderCell: {
     borderBottomWidth: 1,
     borderBottomColor: "#d9d1c6",
+  },
+  markdownTableHeaderCellDark: {
+    borderBottomColor: "#58483b",
   },
   markdownTableCellLast: {
     borderRightWidth: 0,
@@ -801,9 +1412,15 @@ export const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 20,
   },
+  markdownTableHeaderTextDark: {
+    color: "#eadfce",
+  },
   markdownTableCellText: {
     color: "#2f2318",
     lineHeight: 21,
+  },
+  markdownTableCellTextDark: {
+    color: "#eadfce",
   },
   markdownTableTextLeft: {
     textAlign: "left",
@@ -825,13 +1442,23 @@ export const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: "#fbf7f2",
   },
+  markdownImageFallbackDark: {
+    borderColor: "#4b3d31",
+    backgroundColor: "#2a231d",
+  },
   markdownImageFallbackTitle: {
     color: "#5f5144",
     fontWeight: "700",
   },
+  markdownImageFallbackTitleDark: {
+    color: "#eadfce",
+  },
   markdownImageFallbackUrl: {
     color: "#7b6a57",
     lineHeight: 18,
+  },
+  markdownImageFallbackUrlDark: {
+    color: "#c3b29f",
   },
   markdownImage: {
     width: "100%",
@@ -845,6 +1472,9 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     textAlign: "center",
+  },
+  markdownImageCaptionDark: {
+    color: "#c3b29f",
   },
   editNotice: {
     borderRadius: 14,
@@ -870,6 +1500,9 @@ export const styles = StyleSheet.create({
     backgroundColor: "#f6efe8",
     gap: 8,
   },
+  diffSummaryCardDark: {
+    backgroundColor: "#352c25",
+  },
   diffSummaryRow: {
     flexDirection: "row",
     gap: 8,
@@ -885,9 +1518,15 @@ export const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 12,
   },
+  diffSummaryLabelDark: {
+    color: "#eadfce",
+  },
   diffSummaryText: {
     color: "#6b5a49",
     lineHeight: 20,
+  },
+  diffSummaryTextDark: {
+    color: "#cdbfae",
   },
   diffCard: {
     borderRadius: 14,
@@ -909,6 +1548,9 @@ export const styles = StyleSheet.create({
     color: "#6a5947",
     letterSpacing: 0.6,
   },
+  diffLabelDark: {
+    color: "#d9c8b5",
+  },
   diffSection: {
     color: "#8b755d",
     fontSize: 11,
@@ -916,13 +1558,22 @@ export const styles = StyleSheet.create({
     letterSpacing: 0.4,
     textTransform: "uppercase",
   },
+  diffSectionDark: {
+    color: "#ccb090",
+  },
   diffText: {
     color: "#2f2318",
     lineHeight: 21,
   },
+  diffTextDark: {
+    color: "#eadfce",
+  },
   diffBefore: {
     color: "#7f4338",
     lineHeight: 21,
+  },
+  diffBeforeDark: {
+    color: "#f0b7ad",
   },
   diffBeforeChanged: {
     backgroundColor: "rgba(190, 80, 64, 0.18)",
@@ -931,12 +1582,18 @@ export const styles = StyleSheet.create({
     color: "#1f6a3d",
     lineHeight: 21,
   },
+  diffAfterDark: {
+    color: "#9bddb7",
+  },
   diffAfterChanged: {
     backgroundColor: "rgba(31, 106, 61, 0.18)",
   },
   diffArrow: {
     color: "#7b6a57",
     fontWeight: "700",
+  },
+  diffArrowDark: {
+    color: "#c3b29f",
   },
   markdownCodeBlock: {
     backgroundColor: "#2b241f",
@@ -962,7 +1619,8 @@ export const styles = StyleSheet.create({
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(34, 25, 18, 0.45)",
-    justifyContent: "flex-end",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalCard: {
     backgroundColor: "#fff8f1",
@@ -974,10 +1632,82 @@ export const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 22,
     color: "#2f2318",
-    fontFamily: "serif",
+    fontFamily: FONT_SANS,
     fontWeight: "700",
   },
   modalHint: { color: "#705a45", lineHeight: 21 },
+  infoQuote: {
+    borderLeftWidth: 3,
+    borderLeftColor: "#d2b48b",
+    paddingLeft: 12,
+    color: "#6e5843",
+    fontStyle: "italic",
+    lineHeight: 21,
+  },
+  infoModalCard: {
+    width: "100%",
+    maxWidth: 540,
+    backgroundColor: "#fff8f1",
+    borderRadius: 24,
+    padding: 22,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: "#e3d1ba",
+  },
+  infoMetaList: {
+    gap: 10,
+  },
+  infoMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  infoMetaLabel: {
+    color: "#7b664f",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  infoMetaValue: {
+    color: "#2f2318",
+    fontWeight: "700",
+  },
+  infoMetaLink: {
+    color: "#0f6f6f",
+    fontWeight: "700",
+    textDecorationLine: "underline",
+  },
+  infoCapabilityList: {
+    gap: 8,
+  },
+  infoCapabilityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  infoCapabilityBadge: {
+    minWidth: 56,
+    textAlign: "center",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    color: "#fff9f2",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  infoCapabilityGood: {
+    backgroundColor: "#2f6b45",
+  },
+  infoCapabilityLearning: {
+    backgroundColor: "#b37c1d",
+  },
+  infoCapabilityBad: {
+    backgroundColor: "#9a3d39",
+  },
+  infoCapabilityText: {
+    color: "#2f2318",
+    lineHeight: 20,
+  },
   input: {
     borderRadius: 16,
     borderWidth: 1,

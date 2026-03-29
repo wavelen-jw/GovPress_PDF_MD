@@ -1,23 +1,22 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
-import { STATUS_COPY } from "../constants";
 import { styles } from "../styles";
 import type { Job, ResultPayload } from "../types";
-import { formatDate } from "../utils/format";
-import { detailBadgeStyle } from "../utils/statusStyles";
 import { DiffPreview } from "./DiffPreview";
 import { EmptyDetailState } from "./EmptyDetailState";
-import { MarkdownPreview } from "./MarkdownPreview";
-import { ResultTabs } from "./ResultTabs";
+import { MarkdownPreview, parseMarkdownBlockRanges } from "./MarkdownPreview";
 
 type Props = {
   activeTab: "preview" | "markdown" | "diff";
   editorSelection: { start: number; end: number };
   editorFocusToken: number;
   hasUnsavedChanges: boolean;
+  isDarkMode?: boolean;
   editing: boolean;
   editorText: string;
+  isTabletLayout: boolean;
+  isCompactLayout: boolean;
   isWideLayout: boolean;
   sectionHeadings: Array<{ title: string; index: number }>;
   showBackButton: boolean;
@@ -45,8 +44,11 @@ export function JobDetailPanel({
   editorSelection,
   editorFocusToken,
   hasUnsavedChanges,
+  isDarkMode,
   editing,
   editorText,
+  isTabletLayout,
+  isCompactLayout,
   isWideLayout,
   sectionHeadings,
   showBackButton,
@@ -69,10 +71,28 @@ export function JobDetailPanel({
   onToggleEditing,
 }: Props) {
   const editorRef = useRef<TextInput | null>(null);
+  const previewScrollRef = useRef<ScrollView | null>(null);
+  const previewBlockPositionsRef = useRef<Record<number, number>>({});
+  const previewViewportHeightRef = useRef(0);
+  const previewScrollYRef = useRef(0);
   const pendingMessage = selectedJob?.status === "queued"
     ? "대기열에 등록됐습니다. 워커가 파일을 가져가면 자동으로 변환을 시작합니다."
     : "PDF 구조를 분석하고 Markdown 초안을 생성하는 중입니다.";
-
+  const activePreviewBlockIndex = useMemo(() => {
+    if (!editorText) {
+      return -1;
+    }
+    const ranges = parseMarkdownBlockRanges(editorText);
+    if (!ranges.length) {
+      return -1;
+    }
+    const cursor = editorSelection.start;
+    const matchedIndex = ranges.findIndex((range) => cursor >= range.start && cursor <= range.end);
+    if (matchedIndex >= 0) {
+      return matchedIndex;
+    }
+    return ranges.findIndex((range) => cursor < range.start);
+  }, [editorSelection.start, editorText]);
   useEffect(() => {
     if (!editing) {
       return;
@@ -83,42 +103,52 @@ export function JobDetailPanel({
     return () => clearTimeout(handle);
   }, [editing, editorFocusToken]);
 
+  useEffect(() => {
+    if (activePreviewBlockIndex < 0) {
+      return;
+    }
+    const y = previewBlockPositionsRef.current[activePreviewBlockIndex];
+    if (typeof y === "number") {
+      const viewportHeight = previewViewportHeightRef.current;
+      const currentScrollY = previewScrollYRef.current;
+      const topThreshold = currentScrollY + 56;
+      const bottomThreshold = currentScrollY + Math.max(120, viewportHeight - 120);
+      if (!viewportHeight || y < topThreshold || y > bottomThreshold) {
+        previewScrollRef.current?.scrollTo({ y: Math.max(0, y - 64), animated: true });
+      }
+    }
+  }, [activePreviewBlockIndex, editorSelection.start]);
+
+  function handlePreviewBlockLayout(blockIndex: number, y: number): void {
+    previewBlockPositionsRef.current[blockIndex] = y;
+  }
+
   return (
     <View style={[styles.columnWide, isWideLayout && styles.detailColumnDesktop]}>
-      <View style={styles.sectionHeader}>
-        <View style={styles.detailHeaderBar}>
-          {showBackButton ? (
+      {showBackButton && !isCompactLayout ? (
+        <View style={styles.sectionHeader}>
+          <View style={styles.detailHeaderBar}>
             <Pressable style={styles.backButton} onPress={onBack}>
               <Text style={styles.backButtonLabel}>목록으로</Text>
             </Pressable>
-          ) : null}
-          <Text style={styles.sectionTitle}>작업 상세</Text>
+          </View>
         </View>
-        <Text style={styles.sectionMeta}>{selectedJob ? STATUS_COPY[selectedJob.status] : "선택 대기"}</Text>
-      </View>
-      <View style={[styles.panelLarge, isWideLayout && styles.panelLargeDesktop]}>
+      ) : null}
+      <View style={[styles.panelLarge, isWideLayout && styles.panelLargeDesktop, isDarkMode && styles.panelLargeDark]}>
         {!selectedJob ? (
-          <EmptyDetailState />
+          <EmptyDetailState isDarkMode={isDarkMode} />
         ) : (
           <>
-            <View style={styles.detailHeader}>
-              <View>
-                <Text style={styles.detailTitle}>{selectedJob.file_name}</Text>
-                <Text style={styles.detailSub}>{formatDate(selectedJob.created_at)}</Text>
-              </View>
-              <Text style={detailBadgeStyle(selectedJob.status)}>{STATUS_COPY[selectedJob.status]}</Text>
-            </View>
-
             {(selectedJob.status === "queued" || selectedJob.status === "processing") && (
-              <View style={styles.stateCardProcessing}>
+              <View style={[styles.stateCardProcessing, isDarkMode && styles.stateCardProcessingDark]}>
                 <View style={styles.stateCardHeader}>
                   <ActivityIndicator color="#0f6f6f" />
-                  <Text style={styles.stateEyebrow}>{selectedJob.status === "queued" ? "QUEUE" : "PROCESSING"}</Text>
+                  <Text style={[styles.stateEyebrow, isDarkMode && styles.stateEyebrowDark]}>{selectedJob.status === "queued" ? "QUEUE" : "PROCESSING"}</Text>
                 </View>
-                <Text style={styles.stateTitle}>
+                <Text style={[styles.stateTitle, isDarkMode && styles.stateTitleDark]}>
                   {selectedJob.status === "queued" ? "서버 대기열에서 처리 순서를 기다리는 중입니다." : "변환 파이프라인이 실행 중입니다."}
                 </Text>
-                <Text style={styles.stateBody}>{pendingMessage}</Text>
+                <Text style={[styles.stateBody, isDarkMode && styles.stateBodyDark]}>{pendingMessage}</Text>
                 <View style={[styles.progressSteps, !isWideLayout && styles.progressStepsStack]}>
                   <View style={[styles.progressStep, styles.progressStepActive]}>
                     <Text style={styles.progressStepLabel}>1. 업로드</Text>
@@ -139,9 +169,9 @@ export function JobDetailPanel({
             )}
 
             {selectedJob.status === "failed" && (
-              <View style={styles.stateCardError}>
-                <Text style={styles.stateEyebrow}>FAILED</Text>
-                <Text style={styles.stateTitle}>변환 중 문제가 발생했습니다.</Text>
+              <View style={[styles.stateCardError, isDarkMode && styles.stateCardErrorDark]}>
+                <Text style={[styles.stateEyebrow, isDarkMode && styles.stateEyebrowDark]}>FAILED</Text>
+                <Text style={[styles.stateTitle, isDarkMode && styles.stateTitleDark]}>변환 중 문제가 발생했습니다.</Text>
                 <Text style={styles.errorBody}>{selectedJob.error_message || "알 수 없는 오류"}</Text>
                 <Pressable style={styles.primaryButton} onPress={onRetry}>
                   <Text style={styles.primaryButtonLabel}>다시 시도</Text>
@@ -152,187 +182,175 @@ export function JobDetailPanel({
             {selectedJob.status === "completed" && result && (
               <>
                 <View style={[styles.detailStickyShell, isWideLayout && styles.detailStickyShellDesktop]}>
-                  <View style={[styles.detailTopCluster, isWideLayout && styles.detailTopClusterDesktop]}>
-                    <View style={[styles.resultMetaCard, isWideLayout && styles.resultMetaCardDesktop]}>
-                      <Text style={styles.resultMetaEyebrow}>변환 결과 요약</Text>
-                      <Text style={styles.resultMetaTitle}>{result.meta.title || "제목 없음"}</Text>
-                      <Text style={styles.resultMetaBody}>
-                        부서: {result.meta.department || "미추출"}{"\n"}
-                        원본: {result.meta.source_file_name}
-                      </Text>
-                    </View>
-                    <View style={styles.detailControlsCluster}>
-                      <View style={styles.detailActionsHeader}>
-                        <Text style={styles.detailActionsTitle}>검토와 후속 작업</Text>
-                        <Text style={styles.detailActionsHint}>탭으로 결과를 확인하고, 필요할 때만 편집이나 공유를 진행합니다.</Text>
-                      </View>
-                      <ResultTabs
-                        tabs={[
-                          { key: "preview", label: "미리보기" },
-                          { key: "markdown", label: "Markdown" },
-                          { key: "diff", label: "차이 보기" },
-                        ]}
-                        value={activeTab}
-                        onChange={onChangeTab}
-                      />
-                      <View style={[styles.toolbar, !isWideLayout && styles.toolbarStack, isWideLayout && styles.toolbarDesktopCompact]}>
-                        <Pressable style={styles.secondaryButton} onPress={onRequestToggleEditing}>
-                          <Text style={styles.secondaryButtonLabel}>{editing ? "편집 닫기" : "수정"}</Text>
-                        </Pressable>
-                        <Pressable style={styles.secondaryButton} onPress={onCopyMarkdown}>
-                          <Text style={styles.secondaryButtonLabel}>복사</Text>
-                        </Pressable>
-                        <Pressable style={styles.secondaryButton} onPress={onShareMarkdown}>
-                          <Text style={styles.secondaryButtonLabel}>공유</Text>
-                        </Pressable>
-                        <Pressable style={styles.secondaryButton} onPress={onDeleteJob}>
-                          <Text style={styles.secondaryButtonLabel}>삭제</Text>
-                        </Pressable>
-                        {editing ? (
-                          <Pressable style={styles.secondaryButton} onPress={onDiscardEdit}>
-                            <Text style={styles.secondaryButtonLabel}>되돌리기</Text>
+                  {!isWideLayout ? (
+                    <View style={styles.tabRow}>
+                      {[
+                        { key: "preview", label: "미리보기" },
+                        { key: "markdown", label: "편집" },
+                      ].map((tab) => {
+                        const active = tab.key === activeTab;
+                        return (
+                          <Pressable
+                            key={tab.key}
+                            style={[styles.tabButton, isDarkMode && styles.tabButtonDark, active && styles.tabButtonActive]}
+                            onPress={() => {
+                              if (tab.key === "markdown") {
+                                if (!editing) {
+                                  onRequestToggleEditing();
+                                }
+                                onChangeTab("markdown");
+                                return;
+                              }
+                              if (editing) {
+                                onRequestToggleEditing();
+                              }
+                              onChangeTab("preview");
+                            }}
+                          >
+                            <Text style={[styles.tabLabel, isDarkMode && styles.tabLabelDark, active && styles.tabLabelActive]}>{tab.label}</Text>
                           </Pressable>
-                        ) : null}
-                        {editing ? (
-                          <Pressable style={styles.primaryButton} onPress={onSaveEdit}>
-                            <Text style={[styles.primaryButtonLabel, !hasUnsavedChanges && styles.disabledButtonLabel]}>저장</Text>
-                          </Pressable>
-                        ) : null}
-                      </View>
+                        );
+                      })}
                     </View>
-                  </View>
-
-                  {editing ? (
-                    <View style={[styles.editNotice, hasUnsavedChanges ? styles.editNoticeDirty : styles.editNoticeClean]}>
-                      <Text style={styles.editNoticeText}>
-                        {hasUnsavedChanges ? "저장되지 않은 변경 사항이 있습니다." : "현재 편집 내용이 저장본과 같습니다."}
-                      </Text>
-                    </View>
-                  ) : null}
-
-                  {editing ? (
-                    <>
-                      <View style={[styles.editorToolbar, isWideLayout && styles.editorToolbarDesktop]}>
-                        {[
-                          {
-                            title: "제목/강조",
-                            actions: [
-                              ["heading", "제목"],
-                              ["heading2", "H2"],
-                              ["heading3", "H3"],
-                              ["bold", "굵게"],
-                              ["italic", "기울임"],
-                            ],
-                          },
-                          {
-                            title: "목록/인용",
-                            actions: [
-                              ["bullet", "목록"],
-                              ["number", "번호"],
-                              ["quote", "인용"],
-                            ],
-                          },
-                          {
-                            title: "표",
-                            actions: [
-                              ["table", "표"],
-                              ["tableRow", "행 추가"],
-                            ],
-                          },
-                        ].map((group) => (
-                          <View key={group.title} style={styles.editorToolGroup}>
-                            {isWideLayout ? <Text style={styles.editorToolGroupLabel}>{group.title}</Text> : null}
-                            <View style={styles.editorToolGroupButtons}>
-                              {group.actions.map(([action, label]) => (
-                                <Pressable
-                                  key={action}
-                                  style={styles.editorToolButton}
-                                  onPress={() => onApplyEditorAction(action as "heading" | "heading2" | "heading3" | "bold" | "italic" | "bullet" | "number" | "quote" | "table" | "tableRow")}
-                                >
-                                  <Text style={styles.editorToolLabel}>{label}</Text>
-                                </Pressable>
-                              ))}
-                            </View>
-                          </View>
-                        ))}
-                      </View>
-
-                      {sectionHeadings.length ? (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sectionJumpRow}>
-                          {sectionHeadings.slice(0, 8).map((heading) => (
-                            <Pressable
-                              key={`${heading.index}-${heading.title}`}
-                              style={styles.sectionJumpButton}
-                              onPress={() => onJumpToSection(heading.index)}
-                            >
-                              <Text style={styles.sectionJumpLabel}>{heading.title}</Text>
-                            </Pressable>
-                          ))}
-                        </ScrollView>
-                      ) : null}
-                    </>
                   ) : null}
                 </View>
 
-                {editing && isWideLayout ? (
+                {isWideLayout ? (
                   <View style={styles.editorSplitLayout}>
-                    <View style={styles.editorPanel}>
-                      <Text style={styles.previewLabel}>Markdown 편집기</Text>
-                      <TextInput
-                        ref={editorRef}
-                        value={editorText}
-                        onChangeText={onChangeEditorText}
-                        selection={editorSelection}
-                        onSelectionChange={(event) => onChangeSelection(event.nativeEvent.selection)}
-                        multiline
-                        textAlignVertical="top"
-                        style={[styles.editor, styles.editorDesktop]}
-                      />
+                    <View style={[styles.editorPanel, isDarkMode && styles.editorPanelDark]}>
+                      <Text style={[styles.previewLabel, isDarkMode && styles.previewLabelDark]}>편집기</Text>
+                      <View style={styles.splitPanelBody}>
+                        <TextInput
+                          ref={editorRef}
+                          value={editorText}
+                          onChangeText={onChangeEditorText}
+                          selection={editorSelection}
+                          onSelectionChange={(event) => onChangeSelection(event.nativeEvent.selection)}
+                          multiline
+                          textAlignVertical="top"
+                          style={[styles.editor, styles.editorDesktop, isDarkMode && styles.editorDark]}
+                        />
+                      </View>
                     </View>
-                    <View style={[styles.previewPanel, styles.previewPanelDesktop, styles.previewPanelSplit]}>
-                      <Text style={styles.previewLabel}>
-                        {activeTab === "preview" ? "렌더링용 텍스트 미리보기" : activeTab === "markdown" ? "Markdown 원문" : "원본 대비 수정 차이"}
+                    <View style={[styles.previewPanel, styles.previewPanelDesktop, styles.previewPanelSplit, isDarkMode && styles.previewPanelDark]}>
+                      <Text style={[styles.previewLabel, isDarkMode && styles.previewLabelDark]}>{activeTab === "diff" ? "차이 보기" : "미리보기"}</Text>
+                      <View style={styles.splitPanelBody}>
+                        <ScrollView
+                          ref={previewScrollRef}
+                          style={[styles.previewScroll, styles.previewScrollDesktop]}
+                          contentContainerStyle={styles.previewScrollContent}
+                          onLayout={(event) => {
+                            previewViewportHeightRef.current = event.nativeEvent.layout.height;
+                          }}
+                          onScroll={(event) => {
+                            previewScrollYRef.current = event.nativeEvent.contentOffset.y;
+                          }}
+                          scrollEventThrottle={16}
+                        >
+                          {activeTab === "diff" ? (
+                            <DiffPreview original={result.markdown || ""} edited={editorText} isDarkMode={isDarkMode} />
+                          ) : (
+                            <MarkdownPreview
+                              markdown={editorText}
+                              isDarkMode={isDarkMode}
+                              activeBlockIndex={activePreviewBlockIndex}
+                              onBlockLayout={handlePreviewBlockLayout}
+                            />
+                          )}
+                        </ScrollView>
+                      </View>
+                    </View>
+                  </View>
+                ) : isTabletLayout ? (
+                  <View style={styles.editorStackLayout}>
+                    {editing ? (
+                      <View style={[styles.editorPanel, styles.editorPanelTablet, isDarkMode && styles.editorPanelDark]}>
+                        <Text style={[styles.previewLabel, isDarkMode && styles.previewLabelDark]}>편집기</Text>
+                        <View style={styles.splitPanelBody}>
+                          <TextInput
+                            ref={editorRef}
+                            value={editorText}
+                            onChangeText={onChangeEditorText}
+                            selection={editorSelection}
+                            onSelectionChange={(event) => onChangeSelection(event.nativeEvent.selection)}
+                            multiline
+                            textAlignVertical="top"
+                            style={[styles.editor, styles.editorTablet, isDarkMode && styles.editorDark]}
+                          />
+                        </View>
+                      </View>
+                    ) : null}
+                    <View style={[styles.previewPanel, styles.previewPanelTablet, isDarkMode && styles.previewPanelDark]}>
+                      <Text style={[styles.previewLabel, isDarkMode && styles.previewLabelDark]}>
+                        미리보기
                       </Text>
-                      <ScrollView style={[styles.previewScroll, styles.previewScrollDesktop]}>
-                        {activeTab === "preview" ? (
-                          <MarkdownPreview markdown={selectedResultText} />
-                        ) : activeTab === "diff" ? (
-                          <DiffPreview original={result.markdown || ""} edited={editorText} />
-                        ) : (
-                          <Text style={styles.previewText}>{selectedResultText}</Text>
-                        )}
-                      </ScrollView>
+                      <View style={styles.splitPanelBody}>
+                        <ScrollView
+                          ref={previewScrollRef}
+                          style={[styles.previewScroll, styles.previewScrollTablet]}
+                          contentContainerStyle={styles.previewScrollContent}
+                          onLayout={(event) => {
+                            previewViewportHeightRef.current = event.nativeEvent.layout.height;
+                          }}
+                          onScroll={(event) => {
+                            previewScrollYRef.current = event.nativeEvent.contentOffset.y;
+                          }}
+                          scrollEventThrottle={16}
+                        >
+                          <MarkdownPreview
+                            markdown={editing ? editorText : selectedResultText}
+                            isDarkMode={isDarkMode}
+                            activeBlockIndex={activePreviewBlockIndex}
+                            onBlockLayout={handlePreviewBlockLayout}
+                          />
+                        </ScrollView>
+                      </View>
                     </View>
                   </View>
                 ) : (
                   <>
-                    {editing ? (
-                      <TextInput
-                        ref={editorRef}
-                        value={editorText}
-                        onChangeText={onChangeEditorText}
-                        selection={editorSelection}
-                        onSelectionChange={(event) => onChangeSelection(event.nativeEvent.selection)}
-                        multiline
-                        textAlignVertical="top"
-                        style={styles.editor}
-                      />
-                    ) : null}
-
-                    <View style={[styles.previewPanel, isWideLayout && styles.previewPanelDesktop]}>
-                      <Text style={styles.previewLabel}>
-                        {activeTab === "preview" ? "렌더링용 텍스트 미리보기" : activeTab === "markdown" ? "Markdown 원문" : "원본 대비 수정 차이"}
+                    {editing && activeTab === "markdown" ? (
+                      <View style={[styles.editorPanel, styles.editorPanelMobile, isDarkMode && styles.editorPanelDark]}>
+                        <Text style={[styles.previewLabel, isDarkMode && styles.previewLabelDark]}>편집기</Text>
+                        <View style={styles.splitPanelBody}>
+                          <TextInput
+                            ref={editorRef}
+                            value={editorText}
+                            onChangeText={onChangeEditorText}
+                            selection={editorSelection}
+                            onSelectionChange={(event) => onChangeSelection(event.nativeEvent.selection)}
+                            multiline
+                            textAlignVertical="top"
+                            style={[styles.editor, styles.editorMobile, isDarkMode && styles.editorDark]}
+                          />
+                        </View>
+                      </View>
+                    ) : (
+                    <View style={[styles.previewPanel, styles.previewPanelMobile, isDarkMode && styles.previewPanelDark]}>
+                      <Text style={[styles.previewLabel, isDarkMode && styles.previewLabelDark]}>
+                        미리보기
                       </Text>
-                      <ScrollView style={[styles.previewScroll, isWideLayout && styles.previewScrollDesktop]}>
-                        {activeTab === "preview" ? (
-                          <MarkdownPreview markdown={selectedResultText} />
-                        ) : activeTab === "diff" ? (
-                          <DiffPreview original={result.markdown || ""} edited={editorText} />
-                        ) : (
-                          <Text style={styles.previewText}>{selectedResultText}</Text>
-                        )}
+                      <ScrollView
+                        ref={previewScrollRef}
+                        style={[styles.previewScroll, styles.previewScrollMobile]}
+                        contentContainerStyle={styles.previewScrollContent}
+                        onLayout={(event) => {
+                          previewViewportHeightRef.current = event.nativeEvent.layout.height;
+                        }}
+                        onScroll={(event) => {
+                          previewScrollYRef.current = event.nativeEvent.contentOffset.y;
+                        }}
+                        scrollEventThrottle={16}
+                      >
+                        <MarkdownPreview
+                          markdown={editing ? editorText : selectedResultText}
+                          isDarkMode={isDarkMode}
+                          activeBlockIndex={activePreviewBlockIndex}
+                          onBlockLayout={handlePreviewBlockLayout}
+                        />
                       </ScrollView>
                     </View>
+                    )}
                   </>
                 )}
               </>

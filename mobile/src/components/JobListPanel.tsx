@@ -9,7 +9,9 @@ import { jobStatusPillStyle } from "../utils/statusStyles";
 
 type Props = {
   busy: boolean;
+  compact?: boolean;
   filterStatus: string;
+  isDarkMode?: boolean;
   isWideLayout: boolean;
   jobs: Job[];
   nextCursor: string | null;
@@ -25,7 +27,9 @@ type Props = {
 
 export function JobListPanel({
   busy,
+  compact,
   filterStatus,
+  isDarkMode,
   isWideLayout,
   jobs,
   nextCursor,
@@ -42,17 +46,20 @@ export function JobListPanel({
 
   return (
     <View style={[styles.column, isWideLayout && styles.listColumnDesktop]}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>최근 작업</Text>
-        <Text style={styles.sectionMeta}>{jobs.length}건</Text>
-      </View>
-      <View style={styles.panel}>
+      {!compact ? (
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, isDarkMode && styles.sectionTitleDark]}>최근 작업</Text>
+          <Text style={[styles.sectionMeta, isDarkMode && styles.sectionMetaDark]}>{jobs.length}건</Text>
+        </View>
+      ) : null}
+      <View style={[styles.panel, isDarkMode && styles.panelDark]}>
         <View style={[styles.listControlsShell, isWideLayout && styles.listControlsShellDesktop]}>
+          {compact ? <Text style={[styles.paletteTitle, isDarkMode && styles.paletteTitleDark]}>최근 작업 {jobs.length}</Text> : null}
           <TextInput
             value={searchQuery}
             onChangeText={onChangeSearchQuery}
             placeholder="파일명 검색"
-            style={styles.listSearchInput}
+            style={[styles.listSearchInput, isDarkMode && styles.listSearchInputDark]}
           />
           <View style={styles.listFilterRow}>
             {[
@@ -63,20 +70,20 @@ export function JobListPanel({
             ].map(([value, label]) => (
               <Pressable
                 key={value}
-                style={[styles.listFilterChip, filterStatus === value && styles.listFilterChipActive]}
+                style={[styles.listFilterChip, isDarkMode && styles.listFilterChipDark, filterStatus === value && styles.listFilterChipActive]}
                 onPress={() => onChangeFilterStatus(value)}
               >
-                <Text style={[styles.listFilterChipLabel, filterStatus === value && styles.listFilterChipLabelActive]}>
+                <Text style={[styles.listFilterChipLabel, isDarkMode && styles.listFilterChipLabelDark, filterStatus === value && styles.listFilterChipLabelActive]}>
                   {label}
                 </Text>
               </Pressable>
             ))}
-            <Pressable style={styles.listSortButton} onPress={onToggleSortOrder}>
-              <Text style={styles.listSortButtonLabel}>{sortOrder === "desc" ? "최신순" : "오래된순"}</Text>
+            <Pressable style={[styles.listSortButton, isDarkMode && styles.listSortButtonDark]} onPress={onToggleSortOrder}>
+              <Text style={[styles.listSortButtonLabel, isDarkMode && styles.listSortButtonLabelDark]}>{sortOrder === "desc" ? "최신순" : "오래된순"}</Text>
             </Pressable>
           </View>
-          {selectedJobId ? (
-            <Text style={styles.listSelectionHint}>
+          {selectedJobId && !compact ? (
+            <Text style={[styles.listSelectionHint, isDarkMode && styles.listSelectionHintDark]}>
               선택한 작업은 오른쪽 상세 패널에서 상태, 결과, 수정 흐름을 바로 이어서 확인할 수 있습니다.
             </Text>
           ) : null}
@@ -89,13 +96,13 @@ export function JobListPanel({
         >
           {isWideLayout && jobs.length > 0 ? (
             <View style={styles.jobTableHeader}>
-              <Text style={[styles.jobTableHeaderText, styles.jobTableHeaderStatus]}>상태</Text>
-              <Text style={[styles.jobTableHeaderText, styles.jobTableHeaderFilename]}>파일명</Text>
-              <Text style={[styles.jobTableHeaderText, styles.jobTableHeaderTimestamp]}>수정 시각</Text>
+              <Text style={[styles.jobTableHeaderText, isDarkMode && styles.jobTableHeaderTextDark, styles.jobTableHeaderStatus]}>상태</Text>
+              <Text style={[styles.jobTableHeaderText, isDarkMode && styles.jobTableHeaderTextDark, styles.jobTableHeaderFilename]}>파일명</Text>
+              <Text style={[styles.jobTableHeaderText, isDarkMode && styles.jobTableHeaderTextDark, styles.jobTableHeaderTimestamp]}>수정 시각</Text>
             </View>
           ) : null}
           {jobs.length === 0 ? (
-            <Text style={styles.emptyState}>
+            <Text style={[styles.emptyState, isDarkMode && styles.emptyStateDark]}>
               {isEmptyByFilter ? "검색어나 필터 조건에 맞는 작업이 없습니다." : "아직 업로드한 작업이 없습니다."}
             </Text>
           ) : (
@@ -111,6 +118,7 @@ export function JobListPanel({
                   }}
                   style={[
                     isWideLayout ? styles.jobRow : styles.jobCard,
+                    isDarkMode && (isWideLayout ? styles.jobRowDark : styles.jobCardDark),
                     selected && (isWideLayout ? styles.jobRowSelected : styles.jobCardSelected),
                   ]}
                 >
@@ -120,19 +128,19 @@ export function JobListPanel({
                         <Text style={jobStatusPillStyle(job.status)}>{STATUS_COPY[job.status]}</Text>
                       </View>
                       <View style={styles.jobRowFilenameCell}>
-                        <Text numberOfLines={2} style={styles.jobFilename}>{job.file_name}</Text>
+                        <Text numberOfLines={2} style={[styles.jobFilename, isDarkMode && styles.jobFilenameDark]}>{job.file_name}</Text>
                       </View>
                       <View style={styles.jobRowTimestampCell}>
-                        <Text style={styles.jobTimestamp}>{formatDate(job.updated_at || job.created_at)}</Text>
+                        <Text style={[styles.jobTimestamp, isDarkMode && styles.jobTimestampDark]}>{formatDate(job.updated_at || job.created_at)}</Text>
                       </View>
                     </>
                   ) : (
                     <>
                       <View style={styles.jobCardHeader}>
                         <Text style={jobStatusPillStyle(job.status)}>{STATUS_COPY[job.status]}</Text>
-                        <Text style={styles.jobTimestamp}>{formatDate(job.updated_at || job.created_at)}</Text>
+                        <Text style={[styles.jobTimestamp, isDarkMode && styles.jobTimestampDark]}>{formatDate(job.updated_at || job.created_at)}</Text>
                       </View>
-                      <Text numberOfLines={2} style={styles.jobFilename}>{job.file_name}</Text>
+                      <Text numberOfLines={2} style={[styles.jobFilename, isDarkMode && styles.jobFilenameDark]}>{job.file_name}</Text>
                     </>
                   )}
                 </Pressable>
@@ -142,7 +150,7 @@ export function JobListPanel({
         </ScrollView>
         {nextCursor ? (
           <Pressable style={styles.loadMoreButton} onPress={() => onLoadMore(nextCursor)}>
-            <Text style={styles.loadMoreLabel}>{busy ? "불러오는 중..." : "작업 더 보기"}</Text>
+            <Text style={[styles.loadMoreLabel, isDarkMode && styles.loadMoreLabelDark]}>{busy ? "불러오는 중..." : "작업 더 보기"}</Text>
           </Pressable>
         ) : null}
       </View>

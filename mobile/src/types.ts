@@ -11,6 +11,10 @@ export type Job = {
   error_message?: string | null;
 };
 
+export type JobCreatePayload = Job & {
+  edit_token: string;
+};
+
 export type ResultPayload = {
   job_id: string;
   status: JobStatus;
@@ -26,8 +30,5 @@ export type ResultPayload = {
 export type AppConfig = {
   baseUrl: string;
   apiKey: string;
-};
-
-export type CleanupPayload = {
-  deleted_count: number;
+  turnstileSiteKey?: string | null;
 };

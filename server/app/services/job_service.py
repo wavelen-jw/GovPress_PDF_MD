@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+import secrets
 import uuid
 
 from ..models import JobRecord
@@ -35,9 +37,11 @@ class JobService:
                 return existing
 
         job_id = f"job_{uuid.uuid4().hex[:12]}"
+        edit_token = secrets.token_urlsafe(24)
         original_path = self._storage.save_original_pdf(job_id, file_name, content)
         record = self._repository.create(
             job_id=job_id,
+            edit_token=edit_token,
             file_name=file_name,
             source=source,
             client_request_id=client_request_id,
@@ -47,8 +51,45 @@ class JobService:
             self._worker.enqueue(job_id)
         return record
 
-    def get_job(self, job_id: str) -> JobRecord | None:
-        return self._repository.get(job_id)
+    async def create_job_from_upload(
+        self,
+        *,
+        file_name: str,
+        upload,
+        max_upload_bytes: int,
+        source: str = "mobile",
+        client_request_id: str | None = None,
+    ) -> JobRecord:
+        if client_request_id:
+            existing = self._repository.get_by_client_request_id(client_request_id)
+            if existing is not None:
+                return existing
+
+        job_id = f"job_{uuid.uuid4().hex[:12]}"
+        edit_token = secrets.token_urlsafe(24)
+        original_path = await self._storage.save_original_pdf_stream(
+            job_id,
+            file_name,
+            upload,
+            max_bytes=max_upload_bytes,
+        )
+        record = self._repository.create(
+            job_id=job_id,
+            edit_token=edit_token,
+            file_name=file_name,
+            source=source,
+            client_request_id=client_request_id,
+            original_pdf_path=original_path,
+        )
+        if record.job_id == job_id:
+            self._worker.enqueue(job_id)
+        return record
+
+    def get_job(self, job_id: str, edit_token: str) -> JobRecord | None:
+        record = self._repository.get(job_id)
+        if record is None or record.edit_token != edit_token:
+            return None
+        return record
 
     def list_jobs(
         self,
@@ -59,8 +100,8 @@ class JobService:
     ) -> tuple[list[JobRecord], str | None]:
         return self._repository.list_page(limit=limit, status=status, cursor=cursor)  # type: ignore[arg-type]
 
-    def retry_job(self, job_id: str) -> JobRecord:
-        record = self._repository.get(job_id)
+    def retry_job(self, job_id: str, edit_token: str) -> JobRecord:
+        record = self.get_job(job_id, edit_token)
         if record is None:
             raise KeyError(job_id)
         self._repository.update_status(
@@ -78,7 +119,10 @@ class JobService:
     def recover_incomplete_jobs(self) -> int:
         return self._repository.recover_incomplete_jobs()
 
-    def delete_job(self, job_id: str) -> JobRecord | None:
+    def delete_job(self, job_id: str, edit_token: str) -> JobRecord | None:
+        record = self.get_job(job_id, edit_token)
+        if record is None:
+            return None
         record = self._repository.delete(job_id)
         if record is not None:
             self._storage.delete_job_files(job_id, record.file_name)
@@ -87,11 +131,11 @@ class JobService:
     def cleanup_jobs(
         self,
         *,
-        older_than_days: int,
+        older_than_hours: int,
         statuses: tuple[JobStatus, ...] | None = None,
     ) -> list[JobRecord]:
         records = self._repository.cleanup_old_jobs(
-            older_than_days=older_than_days,
+            older_than_days=max(1, math.ceil(older_than_hours / 24)),
             statuses=statuses,
         )
         for record in records:

@@ -8,7 +8,8 @@ export const STORAGE_KEYS = {
   draftPrefix: "govpress.mobile.draft",
 } as const;
 
-export const BUILD_TAG = "mobile-web-2026-03-29-2245-ui";
+export const BUILD_TAG = "mobile-web-2026-03-29-2310-local";
+const TURNSTILE_SITE_KEY_FALLBACK = "0x4AAAAAACxpgXbUmIjLt9ZH";
 
 export function defaultBaseUrl(): string {
   if (Platform.OS === "web" && typeof window !== "undefined") {
@@ -46,6 +47,8 @@ export function currentWebBaseUrl(): string {
 export const DEFAULT_CONFIG: AppConfig = {
   baseUrl: defaultBaseUrl(),
   apiKey: "",
+  turnstileSiteKey:
+    process.env.EXPO_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY || TURNSTILE_SITE_KEY_FALLBACK,
 };
 
 export const STATUS_COPY: Record<JobStatus, string> = {

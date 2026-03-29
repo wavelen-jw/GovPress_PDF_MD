@@ -20,6 +20,7 @@ def _fromisoformat(value: str | None) -> datetime | None:
 def _row_to_record(row: sqlite3.Row) -> JobRecord:
     return JobRecord(
         job_id=row["job_id"],
+        edit_token=row["edit_token"],
         file_name=row["file_name"],
         source=row["source"],
         status=row["status"],
@@ -51,6 +52,7 @@ class JobRepository(Protocol):
         self,
         *,
         job_id: str,
+        edit_token: str,
         file_name: str,
         source: str,
         client_request_id: str | None,
@@ -130,6 +132,7 @@ class SQLiteJobRepository:
                 """
                 CREATE TABLE IF NOT EXISTS jobs (
                     job_id TEXT PRIMARY KEY,
+                    edit_token TEXT NOT NULL,
                     file_name TEXT NOT NULL,
                     source TEXT NOT NULL,
                     status TEXT NOT NULL,
@@ -159,12 +162,22 @@ class SQLiteJobRepository:
             }
             if "claimed_by" not in columns:
                 conn.execute("ALTER TABLE jobs ADD COLUMN claimed_by TEXT")
+            if "edit_token" not in columns:
+                conn.execute("ALTER TABLE jobs ADD COLUMN edit_token TEXT")
+            conn.execute(
+                """
+                UPDATE jobs
+                SET edit_token = 'legacy-' || job_id
+                WHERE edit_token IS NULL OR edit_token = ''
+                """
+            )
             conn.commit()
 
     def create(
         self,
         *,
         job_id: str,
+        edit_token: str,
         file_name: str,
         source: str,
         client_request_id: str | None,
@@ -180,16 +193,17 @@ class SQLiteJobRepository:
             conn.execute(
                 """
                 INSERT INTO jobs (
-                    job_id, file_name, source, status, created_at, updated_at,
+                    job_id, edit_token, file_name, source, status, created_at, updated_at,
                     progress, error_code, error_message, client_request_id,
                     result_version, original_pdf_path, final_markdown_path,
                     edited_markdown_path, markdown, html_preview, title,
                     department, edited_markdown, saved_at
                     , claimed_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job_id,
+                    edit_token,
                     file_name,
                     source,
                     "queued",
@@ -470,6 +484,7 @@ class InMemoryJobRepository:
         self,
         *,
         job_id: str,
+        edit_token: str,
         file_name: str,
         source: str,
         client_request_id: str | None,
@@ -483,6 +498,7 @@ class InMemoryJobRepository:
             now = utcnow()
             record = JobRecord(
                 job_id=job_id,
+                edit_token=edit_token,
                 file_name=file_name,
                 source=source,
                 status="queued",

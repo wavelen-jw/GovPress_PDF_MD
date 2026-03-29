@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Protocol
+
+
+class AsyncReadableUpload(Protocol):
+    async def read(self, size: int = -1) -> bytes: ...
 
 
 class StorageService:
@@ -15,6 +20,35 @@ class StorageService:
     def save_original_pdf(self, job_id: str, file_name: str, content: bytes) -> Path:
         path = self.originals_dir / f"{job_id}-{file_name}"
         path.write_bytes(content)
+        return path
+
+    async def save_original_pdf_stream(
+        self,
+        job_id: str,
+        file_name: str,
+        upload: AsyncReadableUpload,
+        *,
+        max_bytes: int,
+        chunk_size: int = 1024 * 1024,
+    ) -> Path:
+        path = self.originals_dir / f"{job_id}-{file_name}"
+        total = 0
+        with path.open("wb") as handle:
+            while True:
+                chunk = await upload.read(chunk_size)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > max_bytes:
+                    handle.close()
+                    if path.exists():
+                        path.unlink()
+                    raise ValueError("Uploaded file exceeds the maximum allowed size")
+                handle.write(chunk)
+        if total == 0:
+            if path.exists():
+                path.unlink()
+            raise ValueError("Uploaded file is empty")
         return path
 
     def save_generated_markdown(self, job_id: str, markdown: str) -> Path:

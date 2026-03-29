@@ -2,10 +2,11 @@ import React, { startTransition, useDeferredValue, useEffect, useMemo, useState 
 import {
   ActivityIndicator,
   Alert,
+  Linking,
+  Modal,
   Share,
   Platform,
   Pressable,
-  RefreshControl,
   SafeAreaView,
   ScrollView,
   Text,
@@ -16,13 +17,12 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 
-import { SettingsModal } from "./src/components/SettingsModal";
 import { JobDetailPanel } from "./src/components/JobDetailPanel";
-import { JobListPanel } from "./src/components/JobListPanel";
+import { TurnstileGate } from "./src/components/TurnstileGate";
 import { WorkspaceToolbar } from "./src/components/WorkspaceToolbar";
-import { BUILD_TAG, currentWebBaseUrl, DEFAULT_CONFIG, normalizeBaseUrl } from "./src/constants";
-import { deleteJob, fetchJob, fetchJobs, fetchResult, retryJob, saveResult, uploadPdf } from "./src/services/api";
-import { clearDraft, loadConfig, loadDraft, persistConfig, persistDraft } from "./src/storage/config";
+import { DEFAULT_CONFIG } from "./src/constants";
+import { fetchJob, fetchResult, retryJob, saveResult, uploadPdf } from "./src/services/api";
+import { clearDraft, loadConfig, loadDraft, persistDraft } from "./src/storage/config";
 import { styles } from "./src/styles";
 import type { AppConfig, Job, ResultPayload } from "./src/types";
 
@@ -58,14 +58,8 @@ export default function App(): React.JSX.Element {
   const isTabletLayout = width >= 720;
   const isCompactLayout = width < 720;
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
-  const [draftConfig, setDraftConfig] = useState<AppConfig>(DEFAULT_CONFIG);
-  const [settingsVisible, setSettingsVisible] = useState(false);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [currentEditToken, setCurrentEditToken] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [result, setResult] = useState<ResultPayload | null>(null);
   const [editorText, setEditorText] = useState("");
@@ -77,6 +71,9 @@ export default function App(): React.JSX.Element {
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [infoVisible, setInfoVisible] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [draftHydratedJobId, setDraftHydratedJobId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const selectedResultText = useMemo(() => {
@@ -87,27 +84,6 @@ export default function App(): React.JSX.Element {
   }, [deferredEditorText, editing, result]);
   const hasUnsavedChanges = editing && editorText !== (result?.markdown || "");
   const sectionHeadings = useMemo(() => extractSectionHeadings(editorText), [editorText]);
-  const visibleJobs = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLowerCase();
-    return [...jobs]
-      .filter((job) => (filterStatus === "all" ? true : job.status === filterStatus))
-      .filter((job) => (normalizedQuery ? job.file_name.toLowerCase().includes(normalizedQuery) : true))
-      .sort((left, right) => {
-        const leftValue = new Date(left.updated_at || left.created_at).getTime();
-        const rightValue = new Date(right.updated_at || right.created_at).getTime();
-        return sortOrder === "desc" ? rightValue - leftValue : leftValue - rightValue;
-      });
-  }, [filterStatus, jobs, searchQuery, sortOrder]);
-  const jobStats = useMemo(
-    () => ({
-      queued: jobs.filter((job) => job.status === "queued").length,
-      processing: jobs.filter((job) => job.status === "processing").length,
-      completed: jobs.filter((job) => job.status === "completed").length,
-      failed: jobs.filter((job) => job.status === "failed").length,
-    }),
-    [jobs],
-  );
-
   function showError(title: string, error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);
     setNotice(`${title}: ${message}`);
@@ -120,35 +96,105 @@ export default function App(): React.JSX.Element {
     loadConfig()
       .then((loaded) => {
         setConfig(loaded);
-        setDraftConfig(loaded);
       })
       .finally(() => setLoadingConfig(false));
   }, []);
 
   useEffect(() => {
-    if (!loadingConfig) {
-      void refreshJobsList();
+    if (!loadingConfig && selectedJobId && currentEditToken && !selectedJobId.startsWith("local-md-")) {
+      void refreshSelectedJob(selectedJobId, currentEditToken);
     }
   }, [loadingConfig, config.baseUrl, config.apiKey]);
 
   useEffect(() => {
-    if (selectedJobId) {
-      void refreshSelectedJob(selectedJobId);
+    if (Platform.OS !== "web" || typeof document === "undefined") {
+      return;
     }
-  }, [selectedJobId]);
+
+    const fontLinkId = "pretendard-gov-font-link";
+    const fontStyleId = "pretendard-gov-font-style";
+
+    if (!document.getElementById(fontLinkId)) {
+      const link = document.createElement("link");
+      link.id = fontLinkId;
+      link.rel = "stylesheet";
+      link.crossOrigin = "anonymous";
+      link.href =
+        "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-gov.min.css";
+      document.head.appendChild(link);
+    }
+
+    if (!document.getElementById(fontStyleId)) {
+      const style = document.createElement("style");
+      style.id = fontStyleId;
+      style.textContent = `
+        :root {
+          color-scheme: light;
+          --govpress-scrollbar-track: #f4eadc;
+          --govpress-scrollbar-thumb: #ccb89d;
+          --govpress-scrollbar-thumb-hover: #b89f7f;
+        }
+        html[data-theme="dark"] {
+          color-scheme: dark;
+          --govpress-scrollbar-track: #2d241e;
+          --govpress-scrollbar-thumb: #6a5848;
+          --govpress-scrollbar-thumb-hover: #816c59;
+        }
+        html, body, input, textarea, button, select {
+          font-family: "Pretendard GOV Variable", "Pretendard GOV", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+        }
+        input:focus, textarea:focus, button:focus {
+          outline: none;
+          box-shadow: none;
+        }
+        * {
+          scrollbar-color: var(--govpress-scrollbar-thumb) var(--govpress-scrollbar-track);
+        }
+        *::-webkit-scrollbar {
+          width: 12px;
+          height: 12px;
+        }
+        *::-webkit-scrollbar-track {
+          background: var(--govpress-scrollbar-track);
+        }
+        *::-webkit-scrollbar-thumb {
+          background: var(--govpress-scrollbar-thumb);
+          border-radius: 999px;
+          border: 3px solid var(--govpress-scrollbar-track);
+        }
+        *::-webkit-scrollbar-thumb:hover {
+          background: var(--govpress-scrollbar-thumb-hover);
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!selectedJobId || !selectedJob) {
+    if (Platform.OS !== "web" || typeof document === "undefined") {
+      return;
+    }
+    document.documentElement.setAttribute("data-theme", isDarkMode ? "dark" : "light");
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    if (selectedJobId && currentEditToken && !selectedJobId.startsWith("local-md-")) {
+      void refreshSelectedJob(selectedJobId, currentEditToken);
+    }
+  }, [selectedJobId, currentEditToken]);
+
+  useEffect(() => {
+    if (!selectedJobId || !currentEditToken || selectedJobId.startsWith("local-md-") || !selectedJob) {
       return;
     }
     if (selectedJob.status !== "queued" && selectedJob.status !== "processing") {
       return;
     }
     const handle = setInterval(() => {
-      void refreshSelectedJob(selectedJobId, false);
+      void refreshSelectedJob(selectedJobId, currentEditToken, false);
     }, 2500);
     return () => clearInterval(handle);
-  }, [selectedJobId, selectedJob?.status]);
+  }, [selectedJobId, currentEditToken, selectedJob?.status]);
 
   useEffect(() => {
     if (!editing || !selectedJobId) {
@@ -173,6 +219,19 @@ export default function App(): React.JSX.Element {
   }, [editing, hasUnsavedChanges]);
 
   useEffect(() => {
+    if (!notice) {
+      return;
+    }
+    if (notice === "PDF 업로드 중...") {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setNotice((current) => (current === notice ? null : current));
+    }, 2200);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  useEffect(() => {
     if (!selectedJobId || !result || draftHydratedJobId === selectedJobId) {
       return;
     }
@@ -187,36 +246,18 @@ export default function App(): React.JSX.Element {
       .finally(() => setDraftHydratedJobId(selectedJobId));
   }, [draftHydratedJobId, result, selectedJobId]);
 
-  async function refreshJobsList(cursor?: string | null, append = false): Promise<void> {
+  async function refreshSelectedJob(jobId: string, editToken: string, syncResult = true): Promise<void> {
     try {
-      append ? setBusy(true) : setRefreshing(true);
-      const payload = await fetchJobs(config, cursor);
-      setNotice(null);
-      startTransition(() => {
-        setJobs((current) => (append ? [...current, ...payload.items] : payload.items));
-        setNextCursor(payload.next_cursor);
-      });
-    } catch (error) {
-      showError("작업 목록을 불러오지 못했습니다.", error);
-    } finally {
-      setBusy(false);
-      setRefreshing(false);
-    }
-  }
-
-  async function refreshSelectedJob(jobId: string, syncResult = true): Promise<void> {
-    try {
-      const payload = await fetchJob(config, jobId);
+      const payload = await fetchJob(config, jobId, editToken);
       setNotice(null);
       const shouldLoadResult =
         payload.status === "completed" &&
         (syncResult || result?.job_id !== payload.job_id || selectedJob?.status !== "completed");
       startTransition(() => {
         setSelectedJob(payload);
-        setJobs((current) => current.map((item) => (item.job_id === payload.job_id ? { ...item, ...payload } : item)));
       });
       if (shouldLoadResult) {
-        const resultPayload = await fetchResult(config, jobId);
+        const resultPayload = await fetchResult(config, jobId, editToken);
         startTransition(() => {
           setResult(resultPayload);
           setEditorText(resultPayload.markdown || "");
@@ -229,20 +270,84 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  async function openLocalMarkdown(asset: DocumentPicker.DocumentPickerAsset): Promise<void> {
+    const webFile = (asset as DocumentPicker.DocumentPickerAsset & { file?: File }).file;
+    let markdown = "";
+
+    if (Platform.OS === "web") {
+      if (webFile) {
+        markdown = await webFile.text();
+      } else {
+        const response = await fetch(asset.uri);
+        markdown = await response.text();
+      }
+    } else {
+      markdown = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+    }
+
+    const localJobId = `local-md-${Date.now()}`;
+    const localJob: Job = {
+      job_id: localJobId,
+      status: "completed",
+      file_name: asset.name,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const localResult: ResultPayload = {
+      job_id: localJobId,
+      status: "completed",
+      markdown,
+      html_preview: null,
+      meta: {
+        title: asset.name.replace(/\.md$/i, ""),
+        department: null,
+        source_file_name: asset.name,
+      },
+    };
+    startTransition(() => {
+      setSelectedJobId(localJobId);
+      setCurrentEditToken(null);
+      setSelectedJob(localJob);
+      setResult(localResult);
+      setEditorText(markdown);
+      setEditorSelection({ start: 0, end: 0 });
+      setEditing(false);
+      setActiveTab("preview");
+    });
+    setNotice("Markdown 문서를 열었습니다.");
+  }
+
   async function handlePickPdf(): Promise<void> {
+    if (Platform.OS === "web" && config.turnstileSiteKey && !turnstileToken) {
+      return;
+    }
     try {
       const picked = await DocumentPicker.getDocumentAsync({
-        type: "application/pdf",
+        type: Platform.OS === "web" ? [".pdf", ".md"] : ["application/pdf", "text/markdown"],
         copyToCacheDirectory: true,
       });
       if (picked.canceled || !picked.assets.length) {
         return;
       }
+      const asset = picked.assets[0];
+      const lowerName = asset.name.toLowerCase();
+      if (lowerName.endsWith(".md")) {
+        await openLocalMarkdown(asset);
+        return;
+      }
+      if (!lowerName.endsWith(".pdf")) {
+        setNotice("PDF 또는 Markdown 파일만 열 수 있습니다.");
+        return;
+      }
       setBusy(true);
       setNotice("PDF 업로드 중...");
-      const job = await uploadPdf(config, picked.assets[0]);
+      const job = await uploadPdf(config, asset, turnstileToken);
+      setTurnstileToken(null);
       startTransition(() => {
         setSelectedJobId(job.job_id);
+        setCurrentEditToken(job.edit_token);
         setSelectedJob(job);
         setResult(null);
         setEditorText("");
@@ -250,7 +355,7 @@ export default function App(): React.JSX.Element {
         setEditorFocusToken((current) => current + 1);
         setEditing(false);
       });
-      await refreshJobsList();
+      await refreshSelectedJob(job.job_id, job.edit_token, false);
     } catch (error) {
       showError("PDF 업로드에 실패했습니다.", error);
     } finally {
@@ -259,12 +364,12 @@ export default function App(): React.JSX.Element {
   }
 
   async function handleRetry(): Promise<void> {
-    if (!selectedJobId) {
+    if (!selectedJobId || !currentEditToken) {
       return;
     }
     try {
       setBusy(true);
-      const retried = await retryJob(config, selectedJobId);
+      const retried = await retryJob(config, selectedJobId, currentEditToken);
       setNotice("작업을 다시 대기열에 넣었습니다.");
       startTransition(() => {
         setSelectedJob(retried);
@@ -274,7 +379,6 @@ export default function App(): React.JSX.Element {
         setEditorFocusToken((current) => current + 1);
         setEditing(false);
       });
-      await refreshJobsList();
     } catch (error) {
       showError("재시도에 실패했습니다.", error);
     } finally {
@@ -286,15 +390,26 @@ export default function App(): React.JSX.Element {
     if (!selectedJobId) {
       return;
     }
+    if (selectedJobId.startsWith("local-md-")) {
+      const nextMarkdown = editorText;
+      setResult((current) => (current ? { ...current, markdown: nextMarkdown } : current));
+      setEditing(false);
+      setNotice("편집 내용을 적용했습니다. 필요하면 MD 저장으로 내려받으세요.");
+      return;
+    }
     if (!hasUnsavedChanges) {
       setNotice("저장할 변경 사항이 없습니다.");
       return;
     }
     try {
       setBusy(true);
-      await saveResult(config, selectedJobId, editorText);
+      if (!currentEditToken) {
+        setNotice("이 작업에 대한 접근 토큰이 없습니다.");
+        return;
+      }
+      await saveResult(config, selectedJobId, editorText, currentEditToken);
       await clearDraft(selectedJobId);
-      const updated = await fetchResult(config, selectedJobId);
+      const updated = await fetchResult(config, selectedJobId, currentEditToken);
       setNotice("수정본을 저장했습니다.");
       startTransition(() => {
         setResult(updated);
@@ -482,6 +597,42 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  async function handleSaveMarkdownFile(): Promise<void> {
+    if ((!editorText && !result?.markdown) || !selectedJob) {
+      setNotice("저장할 Markdown이 없습니다.");
+      return;
+    }
+    const content = editorText || result?.markdown || "";
+    const outputName = selectedJob.file_name.replace(/\.pdf$/i, ".md");
+
+    try {
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = outputName.endsWith(".md") ? outputName : `${outputName}.md`;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+        setNotice("Markdown 파일을 저장했습니다.");
+        return;
+      }
+
+      const outputPath = `${FileSystem.cacheDirectory}${outputName}`;
+      await FileSystem.writeAsStringAsync(outputPath, content, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(outputPath, {
+          mimeType: "text/markdown",
+          dialogTitle: "Markdown 저장",
+        });
+      }
+    } catch (error) {
+      showError("Markdown 저장에 실패했습니다.", error);
+    }
+  }
+
   async function handleCopyMarkdown(): Promise<void> {
     if (!result?.markdown || !selectedJob) {
       return;
@@ -499,73 +650,30 @@ export default function App(): React.JSX.Element {
     if (!selectedJobId) {
       return;
     }
-    const action = async () => {
-      try {
-        setBusy(true);
-        await deleteJob(config, selectedJobId);
-        setJobs((current) => current.filter((job) => job.job_id !== selectedJobId));
-        setSelectedJobId(null);
-        setSelectedJob(null);
-        setResult(null);
-        setEditing(false);
-        setNotice("작업을 삭제했습니다.");
-      } catch (error) {
-        showError("작업 삭제에 실패했습니다.", error);
-      } finally {
-        setBusy(false);
-      }
-    };
-
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      if (window.confirm("이 작업을 삭제하시겠습니까?")) {
-        await action();
-      }
-      return;
-    }
-
-    Alert.alert("작업 삭제", "이 작업을 삭제하시겠습니까?", [
-      { text: "취소", style: "cancel" },
-      { text: "삭제", style: "destructive", onPress: () => void action() },
-    ]);
+    setSelectedJobId(null);
+    setCurrentEditToken(null);
+    setSelectedJob(null);
+    setResult(null);
+    setEditorText("");
+    setEditing(false);
+    setNotice(selectedJobId.startsWith("local-md-") ? "로컬 Markdown 문서를 닫았습니다." : "현재 작업 화면을 닫았습니다.");
   }
 
-  async function handleSaveSettings(): Promise<void> {
-    const next = {
-      baseUrl: normalizeBaseUrl(draftConfig.baseUrl.trim().replace(/\/+$/, "")),
-      apiKey: draftConfig.apiKey.trim(),
-    };
-    setConfig(next);
-    setDraftConfig(next);
-    setSettingsVisible(false);
-    setNotice(`서버 설정을 저장했습니다: ${next.baseUrl}`);
-    try {
-      await persistConfig(next);
-    } catch (error) {
-      showError("서버 설정 저장에 실패했습니다.", error);
-    }
+  function handleOpenGithub(): void {
+    void Linking.openURL("https://github.com/wavelen-jw/GovPress_PDF_MD");
   }
 
-  async function handleUseCurrentHost(): Promise<void> {
-    const next = {
-      baseUrl: currentWebBaseUrl(),
-      apiKey: config.apiKey,
-    };
-    setConfig(next);
-    setDraftConfig(next);
-    setSettingsVisible(false);
-    setNotice(`현재 페이지 서버를 사용합니다: ${next.baseUrl}`);
-    try {
-      await persistConfig(next);
-    } catch (error) {
-      showError("현재 페이지 서버 적용에 실패했습니다.", error);
-    }
+  function handleOpenInfo(): void {
+    setInfoVisible(true);
   }
 
-  const heroTitle = selectedJob?.status === "completed"
-    ? result?.meta.title || selectedJob.file_name
-    : "정부 보도자료를 모바일에서 바로 변환";
-  const showListPanel = !isCompactLayout || !selectedJobId;
-  const showDetailPanel = !isCompactLayout || !!selectedJobId;
+  function handleToggleDarkMode(): void {
+    setIsDarkMode((current) => !current);
+  }
+
+  const showDetailPanel = true;
+  const currentDocumentName = selectedJob?.file_name || result?.meta.source_file_name || null;
+  const isPdfPickReady = !config.turnstileSiteKey || !!turnstileToken;
 
   if (loadingConfig) {
     return (
@@ -577,7 +685,7 @@ export default function App(): React.JSX.Element {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, isDarkMode && styles.safeAreaDark]}>
       <View style={styles.backgroundOrbA} />
       <View style={styles.backgroundOrbB} />
       <ScrollView
@@ -587,130 +695,154 @@ export default function App(): React.JSX.Element {
           isTabletLayout && styles.scrollContentTablet,
           isWideLayout && styles.scrollContentDesktop,
         ]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refreshJobsList()} />}
       >
-        <View style={[styles.heroCard, isWideLayout && styles.heroCardDesktop]}>
-          <Text style={styles.eyebrow}>GovPress Mobile MVP</Text>
-          <Text style={styles.heroTitle}>{heroTitle}</Text>
-          <Text style={styles.heroSubtitle}>
-            PDF 업로드, 변환 상태 확인, Markdown 검토와 수정, 공유까지 한 흐름으로 처리합니다.
-          </Text>
-          <View style={styles.heroChecklist}>
-            <Text style={styles.heroChecklistItem}>업로드 후 완료되면 결과가 자동으로 상세 패널에 표시됩니다.</Text>
-            <Text style={styles.heroChecklistItem}>PC에서는 목록과 상세를 함께 보고, 모바일에서는 한 화면씩 집중합니다.</Text>
-          </View>
-          {notice ? <Text style={styles.noticeBox}>{notice}</Text> : null}
-        </View>
-
-        <WorkspaceToolbar
-          currentServer={config.baseUrl}
-          isWideLayout={isWideLayout}
-          stats={jobStats}
-          onOpenSettings={() => setSettingsVisible(true)}
-          onPickPdf={() => void handlePickPdf()}
-          onRefresh={() => void refreshJobsList()}
-          onUseCurrentHost={Platform.OS === "web" ? () => void handleUseCurrentHost() : undefined}
-        />
-
-        <View style={[styles.sectionRow, isWideLayout && styles.sectionRowDesktop]}>
-          {showListPanel ? (
-            <JobListPanel
-              busy={busy}
-              filterStatus={filterStatus}
-              isWideLayout={isWideLayout}
-              jobs={visibleJobs}
-              nextCursor={nextCursor}
-              searchQuery={searchQuery}
-              selectedJobId={selectedJobId}
-              sortOrder={sortOrder}
-              onChangeFilterStatus={setFilterStatus}
-              onChangeSearchQuery={setSearchQuery}
-              onLoadMore={(cursor) => void refreshJobsList(cursor, true)}
-              onSelectJob={(jobId) => {
-                confirmDiscardChanges(() => {
-                  setSelectedJobId(jobId);
-                  setActiveTab("preview");
-                  setEditing(false);
-                });
-              }}
-              onToggleSortOrder={() => setSortOrder((current) => (current === "desc" ? "asc" : "desc"))}
+        <View style={styles.toolbarShell}>
+          <WorkspaceToolbar
+            currentDocumentName={currentDocumentName}
+            hasResult={!!(selectedJob?.status === "completed" && result)}
+            hasUnsavedChanges={hasUnsavedChanges}
+            isWideLayout={isWideLayout}
+            isDarkMode={isDarkMode}
+            isPdfPickReady={isPdfPickReady}
+            editing={editing}
+            activeTab={activeTab}
+            onChangeTab={setActiveTab}
+            onCopyMarkdown={() => void handleCopyMarkdown()}
+            onDiscardEdit={handleDiscardEdit}
+            onOpenInfo={handleOpenInfo}
+            onPickPdf={() => void handlePickPdf()}
+            onSaveEdit={() => void handleSaveEdit()}
+            onSaveMarkdownFile={() => void handleSaveMarkdownFile()}
+            onShareMarkdown={() => void handleShareMarkdown()}
+            onToggleDarkMode={handleToggleDarkMode}
+          />
+          {notice ? <Text style={[styles.noticeBox, isDarkMode && styles.noticeBoxDark]}>{notice}</Text> : null}
+          {config.turnstileSiteKey ? (
+            <TurnstileGate
+              isDarkMode={isDarkMode}
+              siteKey={config.turnstileSiteKey || ""}
+              onTokenChange={setTurnstileToken}
             />
           ) : null}
+        </View>
 
-          {showDetailPanel ? (
+        {showDetailPanel ? (
             <JobDetailPanel
               activeTab={activeTab}
               editorSelection={editorSelection}
               editorFocusToken={editorFocusToken}
-              hasUnsavedChanges={hasUnsavedChanges}
-              editing={editing}
-              editorText={editorText}
-              isWideLayout={isWideLayout}
-              sectionHeadings={sectionHeadings}
-              showBackButton={isCompactLayout}
-              result={result}
-              selectedJob={selectedJob}
-              selectedResultText={selectedResultText}
-              onApplyEditorAction={applyEditorAction}
-              onBack={() => {
+            hasUnsavedChanges={hasUnsavedChanges}
+            isDarkMode={isDarkMode}
+            editing={editing}
+            editorText={editorText}
+            isTabletLayout={isTabletLayout}
+            isCompactLayout={isCompactLayout}
+            isWideLayout={isWideLayout}
+            sectionHeadings={sectionHeadings}
+            showBackButton={isCompactLayout}
+            result={result}
+            selectedJob={selectedJob}
+            selectedResultText={selectedResultText}
+            onApplyEditorAction={applyEditorAction}
+            onBack={() => {
                 confirmDiscardChanges(() => {
                   setSelectedJobId(null);
+                  setCurrentEditToken(null);
                   setSelectedJob(null);
                   setResult(null);
                   setActiveTab("preview");
+                setEditing(false);
+              });
+            }}
+            onChangeEditorText={setEditorText}
+            onChangeSelection={setEditorSelection}
+            onChangeTab={setActiveTab}
+            onDiscardEdit={handleDiscardEdit}
+            onDeleteJob={() => void handleDeleteJob()}
+            onCopyMarkdown={() => void handleCopyMarkdown()}
+            onJumpToSection={(index) => {
+              setEditorSelection({ start: index, end: index });
+              setActiveTab("markdown");
+              setEditing(true);
+              setEditorFocusToken((current) => current + 1);
+            }}
+            onRequestToggleEditing={() => {
+              if (editing) {
+                confirmDiscardChanges(() => {
                   setEditing(false);
+                  setEditorText(result?.markdown || "");
                 });
-              }}
-              onChangeEditorText={setEditorText}
-              onChangeSelection={setEditorSelection}
-              onChangeTab={setActiveTab}
-              onDiscardEdit={handleDiscardEdit}
-              onDeleteJob={() => void handleDeleteJob()}
-              onCopyMarkdown={() => void handleCopyMarkdown()}
-              onJumpToSection={(index) => {
-                setEditorSelection({ start: index, end: index });
-                setActiveTab("markdown");
-                setEditing(true);
-                setEditorFocusToken((current) => current + 1);
-              }}
-              onRequestToggleEditing={() => {
-                if (editing) {
-                  confirmDiscardChanges(() => {
-                    setEditing(false);
-                    setEditorText(result?.markdown || "");
-                  });
-                  return;
-                }
-                setEditing(true);
-                setActiveTab("markdown");
-                setEditorFocusToken((current) => current + 1);
-              }}
-              onRetry={() => void handleRetry()}
-              onSaveEdit={() => void handleSaveEdit()}
-              onShareMarkdown={() => void handleShareMarkdown()}
-              onToggleEditing={() => setEditing((current) => !current)}
-            />
-          ) : null}
-        </View>
+                return;
+              }
+              setEditing(true);
+              setActiveTab("markdown");
+              setEditorFocusToken((current) => current + 1);
+            }}
+            onRetry={() => void handleRetry()}
+            onSaveEdit={() => void handleSaveEdit()}
+            onShareMarkdown={() => void handleShareMarkdown()}
+            onToggleEditing={() => setEditing((current) => !current)}
+          />
+        ) : null}
       </ScrollView>
 
-      <SettingsModal
-        visible={settingsVisible}
-        draft={draftConfig}
-        onChange={setDraftConfig}
-        onClose={() => setSettingsVisible(false)}
-        onSave={() => void handleSaveSettings()}
-      />
+      <Modal visible={infoVisible} animationType="fade" transparent onRequestClose={() => setInfoVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.infoModalCard}>
+            <Text style={styles.modalTitle}>정부 보도자료 Markdown 편집기</Text>
+            <Text style={styles.modalHint}>
+              PDF로 배포되는 정부 보도자료를 Markdown으로 바꾸고, 바로 수정하고, 저장할 수 있도록 만든 웹 도구입니다.
+            </Text>
+            <View style={styles.infoMetaList}>
+              <View style={styles.infoMetaRow}>
+                <Text style={styles.infoMetaLabel}>대상 문서</Text>
+                <Text style={styles.infoMetaValue}>정부 보도자료 PDF, Markdown</Text>
+              </View>
+              <View style={styles.infoMetaRow}>
+                <Text style={styles.infoMetaLabel}>주요 기능</Text>
+                <Text style={styles.infoMetaValue}>PDF 변환, Markdown 편집, 미리보기, 저장</Text>
+              </View>
+              <View style={styles.infoMetaRow}>
+                <Text style={styles.infoMetaLabel}>GitHub 저장소</Text>
+                <Pressable onPress={handleOpenGithub}>
+                  <Text style={styles.infoMetaLink}>wavelen-jw/GovPress_PDF_MD</Text>
+                </Pressable>
+              </View>
+            </View>
+            <View style={styles.infoCapabilityList}>
+              <View style={styles.infoCapabilityRow}>
+                <Text style={[styles.infoCapabilityBadge, styles.infoCapabilityGood]}>잘함</Text>
+                <Text style={styles.infoCapabilityText}>보도자료 PDF를 Markdown 초안으로 변환하고 바로 수정하기</Text>
+              </View>
+              <View style={styles.infoCapabilityRow}>
+                <Text style={[styles.infoCapabilityBadge, styles.infoCapabilityLearning]}>학습중</Text>
+                <Text style={styles.infoCapabilityText}>문서 구조를 더 정확하게 이해하고 표기 방식을 자연스럽게 정리하기</Text>
+              </View>
+              <View style={styles.infoCapabilityRow}>
+                <Text style={[styles.infoCapabilityBadge, styles.infoCapabilityBad]}>못함</Text>
+                <Text style={styles.infoCapabilityText}>모든 문서를 완벽하게 자동 변환하거나 복잡한 보고서 서식을 그대로 재현하기</Text>
+              </View>
+            </View>
+            <Text style={styles.modalHint}>
+              변환 결과는 초안입니다. 공개 전에는 문장, 표, 목록, 링크를 한 번 더 확인하는 것을 권장합니다.
+            </Text>
+            <Text style={styles.infoQuote}>
+              이 도구는 개발자가 아닌 공무원이 AI를 활용하여 업무에 도움이 되는 도구를 만드는 '행정안전부 AI 챔피언' 교육과정을 통해 만들어졌습니다.
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable onPress={() => setInfoVisible(false)} style={styles.primaryButton}>
+                <Text style={styles.primaryButtonLabel}>닫기</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {busy ? (
         <View style={styles.busyOverlay}>
           <ActivityIndicator size="large" color="#fff7ee" />
         </View>
       ) : null}
-
-      <View pointerEvents="none" style={styles.buildBadge}>
-        <Text style={styles.buildBadgeText}>{BUILD_TAG}</Text>
-      </View>
     </SafeAreaView>
   );
 }

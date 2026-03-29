@@ -11,11 +11,14 @@ class ResultService:
         self._repository = repository
         self._storage = storage
 
-    def get_result(self, job_id: str) -> JobRecord | None:
-        return self._repository.get(job_id)
-
-    def update_markdown(self, job_id: str, markdown: str) -> JobRecord:
+    def get_result(self, job_id: str, edit_token: str) -> JobRecord | None:
         record = self._repository.get(job_id)
+        if record is None or record.edit_token != edit_token:
+            return None
+        return record
+
+    def update_markdown(self, job_id: str, edit_token: str, markdown: str) -> JobRecord:
+        record = self.get_result(job_id, edit_token)
         if record is None:
             raise KeyError(job_id)
         path = self._storage.save_edited_markdown(job_id, markdown)

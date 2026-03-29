@@ -1,66 +1,81 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
+import logging
 
-from ..schemas.jobs import CleanupResponse, JobListResponse, JobResponse, JobStatusResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+
+from ..core.rate_limit import SlidingWindowRateLimiter
+from ..core.security import require_edit_token
+from ..core.turnstile import verify_turnstile_token
+from ..schemas.jobs import JobCreateResponse, JobResponse, JobStatusResponse
 
 
 def build_router(job_service, settings, verify_api_key) -> APIRouter:
     router = APIRouter(prefix="/v1/jobs", tags=["jobs"])
+    logger = logging.getLogger("govpress.turnstile")
+    upload_rate_limiter = SlidingWindowRateLimiter(
+        max_requests=settings.upload_rate_limit_count,
+        window_seconds=settings.upload_rate_limit_window_seconds,
+    )
 
-    @router.post("", response_model=JobResponse)
+    @router.post("", response_model=JobCreateResponse)
     async def create_job(
+        request: Request,
         file: UploadFile = File(...),
         source: str = Form("mobile"),
         client_request_id: str | None = Form(None),
+        turnstile_response: str | None = Form(None, alias="cf-turnstile-response"),
         _authorized: None = Depends(verify_api_key),
-    ) -> JobResponse:
+    ) -> JobCreateResponse:
+        remote_ip = request.headers.get("CF-Connecting-IP") or (request.client.host if request.client else None) or "unknown"
+        rate_key = f"{remote_ip}|{request.headers.get('user-agent', '')[:120]}"
+        if not upload_rate_limiter.allow(rate_key):
+            raise HTTPException(status_code=429, detail="Too many upload requests. Please try again later.")
+        job_service.cleanup_jobs(older_than_hours=settings.job_ttl_hours, statuses=("completed", "failed"))
+        if settings.turnstile_secret_key:
+            if not turnstile_response:
+                logger.warning("Turnstile missing token remote_ip=%s host=%s", remote_ip, request.headers.get("host"))
+                raise HTTPException(status_code=403, detail="Turnstile verification failed")
+            success, verify_result = verify_turnstile_token(settings.turnstile_secret_key, turnstile_response, remote_ip)
+            if not success:
+                logger.warning(
+                    "Turnstile verification failed remote_ip=%s host=%s result=%s",
+                    remote_ip,
+                    request.headers.get("host"),
+                    verify_result,
+                )
+                raise HTTPException(status_code=403, detail="Turnstile verification failed")
         file_name = file.filename or "document.pdf"
         if not file_name.lower().endswith(".pdf"):
             raise HTTPException(status_code=400, detail="Only PDF files are supported")
-        content = await file.read()
-        if not content:
-            raise HTTPException(status_code=400, detail="Uploaded file is empty")
-        if len(content) > settings.max_upload_bytes:
-            raise HTTPException(status_code=413, detail="Uploaded file exceeds the maximum allowed size")
-        record = job_service.create_job(
-            file_name=file_name,
-            content=content,
-            source=source,
-            client_request_id=client_request_id,
-        )
-        return JobResponse(
+        try:
+            record = await job_service.create_job_from_upload(
+                file_name=file_name,
+                upload=file,
+                max_upload_bytes=settings.max_upload_bytes,
+                source=source,
+                client_request_id=client_request_id,
+            )
+        except ValueError as exc:
+            detail = str(exc)
+            if detail == "Uploaded file exceeds the maximum allowed size":
+                raise HTTPException(status_code=413, detail=detail) from exc
+            raise HTTPException(status_code=400, detail=detail) from exc
+        return JobCreateResponse(
             job_id=record.job_id,
+            edit_token=record.edit_token,
             status=record.status,
             file_name=record.file_name,
             created_at=record.created_at,
         )
 
-    @router.get("", response_model=JobListResponse)
-    def list_jobs(
-        limit: int = Query(20, ge=1, le=100),
-        status: str | None = Query(None),
-        cursor: str | None = Query(None),
-        _authorized: None = Depends(verify_api_key),
-    ) -> JobListResponse:
-        records, next_cursor = job_service.list_jobs(limit=limit, status=status, cursor=cursor)
-        return JobListResponse(
-            items=[
-                JobResponse(
-                    job_id=record.job_id,
-                    status=record.status,
-                    file_name=record.file_name,
-                    created_at=record.created_at,
-                    updated_at=record.updated_at,
-                )
-                for record in records
-            ],
-            next_cursor=next_cursor,
-        )
-
     @router.get("/{job_id}", response_model=JobStatusResponse)
-    def get_job(job_id: str, _authorized: None = Depends(verify_api_key)) -> JobStatusResponse:
-        record = job_service.get_job(job_id)
+    def get_job(
+        job_id: str,
+        edit_token: str = Depends(require_edit_token),
+        _authorized: None = Depends(verify_api_key),
+    ) -> JobStatusResponse:
+        record = job_service.get_job(job_id, edit_token)
         if record is None:
             raise HTTPException(status_code=404, detail="Job not found")
         return JobStatusResponse(
@@ -75,9 +90,13 @@ def build_router(job_service, settings, verify_api_key) -> APIRouter:
         )
 
     @router.post("/{job_id}/retry", response_model=JobStatusResponse)
-    def retry_job(job_id: str, _authorized: None = Depends(verify_api_key)) -> JobStatusResponse:
+    def retry_job(
+        job_id: str,
+        edit_token: str = Depends(require_edit_token),
+        _authorized: None = Depends(verify_api_key),
+    ) -> JobStatusResponse:
         try:
-            record = job_service.retry_job(job_id)
+            record = job_service.retry_job(job_id, edit_token)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Job not found") from exc
         return JobStatusResponse(
@@ -90,24 +109,5 @@ def build_router(job_service, settings, verify_api_key) -> APIRouter:
             error_code=record.error_code,
             error_message=record.error_message,
         )
-
-    @router.delete("/{job_id}", status_code=204)
-    def delete_job(job_id: str, _authorized: None = Depends(verify_api_key)) -> Response:
-        record = job_service.delete_job(job_id)
-        if record is None:
-            raise HTTPException(status_code=404, detail="Job not found")
-        return Response(status_code=204)
-
-    @router.post("/cleanup", response_model=CleanupResponse)
-    def cleanup_jobs(
-        older_than_days: int = Query(..., ge=1, le=3650),
-        statuses: list[str] | None = Query(None),
-        _authorized: None = Depends(verify_api_key),
-    ) -> CleanupResponse:
-        records = job_service.cleanup_jobs(
-            older_than_days=older_than_days,
-            statuses=tuple(statuses) if statuses else None,
-        )
-        return CleanupResponse(deleted_count=len(records))
 
     return router

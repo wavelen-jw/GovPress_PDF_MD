@@ -13,16 +13,12 @@ class JobResponse(BaseModel):
     updated_at: datetime | None = None
 
 
+class JobCreateResponse(JobResponse):
+    edit_token: str
+
+
 class JobStatusResponse(JobResponse):
     progress: int = Field(default=0, ge=0, le=100)
     error_code: str | None = None
     error_message: str | None = None
 
-
-class JobListResponse(BaseModel):
-    items: list[JobResponse]
-    next_cursor: str | None = None
-
-
-class CleanupResponse(BaseModel):
-    deleted_count: int
