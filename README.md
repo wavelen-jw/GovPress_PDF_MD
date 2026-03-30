@@ -1,109 +1,65 @@
-# GovPress_PDF_MD
+# 정부 보도자료.Markdown
 
-정부 보도자료 PDF를 Markdown으로 변환하고 편집할 수 있는 웹서비스입니다.
-현재 `mobile_app` 브랜치에는 Cloudflare Tunnel로 공개되는 FastAPI 백엔드와 Expo Web 기반 반응형 클라이언트가 포함되어 있습니다.
+정부 보도자료 PDF를 사람이 읽기 쉬운 Markdown 문서로 바꾸고, 바로 수정하고 저장할 수 있는 웹서비스입니다.
 
-현재 서비스는 데스크톱에서는 편집기와 미리보기를 병렬로 보여주고, 모바일/태블릿에서는 리더 중심 UI로 동작합니다. 일반 PDF 변환보다 행정기관 보도자료 형식 복원과 후처리 품질을 우선합니다.
+서비스 주소:
+- `https://wavelen-jw.github.io/GovPress_PDF_MD`
 
-## 빠른 시작
+## 할 수 있는 일
 
-### 요구사항
+- 정부 보도자료 PDF를 Markdown으로 변환
+- Markdown 문서를 바로 열어 편집
+- 변환 결과를 미리보기로 확인
+- 필요한 표현을 직접 수정
+- Markdown 파일로 저장
+- 복사하거나 공유
 
-- Windows 10/11
-- Python 3.10+
-- Java 11+
-- `opendataloader-pdf`
+## 사용하는 방법
 
-### 설치
+1. `PDF 열기`를 눌러 PDF 또는 Markdown 파일을 엽니다.
+2. PDF를 열면 자동으로 Markdown으로 변환됩니다.
+3. 화면 오른쪽 또는 아래의 미리보기에서 결과를 확인합니다.
+4. 필요한 문장을 바로 수정합니다.
+5. `저장하기`로 Markdown 파일을 내려받습니다.
 
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-pip install -U opendataloader-pdf
-```
+## Markdown이란?
 
-### 실행
+Markdown은 제목, 목록, 강조 같은 문서 구조를 간단한 기호로 적는 방식입니다.
 
-```bash
-python app.py
-```
+예:
+- `# 제목`
+- `- 목록`
+- `**강조**`
 
-### 웹 백엔드 실행
+별도 전용 뷰어가 없어도 웹브라우저나 일반 문서 편집기에서 읽기 쉽고, AI가 문서 구조를 이해하고 활용하기에도 적합합니다.
 
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-pip install -U opendataloader-pdf
-.venv/bin/python -m uvicorn server.app.main:app --host 127.0.0.1 --port 8011
-```
+## 이런 문서에 잘 맞습니다
 
-워커는 별도 프로세스로 실행합니다.
+- 정부 부처 보도자료
+- 기관 공지문
+- 제목, 문단, 목록 중심 문서
+- PDF를 Markdown 초안으로 빠르게 바꾸고 싶은 문서
 
-```bash
-.venv/bin/python -m server.run_worker --storage-root ./storage --poll-interval 1.0
-```
+## 이런 경우는 직접 확인이 필요합니다
 
-### 웹 클라이언트 실행
+- 복잡한 표가 많은 문서
+- 그림, 도표, 캡션이 많은 문서
+- 참고자료, 주석, 붙임문서가 복잡한 문서
+- 원본 서식을 그대로 유지해야 하는 문서
 
-```bash
-cd mobile
-npm install
-npx expo start
-```
+변환 결과는 초안입니다. 공개 전에는 제목, 표, 목록, 링크, 숫자 표기를 한 번 더 확인하는 것을 권장합니다.
 
-정적 웹 빌드:
+## 저장과 공유
 
-```bash
-cd mobile
-npm run export:web
-```
+- `저장하기`: 현재 편집 내용을 Markdown 파일로 저장합니다.
+- `복사`: 현재 내용을 클립보드에 복사합니다.
+- `공유`: 기기나 브라우저에서 지원하는 방식으로 내용을 공유합니다.
 
-## 주요 기능
+## 참고
 
-- PDF 드래그 앤 드롭 입력
-- JSON 우선 기반 보도자료 후처리
-- Markdown 편집
-- 실시간 미리보기
-- 데스크톱/태블릿/모바일 반응형 UI
-- PDF 또는 Markdown 파일 열기
-- `.md` 저장, 복사, 공유
-- 작업별 `edit_token` 기반 접근 분리
-- Turnstile, 업로드 제한, TTL 정리 등 기본 보안 장치
+- 이 서비스는 여러 사람이 동시에 접속할 수 있지만, 각 작업은 개별적으로 처리됩니다.
+- 업로드한 PDF는 변환용으로 사용되며, 작업 결과는 일정 시간이 지나면 자동 정리됩니다.
 
-## 저장소 구조
+## 안내
 
-```text
-GovPress_PDF_MD/
-├─ mobile/
-├─ server/
-├─ src/
-├─ tests/
-├─ docs/
-│  ├─ conversion-rules.md
-│  ├─ development.md
-│  ├─ packaging.md
-│  ├─ troubleshooting.md
-│  └─ archive/
-├─ deploy/
-│  └─ wsl/
-└─ archive/
-```
-
-## 문서
-
-- 개발 및 실행: [docs/development.md](/home/wavel/GovPress_PDF_MD/docs/development.md)
-- 모바일 클라이언트: [mobile/README.md](/home/wavel/GovPress_PDF_MD/mobile/README.md)
-- 모바일 백엔드: [docs/mobile-backend.md](/home/wavel/GovPress_PDF_MD/docs/mobile-backend.md)
-- 빌드 및 배포: [docs/packaging.md](/home/wavel/GovPress_PDF_MD/docs/packaging.md)
-- 변환 규칙: [docs/conversion-rules.md](/home/wavel/GovPress_PDF_MD/docs/conversion-rules.md)
-- 문제 해결: [docs/troubleshooting.md](/home/wavel/GovPress_PDF_MD/docs/troubleshooting.md)
-
-## 테스트
-
-```bash
-python -m unittest discover -s tests
-```
-
-고정 샘플은 `tests/fixtures/` 또는 테스트 파일 내부 fixture를 기준으로 관리하고, 수동 검증용 샘플은 `tests/manual_samples/` 아래에서 관리합니다.
+이 도구는 개발자가 아닌 공무원이 AI를 활용하여 업무에 도움이 되는 도구를 만드는 `행정안전부 AI 챔피언` 교육과정을 통해 만들어졌습니다.
