@@ -7,6 +7,7 @@ declare global {
       render: (container: string | HTMLElement, options: Record<string, unknown>) => string;
       remove?: (widgetId: string) => void;
       reset?: (widgetId?: string) => void;
+      execute?: (widgetId?: string) => void;
     };
   }
 }
@@ -15,10 +16,17 @@ type Props = {
   isDarkMode?: boolean;
   siteKey: string;
   refreshNonce?: number;
+  executeNonce?: number;
   onTokenChange: (token: string | null) => void;
 };
 
-export function TurnstileGate({ isDarkMode = false, siteKey, refreshNonce = 0, onTokenChange }: Props): React.JSX.Element | null {
+export function TurnstileGate({
+  isDarkMode = false,
+  siteKey,
+  refreshNonce = 0,
+  executeNonce = 0,
+  onTokenChange,
+}: Props): React.JSX.Element | null {
   const widgetIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined" || !siteKey) {
@@ -78,6 +86,23 @@ export function TurnstileGate({ isDarkMode = false, siteKey, refreshNonce = 0, o
       window.turnstile.reset(widgetIdRef.current);
     }
   }, [onTokenChange, refreshNonce]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") {
+      return;
+    }
+    if (!executeNonce || !widgetIdRef.current) {
+      return;
+    }
+    onTokenChange(null);
+    if (window.turnstile?.execute) {
+      window.turnstile.execute(widgetIdRef.current);
+      return;
+    }
+    if (window.turnstile?.reset) {
+      window.turnstile.reset(widgetIdRef.current);
+    }
+  }, [executeNonce, onTokenChange]);
 
   if (Platform.OS !== "web" || !siteKey) {
     return null;

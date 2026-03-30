@@ -75,11 +75,9 @@ export function WorkspaceToolbar({
               <View style={styles.workspaceToolbarPrimaryUtility}>
                 <Pressable
                   style={[
-                    isPdfPickReady
-                      ? hasResult
-                        ? [styles.secondaryButton, isDarkMode && styles.secondaryButtonDark]
-                        : styles.primaryButton
-                      : [styles.secondaryButton, styles.toolbarDisabledButton, isDarkMode && styles.secondaryButtonDark],
+                    hasResult
+                      ? [styles.secondaryButton, isDarkMode && styles.secondaryButtonDark]
+                      : styles.primaryButton,
                     isPdfVerificationPending && styles.toolbarPendingButton,
                   ]}
                   onPress={onPickPdf}
@@ -88,11 +86,9 @@ export function WorkspaceToolbar({
                 >
                   <Text
                     style={[
-                      isPdfPickReady
-                        ? hasResult
-                          ? [styles.secondaryButtonLabel, isDarkMode && styles.secondaryButtonLabelDark]
-                          : styles.primaryButtonLabel
-                        : [styles.secondaryButtonLabel, styles.toolbarDisabledButtonLabel, isDarkMode && styles.secondaryButtonLabelDark],
+                      hasResult
+                        ? [styles.secondaryButtonLabel, isDarkMode && styles.secondaryButtonLabelDark]
+                        : styles.primaryButtonLabel,
                       isPdfVerificationPending && styles.toolbarPendingLabel,
                     ]}
                   >

@@ -75,6 +75,8 @@ export default function App(): React.JSX.Element {
   const [infoVisible, setInfoVisible] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileRefreshNonce, setTurnstileRefreshNonce] = useState(0);
+  const [turnstileExecuteNonce, setTurnstileExecuteNonce] = useState(0);
+  const [pendingPdfPick, setPendingPdfPick] = useState(false);
   const [draftHydratedJobId, setDraftHydratedJobId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const selectedResultText = useMemo(() => {
@@ -322,6 +324,8 @@ export default function App(): React.JSX.Element {
 
   async function handlePickPdf(): Promise<void> {
     if (Platform.OS === "web" && config.turnstileSiteKey && !turnstileToken) {
+      setPendingPdfPick(true);
+      setTurnstileExecuteNonce((current) => current + 1);
       return;
     }
     try {
@@ -346,6 +350,7 @@ export default function App(): React.JSX.Element {
       setNotice("PDF 업로드 중...");
       const job = await uploadPdf(config, asset, turnstileToken);
       setTurnstileToken(null);
+      setPendingPdfPick(false);
       setTurnstileRefreshNonce((current) => current + 1);
       startTransition(() => {
         setSelectedJobId(job.job_id);
@@ -359,11 +364,20 @@ export default function App(): React.JSX.Element {
       });
       await refreshSelectedJob(job.job_id, job.edit_token, false);
     } catch (error) {
+      setPendingPdfPick(false);
       showError("PDF 업로드에 실패했습니다.", error);
     } finally {
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    if (!pendingPdfPick || !turnstileToken) {
+      return;
+    }
+    setPendingPdfPick(false);
+    void handlePickPdf();
+  }, [pendingPdfPick, turnstileToken]);
 
   async function handleRetry(): Promise<void> {
     if (!selectedJobId || !currentEditToken) {
@@ -675,7 +689,7 @@ export default function App(): React.JSX.Element {
 
   const showDetailPanel = true;
   const currentDocumentName = selectedJob?.file_name || result?.meta.source_file_name || null;
-  const isPdfPickReady = !config.turnstileSiteKey || !!turnstileToken;
+  const isPdfPickReady = true;
   const isPdfVerificationPending = !!config.turnstileSiteKey && !turnstileToken;
 
   if (loadingConfig) {
@@ -727,6 +741,7 @@ export default function App(): React.JSX.Element {
               isDarkMode={isDarkMode}
               siteKey={config.turnstileSiteKey || ""}
               refreshNonce={turnstileRefreshNonce}
+              executeNonce={turnstileExecuteNonce}
               onTokenChange={setTurnstileToken}
             />
           ) : null}
