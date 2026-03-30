@@ -74,6 +74,7 @@ export default function App(): React.JSX.Element {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [infoVisible, setInfoVisible] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileRefreshNonce, setTurnstileRefreshNonce] = useState(0);
   const [draftHydratedJobId, setDraftHydratedJobId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const selectedResultText = useMemo(() => {
@@ -345,6 +346,7 @@ export default function App(): React.JSX.Element {
       setNotice("PDF 업로드 중...");
       const job = await uploadPdf(config, asset, turnstileToken);
       setTurnstileToken(null);
+      setTurnstileRefreshNonce((current) => current + 1);
       startTransition(() => {
         setSelectedJobId(job.job_id);
         setCurrentEditToken(job.edit_token);
@@ -674,6 +676,7 @@ export default function App(): React.JSX.Element {
   const showDetailPanel = true;
   const currentDocumentName = selectedJob?.file_name || result?.meta.source_file_name || null;
   const isPdfPickReady = !config.turnstileSiteKey || !!turnstileToken;
+  const isPdfVerificationPending = !!config.turnstileSiteKey && !turnstileToken;
 
   if (loadingConfig) {
     return (
@@ -705,6 +708,7 @@ export default function App(): React.JSX.Element {
             isCompactLayout={isCompactLayout}
             isDarkMode={isDarkMode}
             isPdfPickReady={isPdfPickReady}
+            isPdfVerificationPending={isPdfVerificationPending}
             editing={editing}
             activeTab={activeTab}
             onChangeTab={setActiveTab}
@@ -722,6 +726,7 @@ export default function App(): React.JSX.Element {
             <TurnstileGate
               isDarkMode={isDarkMode}
               siteKey={config.turnstileSiteKey || ""}
+              refreshNonce={turnstileRefreshNonce}
               onTokenChange={setTurnstileToken}
             />
           ) : null}

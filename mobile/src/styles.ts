@@ -354,8 +354,21 @@ export const styles = StyleSheet.create({
   toolbarDisabledButton: {
     opacity: 0.5,
   },
+  toolbarPendingButton: {
+    overflow: "hidden",
+  },
   toolbarDisabledButtonLabel: {
     opacity: 0.8,
+  },
+  toolbarPendingLabel: {
+    opacity: 0.22,
+  },
+  toolbarPendingOverlay: {
+    position: "absolute",
+    inset: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(125, 96, 67, 0.12)",
   },
   secondaryButtonCompact: {
     minWidth: 36,

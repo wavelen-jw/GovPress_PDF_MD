@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, Platform, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Image, Platform, Pressable, Text, View } from "react-native";
 
 import { styles } from "../styles";
 
@@ -11,6 +11,7 @@ type Props = {
   isCompactLayout: boolean;
   isDarkMode: boolean;
   isPdfPickReady: boolean;
+  isPdfVerificationPending: boolean;
   editing: boolean;
   activeTab: "preview" | "markdown" | "diff";
   onChangeTab: (value: "preview" | "markdown" | "diff") => void;
@@ -32,6 +33,7 @@ export function WorkspaceToolbar({
   isCompactLayout,
   isDarkMode,
   isPdfPickReady,
+  isPdfVerificationPending,
   editing,
   activeTab,
   onChangeTab,
@@ -72,28 +74,35 @@ export function WorkspaceToolbar({
             <View style={styles.workspaceToolbarUtility}>
               <View style={styles.workspaceToolbarPrimaryUtility}>
                 <Pressable
-                  style={
+                  style={[
                     isPdfPickReady
                       ? hasResult
                         ? [styles.secondaryButton, isDarkMode && styles.secondaryButtonDark]
                         : styles.primaryButton
-                      : [styles.secondaryButton, styles.toolbarDisabledButton, isDarkMode && styles.secondaryButtonDark]
-                  }
+                      : [styles.secondaryButton, styles.toolbarDisabledButton, isDarkMode && styles.secondaryButtonDark],
+                    isPdfVerificationPending && styles.toolbarPendingButton,
+                  ]}
                   onPress={onPickPdf}
                   accessibilityLabel="PDF 열기"
                   {...webTitle("PDF 열기")}
                 >
                   <Text
-                    style={
+                    style={[
                       isPdfPickReady
                         ? hasResult
                           ? [styles.secondaryButtonLabel, isDarkMode && styles.secondaryButtonLabelDark]
                           : styles.primaryButtonLabel
-                        : [styles.secondaryButtonLabel, styles.toolbarDisabledButtonLabel, isDarkMode && styles.secondaryButtonLabelDark]
-                    }
+                        : [styles.secondaryButtonLabel, styles.toolbarDisabledButtonLabel, isDarkMode && styles.secondaryButtonLabelDark],
+                      isPdfVerificationPending && styles.toolbarPendingLabel,
+                    ]}
                   >
                     {pickPdfLabel}
                   </Text>
+                  {isPdfVerificationPending ? (
+                    <View style={styles.toolbarPendingOverlay}>
+                      <ActivityIndicator size="small" color={isDarkMode ? "#f2e2d0" : "#fffaf4"} />
+                    </View>
+                  ) : null}
                 </Pressable>
                 <Pressable
                   style={hasResult ? styles.primaryButton : [styles.secondaryButton, isDarkMode && styles.secondaryButtonDark]}

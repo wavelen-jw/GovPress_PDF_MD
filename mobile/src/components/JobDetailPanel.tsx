@@ -227,6 +227,9 @@ export function JobDetailPanel({
                           selection={editorSelection}
                           onSelectionChange={(event) => onChangeSelection(event.nativeEvent.selection)}
                           multiline
+                          spellCheck={false}
+                          autoCorrect={false}
+                          autoComplete="off"
                           textAlignVertical="top"
                           style={[styles.editor, styles.editorDesktop, isDarkMode && styles.editorDark]}
                         />
@@ -274,6 +277,9 @@ export function JobDetailPanel({
                             selection={editorSelection}
                             onSelectionChange={(event) => onChangeSelection(event.nativeEvent.selection)}
                             multiline
+                            spellCheck={false}
+                            autoCorrect={false}
+                            autoComplete="off"
                             textAlignVertical="top"
                             style={[styles.editor, styles.editorTablet, isDarkMode && styles.editorDark]}
                           />
@@ -320,6 +326,9 @@ export function JobDetailPanel({
                             selection={editorSelection}
                             onSelectionChange={(event) => onChangeSelection(event.nativeEvent.selection)}
                             multiline
+                            spellCheck={false}
+                            autoCorrect={false}
+                            autoComplete="off"
                             textAlignVertical="top"
                             style={[styles.editor, styles.editorMobile, isDarkMode && styles.editorDark]}
                           />

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { Platform, View } from "react-native";
 
 declare global {
@@ -14,10 +14,12 @@ declare global {
 type Props = {
   isDarkMode?: boolean;
   siteKey: string;
+  refreshNonce?: number;
   onTokenChange: (token: string | null) => void;
 };
 
-export function TurnstileGate({ isDarkMode = false, siteKey, onTokenChange }: Props): React.JSX.Element | null {
+export function TurnstileGate({ isDarkMode = false, siteKey, refreshNonce = 0, onTokenChange }: Props): React.JSX.Element | null {
+  const widgetIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined" || !siteKey) {
       return;
@@ -25,7 +27,6 @@ export function TurnstileGate({ isDarkMode = false, siteKey, onTokenChange }: Pr
 
     const scriptId = "cloudflare-turnstile-script";
     const containerId = "govpress-turnstile";
-    let widgetId: string | null = null;
 
     function renderWidget() {
       if (!window.turnstile) {
@@ -35,7 +36,7 @@ export function TurnstileGate({ isDarkMode = false, siteKey, onTokenChange }: Pr
       if (!container || container.childNodes.length > 0) {
         return;
       }
-      widgetId = window.turnstile.render(`#${containerId}`, {
+      widgetIdRef.current = window.turnstile.render(`#${containerId}`, {
         sitekey: siteKey,
         appearance: "interaction-only",
         callback: (token: string) => onTokenChange(token),
@@ -58,11 +59,25 @@ export function TurnstileGate({ isDarkMode = false, siteKey, onTokenChange }: Pr
     }
 
     return () => {
-      if (widgetId && window.turnstile?.remove) {
-        window.turnstile.remove(widgetId);
+      if (widgetIdRef.current && window.turnstile?.remove) {
+        window.turnstile.remove(widgetIdRef.current);
+        widgetIdRef.current = null;
       }
     };
   }, [onTokenChange, siteKey]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") {
+      return;
+    }
+    if (!refreshNonce) {
+      return;
+    }
+    if (widgetIdRef.current && window.turnstile?.reset) {
+      onTokenChange(null);
+      window.turnstile.reset(widgetIdRef.current);
+    }
+  }, [onTokenChange, refreshNonce]);
 
   if (Platform.OS !== "web" || !siteKey) {
     return null;
