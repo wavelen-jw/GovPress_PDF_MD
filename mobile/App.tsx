@@ -368,7 +368,7 @@ export default function App(): React.JSX.Element {
       return;
     }
     const picked = await DocumentPicker.getDocumentAsync({
-      type: Platform.OS === "web" ? [".pdf", ".md"] : ["application/pdf", "text/markdown"],
+      type: ["application/pdf", "text/markdown"],
       copyToCacheDirectory: true,
     });
     if (picked.canceled || !picked.assets.length) {

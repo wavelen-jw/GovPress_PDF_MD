@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, Text, View } from "react-native";
 
 import { styles } from "../styles";
@@ -12,6 +12,11 @@ type Props = {
 
 export function EmptyDetailState({ isDarkMode = false, isCompactLayout = false, onPickPdf, onDropFile }: Props) {
   const [isDragActive, setIsDragActive] = useState(false);
+  const dropZoneRef = useRef<View>(null);
+  // Keep latest callback in a ref so event listeners don't need to be re-attached on every render
+  const onDropFileRef = useRef(onDropFile);
+  onDropFileRef.current = onDropFile;
+
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined") {
       return;
@@ -27,41 +32,57 @@ export function EmptyDetailState({ isDarkMode = false, isCompactLayout = false, 
     };
   }, []);
 
-  const webDropProps = useMemo<Record<string, unknown>>(() => {
-    if (Platform.OS !== "web") {
-      return {};
+  // Attach drag event listeners directly to the DOM node.
+  // React Native's Pressable does not forward onDragOver/onDrop props to the DOM,
+  // so spreading them as JSX props has no effect on web.
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") {
+      return;
     }
-    return {
-      onDragOver: (event: DragEvent) => {
-        event.preventDefault();
-        event.stopPropagation();
-        setIsDragActive(true);
-      },
-      onDragEnter: (event: DragEvent) => {
-        event.preventDefault();
-        event.stopPropagation();
-        setIsDragActive(true);
-      },
-      onDragLeave: (event: DragEvent) => {
-        event.preventDefault();
-        event.stopPropagation();
-        setIsDragActive(false);
-      },
-      onDrop: (event: DragEvent) => {
-        event.preventDefault();
-        event.stopPropagation();
-        setIsDragActive(false);
-        const file = event.dataTransfer?.files?.[0];
-        if (file) {
-          onDropFile?.(file);
-        }
-      },
-    } as Record<string, unknown>;
-  }, [onDropFile]);
+    const el = dropZoneRef.current as unknown as HTMLElement;
+    if (!el) {
+      return;
+    }
+    function handleDragOver(event: DragEvent) {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsDragActive(true);
+    }
+    function handleDragEnter(event: DragEvent) {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsDragActive(true);
+    }
+    function handleDragLeave(event: DragEvent) {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsDragActive(false);
+    }
+    function handleDrop(event: DragEvent) {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsDragActive(false);
+      const file = event.dataTransfer?.files?.[0];
+      if (file) {
+        onDropFileRef.current?.(file);
+      }
+    }
+    el.addEventListener("dragover", handleDragOver);
+    el.addEventListener("dragenter", handleDragEnter);
+    el.addEventListener("dragleave", handleDragLeave);
+    el.addEventListener("drop", handleDrop);
+    return () => {
+      el.removeEventListener("dragover", handleDragOver);
+      el.removeEventListener("dragenter", handleDragEnter);
+      el.removeEventListener("dragleave", handleDragLeave);
+      el.removeEventListener("drop", handleDrop);
+    };
+  }, []);
 
   return (
     <View style={[styles.stateCardNeutral, isDarkMode && styles.stateCardNeutralDark]}>
       <Pressable
+        ref={dropZoneRef}
         onPress={onPickPdf}
         style={[
           styles.emptyDropZone,
@@ -70,7 +91,6 @@ export function EmptyDetailState({ isDarkMode = false, isCompactLayout = false, 
           isDragActive && styles.emptyDropZoneActive,
           isDarkMode && isDragActive && styles.emptyDropZoneActiveDark,
         ]}
-        {...(webDropProps as object)}
       >
         <Text style={[styles.emptyDropZoneIcon, isDarkMode && styles.emptyDropZoneIconDark]}>⬆</Text>
         <Text style={[styles.emptyDropZoneTitle, isDarkMode && styles.emptyDropZoneTitleDark]}>
