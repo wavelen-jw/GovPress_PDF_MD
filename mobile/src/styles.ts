@@ -639,6 +639,21 @@ export const styles = StyleSheet.create({
   markdownIntroTitleDark: {
     color: "#f2e2d0",
   },
+  emptyDetailGrid: {
+    gap: 18,
+  },
+  emptyDetailGridWide: {
+    flexDirection: "row",
+    alignItems: "stretch",
+  },
+  emptyDetailInfoColumn: {
+    flex: 1.2,
+    gap: 8,
+  },
+  emptyDetailDropColumn: {
+    flex: 0.8,
+    minWidth: 280,
+  },
   emptyDetailChecklist: {
     marginTop: 8,
     gap: 6,
@@ -657,6 +672,82 @@ export const styles = StyleSheet.create({
   },
   emptyDetailDividerDark: {
     backgroundColor: "#4b3d31",
+  },
+  emptyDropZone: {
+    minHeight: 320,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: "#d5b792",
+    backgroundColor: "#fff8f1",
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  emptyDropZoneDark: {
+    backgroundColor: "#2f2620",
+    borderColor: "#785f46",
+  },
+  emptyDropZoneActive: {
+    backgroundColor: "#f5ece0",
+    borderColor: "#b5672d",
+  },
+  emptyDropZoneActiveDark: {
+    backgroundColor: "#3a2f27",
+    borderColor: "#d08d55",
+  },
+  emptyDropZoneIcon: {
+    fontSize: 26,
+    lineHeight: 30,
+    color: "#9d612b",
+  },
+  emptyDropZoneIconDark: {
+    color: "#efc08f",
+  },
+  emptyDropZoneTitle: {
+    color: "#2f2318",
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: "700",
+    fontFamily: FONT_SANS,
+    textAlign: "center",
+  },
+  emptyDropZoneTitleDark: {
+    color: "#f2e2d0",
+  },
+  emptyDropZoneBody: {
+    color: "#6a5848",
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: "center",
+    maxWidth: 320,
+  },
+  emptyDropZoneBodyDark: {
+    color: "#d4bea6",
+  },
+  emptyDropZoneBadge: {
+    marginTop: 4,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: "#f3e6d7",
+    borderWidth: 1,
+    borderColor: "#e1c8ab",
+  },
+  emptyDropZoneBadgeDark: {
+    backgroundColor: "#41352c",
+    borderColor: "#685342",
+  },
+  emptyDropZoneBadgeText: {
+    color: "#8b5a2a",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  emptyDropZoneBadgeTextDark: {
+    color: "#ebc18f",
   },
   emptyExampleTable: {
     borderWidth: 1,

@@ -26,6 +26,8 @@ import { clearDraft, loadConfig, loadDraft, persistDraft } from "./src/storage/c
 import { styles } from "./src/styles";
 import type { AppConfig, Job, ResultPayload } from "./src/types";
 
+type WebUploadAsset = DocumentPicker.DocumentPickerAsset & { file?: File };
+
 type EditorSelection = {
   start: number;
   end: number;
@@ -77,6 +79,7 @@ export default function App(): React.JSX.Element {
   const [turnstileRefreshNonce, setTurnstileRefreshNonce] = useState(0);
   const [turnstileExecuteNonce, setTurnstileExecuteNonce] = useState(0);
   const [pendingPdfPick, setPendingPdfPick] = useState(false);
+  const [pendingDroppedAsset, setPendingDroppedAsset] = useState<WebUploadAsset | null>(null);
   const [draftHydratedJobId, setDraftHydratedJobId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const selectedResultText = useMemo(() => {
@@ -322,21 +325,8 @@ export default function App(): React.JSX.Element {
     setNotice("Markdown 문서를 열었습니다.");
   }
 
-  async function handlePickPdf(): Promise<void> {
-    if (Platform.OS === "web" && config.turnstileSiteKey && !turnstileToken) {
-      setPendingPdfPick(true);
-      setTurnstileExecuteNonce((current) => current + 1);
-      return;
-    }
+  async function handleSelectedAsset(asset: WebUploadAsset): Promise<void> {
     try {
-      const picked = await DocumentPicker.getDocumentAsync({
-        type: Platform.OS === "web" ? [".pdf", ".md"] : ["application/pdf", "text/markdown"],
-        copyToCacheDirectory: true,
-      });
-      if (picked.canceled || !picked.assets.length) {
-        return;
-      }
-      const asset = picked.assets[0];
       const lowerName = asset.name.toLowerCase();
       if (lowerName.endsWith(".md")) {
         await openLocalMarkdown(asset);
@@ -371,6 +361,39 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  async function handlePickPdf(): Promise<void> {
+    if (Platform.OS === "web" && config.turnstileSiteKey && !turnstileToken) {
+      setPendingPdfPick(true);
+      setTurnstileExecuteNonce((current) => current + 1);
+      return;
+    }
+    const picked = await DocumentPicker.getDocumentAsync({
+      type: Platform.OS === "web" ? [".pdf", ".md"] : ["application/pdf", "text/markdown"],
+      copyToCacheDirectory: true,
+    });
+    if (picked.canceled || !picked.assets.length) {
+      return;
+    }
+    await handleSelectedAsset(picked.assets[0]);
+  }
+
+  function handleDropFile(file: File): void {
+    const droppedAsset: WebUploadAsset = {
+      name: file.name,
+      uri: URL.createObjectURL(file),
+      size: file.size,
+      mimeType: file.type || undefined,
+      lastModified: file.lastModified,
+      file,
+    };
+    if (config.turnstileSiteKey && !turnstileToken) {
+      setPendingDroppedAsset(droppedAsset);
+      setTurnstileExecuteNonce((current) => current + 1);
+      return;
+    }
+    void handleSelectedAsset(droppedAsset);
+  }
+
   useEffect(() => {
     if (!pendingPdfPick || !turnstileToken) {
       return;
@@ -378,6 +401,15 @@ export default function App(): React.JSX.Element {
     setPendingPdfPick(false);
     void handlePickPdf();
   }, [pendingPdfPick, turnstileToken]);
+
+  useEffect(() => {
+    if (!pendingDroppedAsset || !turnstileToken) {
+      return;
+    }
+    const nextAsset = pendingDroppedAsset;
+    setPendingDroppedAsset(null);
+    void handleSelectedAsset(nextAsset);
+  }, [pendingDroppedAsset, turnstileToken]);
 
   async function handleRetry(): Promise<void> {
     if (!selectedJobId || !currentEditToken) {
@@ -778,6 +810,7 @@ export default function App(): React.JSX.Element {
             onChangeEditorText={setEditorText}
             onChangeSelection={setEditorSelection}
             onChangeTab={setActiveTab}
+            onDropFile={handleDropFile}
             onDiscardEdit={handleDiscardEdit}
             onDeleteJob={() => void handleDeleteJob()}
             onCopyMarkdown={() => void handleCopyMarkdown()}
@@ -787,6 +820,7 @@ export default function App(): React.JSX.Element {
               setEditing(true);
               setEditorFocusToken((current) => current + 1);
             }}
+            onPickPdf={() => void handlePickPdf()}
             onRequestToggleEditing={() => {
               if (editing) {
                 confirmDiscardChanges(() => {

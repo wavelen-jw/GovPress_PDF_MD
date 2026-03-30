@@ -28,10 +28,12 @@ type Props = {
   onChangeEditorText: (value: string) => void;
   onChangeSelection: (selection: { start: number; end: number }) => void;
   onChangeTab: (value: "preview" | "markdown" | "diff") => void;
+  onDropFile: (file: File) => void;
   onDiscardEdit: () => void;
   onDeleteJob: () => void;
   onCopyMarkdown: () => void;
   onJumpToSection: (index: number) => void;
+  onPickPdf: () => void;
   onRequestToggleEditing: () => void;
   onRetry: () => void;
   onSaveEdit: () => void;
@@ -60,10 +62,12 @@ export function JobDetailPanel({
   onChangeEditorText,
   onChangeSelection,
   onChangeTab,
+  onDropFile,
   onDiscardEdit,
   onDeleteJob,
   onCopyMarkdown,
   onJumpToSection,
+  onPickPdf,
   onRequestToggleEditing,
   onRetry,
   onSaveEdit,
@@ -134,9 +138,14 @@ export function JobDetailPanel({
           </View>
         </View>
       ) : null}
-      <View style={[styles.panelLarge, isWideLayout && styles.panelLargeDesktop, isDarkMode && styles.panelLargeDark]}>
+        <View style={[styles.panelLarge, isWideLayout && styles.panelLargeDesktop, isDarkMode && styles.panelLargeDark]}>
         {!selectedJob ? (
-          <EmptyDetailState isDarkMode={isDarkMode} />
+          <EmptyDetailState
+            isDarkMode={isDarkMode}
+            isCompactLayout={isCompactLayout}
+            onPickPdf={onPickPdf}
+            onDropFile={onDropFile}
+          />
         ) : (
           <>
             {(selectedJob.status === "queued" || selectedJob.status === "processing") && (
