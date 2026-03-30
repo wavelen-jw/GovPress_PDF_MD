@@ -1155,6 +1155,7 @@ export const styles = StyleSheet.create({
     alignItems: "stretch",
     justifyContent: "center",
     minHeight: 722,
+    width: "100%",
   },
   editorStackLayout: {
     gap: 12,
