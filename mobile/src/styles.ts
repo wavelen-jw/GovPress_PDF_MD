@@ -686,6 +686,10 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 12,
   },
+  emptyDropZoneSingleColumn: {
+    width: "100%",
+    minHeight: 280,
+  },
   emptyDropZoneDark: {
     backgroundColor: "#2f2620",
     borderColor: "#785f46",
@@ -757,8 +761,8 @@ export const styles = StyleSheet.create({
     backgroundColor: "#fffdfa",
     alignSelf: "flex-start",
     width: "100%",
-    minWidth: 640,
-    maxWidth: 920,
+    minWidth: 560,
+    maxWidth: 780,
   },
   emptyExampleTableScrollWrap: {
     width: "100%",
@@ -789,7 +793,7 @@ export const styles = StyleSheet.create({
   },
   emptyExampleCell: {
     flex: 1,
-    minWidth: 180,
+    minWidth: 150,
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRightWidth: 1,
