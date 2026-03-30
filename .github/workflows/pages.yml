@@ -3,7 +3,7 @@ name: Deploy Web To GitHub Pages
 on:
   push:
     branches:
-      - mobile_app
+      - web
   workflow_dispatch:
 
 permissions:
