@@ -1154,7 +1154,7 @@ export const styles = StyleSheet.create({
     gap: 14,
     alignItems: "stretch",
     justifyContent: "center",
-    height: 722,
+    minHeight: 722,
   },
   editorStackLayout: {
     gap: 12,
@@ -1212,7 +1212,7 @@ export const styles = StyleSheet.create({
     minHeight: 0,
   },
   previewPanelSplit: {
-    height: 722,
+    minHeight: 722,
   },
   previewPanelTablet: {
     width: "100%",
@@ -1239,7 +1239,7 @@ export const styles = StyleSheet.create({
   },
   previewScroll: { maxHeight: 360 },
   previewScrollDesktop: {
-    flex: 1,
+    maxHeight: 702,
   },
   previewScrollTablet: {
     maxHeight: 360,
