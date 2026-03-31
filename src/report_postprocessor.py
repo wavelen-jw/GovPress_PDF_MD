@@ -57,6 +57,17 @@ SUMMARY_RE = re.compile(r"^요\s*약\s*$")
 # <참고 N> 또는 ＜참고 N＞
 REFERENCE_SECTION_RE = re.compile(r"^[<＜]\s*참고\s*(\d+)?\s*[>＞]\s*(.*)")
 
+# 꺾쇠 없는 bare 참고 섹션: 줄 전체가 "참고" 한 단어
+BARE_REFERENCE_RE = re.compile(r"^참고\s*$")
+
+# □ ○ √ ‣ ⦁ 등 기본계획/정책문서에 쓰이는 불릿 문자
+SQUARE_BULLET = "\u25a1"   # □
+CIRCLE_OPEN   = "\u25cb"   # ○
+CHECK_BULLET  = "\u221a"   # √
+TRI_BULLET    = "\u2023"   # ‣
+FILLED_CIRCLE = "\u29bf"   # ⦁
+_EXTRA_BULLETS = frozenset({SQUARE_BULLET, CIRCLE_OPEN, CHECK_BULLET, TRI_BULLET, FILLED_CIRCLE})
+
 # 메타정보: 대면보고/서면보고 등 + '/' 구분자
 METADATA_RE = re.compile(r"대면보고|서면\s*보고|전화보고|화상보고|구두보고")
 
@@ -120,6 +131,8 @@ def _is_structural_start(line: str) -> bool:
     ch = line[0]
     if ch in set(CIRCLE_BULLET + "-*<>#|※"):
         return True
+    if ch in _EXTRA_BULLETS:
+        return True
     if ROMAN_HEADING_RE.match(line):
         return True
     if NUMBERED_ITEM_RE.match(line):
@@ -127,6 +140,8 @@ def _is_structural_start(line: str) -> bool:
     if SUMMARY_RE.match(line):
         return True
     if REFERENCE_SECTION_RE.match(line):
+        return True
+    if BARE_REFERENCE_RE.match(line):
         return True
     if _is_metadata_line(line):
         return True
@@ -141,8 +156,8 @@ def _can_accept_continuation(line: str) -> bool:
         return False
     if SENTENCE_END_RE.search(line):
         return False
-    # ⃝ 불릿, - 불릿
-    if line[0] == CIRCLE_BULLET or line.startswith("- ") or line.startswith("  - ") or line.startswith("    - "):
+    # ⃝ / □ / ○ / √ / ‣ / ⦁ 불릿, - 불릿
+    if line[0] in _EXTRA_BULLETS or line[0] == CIRCLE_BULLET or line.startswith("- ") or line.startswith("  - ") or line.startswith("    - "):
         return True
     # 긴 번호 항목 (짧은 제목은 제외)
     if NUMBERED_ITEM_RE.match(line) and len(line) > 25:
@@ -305,6 +320,13 @@ def postprocess_report(raw_text: str) -> str:
             context = "section"
             continue
 
+        # ── bare 참고 섹션 (꺾쇠 없이 "참고" 단독) ───────────
+        if BARE_REFERENCE_RE.match(text):
+            rendered.append("")
+            rendered.append("## 참고")
+            context = "section"
+            continue
+
         # ── 로마자 섹션 제목 ───────────────────────────────────
         if ROMAN_HEADING_RE.match(text):
             rendered.append("")
@@ -317,6 +339,25 @@ def postprocess_report(raw_text: str) -> str:
             content = text[1:].strip()
             rendered.append(f"- {content}")
             context = "circle"
+            continue
+
+        # ── □ 불릿 (최상위, 정책문서 스타일) ─────────────────
+        if text.startswith(SQUARE_BULLET):
+            content = text[1:].strip()
+            rendered.append(f"- {content}")
+            context = "square"
+            continue
+
+        # ── ○ 불릿 (□ 하위 항목) ──────────────────────────────
+        if text.startswith(CIRCLE_OPEN):
+            content = text[1:].strip()
+            rendered.append(f"  - {content}")
+            continue
+
+        # ── √ / ‣ / ⦁ 불릿 ────────────────────────────────────
+        if text and text[0] in (CHECK_BULLET, TRI_BULLET, FILLED_CIRCLE):
+            content = text[1:].strip()
+            rendered.append(f"  - {content}")
             continue
 
         # ── 각주 (* 로 시작) ───────────────────────────────────
