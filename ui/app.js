@@ -76,15 +76,15 @@ function ensureApi() {
   return false;
 }
 
-// ── PDF open ───────────────────────────────────────────────
+// ── PDF/HWPX open ──────────────────────────────────────────
 document.getElementById('btn-open').addEventListener('click', openPDF);
 function openPDF() {
   if (!ensureApi()) return;
   try {
-    setStatus('PDF 선택 중…', 'busy');
+    setStatus('PDF/HWPX 선택 중…', 'busy');
     pywebview.api.open_pdf_dialog();
   } catch (e) {
-    setStatus('PDF 열기 실패: ' + e.message, 'err');
+    setStatus('PDF/HWPX 열기 실패: ' + e.message, 'err');
     console.error('[GovPress] open_pdf_dialog error:', e);
   }
 }
@@ -273,16 +273,16 @@ editor.addEventListener('keydown', e => {
   });
 })();
 
-// ── Drag-and-drop PDF ──────────────────────────────────────
+// ── Drag-and-drop PDF/HWPX ─────────────────────────────────
 let _dragCounter = 0;
 
 document.addEventListener('dragenter', e => {
-  if (!hasPDF(e)) return;
+  if (!hasConvertibleDocument(e)) return;
   e.preventDefault();
   _dragCounter++;
   dropOverlay.classList.add('visible');
 });
-document.addEventListener('dragover',  e => { if (hasPDF(e)) e.preventDefault(); });
+document.addEventListener('dragover',  e => { if (hasConvertibleDocument(e)) e.preventDefault(); });
 document.addEventListener('dragleave', () => {
   _dragCounter--;
   if (_dragCounter <= 0) { _dragCounter = 0; dropOverlay.classList.remove('visible'); }
@@ -307,7 +307,7 @@ document.addEventListener('drop', e => {
   }
 });
 
-function hasPDF(e) {
+function hasConvertibleDocument(e) {
   const items = e.dataTransfer && e.dataTransfer.items;
   if (!items) return false;
   for (const item of items) {

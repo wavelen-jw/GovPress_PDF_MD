@@ -16,13 +16,13 @@
 
   <!-- ── Toolbar ─────────────────────────────────────────── -->
   <div id="toolbar">
-    <button class="btn" id="btn-open" title="PDF 열기 (Ctrl+O)">
+    <button class="btn" id="btn-open" title="PDF/HWPX 열기 (Ctrl+O)">
       <!-- folder-open icon -->
       <svg viewBox="0 0 20 20" fill="currentColor">
         <path d="M2 6a2 2 0 012-2h3.586a1 1 0 01.707.293L9.707 5.707A1 1 0 0010.414 6H16a2 2 0 012 2v2H2V6z"/>
         <path d="M0 10a2 2 0 012-2h16a2 2 0 012 2v4a2 2 0 01-2 2H2a2 2 0 01-2-2v-4z" opacity=".7"/>
       </svg>
-      PDF 열기
+      PDF/HWPX 열기
     </button>
     <button class="btn" id="btn-open-md" title="MD 열기 (Ctrl+M)">
       <!-- document-text icon -->
@@ -91,7 +91,7 @@
   <div id="main">
     <div id="editor-pane">
       <textarea id="editor"
-        placeholder="PDF를 열거나 드래그하면 Markdown이 여기에 표시됩니다."
+        placeholder="PDF 또는 HWPX를 열거나 드래그하면 Markdown이 여기에 표시됩니다."
         spellcheck="false"
         autocorrect="off"
         autocapitalize="off"
@@ -107,10 +107,10 @@
           <div id="welcome">
             <div class="wl-icon">&#128196;</div>
             <h2>GovPress PDF MD</h2>
-            <p class="wl-sub">정부 보도자료 PDF → Markdown 변환기</p>
+            <p class="wl-sub">정부 보도자료 PDF/HWPX → Markdown 변환기</p>
             <div class="wl-shortcuts">
-              <div class="wl-row"><kbd>Ctrl+O</kbd><span>PDF 파일 열기</span></div>
-              <div class="wl-row"><span class="wl-or">또는 PDF를 이 창에</span> <strong>드래그 앤 드롭</strong></div>
+              <div class="wl-row"><kbd>Ctrl+O</kbd><span>PDF 또는 HWPX 파일 열기</span></div>
+              <div class="wl-row"><span class="wl-or">또는 PDF/HWPX를 이 창에</span> <strong>드래그 앤 드롭</strong></div>
               <hr>
               <div class="wl-row"><kbd>Ctrl+S</kbd><span>Markdown 저장</span></div>
               <div class="wl-row"><kbd>Ctrl+Shift+C</kbd><span>클립보드 복사</span></div>
