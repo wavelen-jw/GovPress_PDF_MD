@@ -40,6 +40,7 @@ from __future__ import annotations
 import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
+import re
 
 from src.hwpx_postprocessor import HwpxParagraph, postprocess_hwpx
 
@@ -262,4 +263,34 @@ def convert_hwpx(hwpx_path: str) -> str:
         raise FileNotFoundError(f"HWPX 파일을 찾을 수 없습니다: {hwpx_path}")
 
     paragraphs = _extract_paragraphs(hwpx_path)
-    return postprocess_hwpx(paragraphs)
+    markdown = postprocess_hwpx(paragraphs)
+    return _apply_filename_title_fallback(markdown, Path(hwpx_path))
+
+
+def _normalize_title(text: str) -> str:
+    return re.sub(r"[^0-9A-Za-z가-힣]+", "", text)
+
+
+def _filename_title_candidate(path: Path) -> str:
+    stem = path.stem
+    stem = re.sub(r"^\d{6}\s+\([^)]*\)\s*", "", stem)
+    stem = re.sub(r"\([^)]*\)\s*$", "", stem).strip()
+    return stem
+
+
+def _apply_filename_title_fallback(markdown: str, path: Path) -> str:
+    lines = markdown.splitlines()
+    if not lines or not lines[0].startswith("# "):
+        return markdown
+
+    current_title = lines[0][2:].strip()
+    candidate = _filename_title_candidate(path)
+    if not candidate:
+        return markdown
+
+    current_norm = _normalize_title(current_title)
+    candidate_norm = _normalize_title(candidate)
+    if current_norm and candidate_norm.startswith(current_norm) and len(candidate_norm) - len(current_norm) >= 8:
+        lines[0] = f"# {candidate}"
+        return "\n".join(lines) + ("\n" if markdown.endswith("\n") else "")
+    return markdown
