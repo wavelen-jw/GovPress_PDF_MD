@@ -91,7 +91,35 @@ def looks_like_body_paragraph(line: str) -> bool:
 def normalize_contact_line(line: str) -> str:
     text = clean_line(line)
     text = text.replace("：", ":")
+    text = re.sub(r"\b과\s+장\b", "과장", text)
     return re.sub(r"\s*:\s*", ": ", text)
+
+
+def looks_like_title_fragment(line: str) -> bool:
+    stripped = clean_line(line)
+    if not stripped:
+        return False
+    if stripped.startswith(("-", ">", "□", "○", "◆", "◇", "▶", "▣", "<")):
+        return False
+    if is_briefing_detail_line(stripped):
+        return False
+    if looks_like_body_paragraph(stripped):
+        return False
+    return len(stripped) <= 80
+
+
+def should_join_title_lines(previous: str, current: str) -> bool:
+    prev = clean_line(previous)
+    curr = clean_line(current)
+    if not prev or not curr:
+        return False
+    if prev.endswith((",", "…", ":", "·", "‧")):
+        return True
+    if prev.endswith(("“", "‘", "(", "〈", "<")):
+        return True
+    if curr.startswith(("“", "‘", "「", "『", "(", "<")):
+        return True
+    return False
 
 
 def split_contact_chunks(lines: Iterable[str]) -> list[str]:
@@ -115,7 +143,8 @@ def extract_sections(
     lines = [line for line in lines if line and not is_page_noise(line, template)]
 
     current = "preamble"
-    for line in lines:
+    for index, line in enumerate(lines):
+        next_line = lines[index + 1] if index + 1 < len(lines) else ""
         if template.press_label_pattern.match(line):
             continue
 
@@ -138,6 +167,13 @@ def extract_sections(
                 sections.metadata_lines.append(line)
             elif line.startswith("-"):
                 sections.subtitle_lines.append(line)
+            elif sections.title_lines and should_join_title_lines(sections.title_lines[-1], line):
+                sections.title_lines.append(line)
+            elif sections.title_lines and not sections.subtitle_lines and looks_like_title_fragment(line):
+                if next_line.startswith("-") or should_join_title_lines(sections.title_lines[-1], line):
+                    sections.subtitle_lines.append(f"- {line}")
+                else:
+                    sections.title_lines.append(line)
             elif sections.title_lines and (
                 sections.subtitle_lines or looks_like_body_paragraph(line)
             ):

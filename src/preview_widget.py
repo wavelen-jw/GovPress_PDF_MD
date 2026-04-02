@@ -25,6 +25,7 @@ H4_OPEN_PATTERN = re.compile(r"<h4\b[^>]*>", re.IGNORECASE)
 H4_CLOSE_PATTERN = re.compile(r"</h4>", re.IGNORECASE)
 TRAILING_BR_PATTERN = re.compile(r"<br\s*/?>\s*</p>", re.IGNORECASE)
 HIGHLIGHT_TOKEN = "GOVPRESS_CURSOR_HIGHLIGHT_TOKEN"
+BLOCKQUOTE_PARAGRAPH_PATTERN = re.compile(r"(<blockquote>\s*<p>)(.*?)(</p>\s*</blockquote>)", re.IGNORECASE | re.DOTALL)
 
 # Defense-in-depth: strip executable HTML that python-markdown may pass through
 # from raw-HTML blocks inside user content.  The CSP is the primary control;
@@ -156,6 +157,7 @@ def decorate_preview_html(html: str) -> str:
     )
     html = H4_CLOSE_PATTERN.sub("</p>", html)
     html = TRAILING_BR_PATTERN.sub("</p>", html)
+    html = _expand_blockquote_paragraphs(html)
     html = html.replace(
         HIGHLIGHT_TOKEN,
         '<span class="cursor-highlight" style="background:#fff8c6;padding:0 2px;border-radius:2px;">',
@@ -165,6 +167,14 @@ def decorate_preview_html(html: str) -> str:
         html = html.replace("</span>", "</span>", 1)
         html = _close_first_highlight_span(html)
     return html
+
+
+def _expand_blockquote_paragraphs(html: str) -> str:
+    def repl(match: re.Match[str]) -> str:
+        body = re.sub(r"<br\s*/?>", "</p><p>", match.group(2), flags=re.IGNORECASE)
+        return f"{match.group(1)}{body}{match.group(3)}"
+
+    return BLOCKQUOTE_PARAGRAPH_PATTERN.sub(repl, html)
 
 
 def _close_first_highlight_span(html: str) -> str:

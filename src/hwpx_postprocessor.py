@@ -53,6 +53,21 @@ def _strip_bullet(text: str) -> str:
     return text.lstrip("-•○ㅇ‧\uf0a7 ").strip()
 
 
+def _looks_like_metadata_detail(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return False
+    if stripped.startswith("("):
+        return True
+    if "보도자료" in stripped or "보도시점" in stripped:
+        return True
+    if re.search(r"\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.", stripped):
+        return True
+    if any(token in stripped for token in ("조간", "석간", "국무회의 종료 시", "인터넷", "지면", "온라인")):
+        return True
+    return False
+
+
 def _clean_paragraphs(paragraphs: list[HwpxParagraph]) -> list[HwpxParagraph]:
     cleaned: list[HwpxParagraph] = []
     index = 0
@@ -161,6 +176,8 @@ def _normalize_preamble_lines(lines: list[str]) -> list[str]:
                 if candidate.startswith(("보도자료", "#", "<")) or candidate.endswith("보도자료"):
                     break
                 if candidate.startswith(("-", ">", "□", "○", "◆")) or candidate.endswith((".", "다.")):
+                    break
+                if not _looks_like_metadata_detail(candidate):
                     break
                 details.append(candidate)
                 cursor += 1
