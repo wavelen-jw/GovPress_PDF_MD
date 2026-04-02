@@ -77,6 +77,7 @@ def create_app(storage_root: Path | None = None, *, run_worker: bool = False):
 app = None
 
 try:  # pragma: no cover
-    app = create_app()
+    _run_worker = os.environ.get("GOVPRESS_RUN_WORKER", "").lower() in ("1", "true", "yes")
+    app = create_app(run_worker=_run_worker)
 except RuntimeError:
     pass
