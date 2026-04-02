@@ -11,6 +11,8 @@ deploy/wsl/data/
 deploy/wsl/config/
 build/
 dist/
+!mobile/dist/
+!mobile/dist/**
 dist_*/
 build_*/
 logs/

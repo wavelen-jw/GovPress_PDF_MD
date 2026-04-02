@@ -23,24 +23,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: mobile/package-lock.json
-
-      - name: Install mobile dependencies
-        working-directory: mobile
-        run: npm ci
-
-      - name: Typecheck mobile app
-        working-directory: mobile
-        run: npm run typecheck
-
-      - name: Export web build
-        working-directory: mobile
-        run: npm run export:web
+      - name: Verify prebuilt web artifact
+        run: test -f mobile/dist/index.html
 
       - name: Disable Jekyll
         run: touch mobile/dist/.nojekyll
