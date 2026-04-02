@@ -273,6 +273,7 @@ def _normalize_title(text: str) -> str:
 
 def _filename_title_candidate(path: Path) -> str:
     stem = path.stem
+    stem = re.sub(r"^job_[0-9a-f]+-", "", stem)
     stem = re.sub(r"^\d{6}\s+\([^)]*\)\s*", "", stem)
     stem = re.sub(r"\([^)]*\)\s*$", "", stem).strip()
     return stem
