@@ -43,7 +43,7 @@ class ServerServiceTests(unittest.TestCase):
         self.assertEqual(record.status, "queued")
         self.assertTrue(record.artifacts)
         assert record.artifacts is not None
-        self.assertTrue(record.artifacts.original_pdf_path.exists())
+        self.assertTrue(record.artifacts.original_file_path.exists())
         mock_enqueue.assert_called_once_with(record.job_id)
 
     def test_retry_job_requeues_failed_job(self) -> None:
@@ -206,7 +206,7 @@ class ServerServiceTests(unittest.TestCase):
 
         with self.assertRaises(ValueError) as context:
             asyncio.run(
-                self.storage.save_original_pdf_stream(
+                self.storage.save_original_file_stream(
                     "job_stream",
                     "sample.pdf",
                     UploadStub([b"a" * 5, b"b" * 5]),

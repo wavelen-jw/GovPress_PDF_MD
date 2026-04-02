@@ -38,14 +38,14 @@ class JobService:
 
         job_id = f"job_{uuid.uuid4().hex[:12]}"
         edit_token = secrets.token_urlsafe(24)
-        original_path = self._storage.save_original_pdf(job_id, file_name, content)
+        original_path = self._storage.save_original_file(job_id, file_name, content)
         record = self._repository.create(
             job_id=job_id,
             edit_token=edit_token,
             file_name=file_name,
             source=source,
             client_request_id=client_request_id,
-            original_pdf_path=original_path,
+            original_file_path=original_path,
         )
         if record.job_id == job_id:
             self._worker.enqueue(job_id)
@@ -67,7 +67,7 @@ class JobService:
 
         job_id = f"job_{uuid.uuid4().hex[:12]}"
         edit_token = secrets.token_urlsafe(24)
-        original_path = await self._storage.save_original_pdf_stream(
+        original_path = await self._storage.save_original_file_stream(
             job_id,
             file_name,
             upload,
@@ -79,7 +79,7 @@ class JobService:
             file_name=file_name,
             source=source,
             client_request_id=client_request_id,
-            original_pdf_path=original_path,
+            original_file_path=original_path,
         )
         if record.job_id == job_id:
             self._worker.enqueue(job_id)

@@ -25,7 +25,7 @@ class JobResult:
 
 @dataclass
 class JobArtifacts:
-    original_pdf_path: Path
+    original_file_path: Path
     final_markdown_path: Path | None = None
     edited_markdown_path: Path | None = None
 
