@@ -6,7 +6,7 @@
 
 - API 서버: 작업 생성, 상태 조회, 결과 조회/수정
 - Polling Worker: SQLite 작업 저장소에서 `queued` 작업을 가져와 변환 수행
-- 저장소: `storage/` 아래 원본 PDF, 결과 Markdown, SQLite DB 저장
+- 저장소: `storage/` 아래 원본 PDF/HWPX, 결과 Markdown, SQLite DB 저장
 - 선택적 API 키 인증, `edit_token` 기반 작업 분리, CORS, 업로드 제한 지원
 
 ## 요구사항
@@ -40,6 +40,11 @@ pip install -U opendataloader-pdf
 - `GOVPRESS_JOB_TTL_HOURS`: 완료/실패 작업 자동 정리 시간. 기본값은 `72`시간입니다.
 - `GOVPRESS_TURNSTILE_SECRET_KEY`: 설정하면 업로드 시 Cloudflare Turnstile 검증을 수행합니다.
 
+현재 공개 운영 기준:
+
+- `GOVPRESS_TURNSTILE_SECRET_KEY`는 비워 두고 사용합니다.
+- 실제 운영 주소는 저장소 문서에 직접 적지 않고 배포 설정에서 관리합니다.
+
 배포 시 주의:
 
 - `GOVPRESS_CORS_ALLOW_ORIGINS`는 실제 프론트 주소로 제한해야 합니다.
@@ -63,6 +68,11 @@ pip install -U opendataloader-pdf
 - 이후 상태 조회, 결과 조회, 수정 저장, 재시도는 `X-Edit-Token` 헤더가 있어야 합니다.
 - 공개 최근 작업 목록은 제공하지 않습니다.
 
+입력 포맷:
+
+- 현재 운영 백엔드는 `.pdf`, `.hwpx` 업로드를 모두 지원합니다.
+- 결과 저장은 `.md`입니다.
+
 ## 워커 실행
 
 ```bash
@@ -74,6 +84,7 @@ pip install -U opendataloader-pdf
 ## 저장 경로
 
 - 원본 PDF: `storage/originals/`
+- 원본 HWPX도 `storage/originals/` 아래에 함께 저장됩니다.
 - 변환 결과: `storage/results/`
 - 사용자 수정본: `storage/edited/`
 - 작업 DB: `storage/jobs.sqlite3`
