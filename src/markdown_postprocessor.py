@@ -265,16 +265,20 @@ def _render_metadata(lines: list[str], plain_metadata: bool = False) -> list[str
         return normalized
 
     rendered = ["행정안전부 보도자료"]
+    briefing_values: list[str] = []
     for line in lines:
         text = clean_line(line)
         if text.startswith("보도시점"):
             suffix = text[len("보도시점") :].strip(" :")
             suffix = normalize_metadata_text(suffix)
             if suffix:
-                rendered.append(f"보도시점: {suffix}")
+                briefing_values.append(suffix)
         else:
             normalized = normalize_metadata_text(text)
-            rendered.append(f"보도시점: {normalized}")
+            if normalized and normalized != "보도자료":
+                briefing_values.append(normalized)
+    if briefing_values:
+        rendered.append(f"보도시점: {' / '.join(briefing_values)}")
     return rendered
 
 

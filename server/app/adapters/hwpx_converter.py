@@ -44,53 +44,70 @@ from pathlib import Path
 from src.hwpx_postprocessor import HwpxParagraph, postprocess_hwpx
 
 
-# ── XML 네임스페이스 ──────────────────────────────────────────────────────────────
+# ── XML helpers ───────────────────────────────────────────────────────────────────
 
-_NS_HC = "http://www.hancom.co.kr/hwpml/2012/HWP-Core"
-_NS_HP = "http://www.hancom.co.kr/hwpml/2012/HWP-Package"
+_NS_HP_2011 = "http://www.hancom.co.kr/hwpml/2011/paragraph"
+_NS_HS_2011 = "http://www.hancom.co.kr/hwpml/2011/section"
+_NS_HC_2011 = "http://www.hancom.co.kr/hwpml/2011/core"
+_NS_HP_2012 = "http://www.hancom.co.kr/hwpml/2012/HWP-Package"
+_NS_HC_2012 = "http://www.hancom.co.kr/hwpml/2012/HWP-Core"
 
-_Q = {
-    "sec":      f"{{{_NS_HC}}}sec",
-    "p":        f"{{{_NS_HC}}}p",
-    "pPr":      f"{{{_NS_HC}}}pPr",
-    "indentPr": f"{{{_NS_HC}}}indentPr",
-    "run":      f"{{{_NS_HC}}}run",
-    "t":        f"{{{_NS_HC}}}t",
-    "ctrl":     f"{{{_NS_HC}}}ctrl",
-    "tbl":      f"{{{_NS_HC}}}tbl",
-    "tr":       f"{{{_NS_HC}}}tr",
-    "tc":       f"{{{_NS_HC}}}tc",
-}
 
-_ATTR_STYLE_ID = f"{{{_NS_HC}}}styleId"
-_ATTR_LEVEL    = f"{{{_NS_HC}}}level"
-_ATTR_OBJ_TYPE = f"{{{_NS_HC}}}objType"
+def _local_name(tag: str) -> str:
+    if "}" in tag:
+        return tag.rsplit("}", 1)[1]
+    return tag
+
+
+def _iter_local(elem: ET.Element, name: str):
+    for node in elem.iter():
+        if _local_name(node.tag) == name:
+            yield node
+
+
+def _find_local(elem: ET.Element, name: str) -> ET.Element | None:
+    for node in elem:
+        if _local_name(node.tag) == name:
+            return node
+    return None
+
+
+def _get_attr(elem: ET.Element, *names: str) -> str:
+    for name in names:
+        if name in elem.attrib:
+            return elem.attrib[name]
+    lowered = {key.lower(): value for key, value in elem.attrib.items()}
+    for name in names:
+        value = lowered.get(name.lower())
+        if value is not None:
+            return value
+    return ""
 
 
 # ── 내부 유틸 ─────────────────────────────────────────────────────────────────────
 
 def _collect_run_text(p_elem: ET.Element) -> str:
-    """<hc:p> 아래의 모든 <hc:t> 텍스트를 이어 붙인다."""
+    """문단 아래의 모든 텍스트 런을 이어 붙인다."""
     parts: list[str] = []
-    for run in p_elem.iter(_Q["run"]):
-        for t in run.iter(_Q["t"]):
+    for run in (child for child in p_elem if _local_name(child.tag) == "run"):
+        for t in _iter_local(run, "t"):
             if t.text:
                 parts.append(t.text)
     return "".join(parts).strip()
 
 
 def _collect_table_text(tbl_elem: ET.Element) -> str:
-    """<hc:tbl>을 단순 파이프 테이블 텍스트로 직렬화한다.
+    """표를 단순 파이프 테이블 텍스트로 직렬화한다.
 
     표 내부의 <hc:p>를 모아 행/열을 재구성한다.
     표가 복잡하면 셀 텍스트를 줄 단위로 나열하는 간략 형식을 사용한다.
     """
     rows: list[list[str]] = []
-    for tr in tbl_elem.iter(_Q["tr"]):
+    for tr in _iter_local(tbl_elem, "tr"):
         row: list[str] = []
-        for tc in tr.iter(_Q["tc"]):
+        for tc in _iter_local(tr, "tc"):
             cell_parts: list[str] = []
-            for p in tc.iter(_Q["p"]):
+            for p in _iter_local(tc, "p"):
                 text = _collect_run_text(p).strip()
                 if text:
                     cell_parts.append(text)
@@ -123,24 +140,24 @@ def _parse_paragraphs_from_xml(xml_bytes: bytes) -> list[HwpxParagraph]:
 
     paragraphs: list[HwpxParagraph] = []
 
-    for p in root.iter(_Q["p"]):
-        style_id: str = p.get(_ATTR_STYLE_ID, "") or ""
+    for p in _iter_local(root, "p"):
+        style_id = _get_attr(p, "styleIDRef", "styleId", "styleID", "styleIdRef")
 
         # 들여쓰기 수준 파악
         level = 0
-        ppr = p.find(_Q["pPr"])
+        ppr = _find_local(p, "pPr")
         if ppr is not None:
-            indent = ppr.find(_Q["indentPr"])
+            indent = _find_local(ppr, "indentPr")
             if indent is not None:
                 try:
-                    level = int(indent.get(_ATTR_LEVEL, "0") or "0")
+                    level = int(_get_attr(indent, "level") or "0")
                 except ValueError:
                     level = 0
 
         # 직접 자식 ctrl 요소 중 표가 있는지 확인 (표는 별도 처리)
         table_lines: list[str] = []
-        for ctrl in p.findall(_Q["ctrl"]):
-            for tbl in ctrl.iter(_Q["tbl"]):
+        for ctrl in (child for child in p if _local_name(child.tag) == "ctrl"):
+            for tbl in _iter_local(ctrl, "tbl"):
                 table_text = _collect_table_text(tbl)
                 if table_text:
                     table_lines.append(table_text)
@@ -171,8 +188,8 @@ def _get_section_names_from_hpf(zf: zipfile.ZipFile) -> list[str]:
 
     sections: list[str] = []
     # <hp:item> 요소에서 BodyText 타입의 섹션 파일 목록을 수집
-    for item in root.iter(f"{{{_NS_HP}}}item"):
-        id_val = item.get(f"{{{_NS_HP}}}id", "")
+    for item in _iter_local(root, "item"):
+        id_val = _get_attr(item, "id")
         if "BodyText" in id_val or "section" in id_val.lower():
             sections.append(f"Contents/{id_val}")
     return sections
@@ -186,30 +203,39 @@ def _extract_paragraphs(hwpx_path: str) -> list[HwpxParagraph]:
         raise ValueError("HWPX 파일이 손상되었거나 유효하지 않습니다.") from exc
 
     with zf:
-        # 1. content.hpf에서 섹션 목록 파악 시도
-        section_paths = _get_section_names_from_hpf(zf)
+        def _candidate_section_paths() -> list[str]:
+            section_paths = _get_section_names_from_hpf(zf)
+            if section_paths:
+                return section_paths
 
-        # 2. content.hpf 파싱 실패 시 ZIP 내의 section*.xml 파일을 직접 탐색
-        if not section_paths:
             all_names = zf.namelist()
-            section_paths = sorted(
+            scanned = sorted(
                 [n for n in all_names if n.startswith("Contents/section") and n.endswith(".xml")]
             )
+            return scanned or ["Contents/section0.xml"]
 
-        # 3. 그래도 없으면 section0.xml 단독 시도
-        if not section_paths:
-            section_paths = ["Contents/section0.xml"]
+        def _load_sections(paths: list[str]) -> tuple[list[HwpxParagraph], bool]:
+            paragraphs: list[HwpxParagraph] = []
+            found_any = False
+            for path in paths:
+                try:
+                    xml_bytes = zf.read(path)
+                    found_any = True
+                except KeyError:
+                    continue
+                paragraphs.extend(_parse_paragraphs_from_xml(xml_bytes))
+            return paragraphs, found_any
 
-        all_paragraphs: list[HwpxParagraph] = []
-        found_any = False
-        for path in section_paths:
-            try:
-                xml_bytes = zf.read(path)
-                found_any = True
-            except KeyError:
-                continue
-            paras = _parse_paragraphs_from_xml(xml_bytes)
-            all_paragraphs.extend(paras)
+        section_paths = _candidate_section_paths()
+        all_paragraphs, found_any = _load_sections(section_paths)
+
+        # content.hpf 메타가 오래됐거나 형식이 다르면 직접 section*.xml 스캔으로 재시도
+        if not found_any:
+            all_names = zf.namelist()
+            fallback_paths = sorted(
+                [n for n in all_names if n.startswith("Contents/section") and n.endswith(".xml")]
+            ) or ["Contents/section0.xml"]
+            all_paragraphs, found_any = _load_sections(fallback_paths)
 
         if not found_any:
             raise ValueError("HWPX 파일에서 본문 섹션을 찾을 수 없습니다.")
