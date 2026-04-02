@@ -18,3 +18,9 @@ tests/manual_samples/*
 *:Zone.Identifier
 
 -o/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
