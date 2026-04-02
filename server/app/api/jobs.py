@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 
@@ -46,8 +47,9 @@ def build_router(job_service, settings, verify_api_key) -> APIRouter:
                 )
                 raise HTTPException(status_code=403, detail="Turnstile verification failed")
         file_name = file.filename or "document.pdf"
-        if not file_name.lower().endswith(".pdf"):
-            raise HTTPException(status_code=400, detail="Only PDF files are supported")
+        _ALLOWED_EXTENSIONS = {".pdf", ".hwpx"}
+        if Path(file_name).suffix.lower() not in _ALLOWED_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="PDF 또는 HWPX 파일만 지원합니다.")
         try:
             record = await job_service.create_job_from_upload(
                 file_name=file_name,

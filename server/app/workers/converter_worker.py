@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from ..adapters import opendataloader
+from ..adapters import hwpx_converter
 from ..repositories import JobRepository
 from ..services.storage_service import StorageService
 
@@ -33,7 +35,12 @@ class ConverterWorker:
         if not claimed:
             self._jobs.update_status(job_id, status="processing", progress=25)
         try:
-            markdown = opendataloader.convert_pdf(str(record.artifacts.original_pdf_path))
+            file_path = str(record.artifacts.original_file_path)
+            ext = Path(file_path).suffix.lower()
+            if ext == ".hwpx":
+                markdown = hwpx_converter.convert_hwpx(file_path)
+            else:
+                markdown = opendataloader.convert_pdf(file_path)
             self._jobs.update_status(job_id, status="processing", progress=80)
             html_preview = opendataloader.render_preview_html(markdown)
             title, department = opendataloader.extract_metadata(markdown)

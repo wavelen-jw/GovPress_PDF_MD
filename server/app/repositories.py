@@ -40,7 +40,7 @@ def _row_to_record(row: sqlite3.Row) -> JobRecord:
             saved_at=_fromisoformat(row["saved_at"]),
         ),
         artifacts=JobArtifacts(
-            original_pdf_path=Path(row["original_pdf_path"]),
+            original_file_path=Path(row["original_pdf_path"]),
             final_markdown_path=Path(row["final_markdown_path"]) if row["final_markdown_path"] else None,
             edited_markdown_path=Path(row["edited_markdown_path"]) if row["edited_markdown_path"] else None,
         ),
@@ -56,7 +56,7 @@ class JobRepository(Protocol):
         file_name: str,
         source: str,
         client_request_id: str | None,
-        original_pdf_path: Path,
+        original_file_path: Path,
     ) -> JobRecord: ...
 
     def get_by_client_request_id(self, client_request_id: str) -> JobRecord | None: ...
@@ -181,7 +181,7 @@ class SQLiteJobRepository:
         file_name: str,
         source: str,
         client_request_id: str | None,
-        original_pdf_path: Path,
+        original_file_path: Path,
     ) -> JobRecord:
         with self._lock, self._connect() as conn:
             if client_request_id:
@@ -214,7 +214,7 @@ class SQLiteJobRepository:
                     None,
                     client_request_id,
                     0,
-                    str(original_pdf_path),
+                    str(original_file_path),
                     None,
                     None,
                     None,
@@ -488,7 +488,7 @@ class InMemoryJobRepository:
         file_name: str,
         source: str,
         client_request_id: str | None,
-        original_pdf_path: Path,
+        original_file_path: Path,
     ) -> JobRecord:
         with self._lock:
             if client_request_id and client_request_id in self._client_request_ids:
@@ -506,7 +506,7 @@ class InMemoryJobRepository:
                 updated_at=now,
                 progress=0,
                 client_request_id=client_request_id,
-                artifacts=JobArtifacts(original_pdf_path=original_pdf_path),
+                artifacts=JobArtifacts(original_file_path=original_file_path),
             )
             self._jobs[job_id] = record
             self._job_order.append(job_id)

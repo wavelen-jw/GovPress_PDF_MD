@@ -293,7 +293,8 @@ document.addEventListener('drop', e => {
   dropOverlay.classList.remove('visible');
 
   const file = e.dataTransfer && e.dataTransfer.files[0];
-  if (!file || !file.name.toLowerCase().endsWith('.pdf')) return;
+  const name = file && file.name.toLowerCase();
+  if (!file || (!name.endsWith('.pdf') && !name.endsWith('.hwpx'))) return;
 
   // Chromium (Edge WebView2) exposes file.path
   const path = file.path || '';
@@ -311,9 +312,11 @@ function hasPDF(e) {
   if (!items) return false;
   for (const item of items) {
     if (item.kind !== 'file') continue;
-    // item.type is often empty in WebView2/Edge for local files.
-    // Accept when type is PDF or unknown; reject only when a non-PDF type is explicit.
-    if (!item.type || item.type === 'application/pdf') return true;
+    // item.type is often empty in WebView2/Edge for local files (HWPX reports as
+    // application/zip or empty). Accept PDF, known HWPX MIME types, or unknown; reject
+    // only when a clearly non-document type is explicit.
+    if (!item.type || item.type === 'application/pdf' ||
+        item.type === 'application/hwpx' || item.type === 'application/zip') return true;
   }
   return false;
 }
