@@ -68,6 +68,26 @@ def _looks_like_metadata_detail(text: str) -> bool:
     return False
 
 
+def _split_compound_title_line(text: str) -> tuple[str, list[str]] | None:
+    stripped = text.strip()
+    if " - " not in stripped or stripped.startswith("-"):
+        return None
+
+    parts = [part.strip(" -") for part in stripped.split(" - ") if part.strip(" -")]
+    if len(parts) < 2:
+        return None
+
+    title = parts[0]
+    subtitles = parts[1:]
+    if len(_normalize_loose_text(title)) < 8:
+        return None
+    if any(len(_normalize_loose_text(item)) < 8 for item in subtitles):
+        return None
+    if any(_looks_like_metadata_detail(item) for item in parts):
+        return None
+    return title, [f"- {item}" for item in subtitles]
+
+
 def _clean_paragraphs(paragraphs: list[HwpxParagraph]) -> list[HwpxParagraph]:
     cleaned: list[HwpxParagraph] = []
     index = 0
@@ -187,6 +207,29 @@ def _normalize_preamble_lines(lines: list[str]) -> list[str]:
                 normalized.append(f"보도시점: {' / '.join(details)}")
                 index = cursor
                 continue
+
+        compound_title = _split_compound_title_line(text)
+        if compound_title and index < 16:
+            title, subtitles = compound_title
+            normalized.append(title)
+            normalized.extend(subtitles)
+
+            duplicate_norms = {_normalize_loose_text(title)}
+            duplicate_norms.update(_normalize_loose_text(item) for item in subtitles)
+
+            cursor = index + 1
+            while cursor < len(lines):
+                candidate = lines[cursor].strip()
+                if not candidate:
+                    cursor += 1
+                    continue
+                candidate_norm = _normalize_loose_text(candidate.lstrip("- ").strip())
+                if candidate_norm and candidate_norm in duplicate_norms:
+                    cursor += 1
+                    continue
+                break
+            index = cursor
+            continue
 
         if (
             index >= 1

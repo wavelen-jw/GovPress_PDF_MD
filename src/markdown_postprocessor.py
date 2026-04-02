@@ -1012,7 +1012,17 @@ def _postprocess_press_release(
 ) -> str:
     sections = extract_sections(raw_text, template)
     blocks: list[str] = []
-    subtitle_items = [clean_line(line).lstrip("- ").strip() for line in sections.subtitle_lines]
+    subtitle_items: list[str] = []
+    seen_subtitles: set[str] = set()
+    for line in sections.subtitle_lines:
+        item = clean_line(line).lstrip("- ").strip()
+        if not item:
+            continue
+        key = re.sub(r"\s+", "", item)
+        if key in seen_subtitles:
+            continue
+        seen_subtitles.add(key)
+        subtitle_items.append(item)
     use_quote_subtitles = any("실태점검" in item for item in subtitle_items)
 
     title = _join_title(sections.title_lines)
