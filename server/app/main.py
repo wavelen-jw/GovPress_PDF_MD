@@ -33,7 +33,7 @@ def create_app(storage_root: Path | None = None, *, run_worker: bool = False):
     )
     storage = StorageService(resolved_storage_root)
     repository = SQLiteJobRepository(storage.root / "jobs.sqlite3")
-    worker = ConverterWorker(jobs=repository, storage=storage, logger=logging.getLogger("govpress.server"))
+    worker = ConverterWorker(jobs=repository, storage=storage, conversion_timeout_seconds=settings.conversion_timeout_seconds, logger=logging.getLogger("govpress.server"))
     poller = PollingWorker(jobs=repository, converter=worker, logger=logging.getLogger("govpress.worker"))
     job_service = JobService(repository=repository, storage=storage, worker=worker)
     result_service = ResultService(repository=repository, storage=storage)

@@ -4,11 +4,17 @@ services:
       context: ../..
       dockerfile: deploy/wsl/Dockerfile
     container_name: govpress-api
-    command: python -m uvicorn server.app.main:app --host 0.0.0.0 --port 8013
+    # 저성능 서버: uvicorn 단일 워커, keep-alive 타임아웃 축소
+    command: >
+      python -m uvicorn server.app.main:app
+      --host 0.0.0.0 --port 8013
+      --workers 1
+      --timeout-keep-alive 30
     env_file:
       - .env
     environment:
       GOVPRESS_STORAGE_ROOT: /data/storage
+    mem_limit: 256m
     volumes:
       - ../../:/app
       - ./data/storage:/data/storage
@@ -21,11 +27,19 @@ services:
       context: ../..
       dockerfile: deploy/wsl/Dockerfile
     container_name: govpress-worker
-    command: python -m server.run_worker --storage-root /data/storage --poll-interval 1.0 --concurrency 3
+    # 저성능 서버: 동시 변환 1개, 폴링 간격 3초로 CPU 부하 완화
+    command: >
+      python -m server.run_worker
+      --storage-root /data/storage
+      --poll-interval 3.0
+      --concurrency 1
     env_file:
       - .env
     environment:
       GOVPRESS_STORAGE_ROOT: /data/storage
+      # Java 힙 최대 256 MB로 제한하여 OOM 방지
+      _JAVA_OPTIONS: "-Xms64m -Xmx256m"
+    mem_limit: 512m
     volumes:
       - ../../:/app
       - ./data/storage:/data/storage
@@ -40,6 +54,7 @@ services:
       - api
     ports:
       - "127.0.0.1:8080:8080"
+    mem_limit: 64m
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./data/caddy:/data
@@ -52,4 +67,5 @@ services:
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
       - caddy
+    mem_limit: 64m
     restart: unless-stopped
