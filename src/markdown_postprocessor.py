@@ -66,6 +66,7 @@ ANGLE_LABEL_WITH_TRIANGLE_PATTERN = re.compile(r"^(<[^>]+>)\s*(△.+)$")
 CASE_STUDY_HEADING_PATTERN = re.compile(r"^####\s*<\s*20\d{2}.*추진 사례\s*>$")
 MARKDOWN_TABLE_SEPARATOR_PATTERN = re.compile(r"^\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|$")
 INLINE_SERVICE_TABLE_BUNDLE_PATTERN = re.compile(r"(\|[^|]+\|[^|]+\|[^|]+\|)")
+APPENDIX_COUNT_ONLY_PATTERN = re.compile(r"^\(\d+개\)$")
 
 
 # ── Line splitting & pre-cleaning ────────────────────────────────────────────
@@ -321,7 +322,7 @@ def _split_press_callout_items(text: str) -> list[str]:
 # Next step: extract this block into press_body_renderer.py once patterns are
 # consolidated into a shared _md_patterns module.
 
-_STRUCTURAL_STARTS = frozenset("#>|-*◆■□○\u20dd§※▴▲△＜<￭▸ㅇ")
+_STRUCTURAL_STARTS = frozenset("#>|-*◆■□○\u20dd§※▴▲△＜<￭▸ㅇ(▪\uf0a7")
 
 
 def _join_body_lines(lines: list[str]) -> list[str]:
@@ -580,7 +581,7 @@ def _starts_main_press_body(text: str, template: PressReleaseTemplate) -> bool:
 
 
 def _is_case_study_bullet(text: str) -> bool:
-    return text.startswith(("§", "- ", "○ ", "△", "※"))
+    return text.startswith(("§", "- ", "○ ", "△", "※", "\uf0a7", "", "▪"))
 
 
 def _is_case_study_intro(text: str) -> bool:
@@ -626,8 +627,13 @@ def _render_body(lines: list[str], template: PressReleaseTemplate) -> list[str]:
                 previous_case_study_bullet_was_split = False
                 continue
             elif _is_case_study_bullet(text):
-                bullet_text = text[1:].strip() if text.startswith(("§", "※")) else text.lstrip("○").strip()
-                if text.startswith(("○ ", "§", "※")):
+                bullet_text = text
+                if text.startswith(("§", "※", "\uf0a7", "", "▪")):
+                    bullet_text = text[1:].strip()
+                elif text.startswith("○ "):
+                    bullet_text = text[1:].strip()
+
+                if text.startswith(("○ ", "§", "※", "\uf0a7", "", "▪")):
                     if text.startswith("§") and "§" in bullet_text:
                         parts = [clean_line(part) for part in bullet_text.split("§") if clean_line(part)]
                         for index, part in enumerate(parts):
@@ -747,7 +753,127 @@ def _render_body(lines: list[str], template: PressReleaseTemplate) -> list[str]:
 
 
 def _render_appendix(lines: list[str]) -> list[str]:
-    return []
+    cleaned = [clean_line(line) for line in lines if clean_line(line)]
+    if not cleaned:
+        return []
+
+    rendered: list[str] = []
+    index = 0
+
+    if cleaned[0] == "참고":
+        if len(cleaned) > 1 and not cleaned[1].startswith(("□", "○", "※", "*", "〈", "<")):
+            rendered.extend([f"## 참고: {cleaned[1]}", ""])
+            index = 2
+        else:
+            rendered.extend(["## 참고", ""])
+            index = 1
+
+    if index < len(cleaned) and not cleaned[index].startswith(("□", "○", "※", "*", "〈", "<")):
+        rendered.extend([f"### {cleaned[index]}", ""])
+        index += 1
+
+    while index < len(cleaned):
+        text = cleaned[index]
+
+        if text == "영역" and index + 1 < len(cleaned) and cleaned[index + 1] == "평가지표":
+            rows: list[tuple[str, str]] = []
+            cursor = index + 2
+            while cursor + 1 < len(cleaned):
+                label = cleaned[cursor]
+                if label.startswith(("○ ", "□ ", "※ ", "* ", "참고")):
+                    break
+                value = cleaned[cursor + 1]
+                if value.startswith(("○ ", "□ ")):
+                    break
+                items = [clean_line(part) for part in re.split(r"\s*▴", value) if clean_line(part)]
+                rows.append((label, "<br>".join(items)))
+                cursor += 2
+            if rows:
+                rendered.append("| 영역 | 평가지표 |")
+                rendered.append("| --- | --- |")
+                for label, value in rows:
+                    rendered.append(f"| {label} | {value} |")
+                rendered.append("")
+                index = cursor
+                continue
+
+        if text == "구 분 (기관수)" and index + 5 < len(cleaned):
+            headers = cleaned[index : index + 6]
+            cursor = index + 6
+            rows: list[list[str]] = []
+
+            while cursor < len(cleaned):
+                label = cleaned[cursor]
+                if label.startswith(("□ ", "○ ", "※ ", "* ")):
+                    break
+                if "(" not in label:
+                    break
+                cursor += 1
+                cells: list[str] = []
+                while cursor < len(cleaned) and len(cells) < 5:
+                    token = cleaned[cursor]
+                    if cells and _looks_like_appendix_summary_label(token):
+                        break
+                    if APPENDIX_COUNT_ONLY_PATTERN.fullmatch(token) and cells:
+                        cells[-1] = f"{cells[-1]} {token}"
+                    else:
+                        cells.append(token[2:].strip() if token.startswith("- ") else token)
+                    cursor += 1
+                while len(cells) < 5:
+                    cells.append("-")
+                rows.append([label, *cells[:5]])
+
+            if rows:
+                rendered.append("| " + " | ".join(headers) + " |")
+                rendered.append("| " + " | ".join("---" for _ in headers) + " |")
+                for row in rows:
+                    rendered.append("| " + " | ".join(row) + " |")
+                rendered.append("")
+                index = cursor
+                continue
+
+        if text.startswith("□ "):
+            rendered.extend([f"### {text[2:].strip()}", ""])
+            index += 1
+            continue
+        if text.startswith("○ "):
+            rendered.append(f"- {text[2:].strip()}")
+            index += 1
+            continue
+        if text.startswith("※ "):
+            rendered.append(f"> {text[2:].strip()}")
+            index += 1
+            continue
+        if text.startswith("* "):
+            rendered.append(f"> {text[2:].strip()}")
+            index += 1
+            continue
+        if text.startswith(("▪", "", "\uf0a7", "▴")):
+            rendered.append(f"- {text[1:].strip()}")
+            index += 1
+            continue
+        if text.startswith("〈 <"):
+            rendered.extend([f"#### {text[text.find('<'):].strip()}", ""])
+            index += 1
+            continue
+        if text.startswith(("〈", "<")):
+            rendered.extend([f"#### {text}", ""])
+            index += 1
+            continue
+
+        rendered.append(text)
+        index += 1
+
+    return rendered
+
+
+def _looks_like_appendix_summary_label(text: str) -> bool:
+    stripped = clean_line(text)
+    return (
+        "(" in stripped
+        and ")" in stripped
+        and any(keyword in stripped for keyword in ("기관", "단체", "교육청", "공기업"))
+    )
 
 
 def _render_contacts(lines: list[str]) -> list[str]:
@@ -1044,13 +1170,13 @@ def _postprocess_press_release(
     if body:
         blocks.append("\n".join(_nest_schedule_subitems(_post_clean(body))).strip())
 
-    appendix = _render_appendix(sections.appendix_lines)
-    if appendix:
-        blocks.append("\n".join(_post_clean(appendix)).strip())
-
     contacts = _render_contacts(sections.contact_lines)
     if contacts:
         blocks.append("\n".join(_post_clean(contacts)).strip())
+
+    appendix = _render_appendix(sections.appendix_lines)
+    if appendix:
+        blocks.append("\n".join(_post_clean(appendix)).strip())
 
     output = "\n\n".join(block for block in blocks if block).strip() + "\n"
     return output.replace("\n\n---\n\n", "\n---\n")
@@ -1061,6 +1187,7 @@ def _postprocess_press_release(
 def postprocess_markdown(
     raw_text: str, template: PressReleaseTemplate = DEFAULT_TEMPLATE
 ) -> str:
+    raw_text = raw_text.replace("\x00", "")
     if _is_press_release(raw_text):
         cleaned_lines = _preclean_lines(raw_text)
         return _postprocess_press_release("\n".join(cleaned_lines), template)

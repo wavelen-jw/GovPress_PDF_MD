@@ -1,21 +1,4 @@
-"""HWPX 후처리기.
-
-HWPX에서는 단락 스타일이 모두 '본문'으로 설정되어 있어 스타일 정보를 활용할 수 없다.
-따라서 텍스트 내용만으로 문서 구조를 판단하며, PDF와 동일한 변환규칙을 적용한다.
-
-처리 흐름
-----------
-postprocess_hwpx(paragraphs)
-  → 단락 텍스트를 줄 단위로 이어붙임
-  → postprocess_markdown()에 위임
-     ├─ 보도자료 감지  → _postprocess_press_release()
-     ├─ 보고서 감지    → postprocess_report()
-     ├─ 안내문 감지    → postprocess_service_guide()
-     └─ 기타           → _postprocess_generic_markdown()
-
-HWPX 텍스트는 PDF 아티팩트(페이지 번호, TOC 점선, 이미지 참조)가 없으므로
-preclean 단계가 실질적으로 무해하게 통과된다.
-"""
+"""HWPX postprocessor aligned to the PDF markdown baseline."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -26,10 +9,9 @@ from .markdown_postprocessor import postprocess_markdown
 
 @dataclass
 class HwpxParagraph:
-    """HWPX 단락 하나를 표현하는 중간 표현."""
-    style_id: str   # 한글 스타일 이름 (실제로는 모두 "본문"이므로 사용하지 않음)
-    text: str       # 정제된 텍스트
-    level: int = 0  # 들여쓰기 수준 (사용하지 않음)
+    style_id: str
+    text: str
+    level: int = 0
 
 
 def _normalize_compare_text(text: str) -> str:
@@ -38,6 +20,17 @@ def _normalize_compare_text(text: str) -> str:
 
 def _normalize_loose_text(text: str) -> str:
     return re.sub(r"[^0-9A-Za-z가-힣]+", "", text)
+
+
+def _canonical_line(text: str) -> str:
+    stripped = text.strip()
+    if stripped.startswith(">"):
+        stripped = stripped.lstrip("> ").strip()
+    if _is_bullet_line(stripped):
+        stripped = _strip_bullet(stripped)
+    if stripped.startswith("※"):
+        stripped = stripped[1:].strip()
+    return stripped
 
 
 def _is_short_artifact(text: str) -> bool:
@@ -88,6 +81,37 @@ def _split_compound_title_line(text: str) -> tuple[str, list[str]] | None:
     return title, [f"- {item}" for item in subtitles]
 
 
+def _is_merged_duplicate_line(text: str, upcoming: list[str]) -> bool:
+    current = _normalize_loose_text(_canonical_line(text))
+    if len(current) < 24:
+        return False
+
+    matched = 0
+    covered = 0
+    saw_structural = False
+
+    for candidate in upcoming[:10]:
+        candidate_norm = _normalize_loose_text(_canonical_line(candidate))
+        if not candidate_norm:
+            continue
+        if len(candidate_norm) < 6 and not candidate.lstrip().startswith(("<", "(", "※", "□", "○", "▪", "", "▴")):
+            continue
+        if candidate_norm in current:
+            matched += 1
+            covered += len(candidate_norm)
+            if candidate.lstrip().startswith(("<", "(", "※", "□", "○", "▪", "", "▴")):
+                saw_structural = True
+            continue
+        if matched >= 3:
+            break
+
+    if matched >= 4 and covered >= max(28, int(len(current) * 0.45)):
+        return True
+    if saw_structural and matched >= 3 and covered >= max(24, int(len(current) * 0.35)):
+        return True
+    return False
+
+
 def _clean_paragraphs(paragraphs: list[HwpxParagraph]) -> list[HwpxParagraph]:
     cleaned: list[HwpxParagraph] = []
     index = 0
@@ -101,14 +125,10 @@ def _clean_paragraphs(paragraphs: list[HwpxParagraph]) -> list[HwpxParagraph]:
             continue
 
         current_norm = _normalize_compare_text(text)
+        if cleaned and current_norm == _normalize_compare_text(cleaned[-1].text):
+            index += 1
+            continue
 
-        if cleaned:
-            previous_norm = _normalize_compare_text(cleaned[-1].text)
-            if current_norm and current_norm == previous_norm:
-                index += 1
-                continue
-
-        # 같은 문구가 짧은 간격으로 반복되면 뒤쪽 중복을 버린다.
         next_nonblank = None
         for offset in range(1, 4):
             if index + offset >= len(paragraphs):
@@ -130,20 +150,18 @@ def _clean_paragraphs(paragraphs: list[HwpxParagraph]) -> list[HwpxParagraph]:
             index += 1
             continue
 
-        # 일부 HWPX는 "합쳐진 한 줄"과 "분해된 여러 줄"을 연속으로 함께 내보낸다.
-        # 뒤따르는 2~4개 문단을 붙인 결과가 현재 문단과 같으면 현재 문단을 버린다.
-        lookahead_parts: list[str] = []
-        for offset in range(1, 5):
+        upcoming: list[str] = []
+        for offset in range(1, 13):
             if index + offset >= len(paragraphs):
                 break
             next_text = paragraphs[index + offset].text.strip()
             if not next_text:
                 continue
-            lookahead_parts.append(next_text)
-            joined_norm = _normalize_compare_text("".join(lookahead_parts))
-            joined_loose = _normalize_loose_text("".join(lookahead_parts))
+            upcoming.append(next_text)
+            joined_norm = _normalize_compare_text("".join(upcoming))
+            joined_loose = _normalize_loose_text("".join(upcoming))
             current_loose = _normalize_loose_text(text)
-            if joined_norm and joined_norm == current_norm:
+            if joined_norm == current_norm:
                 text = ""
                 break
             if joined_loose and len(joined_loose) >= 8 and joined_loose in current_loose:
@@ -153,10 +171,12 @@ def _clean_paragraphs(paragraphs: list[HwpxParagraph]) -> list[HwpxParagraph]:
                 next_nonblank
                 and len(_normalize_loose_text(next_nonblank)) >= 8
                 and current_loose.startswith(_normalize_loose_text(next_nonblank))
-                and any(part.strip() and _normalize_loose_text(part) in current_loose for part in lookahead_parts[1:])
+                and any(_normalize_loose_text(part) in current_loose for part in upcoming[1:] if part.strip())
             ):
                 text = ""
                 break
+        if text and _is_merged_duplicate_line(text, upcoming):
+            text = ""
 
         if text:
             cleaned.append(HwpxParagraph(style_id=para.style_id, text=text, level=para.level))
@@ -169,8 +189,7 @@ def _normalize_preamble_lines(lines: list[str]) -> list[str]:
     normalized: list[str] = []
     index = 0
     while index < len(lines):
-        line = lines[index]
-        text = line.strip()
+        text = lines[index].strip()
         if not text:
             normalized.append("")
             index += 1
@@ -179,6 +198,7 @@ def _normalize_preamble_lines(lines: list[str]) -> list[str]:
         if text.startswith("보도자료보도시점") and any(item == "보도시점" for item in lines[index + 1 : index + 4]):
             index += 1
             continue
+
         if _is_short_artifact(text) and index < 10:
             next_line = lines[index + 1].strip() if index + 1 < len(lines) else ""
             if next_line.startswith(("보도자료", "보도시점")):
@@ -253,6 +273,38 @@ def _normalize_preamble_lines(lines: list[str]) -> list[str]:
     return normalized
 
 
+def _dedupe_structural_lines(lines: list[str]) -> list[str]:
+    deduped: list[str] = []
+
+    for text in lines:
+        stripped = text.strip()
+        if not stripped:
+            deduped.append("")
+            continue
+
+        if deduped:
+            previous = deduped[-1].strip()
+            if previous and _normalize_compare_text(previous) == _normalize_compare_text(stripped):
+                continue
+            if (
+                previous.startswith("〈 평가 영역별 결과")
+                and stripped.startswith(("관리체계", "품질", "개방·활용"))
+                and _normalize_loose_text(stripped) in _normalize_loose_text(previous)
+            ):
+                continue
+            if (
+                stripped.startswith("〈 평가 영역별 결과")
+                and previous.startswith("〈 평가 영역별 결과")
+                and _normalize_loose_text(previous) in _normalize_loose_text(stripped)
+            ):
+                deduped[-1] = stripped
+                continue
+
+        deduped.append(stripped)
+
+    return deduped
+
+
 def _merge_contact_lines(lines: list[str]) -> list[str]:
     merged: list[str] = []
     index = 0
@@ -271,7 +323,12 @@ def _merge_contact_lines(lines: list[str]) -> list[str]:
             if not candidate:
                 index += 1
                 continue
-            if candidate.startswith("<참고") or candidate.startswith("붙임") or candidate.startswith("별첨"):
+            if (
+                candidate.startswith("<참고")
+                or candidate.startswith("참고")
+                or candidate.startswith("붙임")
+                or candidate.startswith("별첨")
+            ):
                 break
             block.append(candidate)
             index += 1
@@ -295,7 +352,6 @@ def _merge_contact_lines(lines: list[str]) -> list[str]:
                 name = block[pointer + 2] if pointer + 2 < len(block) else ""
                 phone = block[pointer + 3] if pointer + 3 < len(block) else ""
                 pointer += 4
-
                 if not current_department:
                     current_department = current_top
                 detail = " ".join(part for part in (title, name, phone) if part).strip()
@@ -378,24 +434,12 @@ def _render_comparison_tables(lines: list[str]) -> list[str]:
 
 
 def postprocess_hwpx(paragraphs: list[HwpxParagraph]) -> str:
-    """HWPX 단락 목록을 최종 Markdown 문자열로 변환한다.
-
-    스타일 정보를 무시하고 텍스트 내용만으로 문서 타입을 감지해
-    기존 PDF 변환규칙(postprocess_markdown)을 그대로 적용한다.
-
-    Args:
-        paragraphs: hwpx_converter가 추출한 단락 목록.
-
-    Returns:
-        정규화된 Markdown 문자열.
-    """
     if not paragraphs:
         return ""
 
-    cleaned = _clean_paragraphs(paragraphs)
-    lines = [para.text for para in cleaned]
+    lines = [para.text for para in _clean_paragraphs(paragraphs)]
     lines = _normalize_preamble_lines(lines)
     lines = _merge_contact_lines(lines)
+    lines = _dedupe_structural_lines(lines)
     lines = _render_comparison_tables(lines)
-    raw_text = "\n".join(line for line in lines if line is not None)
-    return postprocess_markdown(raw_text)
+    return postprocess_markdown("\n".join(line for line in lines if line is not None))

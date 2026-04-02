@@ -32,7 +32,7 @@ class ParsedSections:
 
 
 def clean_line(line: str) -> str:
-    text = re.sub(r"\s+", " ", line.replace("\u00a0", " ")).strip()
+    text = re.sub(r"\s+", " ", line.replace("\u00a0", " ").replace("\x00", "")).strip()
     return text
 
 
@@ -42,7 +42,7 @@ def is_page_noise(line: str, template: PressReleaseTemplate = DEFAULT_TEMPLATE) 
 
 def is_appendix_line(line: str, template: PressReleaseTemplate = DEFAULT_TEMPLATE) -> bool:
     stripped = clean_line(line)
-    return stripped.startswith(("붙임", "붙 임", "별첨"))
+    return stripped.startswith(("붙임", "붙 임", "별첨", "참고 ", "참고:", "참고  ", "참고\t")) or stripped == "참고"
 
 
 def is_reference_line(line: str) -> bool:
@@ -163,6 +163,18 @@ def extract_sections(
             continue
 
         if current == "preamble" and sections.metadata_lines:
+            if (
+                sections.title_lines
+                and sections.subtitle_lines
+                and (
+                    line.startswith(("<", "(", "※", "*"))
+                    or is_top_level_body_line(line, template)
+                )
+            ):
+                current = "body"
+                sections.body_lines.append(line)
+                continue
+
             if is_briefing_detail_line(line):
                 sections.metadata_lines.append(line)
             elif line.startswith("-"):
