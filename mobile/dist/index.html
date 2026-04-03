@@ -121,6 +121,10 @@
       el.querySelector('#gp-swap').onclick = function () {
         var pi = el.querySelector('#gp-input-primary');
         var fi = el.querySelector('#gp-input-fallback');
+        if (!fi.value.trim()) {
+          alert('대체 서버 URL을 먼저 입력하고 전환하세요.');
+          return;
+        }
         var tmp = pi.value; pi.value = fi.value; fi.value = tmp;
       };
       el.querySelector('#gp-save').onclick = function () {
