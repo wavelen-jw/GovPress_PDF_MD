@@ -28,172 +28,129 @@
   (function () {
     'use strict';
 
+    var SERVERS = [
+      { key: 'wsl', label: 'WSL 서버',  url: 'https://api.govpress.cloud' },
+      { key: 'vps', label: 'VPS 서버',  url: 'https://api2.govpress.cloud' }
+    ];
     var KEYS = {
-      primary:  'govpress.server.primary',
-      fallback: 'govpress.server.fallback',
-      appBase:  'govpress.mobile.baseUrl'
+      primary: 'govpress.server.primary',   // 'wsl' | 'vps'
+      appBase: 'govpress.mobile.baseUrl'
     };
-    var DEFAULT_PRIMARY  = 'https://api.govpress.cloud';
-    var TIMEOUT_MS = 2000;
 
-    function getPrimary()  { return (localStorage.getItem(KEYS.primary)  || DEFAULT_PRIMARY).replace(/\/$/, ''); }
-    function getFallback() { return (localStorage.getItem(KEYS.fallback) || '').replace(/\/$/, ''); }
+    function getPrimaryKey() { return localStorage.getItem(KEYS.primary) || 'wsl'; }
+    function getPrimaryUrl() {
+      var k = getPrimaryKey();
+      return (SERVERS.find(function(s){ return s.key===k; }) || SERVERS[0]).url;
+    }
+    function getFallbackUrl() {
+      var k = getPrimaryKey();
+      return (SERVERS.find(function(s){ return s.key!==k; }) || SERVERS[1]).url;
+    }
 
     /* 1. localStorage.getItem 가로채기 ─────────────────────────────── */
     var _origGet = Storage.prototype.getItem;
     Storage.prototype.getItem = function (key) {
-      if (key === KEYS.appBase) return getPrimary();
+      if (key === KEYS.appBase) return getPrimaryUrl();
       return _origGet.call(this, key);
     };
 
     /* 2. 서버 설정 패널 ─────────────────────────────────────────────── */
     var PANEL_ID = 'gp-server-panel';
-    var STYLE = {
-      bg:     '#fff8f1',
-      border: '#e3d1ba',
-      label:  '#7b664f',
-      text:   '#2f2318',
-      btn:    '#2f6f6f',
-      btnSec: '#f0e4d0',
-      btnSecText: '#5a3e2a'
-    };
 
     function buildPanel() {
       var el = document.createElement('div');
       el.id = PANEL_ID;
-      el.setAttribute('style', [
-        'position:fixed', 'inset:0', 'z-index:99999',
-        'display:none', 'justify-content:center', 'align-items:center',
-        'background:rgba(34,25,18,.45)'
-      ].join(';'));
+      el.setAttribute('style', 'position:fixed;inset:0;z-index:99999;display:none;' +
+        'justify-content:center;align-items:center;background:rgba(34,25,18,.45)');
 
-      el.innerHTML = [
-        '<div style="width:min(520px,92vw);background:', STYLE.bg, ';border:1px solid ', STYLE.border, ';',
-        'border-radius:20px;padding:22px 20px;box-shadow:0 8px 32px rgba(0,0,0,.18);',
-        'font-family:system-ui,sans-serif">',
+      function render() {
+        var pk = getPrimaryKey();
+        el.innerHTML = [
+          '<div style="width:min(420px,90vw);background:#fff8f1;border:1px solid #e3d1ba;',
+            'border-radius:20px;padding:22px 20px;box-shadow:0 8px 32px rgba(0,0,0,.18);',
+            'font-family:system-ui,sans-serif">',
 
-        /* header */
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">',
-          '<span style="font-size:15px;font-weight:800;color:', STYLE.label, ';letter-spacing:.03em">서버 설정</span>',
-          '<button id="gp-panel-close" style="background:none;border:none;cursor:pointer;font-size:20px;',
-            'color:', STYLE.label, ';padding:0 4px;line-height:1" aria-label="닫기">✕</button>',
-        '</div>',
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">',
+            '<span style="font-size:14px;font-weight:800;color:#7b664f">서버 설정</span>',
+            '<button id="gp-close" style="background:none;border:none;cursor:pointer;',
+              'font-size:20px;color:#7b664f;padding:0 4px">✕</button>',
+          '</div>',
 
-        /* notice */
-        '<p id="gp-status-msg" style="font-size:12px;color:', STYLE.label, ';margin:0 0 14px;',
-          'padding:8px 12px;background:#f5e8d4;border-radius:8px;line-height:1.5">',
-          '기본 서버가 5초 내 응답하지 않으면 대체 서버로 자동 전환됩니다.',
-        '</p>',
+          SERVERS.map(function(s) {
+            var isPrimary = s.key === pk;
+            return [
+              '<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;',
+                'background:', isPrimary ? '#fff0e0' : '#f5ede2', ';',
+                'border:1.5px solid ', isPrimary ? '#d4a36a' : 'transparent', ';',
+                'border-radius:12px;margin-bottom:8px">',
+                '<div style="width:14px;height:14px;border-radius:50%;flex-shrink:0;',
+                  'background:', isPrimary ? '#c07a30' : 'transparent', ';',
+                  'border:2px solid ', isPrimary ? '#c07a30' : '#bba88a', '"></div>',
+                '<div style="flex:1">',
+                  '<div style="font-size:13px;font-weight:700;color:', isPrimary ? '#2f2318' : '#7b664f', '">',
+                    s.label,
+                  '</div>',
+                  '<div style="font-size:11px;color:#9a856e;margin-top:2px">', s.url, '</div>',
+                '</div>',
+                '<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:5px;',
+                  'background:', isPrimary ? '#d4a36a' : '#c8baa8', ';color:white">',
+                  isPrimary ? '기본' : '대체',
+                '</span>',
+              '</div>'
+            ].join('');
+          }).join(''),
 
-        /* primary */
-        rowHtml('primary', '기본 서버', getPrimary(), DEFAULT_PRIMARY),
-
-        /* fallback */
-        rowHtml('fallback', '대체 서버 (Fallback)', getFallback(), 'https://api2.govpress.cloud'),
-
-        /* buttons */
-        '<div style="display:flex;gap:8px;margin-top:6px">',
-          '<button id="gp-swap" style="flex:1;padding:11px;background:', STYLE.btnSec, ';',
-            'border:1px solid ', STYLE.border, ';border-radius:10px;font-size:13px;',
-            'font-weight:700;color:', STYLE.btnSecText, ';cursor:pointer">',
-            '⇄ 기본 ↔ 대체 전환',
+          '<button id="gp-swap" style="width:100%;padding:12px;margin-top:4px;',
+            'background:#f0e4d0;border:1px solid #d2b48b;border-radius:12px;',
+            'font-size:14px;font-weight:700;color:#5a3e2a;cursor:pointer">',
+            '⇄ 기본 ↔ 대체 전환 후 저장',
           '</button>',
-          '<button id="gp-save" style="flex:1;padding:11px;background:', STYLE.btn, ';',
-            'border:none;border-radius:10px;font-size:13px;font-weight:700;color:#fff;cursor:pointer">',
-            '저장 후 새로고침',
-          '</button>',
-        '</div>',
 
-        '<p style="font-size:11px;color:#9e8676;margin:10px 0 0;line-height:1.6">',
-          '저장하면 페이지가 새로고침되어 새 기본 서버가 적용됩니다.',
-        '</p>',
-        '</div>'
-      ].join('');
+          '<div id="gp-status" style="font-size:11px;color:#9e8676;margin-top:10px;',
+            'text-align:center"></div>',
+          '</div>'
+        ].join('');
+
+        el.querySelector('#gp-close').onclick = function() { el.style.display='none'; };
+        el.querySelector('#gp-swap').onclick = function() {
+          var newKey = getPrimaryKey() === 'wsl' ? 'vps' : 'wsl';
+          localStorage.setItem(KEYS.primary, newKey);
+          window.location.reload();
+        };
+      }
 
       document.body.appendChild(el);
-
-      el.addEventListener('mousedown', function (e) { e.stopPropagation(); }, true);
-      el.addEventListener('touchstart', function (e) { e.stopPropagation(); }, true);
-      el.addEventListener('click', function (e) {
-        if (e.target === el) el.style.display = 'none';
-      });
-      el.querySelector('#gp-panel-close').onclick = function () {
-        el.style.display = 'none';
-      };
-      el.querySelector('#gp-swap').onclick = function () {
-        var pi = el.querySelector('#gp-input-primary');
-        var fi = el.querySelector('#gp-input-fallback');
-        if (!fi.value.trim()) {
-          alert('대체 서버 URL을 먼저 입력하고 전환하세요.');
-          return;
-        }
-        var tmp = pi.value; pi.value = fi.value; fi.value = tmp;
-      };
-      el.querySelector('#gp-save').onclick = function () {
-        var p = (el.querySelector('#gp-input-primary').value  || '').trim().replace(/\/$/, '');
-        var f = (el.querySelector('#gp-input-fallback').value || '').trim().replace(/\/$/, '');
-        if (!p) { alert('기본 서버 URL을 입력하세요.'); return; }
-        localStorage.setItem(KEYS.primary,  p);
-        localStorage.setItem(KEYS.fallback, f);
-        window.location.reload();
-      };
-
-      /* health check on open */
-      checkServers(el);
+      el.addEventListener('click', function(e) { if (e.target===el) el.style.display='none'; });
+      render();
       return el;
     }
 
-    function rowHtml(id, label, val, ph) {
-      return [
-        '<div style="margin-bottom:12px">',
-          '<label style="display:block;font-size:11px;font-weight:800;color:', STYLE.label, ';',
-            'margin-bottom:5px;letter-spacing:.04em">', label, '</label>',
-          '<input id="gp-input-', id, '" type="url" value="', escAttr(val), '"',
-            ' placeholder="', escAttr(ph), '"',
-            ' style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid ', STYLE.border, ';',
-              'border-radius:9px;font-size:13px;color:', STYLE.text, ';background:#fffdf9;pointer-events:auto;user-select:text;-webkit-user-select:text">',
-        '</div>'
-      ].join('');
-    }
-
-    function escAttr(s) { return s.replace(/"/g, '&quot;'); }
-
-    function checkServers(panel) {
-      var msg = panel.querySelector('#gp-status-msg');
-      var p = getPrimary(), f = getFallback();
-      msg.textContent = '서버 상태 확인 중…';
-
-      function ping(url, cb) {
-        if (!url) { cb(false); return; }
-        var ac = new AbortController();
-        var t = setTimeout(function () { ac.abort(); cb(false); }, 4000);
-        fetch(url + '/health', { signal: ac.signal })
-          .then(function (r) { clearTimeout(t); cb(r.ok); })
-          .catch(function () { clearTimeout(t); cb(false); });
-      }
-
-      ping(p, function (pOk) {
-        ping(f, function (fOk) {
-          var lines = [];
-          if (p) lines.push('기본: ' + (pOk ? '✅ 응답' : '❌ 응답 없음'));
-          if (f) lines.push('대체: ' + (fOk ? '✅ 응답' : '❌ 응답 없음'));
-          if (!p && !f) lines.push('서버가 설정되지 않았습니다.');
-          msg.textContent = lines.join('  |  ') || '서버가 설정되지 않았습니다.';
-          if (!pOk && fOk && f) {
-            msg.textContent += '  →  대체 서버로 자동 전환 중';
-          }
-        });
-      });
-    }
-
-    /* 3. 전역 트리거 함수 ───────────────────────────────────────────── */
-    window.__govpressShowSettings = function () {
-      var panel = document.getElementById(PANEL_ID) || buildPanel();
-      /* 저장된 값으로 입력 필드 갱신 */
-      panel.querySelector('#gp-input-primary').value  = getPrimary();
-      panel.querySelector('#gp-input-fallback').value = getFallback();
+    /* 3. 전역 트리거 ────────────────────────────────────────────────── */
+    window.__govpressShowSettings = function() {
+      var panel = document.getElementById(PANEL_ID);
+      if (panel) panel.remove();
+      panel = buildPanel();
       panel.style.display = 'flex';
-      checkServers(panel);
+
+      /* 서버 상태 핑 */
+      var status = panel.querySelector('#gp-status');
+      status.textContent = '서버 상태 확인 중…';
+      var results = {};
+      function check(s) {
+        var ac = new AbortController();
+        setTimeout(function(){ ac.abort(); }, 3000);
+        fetch(s.url + '/health', {signal: ac.signal})
+          .then(function(r){ results[s.key] = r.ok; })
+          .catch(function(){ results[s.key] = false; })
+          .finally(function(){
+            if (Object.keys(results).length === SERVERS.length) {
+              status.textContent = SERVERS.map(function(s){
+                return s.label + ': ' + (results[s.key] ? '✅' : '❌');
+              }).join('  |  ');
+            }
+          });
+      }
+      SERVERS.forEach(check);
     };
   })();
   /* ────────────────────────────────────────────────────────────────── */
