@@ -102,6 +102,8 @@ class JobRepository(Protocol):
 
     def recover_incomplete_jobs(self) -> int: ...
 
+    def count_queued_jobs(self) -> int: ...
+
     def claim_next_queued_job(self, worker_id: str) -> JobRecord | None: ...
 
     def delete(self, job_id: str) -> JobRecord | None: ...
@@ -412,6 +414,11 @@ class SQLiteJobRepository:
             )
             conn.commit()
         return int(cursor.rowcount or 0)
+
+    def count_queued_jobs(self) -> int:
+        with self._lock, self._connect() as conn:
+            row = conn.execute("SELECT COUNT(*) FROM jobs WHERE status = 'queued'").fetchone()
+        return int(row[0]) if row else 0
 
     def claim_next_queued_job(self, worker_id: str) -> JobRecord | None:
         with self._lock, self._connect() as conn:

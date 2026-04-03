@@ -4,11 +4,14 @@ import math
 import secrets
 import uuid
 
+from ..core.notify import send_telegram
 from ..models import JobRecord
 from ..models import JobStatus
 from ..repositories import JobRepository
 from ..workers.converter_worker import ConverterWorker
 from .storage_service import StorageService
+
+_QUEUE_ALERT_THRESHOLD = 3  # 대기 작업이 이 수 이상이면 알림
 
 
 class JobService:
@@ -49,6 +52,9 @@ class JobService:
         )
         if record.job_id == job_id:
             self._worker.enqueue(job_id)
+            queued = self._repository.count_queued_jobs()
+            if queued >= _QUEUE_ALERT_THRESHOLD:
+                send_telegram(f"⚠️ GovPress 대기 작업 {queued}개\n파일: {file_name}")
         return record
 
     async def create_job_from_upload(
@@ -83,6 +89,9 @@ class JobService:
         )
         if record.job_id == job_id:
             self._worker.enqueue(job_id)
+            queued = self._repository.count_queued_jobs()
+            if queued >= _QUEUE_ALERT_THRESHOLD:
+                send_telegram(f"⚠️ GovPress 대기 작업 {queued}개\n파일: {file_name}")
         return record
 
     def get_job(self, job_id: str, edit_token: str) -> JobRecord | None:
