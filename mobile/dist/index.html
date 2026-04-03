@@ -34,7 +34,7 @@
       appBase:  'govpress.mobile.baseUrl'
     };
     var DEFAULT_PRIMARY  = 'https://api.govpress.cloud';
-    var TIMEOUT_MS = 5000;
+    var TIMEOUT_MS = 2000;
 
     function getPrimary()  { return (localStorage.getItem(KEYS.primary)  || DEFAULT_PRIMARY).replace(/\/$/, ''); }
     function getFallback() { return (localStorage.getItem(KEYS.fallback) || '').replace(/\/$/, ''); }
