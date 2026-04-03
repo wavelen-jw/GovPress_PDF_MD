@@ -34,7 +34,7 @@
     ];
     var KEYS = { primary: 'govpress.server.primary', appBase: 'govpress.mobile.baseUrl' };
 
-    function getPrimaryKey() { return localStorage.getItem(KEYS.primary) || 'wsl'; }
+    function getPrimaryKey() { return localStorage.getItem(KEYS.primary) || 'vps'; }
     function getUrlByKey(k)  { return (SERVERS.find(function(s){ return s.key===k; }) || SERVERS[0]).url; }
     function getPrimaryUrl() { return getUrlByKey(getPrimaryKey()); }
 
