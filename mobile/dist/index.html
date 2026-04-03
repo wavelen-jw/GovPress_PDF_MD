@@ -112,6 +112,8 @@
 
       document.body.appendChild(el);
 
+      el.addEventListener('mousedown', function (e) { e.stopPropagation(); }, true);
+      el.addEventListener('touchstart', function (e) { e.stopPropagation(); }, true);
       el.addEventListener('click', function (e) {
         if (e.target === el) el.style.display = 'none';
       });
@@ -149,7 +151,7 @@
           '<input id="gp-input-', id, '" type="url" value="', escAttr(val), '"',
             ' placeholder="', escAttr(ph), '"',
             ' style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid ', STYLE.border, ';',
-              'border-radius:9px;font-size:13px;color:', STYLE.text, ';background:#fffdf9">',
+              'border-radius:9px;font-size:13px;color:', STYLE.text, ';background:#fffdf9;pointer-events:auto;user-select:text;-webkit-user-select:text">',
         '</div>'
       ].join('');
     }
