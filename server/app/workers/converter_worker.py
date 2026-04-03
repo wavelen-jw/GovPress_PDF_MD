@@ -14,10 +14,12 @@ class ConverterWorker:
         *,
         jobs: JobRepository,
         storage: StorageService,
+        conversion_timeout_seconds: int | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         self._jobs = jobs
         self._storage = storage
+        self._conversion_timeout_seconds = conversion_timeout_seconds
         self._logger = logger or logging.getLogger(__name__)
 
     def enqueue(self, job_id: str) -> None:
@@ -40,7 +42,7 @@ class ConverterWorker:
             if ext == ".hwpx":
                 markdown = hwpx_converter.convert_hwpx(file_path)
             else:
-                markdown = opendataloader.convert_pdf(file_path)
+                markdown = opendataloader.convert_pdf(file_path, timeout_seconds=self._conversion_timeout_seconds)
             self._jobs.update_status(job_id, status="processing", progress=80)
             html_preview = opendataloader.render_preview_html(markdown)
             title, department = opendataloader.extract_metadata(markdown)

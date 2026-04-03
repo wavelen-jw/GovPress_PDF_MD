@@ -2,7 +2,7 @@ services:
   api:
     build:
       context: ../..
-      dockerfile: deploy/wsl/Dockerfile
+      dockerfile: deploy/vps/Dockerfile
     container_name: govpress-api
     # 저성능 서버: uvicorn 단일 워커, keep-alive 타임아웃 축소
     command: >
@@ -25,7 +25,7 @@ services:
   worker:
     build:
       context: ../..
-      dockerfile: deploy/wsl/Dockerfile
+      dockerfile: deploy/vps/Dockerfile
     container_name: govpress-worker
     # 저성능 서버: 동시 변환 1개, 폴링 간격 3초로 CPU 부하 완화
     command: >

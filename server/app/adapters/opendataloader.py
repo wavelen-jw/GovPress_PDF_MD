@@ -17,15 +17,19 @@ TITLE_RE = re.compile(r"^#\s+(.+)$", re.MULTILINE)
 DEPARTMENT_RE = re.compile(r"^- ([^\n]+?(?:과|팀|실|관|국|센터))\b", re.MULTILINE)
 
 
-def convert_pdf(pdf_path: str) -> str:
-    result = subprocess.run(
-        [sys.executable, "-m", "server.app.adapters.opendataloader_cli", pdf_path],
-        check=False,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
+def convert_pdf(pdf_path: str, *, timeout_seconds: int | None = None) -> str:
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "server.app.adapters.opendataloader_cli", pdf_path],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"PDF conversion timed out after {timeout_seconds}s")
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip() or f"return code={result.returncode}"
         raise RuntimeError(f"PDF conversion subprocess failed: {detail}")
