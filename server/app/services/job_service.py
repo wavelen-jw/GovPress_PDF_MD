@@ -7,6 +7,7 @@ import uuid
 from ..core.notify import send_telegram
 from ..models import JobRecord
 from ..models import JobStatus
+from ..models import HwpxTableMode
 from ..repositories import JobRepository
 from ..workers.converter_worker import ConverterWorker
 from .storage_service import StorageService
@@ -32,6 +33,7 @@ class JobService:
         file_name: str,
         content: bytes,
         source: str = "mobile",
+        hwpx_table_mode: HwpxTableMode = "text",
         client_request_id: str | None = None,
     ) -> JobRecord:
         if client_request_id:
@@ -47,6 +49,7 @@ class JobService:
             edit_token=edit_token,
             file_name=file_name,
             source=source,
+            hwpx_table_mode=hwpx_table_mode,
             client_request_id=client_request_id,
             original_file_path=original_path,
         )
@@ -64,6 +67,7 @@ class JobService:
         upload,
         max_upload_bytes: int,
         source: str = "mobile",
+        hwpx_table_mode: HwpxTableMode = "text",
         client_request_id: str | None = None,
     ) -> JobRecord:
         if client_request_id:
@@ -84,6 +88,7 @@ class JobService:
             edit_token=edit_token,
             file_name=file_name,
             source=source,
+            hwpx_table_mode=hwpx_table_mode,
             client_request_id=client_request_id,
             original_file_path=original_path,
         )

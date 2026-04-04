@@ -40,7 +40,7 @@ class ConverterWorker:
             file_path = str(record.artifacts.original_file_path)
             ext = Path(file_path).suffix.lower()
             if ext == ".hwpx":
-                markdown = hwpx_converter.convert_hwpx(file_path)
+                markdown = hwpx_converter.convert_hwpx(file_path, table_mode=record.hwpx_table_mode)
             else:
                 markdown = opendataloader.convert_pdf(file_path, timeout_seconds=self._conversion_timeout_seconds)
             self._jobs.update_status(job_id, status="processing", progress=80)

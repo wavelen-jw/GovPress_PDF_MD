@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from ..core.rate_limit import SlidingWindowRateLimiter
 from ..core.security import require_edit_token
 from ..core.turnstile import verify_turnstile_token
+from ..models import HwpxTableMode
 from ..schemas.jobs import JobCreateResponse, JobResponse, JobStatusResponse
 
 
@@ -24,6 +25,7 @@ def build_router(job_service, settings, verify_api_key) -> APIRouter:
         request: Request,
         file: UploadFile = File(...),
         source: str = Form("mobile"),
+        hwpx_table_mode: HwpxTableMode = Form("text"),
         client_request_id: str | None = Form(None),
         turnstile_response: str | None = Form(None, alias="cf-turnstile-response"),
         _authorized: None = Depends(verify_api_key),
@@ -56,6 +58,7 @@ def build_router(job_service, settings, verify_api_key) -> APIRouter:
                 upload=file,
                 max_upload_bytes=settings.max_upload_bytes,
                 source=source,
+                hwpx_table_mode=hwpx_table_mode,
                 client_request_id=client_request_id,
             )
         except ValueError as exc:

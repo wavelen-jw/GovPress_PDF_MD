@@ -1,12 +1,16 @@
 """HWPX -> Markdown converter."""
 from __future__ import annotations
 
+import re
 import zipfile
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass, field
 from pathlib import Path
-import re
+from typing import Literal
 
 from .hwpx_postprocessor import HwpxParagraph, postprocess_hwpx
+
+TableMode = Literal["text", "html"]
 
 
 def _local_name(tag: str) -> str:
@@ -19,6 +23,12 @@ def _iter_local(elem: ET.Element, name: str):
     for node in elem.iter():
         if _local_name(node.tag) == name:
             yield node
+
+
+def _direct_children_local(elem: ET.Element, name: str):
+    for child in elem:
+        if _local_name(child.tag) == name:
+            yield child
 
 
 def _find_local(elem: ET.Element, name: str) -> ET.Element | None:
@@ -49,39 +59,303 @@ def _collect_run_text(p_elem: ET.Element) -> str:
     return "".join(parts).strip()
 
 
-def _collect_table_text(tbl_elem: ET.Element) -> str:
-    rows: list[list[str]] = []
-    for tr in _iter_local(tbl_elem, "tr"):
-        row: list[str] = []
-        for tc in _iter_local(tr, "tc"):
-            cell_parts: list[str] = []
-            for paragraph in _iter_local(tc, "p"):
-                text = _collect_run_text(paragraph).strip()
-                if text:
-                    cell_parts.append(text)
-            row.append(" ".join(cell_parts))
-        if row:
-            rows.append(row)
+@dataclass
+class TableCell:
+    row: int
+    col: int
+    rowspan: int = 1
+    colspan: int = 1
+    paragraphs: list[str] = field(default_factory=list)
+    nested_tables: list["Table"] = field(default_factory=list)
 
-    if not rows:
-        return ""
 
-    lines = ["| " + " | ".join(rows[0]) + " |"]
-    lines.append("| " + " | ".join("---" for _ in rows[0]) + " |")
-    for row in rows[1:]:
-        padded = row + [""] * (len(rows[0]) - len(row))
-        lines.append("| " + " | ".join(padded[: len(rows[0])]) + " |")
+@dataclass
+class Table:
+    rows: int
+    cols: int
+    cells: list[TableCell]
+    has_rowspan: bool = False
+    has_colspan: bool = False
+    is_drawing_table: bool = False
+
+
+_COLSPAN_ATTRS = (
+    "colSpan",
+    "colspan",
+    "numMergedCols",
+    "columnSpan",
+    "mergedColCount",
+    "spanCols",
+    "col_span",
+)
+_ROWSPAN_ATTRS = (
+    "rowSpan",
+    "rowspan",
+    "numMergedRows",
+    "rowCount",
+    "mergedRowCount",
+    "spanRows",
+    "row_span",
+)
+
+
+def _read_span(elem: ET.Element, candidates: tuple[str, ...]) -> int:
+    value = _get_attr(elem, *candidates)
+    if value:
+        try:
+            return max(int(value), 1)
+        except ValueError:
+            pass
+    for child in elem:
+        child_value = _get_attr(child, *candidates)
+        if child_value:
+            try:
+                return max(int(child_value), 1)
+            except ValueError:
+                pass
+    return 1
+
+
+def _is_drawing_table(cells: list[TableCell], rows: int, cols: int) -> bool:
+    if rows < 3 or not cells:
+        return False
+    empty = sum(1 for cell in cells if not any(p.strip() for p in cell.paragraphs) and not cell.nested_tables)
+    return (empty / len(cells)) >= 0.80
+
+
+def _collect_cell_paragraphs(tc: ET.Element) -> list[str]:
+    parts: list[str] = []
+    for sub_list in _direct_children_local(tc, "subList"):
+        for p in _direct_children_local(sub_list, "p"):
+            text = _collect_run_text(p).strip()
+            if text:
+                parts.append(text)
+    if not parts:
+        for p in _direct_children_local(tc, "p"):
+            text = _collect_run_text(p).strip()
+            if text:
+                parts.append(text)
+    return parts
+
+
+def _collect_table_data(tbl_elem: ET.Element) -> Table:
+    cells: list[TableCell] = []
+    occupied: set[tuple[int, int]] = set()
+    max_col = 0
+
+    for tr_idx, tr in enumerate(list(_direct_children_local(tbl_elem, "tr"))):
+        col_cursor = 0
+        for tc in _direct_children_local(tr, "tc"):
+            while (tr_idx, col_cursor) in occupied:
+                col_cursor += 1
+
+            colspan = _read_span(tc, _COLSPAN_ATTRS)
+            rowspan = _read_span(tc, _ROWSPAN_ATTRS)
+            paragraphs = _collect_cell_paragraphs(tc)
+
+            nested: list[Table] = []
+            for sub_list in _direct_children_local(tc, "subList"):
+                for p in _direct_children_local(sub_list, "p"):
+                    for ctrl in _direct_children_local(p, "ctrl"):
+                        for sub_tbl in _iter_local(ctrl, "tbl"):
+                            nested.append(_collect_table_data(sub_tbl))
+            for ctrl in _direct_children_local(tc, "ctrl"):
+                for sub_tbl in _iter_local(ctrl, "tbl"):
+                    nested.append(_collect_table_data(sub_tbl))
+            for sub_tbl in _direct_children_local(tc, "tbl"):
+                nested.append(_collect_table_data(sub_tbl))
+
+            cells.append(
+                TableCell(
+                    row=tr_idx,
+                    col=col_cursor,
+                    rowspan=rowspan,
+                    colspan=colspan,
+                    paragraphs=paragraphs,
+                    nested_tables=nested,
+                )
+            )
+
+            for dr in range(rowspan):
+                for dc in range(colspan):
+                    if dr > 0 or dc > 0:
+                        occupied.add((tr_idx + dr, col_cursor + dc))
+
+            end_col = col_cursor + colspan
+            if end_col > max_col:
+                max_col = end_col
+            col_cursor = end_col
+
+    row_count = sum(1 for _ in _direct_children_local(tbl_elem, "tr"))
+    has_colspan = any(cell.colspan > 1 for cell in cells)
+    has_rowspan = any(cell.rowspan > 1 for cell in cells)
+    return Table(
+        rows=row_count,
+        cols=max_col,
+        cells=cells,
+        has_rowspan=has_rowspan,
+        has_colspan=has_colspan,
+        is_drawing_table=_is_drawing_table(cells, row_count, max_col),
+    )
+
+
+def _escape_md_cell(text: str) -> str:
+    return text.replace("|", "\\|")
+
+
+def _escape_html(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _cell_text(cell: TableCell, html: bool = False) -> str:
+    if html:
+        parts = [_escape_html(p) for p in cell.paragraphs]
+        for nested_table in cell.nested_tables:
+            parts.append(_render_table(nested_table, table_mode="html"))
+        return "<br>".join(parts)
+
+    parts = [_escape_md_cell(p) for p in cell.paragraphs]
+    for nested_table in cell.nested_tables:
+        parts.append(_render_table(nested_table, table_mode="text"))
+    return "<br>".join(part for part in parts if part)
+
+
+def _render_tier1_markdown(table: Table) -> str:
+    grid: dict[tuple[int, int], str] = {}
+    for cell in table.cells:
+        grid[(cell.row, cell.col)] = _cell_text(cell)
+
+    lines: list[str] = []
+    for row in range(table.rows):
+        row_cells = [grid.get((row, col), "") for col in range(table.cols)]
+        lines.append("| " + " | ".join(row_cells) + " |")
+        if row == 0:
+            lines.append("| " + " | ".join("---" for _ in range(table.cols)) + " |")
     return "\n".join(lines)
 
 
-def _parse_paragraphs_from_xml(xml_bytes: bytes) -> list[HwpxParagraph]:
+def _render_tier2_markdown_rowspan(table: Table) -> str:
+    active_spans: dict[int, tuple[int, str]] = {}
+    grid_by_row: dict[int, dict[int, str]] = {}
+    cells_by_row: dict[int, list[TableCell]] = {}
+
+    for cell in table.cells:
+        cells_by_row.setdefault(cell.row, []).append(cell)
+
+    for row in range(table.rows):
+        row_grid: dict[int, str] = {}
+        next_spans: dict[int, tuple[int, str]] = {}
+
+        for col, (remaining, text) in active_spans.items():
+            row_grid[col] = text
+            if remaining > 1:
+                next_spans[col] = (remaining - 1, text)
+
+        for cell in sorted(cells_by_row.get(row, []), key=lambda current: current.col):
+            text = _cell_text(cell)
+            for dc in range(cell.colspan):
+                col = cell.col + dc
+                row_grid[col] = text if dc == 0 else ""
+                if cell.rowspan > 1:
+                    next_spans[col] = (cell.rowspan - 1, text if dc == 0 else "")
+
+        grid_by_row[row] = row_grid
+        active_spans = next_spans
+
+    lines: list[str] = []
+    for row in range(table.rows):
+        row_cells = [grid_by_row.get(row, {}).get(col, "") for col in range(table.cols)]
+        lines.append("| " + " | ".join(row_cells) + " |")
+        if row == 0:
+            lines.append("| " + " | ".join("---" for _ in range(table.cols)) + " |")
+    return "\n".join(lines)
+
+
+def _render_tier3_html(table: Table) -> str:
+    occupied: set[tuple[int, int]] = set()
+    cells_by_row: dict[int, list[TableCell]] = {}
+    for cell in table.cells:
+        cells_by_row.setdefault(cell.row, []).append(cell)
+
+    html_lines: list[str] = ["<table>"]
+    for row in range(table.rows):
+        html_lines.append("<tr>")
+        for cell in sorted(cells_by_row.get(row, []), key=lambda current: current.col):
+            if (cell.row, cell.col) in occupied:
+                continue
+            tag = "th" if row == 0 else "td"
+            attrs = ""
+            if cell.colspan > 1:
+                attrs += f' colspan="{cell.colspan}"'
+            if cell.rowspan > 1:
+                attrs += f' rowspan="{cell.rowspan}"'
+            text = _cell_text(cell, html=True)
+            html_lines.append(f"<{tag}{attrs}>{text}</{tag}>")
+            for dr in range(cell.rowspan):
+                for dc in range(cell.colspan):
+                    if dr > 0 or dc > 0:
+                        occupied.add((row + dr, cell.col + dc))
+        html_lines.append("</tr>")
+    html_lines.append("</table>")
+    return "\n".join(html_lines)
+
+
+def _render_tier3_text(table: Table) -> str:
+    cells_by_row: dict[int, list[TableCell]] = {}
+    for cell in table.cells:
+        cells_by_row.setdefault(cell.row, []).append(cell)
+
+    lines = ["[표]"]
+    header_cells = [_cell_text(cell) for cell in sorted(cells_by_row.get(0, []), key=lambda current: current.col)]
+    has_header = bool(header_cells) and any(cell.strip() for cell in header_cells)
+    if has_header:
+        lines.append("- 열: " + " | ".join(header_cells))
+
+    start_row = 1 if has_header else 0
+    for row in range(start_row, table.rows):
+        row_cells = [_cell_text(cell) for cell in sorted(cells_by_row.get(row, []), key=lambda current: current.col)]
+        if not row_cells or not any(cell.strip() for cell in row_cells):
+            continue
+        lines.append(f"- 행 {row - start_row + 1}: " + " | ".join(row_cells))
+
+    return "\n".join(lines)
+
+
+def _render_tier4_drawing(table: Table) -> str:
+    texts = []
+    for cell in table.cells:
+        text = " ".join(cell.paragraphs).strip()
+        if text:
+            texts.append(text)
+    if not texts:
+        return ""
+    return "[표: " + " / ".join(texts[:8]) + "]"
+
+
+def _render_table(table: Table, *, table_mode: TableMode) -> str:
+    if not table.cells:
+        return ""
+    if table.is_drawing_table:
+        return _render_tier4_drawing(table)
+
+    has_nested = any(cell.nested_tables for cell in table.cells)
+    if table.has_colspan or has_nested or table.cols > 8:
+        if table_mode == "html":
+            return "\n" + _render_tier3_html(table) + "\n"
+        return _render_tier3_text(table)
+    if table.has_rowspan:
+        return _render_tier2_markdown_rowspan(table)
+    return _render_tier1_markdown(table)
+
+
+def _parse_paragraphs_from_xml(xml_bytes: bytes, *, table_mode: TableMode) -> list[HwpxParagraph]:
     try:
         root = ET.fromstring(xml_bytes)
     except ET.ParseError as exc:
         raise ValueError(f"HWPX 섹션 XML 파싱 실패: {exc}") from exc
 
     paragraphs: list[HwpxParagraph] = []
-    for paragraph in _iter_local(root, "p"):
+    for paragraph in _direct_children_local(root, "p"):
         style_id = _get_attr(paragraph, "styleIDRef", "styleId", "styleID", "styleIdRef")
 
         level = 0
@@ -94,21 +368,22 @@ def _parse_paragraphs_from_xml(xml_bytes: bytes) -> list[HwpxParagraph]:
                 except ValueError:
                     level = 0
 
-        table_lines: list[str] = []
-        for ctrl in (child for child in paragraph if _local_name(child.tag) == "ctrl"):
-            for tbl in _iter_local(ctrl, "tbl"):
-                table_text = _collect_table_text(tbl)
-                if table_text:
-                    table_lines.append(table_text)
+        table_paragraphs: list[HwpxParagraph] = []
+        for container in paragraph:
+            container_name = _local_name(container.tag)
+            if container_name not in ("run", "ctrl"):
+                continue
+            for tbl in _direct_children_local(container, "tbl"):
+                table = _collect_table_data(tbl)
+                rendered = _render_table(table, table_mode=table_mode)
+                if rendered or table.cells:
+                    table_paragraphs.append(HwpxParagraph(style_id="표", text=rendered, level=0, table=table))
 
-        if table_lines:
-            for table_text in table_lines:
-                paragraphs.append(HwpxParagraph(style_id="표", text=table_text, level=0))
+        if table_paragraphs:
+            paragraphs.extend(table_paragraphs)
             continue
 
-        paragraphs.append(
-            HwpxParagraph(style_id=style_id, text=_collect_run_text(paragraph), level=level)
-        )
+        paragraphs.append(HwpxParagraph(style_id=style_id, text=_collect_run_text(paragraph), level=level))
 
     return paragraphs
 
@@ -127,7 +402,7 @@ def _get_section_names_from_hpf(zf: zipfile.ZipFile) -> list[str]:
     return sections
 
 
-def _extract_paragraphs(hwpx_path: str) -> list[HwpxParagraph]:
+def _extract_paragraphs(hwpx_path: str, *, table_mode: TableMode) -> list[HwpxParagraph]:
     try:
         zf = zipfile.ZipFile(hwpx_path, "r")
     except zipfile.BadZipFile as exc:
@@ -138,11 +413,7 @@ def _extract_paragraphs(hwpx_path: str) -> list[HwpxParagraph]:
             section_paths = _get_section_names_from_hpf(zf)
             if section_paths:
                 return section_paths
-            scanned = sorted(
-                name
-                for name in zf.namelist()
-                if name.startswith("Contents/section") and name.endswith(".xml")
-            )
+            scanned = sorted(name for name in zf.namelist() if name.startswith("Contents/section") and name.endswith(".xml"))
             return scanned or ["Contents/section0.xml"]
 
         def _load_sections(paths: list[str]) -> tuple[list[HwpxParagraph], bool]:
@@ -154,16 +425,12 @@ def _extract_paragraphs(hwpx_path: str) -> list[HwpxParagraph]:
                     found_any = True
                 except KeyError:
                     continue
-                paragraphs.extend(_parse_paragraphs_from_xml(xml_bytes))
+                paragraphs.extend(_parse_paragraphs_from_xml(xml_bytes, table_mode=table_mode))
             return paragraphs, found_any
 
         paragraphs, found_any = _load_sections(_candidate_section_paths())
         if not found_any:
-            fallback_paths = sorted(
-                name
-                for name in zf.namelist()
-                if name.startswith("Contents/section") and name.endswith(".xml")
-            ) or ["Contents/section0.xml"]
+            fallback_paths = sorted(name for name in zf.namelist() if name.startswith("Contents/section") and name.endswith(".xml")) or ["Contents/section0.xml"]
             paragraphs, found_any = _load_sections(fallback_paths)
 
         if not found_any:
@@ -172,10 +439,10 @@ def _extract_paragraphs(hwpx_path: str) -> list[HwpxParagraph]:
     return paragraphs
 
 
-def convert_hwpx(hwpx_path: str) -> str:
+def convert_hwpx(hwpx_path: str, *, table_mode: TableMode = "text") -> str:
     if not Path(hwpx_path).exists():
         raise FileNotFoundError(f"HWPX 파일을 찾을 수 없습니다: {hwpx_path}")
-    markdown = postprocess_hwpx(_extract_paragraphs(hwpx_path))
+    markdown = postprocess_hwpx(_extract_paragraphs(hwpx_path, table_mode=table_mode))
     return _apply_filename_title_fallback(markdown, Path(hwpx_path))
 
 

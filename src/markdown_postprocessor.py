@@ -97,7 +97,18 @@ def _join_title(lines: Iterable[str]) -> str:
 
 def _split_lines(raw_text: str) -> list[str]:
     expanded: list[str] = []
+    in_html_table = False
     for raw_line in raw_text.splitlines():
+        stripped = raw_line.strip()
+        if HTML_TABLE_TAG_PATTERN.match(stripped):
+            if stripped.lower().startswith("<table"):
+                in_html_table = True
+            if in_html_table:
+                expanded.append(stripped)
+                if stripped.lower().startswith("</table"):
+                    in_html_table = False
+                continue
+
         service_parts = _split_inline_service_table_bundle(raw_line)
         if len(service_parts) > 1 or service_parts[0] != raw_line:
             for part in service_parts:
@@ -369,9 +380,11 @@ def _join_continuation_rendered(lines: list[str]) -> list[str]:
         if not line:
             joined.append(line)
             continue
-        is_structural = line.lstrip()[:1] in "#>|-" or line.startswith(("  -", "  >"))
+        is_html_table = HTML_TABLE_TAG_PATTERN.match(line.lstrip())
+        is_structural = is_html_table or line.lstrip()[:1] in "#>|-" or line.startswith(("  -", "  >"))
         prev = joined[-1] if joined else ""
-        prev_is_structural = not prev or prev.lstrip()[:1] in "#>|-" or prev.startswith(("  -", "  >"))
+        prev_is_html_table = HTML_TABLE_TAG_PATTERN.match(prev.lstrip()) if prev else None
+        prev_is_structural = not prev or prev_is_html_table or prev.lstrip()[:1] in "#>|-" or prev.startswith(("  -", "  >"))
         if (
             prev
             and not prev.rstrip().endswith(".")
@@ -895,6 +908,8 @@ def _render_contacts(lines: list[str]) -> list[str]:
 
 
 def _normalize_generic_line(text: str) -> list[str]:
+    if HTML_TABLE_TAG_PATTERN.match(text):
+        return [text]
     if text.startswith("< 핵심 정책과제 >") or text.startswith("<핵심 정책과제>"):
         suffix = text.split(">", 1)[1].strip() if ">" in text else ""
         lines = ["> <핵심 정책과제>"]
@@ -990,10 +1005,10 @@ def _collapse_wrapped_lines(lines: list[str]) -> list[str]:
         if text.startswith("〈") or previous.startswith("〈"):
             collapsed.append(text)
             continue
-        if text.startswith(("#", "-", ">", "|")):
+        if text.startswith(("#", "-", ">", "|")) or HTML_TABLE_TAG_PATTERN.match(text):
             collapsed.append(text)
             continue
-        if previous.startswith(("#", "-", ">")):
+        if previous.startswith(("#", "-", ">", "|")):
             collapsed.append(text)
             continue
         if len(previous) < 35:
@@ -1070,6 +1085,7 @@ def _post_clean(lines: list[str]) -> list[str]:
             and cleaned[-1]
             and cleaned[-1].lstrip().startswith("-")
             and not text.lstrip().startswith(("#", "-", ">", "---", "|"))
+            and not HTML_TABLE_TAG_PATTERN.match(text.lstrip())
         ):
             if text.lstrip().startswith("△"):
                 cleaned.append("")

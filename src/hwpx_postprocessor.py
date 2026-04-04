@@ -1,10 +1,14 @@
 """HWPX postprocessor aligned to the PDF markdown baseline."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import re
+from typing import TYPE_CHECKING
 
 from .markdown_postprocessor import postprocess_markdown
+
+if TYPE_CHECKING:
+    from .hwpx_converter import Table
 
 
 @dataclass
@@ -12,6 +16,7 @@ class HwpxParagraph:
     style_id: str
     text: str
     level: int = 0
+    table: "Table | None" = field(default=None, repr=False, compare=False)
 
 
 def _normalize_compare_text(text: str) -> str:
@@ -192,6 +197,11 @@ def _normalize_preamble_lines(lines: list[str]) -> list[str]:
         text = lines[index].strip()
         if not text:
             normalized.append("")
+            index += 1
+            continue
+
+        if text.lower().startswith("<table"):
+            normalized.append(text)
             index += 1
             continue
 

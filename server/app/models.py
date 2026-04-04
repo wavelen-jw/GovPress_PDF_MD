@@ -7,6 +7,7 @@ from typing import Literal
 
 
 JobStatus = Literal["queued", "processing", "completed", "failed"]
+HwpxTableMode = Literal["text", "html"]
 
 
 def utcnow() -> datetime:
@@ -44,5 +45,6 @@ class JobRecord:
     error_message: str | None = None
     client_request_id: str | None = None
     result_version: int = 0
+    hwpx_table_mode: HwpxTableMode = "text"
     result: JobResult = field(default_factory=JobResult)
     artifacts: JobArtifacts | None = None

@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 from typing import Protocol
 
-from .models import JobArtifacts, JobRecord, JobResult, JobStatus, utcnow
+from .models import HwpxTableMode, JobArtifacts, JobRecord, JobResult, JobStatus, utcnow
 
 
 def _isoformat(value: datetime | None) -> str | None:
@@ -31,6 +31,7 @@ def _row_to_record(row: sqlite3.Row) -> JobRecord:
         error_message=row["error_message"],
         client_request_id=row["client_request_id"],
         result_version=row["result_version"],
+        hwpx_table_mode=row["hwpx_table_mode"] or "text",
         result=JobResult(
             markdown=row["markdown"],
             html_preview=row["html_preview"],
@@ -55,6 +56,7 @@ class JobRepository(Protocol):
         edit_token: str,
         file_name: str,
         source: str,
+        hwpx_table_mode: HwpxTableMode,
         client_request_id: str | None,
         original_file_path: Path,
     ) -> JobRecord: ...
@@ -145,6 +147,7 @@ class SQLiteJobRepository:
                     error_message TEXT,
                     client_request_id TEXT UNIQUE,
                     result_version INTEGER NOT NULL DEFAULT 0,
+                    hwpx_table_mode TEXT NOT NULL DEFAULT 'text',
                     original_pdf_path TEXT NOT NULL,
                     final_markdown_path TEXT,
                     edited_markdown_path TEXT,
@@ -166,11 +169,20 @@ class SQLiteJobRepository:
                 conn.execute("ALTER TABLE jobs ADD COLUMN claimed_by TEXT")
             if "edit_token" not in columns:
                 conn.execute("ALTER TABLE jobs ADD COLUMN edit_token TEXT")
+            if "hwpx_table_mode" not in columns:
+                conn.execute("ALTER TABLE jobs ADD COLUMN hwpx_table_mode TEXT NOT NULL DEFAULT 'text'")
             conn.execute(
                 """
                 UPDATE jobs
                 SET edit_token = 'legacy-' || job_id
                 WHERE edit_token IS NULL OR edit_token = ''
+                """
+            )
+            conn.execute(
+                """
+                UPDATE jobs
+                SET hwpx_table_mode = 'text'
+                WHERE hwpx_table_mode IS NULL OR hwpx_table_mode = ''
                 """
             )
             conn.commit()
@@ -182,6 +194,7 @@ class SQLiteJobRepository:
         edit_token: str,
         file_name: str,
         source: str,
+        hwpx_table_mode: HwpxTableMode,
         client_request_id: str | None,
         original_file_path: Path,
     ) -> JobRecord:
@@ -196,7 +209,7 @@ class SQLiteJobRepository:
                 """
                 INSERT INTO jobs (
                     job_id, edit_token, file_name, source, status, created_at, updated_at,
-                    progress, error_code, error_message, client_request_id,
+                    progress, error_code, error_message, client_request_id, hwpx_table_mode,
                     result_version, original_pdf_path, final_markdown_path,
                     edited_markdown_path, markdown, html_preview, title,
                     department, edited_markdown, saved_at
@@ -215,6 +228,7 @@ class SQLiteJobRepository:
                     None,
                     None,
                     client_request_id,
+                    hwpx_table_mode,
                     0,
                     str(original_file_path),
                     None,
