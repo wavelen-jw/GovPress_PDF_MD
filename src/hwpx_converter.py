@@ -11,7 +11,6 @@ from typing import Literal
 from .hwpx_postprocessor import HwpxParagraph, postprocess_hwpx
 
 TableMode = Literal["text", "html"]
-_INLINE_BULLET_PATTERN = re.compile(r"\s+(?=(?:○|●|◦|▪|▸|▶|‣|※|\U000f02ce|\U000f02cf|\U000f02d0))")
 
 
 def _local_name(tag: str) -> str:
@@ -221,118 +220,6 @@ def _cell_text(cell: TableCell, html: bool = False) -> str:
     return "<br>".join(part for part in parts if part)
 
 
-def _normalize_plain_cell_text(text: str) -> str:
-    normalized = text.replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
-    normalized = normalized.replace("\\|", "|")
-    normalized = re.sub(r"[ \t]+\n", "\n", normalized)
-    normalized = re.sub(r"\n{3,}", "\n\n", normalized)
-    return normalized.strip()
-
-
-def _plain_cell_text(cell: TableCell) -> str:
-    return _normalize_plain_cell_text(_cell_text(cell))
-
-
-def _normalize_label_text(text: str) -> str:
-    return " ".join(part.strip() for part in text.splitlines() if part.strip())
-
-
-def _build_table_grid(table: Table, *, repeat_rowspans: bool) -> list[list[str]]:
-    grid = [["" for _ in range(table.cols)] for _ in range(table.rows)]
-    for cell in table.cells:
-        text = _plain_cell_text(cell)
-        for dr in range(cell.rowspan):
-            for dc in range(cell.colspan):
-                row = cell.row + dr
-                col = cell.col + dc
-                if row >= table.rows or col >= table.cols:
-                    continue
-                if dr == 0 and dc == 0:
-                    grid[row][col] = text
-                elif dr > 0 and dc == 0 and repeat_rowspans:
-                    grid[row][col] = text
-                else:
-                    grid[row][col] = ""
-    return grid
-
-
-def _nonempty_cells(row: list[str]) -> list[str]:
-    return [cell.strip() for cell in row if cell.strip()]
-
-
-def _is_short_label(text: str) -> bool:
-    compact = re.sub(r"\s+", " ", text.strip())
-    return bool(compact) and len(compact) <= 32 and "\n" not in compact
-
-
-def _is_callout_table(grid: list[list[str]]) -> bool:
-    if not grid or len(grid) > 4 or len(grid[0]) > 4:
-        return False
-
-    nonempty_rows = [_nonempty_cells(row) for row in grid if _nonempty_cells(row)]
-    if len(nonempty_rows) < 2:
-        return False
-
-    first_row = nonempty_rows[0]
-    remaining = [cell for row in nonempty_rows[1:] for cell in row]
-    if not remaining:
-        return False
-
-    header = " ".join(first_row)
-    body = " ".join(remaining)
-    return (
-        _is_short_label(header)
-        and ("참고" in header or "예시" in header or header.startswith("<") or header.startswith("["))  # noqa: PLR2004
-        and len(body) > max(len(header) * 2, 40)
-    )
-
-
-def _format_multiline_value(text: str) -> list[str]:
-    raw_parts: list[str] = []
-    for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        split_parts = [part.strip() for part in _INLINE_BULLET_PATTERN.split(stripped) if part.strip()]
-        raw_parts.extend(split_parts or [stripped])
-
-    parts = raw_parts
-    if not parts:
-        return []
-    if len(parts) == 1:
-        return [parts[0]]
-    return [parts[0], *[f"  {part}" for part in parts[1:]]]
-
-
-def _append_formatted_value(lines: list[str], prefix: str, text: str, *, indent: str = "") -> None:
-    formatted = _format_multiline_value(text)
-    if not formatted:
-        return
-    lines.append(f"{indent}{prefix}{formatted[0]}")
-    for part in formatted[1:]:
-        lines.append(f"{indent}{part}")
-
-
-def _render_callout_table_text(grid: list[list[str]]) -> str:
-    nonempty_rows = [_nonempty_cells(row) for row in grid if _nonempty_cells(row)]
-    header = " ".join(nonempty_rows[0]).strip()
-    body_parts = [" / ".join(row).strip() for row in nonempty_rows[1:] if row]
-    if header and body_parts:
-        header_norm = re.sub(r"\s+", " ", header)
-        first_norm = re.sub(r"\s+", " ", body_parts[0])
-        if first_norm.startswith(header_norm):
-            trimmed = body_parts[0][len(header) :].strip(" /")
-            body_parts[0] = trimmed
-    body_parts = [part for part in body_parts if part.strip()]
-    lines = ["[표]"]
-    if header:
-        lines.append(f"- 제목: {header}")
-    if body_parts:
-        lines.append(f"- 내용: {body_parts[0]}")
-        lines.extend(f"- {part}" for part in body_parts[1:])
-    return "\n".join(lines)
-
-
 def _render_tier1_markdown(table: Table) -> str:
     grid: dict[tuple[int, int], str] = {}
     for cell in table.cells:
@@ -414,113 +301,22 @@ def _render_tier3_html(table: Table) -> str:
 
 
 def _render_tier3_text(table: Table) -> str:
-    grid = _build_table_grid(table, repeat_rowspans=True)
-    compact_rows = [row for row in grid if _nonempty_cells(row)]
-    if not compact_rows:
-        return ""
-
-    if _is_callout_table(compact_rows):
-        return _render_callout_table_text(compact_rows)
+    cells_by_row: dict[int, list[TableCell]] = {}
+    for cell in table.cells:
+        cells_by_row.setdefault(cell.row, []).append(cell)
 
     lines = ["[표]"]
-    first_row = compact_rows[0]
-    first_nonempty = _nonempty_cells(first_row)
-
-    if len(compact_rows) >= 2:
-        second_nonempty = _nonempty_cells(compact_rows[1])
-    else:
-        second_nonempty = []
-
-    if len(first_nonempty) == 2 and len(second_nonempty) == 4:
-        lines.append("- 비교:")
-        body_rows = compact_rows[2:]
-        for row in body_rows:
-            nonempty = _nonempty_cells(row)
-            if len(nonempty) < 5:
-                continue
-            label = _normalize_label_text(nonempty[0])
-            lines.append(f"- {label}")
-            _append_formatted_value(lines, f"- {first_nonempty[0]} / {second_nonempty[0]}: ", nonempty[1], indent="  ")
-            _append_formatted_value(lines, f"- {first_nonempty[0]} / {second_nonempty[1]}: ", nonempty[2], indent="  ")
-            _append_formatted_value(lines, f"- {first_nonempty[1]} / {second_nonempty[2]}: ", nonempty[3], indent="  ")
-            _append_formatted_value(lines, f"- {first_nonempty[1]} / {second_nonempty[3]}: ", nonempty[4], indent="  ")
-        return "\n".join(lines)
-
-    if len(first_nonempty) == 3 and all(_is_short_label(cell) for cell in first_nonempty):
-        body_rows = compact_rows[1:]
-        lines.append("- 비교:")
-        for row in body_rows:
-            nonempty = _nonempty_cells(row)
-            if len(nonempty) < 3:
-                continue
-            label = _normalize_label_text(nonempty[0])
-            lines.append(f"- {label}")
-            _append_formatted_value(lines, f"- {first_nonempty[1]}: ", nonempty[1], indent="  ")
-            _append_formatted_value(lines, f"- {first_nonempty[2]}: ", nonempty[2], indent="  ")
-        return "\n".join(lines)
-
-    has_header = len(first_nonempty) >= 2 and all(_is_short_label(cell) for cell in first_nonempty)
-
-    start_index = 1 if has_header else 0
+    header_cells = [_cell_text(cell) for cell in sorted(cells_by_row.get(0, []), key=lambda current: current.col)]
+    has_header = bool(header_cells) and any(cell.strip() for cell in header_cells)
     if has_header:
-        lines.append("- 열: " + " | ".join(first_nonempty))
+        lines.append("- 열: " + " | ".join(header_cells))
 
-    body_rows = compact_rows[start_index:]
-    current_subheaders: list[str] | None = None
-    for row_index, row in enumerate(body_rows, start=1):
-        nonempty = _nonempty_cells(row)
-        if not nonempty:
+    start_row = 1 if has_header else 0
+    for row in range(start_row, table.rows):
+        row_cells = [_cell_text(cell) for cell in sorted(cells_by_row.get(row, []), key=lambda current: current.col)]
+        if not row_cells or not any(cell.strip() for cell in row_cells):
             continue
-
-        if len(nonempty) == 1 and _is_short_label(nonempty[0]):
-            lines.append(f"- 항목: {_normalize_label_text(nonempty[0])}")
-            current_subheaders = None
-            continue
-
-        if len(nonempty) == 2 and all(_is_short_label(cell) for cell in nonempty):
-            left = _normalize_label_text(nonempty[0])
-            right = _normalize_label_text(nonempty[1])
-            lines.append(f"- 열: {left} | {right}")
-            current_subheaders = [left, right]
-            continue
-
-        if current_subheaders and len(nonempty) == 2:
-            _append_formatted_value(lines, f"- {current_subheaders[0]}: ", nonempty[0])
-            _append_formatted_value(lines, f"- {current_subheaders[1]}: ", nonempty[1], indent="  ")
-            continue
-
-        if has_header and len(first_nonempty) == 2 and len(nonempty) >= 5:
-            label = nonempty[0]
-            lines.append(f"- {label}")
-            for group_index, header in enumerate(first_nonempty):
-                base = 1 + (group_index * 2)
-                if base + 1 >= len(nonempty):
-                    break
-                pair_label = nonempty[base]
-                pair_value = nonempty[base + 1]
-                _append_formatted_value(lines, f"- {header} / {pair_label}: ", pair_value, indent="  ")
-            current_subheaders = None
-            continue
-
-        if has_header and len(first_nonempty) >= 3 and len(nonempty) >= 3:
-            label = nonempty[0]
-            lines.append(f"- {label}")
-            for cell_index, cell in enumerate(nonempty[1:], start=1):
-                header = first_nonempty[cell_index] if cell_index < len(first_nonempty) else f"열 {cell_index + 1}"
-                _append_formatted_value(lines, f"- {header}: ", cell, indent="  ")
-            current_subheaders = None
-            continue
-
-        if len(nonempty) == 2 and _is_short_label(nonempty[0]):
-            _append_formatted_value(lines, f"- {nonempty[0]}: ", nonempty[1])
-            continue
-
-        rendered_cells = []
-        for cell in nonempty:
-            parts = [part.strip() for part in cell.splitlines() if part.strip()]
-            rendered_cells.append(" / ".join(parts))
-        lines.append(f"- 행 {row_index}: " + " | ".join(rendered_cells))
-        current_subheaders = None
+        lines.append(f"- 행 {row - start_row + 1}: " + " | ".join(row_cells))
 
     return "\n".join(lines)
 

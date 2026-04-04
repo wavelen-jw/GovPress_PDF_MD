@@ -20,6 +20,18 @@ BODY_SENTENCE_PATTERN = re.compile(
     r".*(?:다\.|다$|했다\.|한다고\b|밝혔다\.|말했다\.|설명했다\.|예정이다\.|기대된다\.)$"
 )
 
+SPACING_ARTIFACT_REPLACEMENTS = (
+    ("과 장", "과장"),
+    ("국립 과학수사연구원", "국립과학수사연구원"),
+    ("장관 표창", "장관표창"),
+    ("추진 방안", "추진방안"),
+    ("이행 계획", "이행계획"),
+    ("추진 체계", "추진체계"),
+    ("지역 사회", "지역사회"),
+    ("공동체 금융 기관", "공동체 금융기관"),
+    ("사회 연대금융", "사회연대금융"),
+)
+
 
 @dataclass
 class ParsedSections:
@@ -33,6 +45,8 @@ class ParsedSections:
 
 def clean_line(line: str) -> str:
     text = re.sub(r"\s+", " ", line.replace("\u00a0", " ").replace("\x00", "")).strip()
+    for source, target in SPACING_ARTIFACT_REPLACEMENTS:
+        text = text.replace(source, target)
     return text
 
 

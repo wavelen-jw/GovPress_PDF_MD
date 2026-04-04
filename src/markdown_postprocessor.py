@@ -1018,33 +1018,9 @@ def _collapse_wrapped_lines(lines: list[str]) -> list[str]:
     return collapsed
 
 
-def _is_text_table_marker(text: str) -> bool:
-    stripped = text.lstrip()
-    return stripped in {"[표]", "- [표]"} or stripped.startswith("[표:")
-
-
-def _is_text_table_entry(text: str) -> bool:
-    stripped = text.lstrip()
-    return stripped.startswith((
-        "- 제목:",
-        "- 내용:",
-        "- 열:",
-        "- 행 ",
-        "- 항목:",
-        "- 비교:",
-        "- ",
-        "○ ",
-        "▸ ",
-        "▶ ",
-        "‣ ",
-        "⋮",
-    )) or text.startswith("  ")
-
-
 def _post_clean(lines: list[str]) -> list[str]:
     cleaned: list[str] = []
     previous_blank = False
-    inside_text_table = False
     for line in lines:
         stripped_leading = line[: len(line) - len(line.lstrip(" "))]
         if line.lstrip().startswith(">"):
@@ -1053,54 +1029,11 @@ def _post_clean(lines: list[str]) -> list[str]:
             text = clean_line(line)
         if stripped_leading and text.startswith(("-", ">")):
             text = f"{stripped_leading}{text}"
-        elif stripped_leading and inside_text_table:
-            text = f"{stripped_leading}{text}"
         if not text:
-            if inside_text_table:
-                continue
             if not previous_blank:
                 cleaned.append("")
             previous_blank = True
-            inside_text_table = False
             continue
-        if _is_text_table_marker(text):
-            if cleaned and cleaned[-1] != "":
-                cleaned.append("")
-            cleaned.append("[표]" if text.lstrip() == "- [표]" else text)
-            previous_blank = False
-            inside_text_table = True
-            continue
-        if (
-            inside_text_table
-            and cleaned
-            and cleaned[-1]
-            and cleaned[-1].lstrip().startswith("-")
-            and ":" in cleaned[-1]
-            and text.lstrip().startswith(("○ ", "▸ ", "▶ ", "‣ ", "⋮"))
-        ):
-            cleaned[-1] = f"{cleaned[-1].rstrip()} / {text.strip()}"
-            previous_blank = False
-            continue
-        if inside_text_table and _is_text_table_entry(text):
-            cleaned.append(text)
-            previous_blank = False
-            continue
-        if (
-            inside_text_table
-            and cleaned
-            and cleaned[-1]
-            and cleaned[-1].lstrip().startswith("-")
-            and text
-            and not text.lstrip().startswith(("#", "-", ">", "|"))
-            and not HTML_TABLE_TAG_PATTERN.match(text.lstrip())
-        ):
-            cleaned[-1] = f"{cleaned[-1].rstrip()} / {text.strip()}"
-            previous_blank = False
-            continue
-        if inside_text_table and not _is_text_table_entry(text):
-            if cleaned and cleaned[-1] != "":
-                cleaned.append("")
-            inside_text_table = False
         if text.startswith("▴") and cleaned and cleaned[-1].lstrip().startswith("-"):
             cleaned[-1] = f"{cleaned[-1].rstrip()} {text}"
             previous_blank = False
@@ -1153,7 +1086,6 @@ def _post_clean(lines: list[str]) -> list[str]:
             and cleaned[-1].lstrip().startswith("-")
             and not text.lstrip().startswith(("#", "-", ">", "---", "|"))
             and not HTML_TABLE_TAG_PATTERN.match(text.lstrip())
-            and not inside_text_table
         ):
             if text.lstrip().startswith("△"):
                 cleaned.append("")
