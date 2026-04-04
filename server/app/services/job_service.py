@@ -4,15 +4,12 @@ import math
 import secrets
 import uuid
 
-from ..core.notify import send_telegram
 from ..models import JobRecord
 from ..models import JobStatus
 from ..models import HwpxTableMode
 from ..repositories import JobRepository
 from ..workers.converter_worker import ConverterWorker
 from .storage_service import StorageService
-
-_QUEUE_ALERT_THRESHOLD = 3  # 대기 작업이 이 수 이상이면 알림
 
 
 class JobService:
@@ -43,7 +40,7 @@ class JobService:
 
         job_id = f"job_{uuid.uuid4().hex[:12]}"
         edit_token = secrets.token_urlsafe(24)
-        original_path = self._storage.save_original_file(job_id, file_name, content)
+        original_path = self._storage.save_original_pdf(job_id, file_name, content)
         record = self._repository.create(
             job_id=job_id,
             edit_token=edit_token,
@@ -51,13 +48,10 @@ class JobService:
             source=source,
             hwpx_table_mode=hwpx_table_mode,
             client_request_id=client_request_id,
-            original_file_path=original_path,
+            original_pdf_path=original_path,
         )
         if record.job_id == job_id:
             self._worker.enqueue(job_id)
-            queued = self._repository.count_queued_jobs()
-            if queued >= _QUEUE_ALERT_THRESHOLD:
-                send_telegram(f"⚠️ GovPress 대기 작업 {queued}개\n파일: {file_name}")
         return record
 
     async def create_job_from_upload(
@@ -77,7 +71,7 @@ class JobService:
 
         job_id = f"job_{uuid.uuid4().hex[:12]}"
         edit_token = secrets.token_urlsafe(24)
-        original_path = await self._storage.save_original_file_stream(
+        original_path = await self._storage.save_original_pdf_stream(
             job_id,
             file_name,
             upload,
@@ -90,13 +84,10 @@ class JobService:
             source=source,
             hwpx_table_mode=hwpx_table_mode,
             client_request_id=client_request_id,
-            original_file_path=original_path,
+            original_pdf_path=original_path,
         )
         if record.job_id == job_id:
             self._worker.enqueue(job_id)
-            queued = self._repository.count_queued_jobs()
-            if queued >= _QUEUE_ALERT_THRESHOLD:
-                send_telegram(f"⚠️ GovPress 대기 작업 {queued}개\n파일: {file_name}")
         return record
 
     def get_job(self, job_id: str, edit_token: str) -> JobRecord | None:
