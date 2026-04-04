@@ -343,29 +343,6 @@ export const styles = StyleSheet.create({
     borderColor: "#5a493d",
     color: "#f0e1d1",
   },
-  turnstileCard: {
-    alignSelf: "flex-end",
-    backgroundColor: "#fff8f1",
-    borderWidth: 1,
-    borderColor: "#e7cfb4",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
-    maxWidth: 360,
-  },
-  turnstileCardDark: {
-    backgroundColor: "#2a221d",
-    borderColor: "#4a3b2f",
-  },
-  turnstileText: {
-    color: "#705a45",
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  turnstileTextDark: {
-    color: "#d6c0a7",
-  },
   primaryButton: {
     backgroundColor: "#a9561d",
     borderRadius: 999,

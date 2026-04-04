@@ -13,7 +13,7 @@ type Props = {
   isPdfPickReady: boolean;
   hwpxTableMode: HwpxTableMode;
   selectedTableMode: HwpxTableMode;
-  htmlVariantReady: boolean;
+  htmlVariantState: "ready" | "pending" | "unavailable";
   editing: boolean;
   onCopyMarkdown: () => void;
   onDiscardEdit: () => void;
@@ -36,7 +36,7 @@ export function WorkspaceToolbar({
   isPdfPickReady,
   hwpxTableMode,
   selectedTableMode,
-  htmlVariantReady,
+  htmlVariantState,
   editing,
   onCopyMarkdown,
   onDiscardEdit,
@@ -159,11 +159,19 @@ export function WorkspaceToolbar({
                     {(
                       [
                         { key: "text", label: "표: MD" },
-                        { key: "html", label: htmlVariantReady ? "표: HTML" : "표: HTML 준비중" },
+                        {
+                          key: "html",
+                          label:
+                            htmlVariantState === "ready"
+                              ? "표: HTML"
+                              : htmlVariantState === "pending"
+                                ? "표: HTML 준비중"
+                                : "표: HTML 없음",
+                        },
                       ] as const
                     ).map((tab) => {
                       const active = tab.key === selectedTableMode;
-                      const disabled = tab.key === "html" && !htmlVariantReady;
+                      const disabled = tab.key === "html" && htmlVariantState !== "ready";
                       return (
                         <Pressable
                           key={tab.key}

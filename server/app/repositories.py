@@ -93,13 +93,13 @@ class JobRepository(Protocol):
         *,
         markdown: str,
         html_preview: str,
-        markdown_text: str,
-        markdown_html: str,
-        html_preview_text: str,
-        html_preview_html: str,
-        title: str | None,
-        department: str | None,
-        final_markdown_path: Path | None,
+        markdown_text: str | None = None,
+        markdown_html: str | None = None,
+        html_preview_text: str | None = None,
+        html_preview_html: str | None = None,
+        title: str | None = None,
+        department: str | None = None,
+        final_markdown_path: Path | None = None,
     ) -> JobRecord: ...
 
     def save_text_result(
@@ -108,9 +108,9 @@ class JobRepository(Protocol):
         *,
         markdown_text: str,
         html_preview_text: str,
-        title: str | None,
-        department: str | None,
-        final_markdown_path: Path | None,
+        title: str | None = None,
+        department: str | None = None,
+        final_markdown_path: Path | None = None,
     ) -> JobRecord: ...
 
     def save_html_variant(
@@ -253,7 +253,7 @@ class SQLiteJobRepository:
                     markdown_html, html_preview_text, html_preview_html, title,
                     department, edited_markdown, saved_at
                     , claimed_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job_id,
@@ -464,10 +464,10 @@ class SQLiteJobRepository:
         *,
         markdown: str,
         html_preview: str,
-        markdown_text: str,
-        markdown_html: str,
-        html_preview_text: str,
-        html_preview_html: str,
+        markdown_text: str | None = None,
+        markdown_html: str | None = None,
+        html_preview_text: str | None = None,
+        html_preview_html: str | None = None,
         title: str | None,
         department: str | None,
         final_markdown_path: Path | None,
@@ -475,6 +475,11 @@ class SQLiteJobRepository:
         current = self.get(job_id)
         if current is None:
             raise KeyError(job_id)
+
+        markdown_text = markdown if markdown_text is None else markdown_text
+        markdown_html = markdown if markdown_html is None else markdown_html
+        html_preview_text = html_preview if html_preview_text is None else html_preview_text
+        html_preview_html = html_preview if html_preview_html is None else html_preview_html
 
         with self._lock, self._connect() as conn:
             conn.execute(

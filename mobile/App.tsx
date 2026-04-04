@@ -19,7 +19,6 @@ import * as Sharing from "expo-sharing";
 
 import { JobDetailPanel } from "./src/components/JobDetailPanel";
 import { SettingsModal } from "./src/components/SettingsModal";
-import { TurnstileGate } from "./src/components/TurnstileGate";
 import { WorkspaceToolbar } from "./src/components/WorkspaceToolbar";
 import { DEFAULT_CONFIG } from "./src/constants";
 import { fetchJob, fetchResult, retryJob, saveResult, uploadPdf } from "./src/services/api";
@@ -76,17 +75,23 @@ export default function App(): React.JSX.Element {
   const [editing, setEditing] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [infoVisible, setInfoVisible] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [hwpxTableMode, setHwpxTableMode] = useState<HwpxTableMode>("text");
   const [selectedTableMode, setSelectedTableMode] = useState<HwpxTableMode>("text");
+  const [loadedTableMode, setLoadedTableMode] = useState<HwpxTableMode>("text");
   const [draftHydratedJobId, setDraftHydratedJobId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const selectedVariant = useMemo<ResultVariant>(() => {
     if (!result) {
       return { markdown: null, html_preview: null };
     }
-    return result.table_variants?.[selectedTableMode] || { markdown: result.markdown, html_preview: result.html_preview };
-  }, [result, selectedTableMode]);
+    if (result.table_variants) {
+      return result.table_variants[selectedTableMode] || { markdown: result.markdown, html_preview: result.html_preview };
+    }
+    if (selectedTableMode === loadedTableMode) {
+      return { markdown: result.markdown, html_preview: result.html_preview };
+    }
+    return { markdown: null, html_preview: null };
+  }, [loadedTableMode, result, selectedTableMode]);
   const selectedResultText = useMemo(() => {
     if (!selectedVariant.markdown) {
       return "";
@@ -94,8 +99,24 @@ export default function App(): React.JSX.Element {
     return editing ? deferredEditorText : selectedVariant.markdown;
   }, [deferredEditorText, editing, selectedVariant.markdown]);
   const hasUnsavedChanges = editing && editorText !== (selectedVariant.markdown || "");
-  const htmlVariantReady = !!result?.table_variants?.html?.markdown;
-  const needsHtmlVariant = !!selectedJob && selectedJob.file_name.toLowerCase().endsWith(".hwpx") && !htmlVariantReady;
+  const hasAsyncTableVariants = !!result?.table_variants;
+  const htmlVariantState: "ready" | "pending" | "unavailable" = useMemo(() => {
+    if (!selectedJob || !selectedJob.file_name.toLowerCase().endsWith(".hwpx")) {
+      return "unavailable";
+    }
+    if (!result) {
+      return "pending";
+    }
+    if (result.table_variants) {
+      return result.table_variants.html?.markdown ? "ready" : "pending";
+    }
+    return loadedTableMode === "html" ? "ready" : "unavailable";
+  }, [loadedTableMode, result, selectedJob]);
+  const needsHtmlVariant =
+    !!selectedJob &&
+    selectedJob.file_name.toLowerCase().endsWith(".hwpx") &&
+    hasAsyncTableVariants &&
+    htmlVariantState === "pending";
   const sectionHeadings = useMemo(() => extractSectionHeadings(editorText), [editorText]);
   function showError(title: string, error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);
@@ -292,6 +313,7 @@ export default function App(): React.JSX.Element {
         startTransition(() => {
           setResult(resultPayload);
           if (result?.job_id !== payload.job_id) {
+            setLoadedTableMode(payload.file_name.toLowerCase().endsWith(".hwpx") ? hwpxTableMode : "text");
             setSelectedTableMode("text");
           }
           setEditorText(resultPayload.markdown || "");
@@ -349,6 +371,7 @@ export default function App(): React.JSX.Element {
       setCurrentEditToken(null);
       setSelectedJob(localJob);
       setResult(localResult);
+      setLoadedTableMode("text");
       setSelectedTableMode("text");
       setEditorText(markdown);
       setEditorSelection({ start: 0, end: 0 });
@@ -359,9 +382,6 @@ export default function App(): React.JSX.Element {
   }
 
   async function handlePickPdf(): Promise<void> {
-    if (Platform.OS === "web" && config.turnstileSiteKey && !turnstileToken) {
-      return;
-    }
     try {
       const picked = await DocumentPicker.getDocumentAsync({
         type:
@@ -385,13 +405,13 @@ export default function App(): React.JSX.Element {
       }
       setBusy(true);
       setNotice(lowerName.endsWith(".hwpx") ? "HWPX 업로드 중..." : "PDF 업로드 중...");
-      const job = await uploadPdf(config, asset, hwpxTableMode, turnstileToken);
-      setTurnstileToken(null);
+      const job = await uploadPdf(config, asset, hwpxTableMode);
       startTransition(() => {
         setSelectedJobId(job.job_id);
         setCurrentEditToken(job.edit_token);
         setSelectedJob(job);
         setResult(null);
+        setLoadedTableMode(hwpxTableMode);
         setSelectedTableMode("text");
         setEditorText("");
         setEditorSelection({ start: 0, end: 0 });
@@ -745,7 +765,7 @@ export default function App(): React.JSX.Element {
 
   const showDetailPanel = true;
   const currentDocumentName = selectedJob?.file_name || result?.meta.source_file_name || null;
-  const isPdfPickReady = !config.turnstileSiteKey || !!turnstileToken;
+  const isPdfPickReady = true;
 
   if (loadingConfig) {
     return (
@@ -778,7 +798,7 @@ export default function App(): React.JSX.Element {
             isPdfPickReady={isPdfPickReady}
             hwpxTableMode={hwpxTableMode}
             selectedTableMode={selectedTableMode}
-            htmlVariantReady={htmlVariantReady}
+            htmlVariantState={htmlVariantState}
             editing={editing}
             onCopyMarkdown={() => void handleCopyMarkdown()}
             onDiscardEdit={handleDiscardEdit}
@@ -799,13 +819,6 @@ export default function App(): React.JSX.Element {
             onToggleDarkMode={handleToggleDarkMode}
           />
           {notice ? <Text style={[styles.noticeBox, isDarkMode && styles.noticeBoxDark]}>{notice}</Text> : null}
-          {config.turnstileSiteKey ? (
-            <TurnstileGate
-              isDarkMode={isDarkMode}
-              siteKey={config.turnstileSiteKey || ""}
-              onTokenChange={setTurnstileToken}
-            />
-          ) : null}
         </View>
 
         {showDetailPanel ? (

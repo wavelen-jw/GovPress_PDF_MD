@@ -40,5 +40,4 @@ export type ResultPayload = {
 export type AppConfig = {
   baseUrl: string;
   apiKey: string;
-  turnstileSiteKey?: string | null;
 };

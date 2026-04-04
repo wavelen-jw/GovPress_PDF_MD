@@ -46,14 +46,10 @@ export async function uploadPdf(
   config: AppConfig,
   asset: DocumentPicker.DocumentPickerAsset,
   hwpxTableMode: HwpxTableMode,
-  turnstileToken?: string | null,
 ): Promise<JobCreatePayload> {
   const form = new FormData();
   form.append("source", "mobile");
   form.append("hwpx_table_mode", hwpxTableMode);
-  if (turnstileToken) {
-    form.append("cf-turnstile-response", turnstileToken);
-  }
   const webFile = (asset as DocumentPicker.DocumentPickerAsset & { file?: File }).file;
   if (Platform.OS === "web" && webFile) {
     form.append("file", webFile);

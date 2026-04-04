@@ -17,7 +17,6 @@ export async function loadConfig(): Promise<AppConfig> {
     return {
       baseUrl: normalizeBaseUrl(window.localStorage.getItem(STORAGE_KEYS.baseUrl)),
       apiKey,
-      turnstileSiteKey: DEFAULT_CONFIG.turnstileSiteKey,
     };
   }
 
@@ -28,7 +27,6 @@ export async function loadConfig(): Promise<AppConfig> {
   return {
     baseUrl: normalizeBaseUrl(baseUrl),
     apiKey: apiKey || DEFAULT_CONFIG.apiKey,
-    turnstileSiteKey: DEFAULT_CONFIG.turnstileSiteKey,
   };
 }
 
