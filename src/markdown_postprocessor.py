@@ -1198,6 +1198,35 @@ def _postprocess_press_release(
     return output.replace("\n\n---\n\n", "\n---\n")
 
 
+def _normalize_heading_spacing(markdown: str) -> str:
+    lines = markdown.splitlines()
+    normalized: list[str] = []
+
+    def trim_trailing_blanks() -> None:
+        while normalized and normalized[-1] == "":
+            normalized.pop()
+
+    for raw_line in lines:
+        stripped = raw_line.strip()
+        heading_match = re.match(r"^(#{1,5})\s+.+$", stripped)
+        if not heading_match:
+            normalized.append(raw_line)
+            continue
+
+        level = len(heading_match.group(1))
+        trim_trailing_blanks()
+        if normalized and level >= 2:
+            normalized.append("")
+        normalized.append(stripped)
+        normalized.append("")
+
+    while normalized and normalized[0] == "":
+        normalized.pop(0)
+    while normalized and normalized[-1] == "":
+        normalized.pop()
+    return "\n".join(normalized) + ("\n" if markdown.endswith("\n") or normalized else "")
+
+
 # ── Public API ───────────────────────────────────────────────────────────────
 
 def postprocess_markdown(
@@ -1206,9 +1235,9 @@ def postprocess_markdown(
     raw_text = raw_text.replace("\x00", "")
     if _is_press_release(raw_text):
         cleaned_lines = _preclean_lines(raw_text)
-        return _postprocess_press_release("\n".join(cleaned_lines), template)
+        return _normalize_heading_spacing(_postprocess_press_release("\n".join(cleaned_lines), template))
     if _is_government_report(raw_text):
-        return postprocess_report(raw_text)
+        return _normalize_heading_spacing(postprocess_report(raw_text))
     if _is_service_guide(raw_text):
-        return postprocess_service_guide(raw_text)
-    return _postprocess_generic_markdown(raw_text)
+        return _normalize_heading_spacing(postprocess_service_guide(raw_text))
+    return _normalize_heading_spacing(_postprocess_generic_markdown(raw_text))
