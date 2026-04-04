@@ -42,10 +42,22 @@ jobs:
             esac
           fi
 
-      - name: Start SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
+      - name: Materialize deploy key
+        env:
+          VPS_KEY: ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          KEY_FILE=~/.ssh/govpress_vps_key
+
+          if printf '%s' "$VPS_KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+            printf '%s\n' "$VPS_KEY" | tr -d '\r' > "$KEY_FILE"
+          else
+            printf '%s' "$VPS_KEY" | tr -d '\r\n ' | base64 -d > "$KEY_FILE"
+          fi
+
+          chmod 600 "$KEY_FILE"
+          ssh-keygen -y -f "$KEY_FILE" > /dev/null
 
       - name: Add VPS to known_hosts
         env:
@@ -70,8 +82,9 @@ jobs:
           PORT="${VPS_PORT:-22}"
           BRANCH="${VPS_BRANCH:-web}"
           HEALTHCHECK_URL="${VPS_HEALTHCHECK_URL:-http://127.0.0.1:8013/health}"
+          KEY_FILE=~/.ssh/govpress_vps_key
 
-          ssh -p "$PORT" "$VPS_USER@$VPS_HOST" /bin/bash <<EOF
+          ssh -i "$KEY_FILE" -o IdentitiesOnly=yes -p "$PORT" "$VPS_USER@$VPS_HOST" /bin/bash <<EOF
           set -euo pipefail
           export XDG_RUNTIME_DIR=/run/user/\$(id -u)
           git -C "$VPS_DEPLOY_DIR" fetch origin
