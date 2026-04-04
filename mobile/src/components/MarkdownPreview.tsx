@@ -337,7 +337,7 @@ function MarkdownImage({ alt, src, isDarkMode = false }: { alt: string; src: str
 }
 
 function parseMarkdown(markdown: string): Block[] {
-    const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
   const blocks: Block[] = [];
   let index = 0;
 
@@ -388,6 +388,14 @@ function parseMarkdown(markdown: string): Block[] {
       while (index < lines.length && /^>\s?/.test(lines[index].trim())) {
         quoteLines.push(lines[index].trim().replace(/^>\s?/, ""));
         index += 1;
+      }
+      const quotedHtml = quoteLines.join("\n").trim();
+      if (/<table\b[\s\S]*<\/table>/i.test(quotedHtml) || /^<table\b/i.test(quotedHtml) || /^<tr\b/i.test(quotedHtml)) {
+        const parsed = parseHtmlTableBlock(quotedHtml);
+        if (parsed) {
+          blocks.push({ type: "html_table", headers: parsed.headers, rows: parsed.rows, rawHtml: parsed.rawHtml });
+          continue;
+        }
       }
       const paragraphs: string[] = [];
       let paragraphBuffer: string[] = [];

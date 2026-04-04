@@ -568,6 +568,17 @@ def _flatten_structural_tables(lines: list[str]) -> list[str]:
     return flattened
 
 
+def _strip_table_bullet_prefix(lines: list[str]) -> list[str]:
+    stripped_lines: list[str] = []
+    for text in lines:
+        trimmed = text.lstrip()
+        if ("\n|" in text or trimmed.startswith("|")) and re.match(r"^[-*○□]\s+\|", trimmed):
+            stripped_lines.append(re.sub(r"^[-*○□]\s+", "", trimmed, count=1))
+            continue
+        stripped_lines.append(text)
+    return stripped_lines
+
+
 def postprocess_hwpx(paragraphs: list[HwpxParagraph]) -> str:
     if not paragraphs:
         return ""
@@ -578,4 +589,5 @@ def postprocess_hwpx(paragraphs: list[HwpxParagraph]) -> str:
     lines = _merge_contact_lines(lines)
     lines = _dedupe_structural_lines(lines)
     lines = _render_comparison_tables(lines)
+    lines = _strip_table_bullet_prefix(lines)
     return postprocess_markdown("\n".join(line for line in lines if line is not None))
