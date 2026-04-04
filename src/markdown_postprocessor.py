@@ -981,6 +981,14 @@ def _normalize_generic_line(text: str) -> list[str]:
     if text.startswith("ㅇ "):
         return [f"- {text[1:].strip()}"]
 
+    # 한컴 PUA 순서 불릿 󰋎(①=U+F02CE) 󰋏(②=U+F02CF) 󰋐(③=U+F02D0) 등 → ### 소제목
+    # U+F02CE~U+F02D7 : 한컴 오피스 circled number ①~⑩ 전용 PUA 범위
+    if text and "\U000f02ce" <= text[0] <= "\U000f02d7":
+        rest = text[1:].strip()
+        if rest:
+            return [f"### {rest}", ""]
+        return [text]
+
     if text.startswith("- - "):
         return [f"  - {text[4:].strip()}"]
 
