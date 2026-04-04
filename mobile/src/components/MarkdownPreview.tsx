@@ -337,7 +337,7 @@ function MarkdownImage({ alt, src, isDarkMode = false }: { alt: string; src: str
 }
 
 function parseMarkdown(markdown: string): Block[] {
-  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+    const lines = markdown.replace(/\r\n/g, "\n").split("\n");
   const blocks: Block[] = [];
   let index = 0;
 
@@ -415,7 +415,19 @@ function parseMarkdown(markdown: string): Block[] {
       continue;
     }
 
-    if (/^<table\b/i.test(trimmed)) {
+    const inlineHtmlTableMatch = rawLine.match(/<table\b[\s\S]*<\/table>/i);
+    if (inlineHtmlTableMatch) {
+      const parsed = parseHtmlTableBlock(inlineHtmlTableMatch[0]);
+      if (parsed) {
+        blocks.push({ type: "html_table", headers: parsed.headers, rows: parsed.rows, rawHtml: parsed.rawHtml });
+      } else {
+        blocks.push({ type: "paragraph", text: stripHtmlTags(inlineHtmlTableMatch[0]) });
+      }
+      index += 1;
+      continue;
+    }
+
+    if (/^<table\b/i.test(trimmed) || /^<tr\b/i.test(trimmed)) {
       const htmlLines: string[] = [];
       while (index < lines.length) {
         htmlLines.push(lines[index].trim());
@@ -593,7 +605,7 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
       continue;
     }
 
-    if (/^<table\b/i.test(trimmed)) {
+    if (/^<table\b/i.test(trimmed) || /^<tr\b/i.test(trimmed) || /<table\b[\s\S]*<\/table>/i.test(rawLine)) {
       while (index < lines.length) {
         advanceLine(lines[index]);
         if (/^<\/table>/i.test(lines[index - 1].trim())) {
