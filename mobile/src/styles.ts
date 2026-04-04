@@ -1769,17 +1769,42 @@ export const styles = StyleSheet.create({
     gap: 8,
   },
   settingsPresetButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#dcc9b0",
     backgroundColor: "#fffdfa",
     paddingHorizontal: 14,
     paddingVertical: 12,
-    gap: 4,
   },
   settingsPresetButtonActive: {
     borderColor: "#2f6f6f",
     backgroundColor: "#edf8f6",
+  },
+  settingsPresetRadio: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "#bba88a",
+    backgroundColor: "transparent",
+    flexShrink: 0,
+  },
+  settingsPresetRadioActive: {
+    borderColor: "#c07a30",
+    backgroundColor: "#c07a30",
+  },
+  settingsPresetContent: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+  settingsPresetTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   settingsPresetLabel: {
     color: "#2f2318",
@@ -1795,6 +1820,31 @@ export const styles = StyleSheet.create({
   },
   settingsPresetUrlActive: {
     color: "#185a58",
+  },
+  settingsPresetBadge: {
+    fontSize: 10,
+    fontWeight: "800",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 5,
+    color: "#fff",
+    backgroundColor: "#c8baa8",
+    overflow: "hidden",
+  },
+  settingsPresetBadgeActive: {
+    backgroundColor: "#d4a36a",
+  },
+  settingsStatusBox: {
+    minHeight: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  settingsStatusText: {
+    color: "#7b664f",
+    fontSize: 12,
+    lineHeight: 18,
+    flex: 1,
   },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 6 },
   busyOverlay: {
