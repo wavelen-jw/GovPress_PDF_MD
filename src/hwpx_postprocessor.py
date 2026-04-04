@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 import re
 from typing import TYPE_CHECKING
 
-from .markdown_postprocessor import postprocess_markdown
+from .markdown_postprocessor import detect_markdown_doc_type, format_markdown_by_type
 
 if TYPE_CHECKING:
     from .hwpx_converter import Table
@@ -671,6 +671,8 @@ def postprocess_hwpx(paragraphs: list[HwpxParagraph]) -> str:
     lines = _split_inline_structure_markers(lines)
     lines = _render_comparison_tables(lines)
     lines = _strip_table_bullet_prefix(lines)
-    rendered = postprocess_markdown("\n".join(line for line in lines if line is not None))
+    raw_text = "\n".join(line for line in lines if line is not None)
+    doc_type = detect_markdown_doc_type(raw_text)
+    rendered = format_markdown_by_type(raw_text, doc_type)
     rendered = _repair_broken_table_rows(rendered)
     return _indent_callout_subitems(rendered)
