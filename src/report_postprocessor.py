@@ -1126,7 +1126,7 @@ def postprocess_report(raw_text: str) -> str:
 
         if in_guideline_callout and text.startswith("▸ "):
             indent = _quote_indent_from_previous_bullet(rendered)
-            rendered.append(f"{indent}> {text}")
+            _render_quote_parts(rendered, text, indent=indent)
             continue
 
         if in_guideline_callout and not text.startswith(("▸ ", "<", ">")):
@@ -1141,9 +1141,13 @@ def postprocess_report(raw_text: str) -> str:
             continue
 
         if in_schedule_meta and text.startswith("▸ "):
-            for part in [clean_line(part) for part in text.split("<br>") if clean_line(part)]:
-                indent = _quote_indent_from_previous_bullet(rendered, fallback="  ")
-                rendered.append(f"{indent}> {part}")
+            indent = _quote_indent_from_previous_bullet(rendered, fallback="  ")
+            _render_quote_parts(rendered, text, indent=indent)
+            continue
+
+        if text.startswith("▸ "):
+            indent = _quote_indent_from_previous_bullet(rendered)
+            _render_quote_parts(rendered, text, indent=indent)
             continue
 
         # ── ⃝ 불릿 ─────────────────────────────────────────────
@@ -1196,6 +1200,11 @@ def postprocess_report(raw_text: str) -> str:
                 fallback=_indent_for(context, "note"),
             )
             rendered.append(f"{indent}> {text}")
+            continue
+
+        if text.startswith("|"):
+            rendered.append(text)
+            context = "section"
             continue
 
         # ── 한글 자모 + 꺾쇠 라벨 분리 ───────────────────────────
@@ -1463,6 +1472,18 @@ def _quote_indent_same_as_previous_bullet(rendered: list[str], fallback: str = "
         if match:
             return match.group(1)
     return fallback
+
+
+def _render_quote_parts(rendered: list[str], text: str, *, indent: str, strip_marker: bool = True) -> None:
+    """<br>로 연결된 주석/설명 줄을 quote 여러 줄로 출력."""
+    content = text[2:].strip() if strip_marker and text.startswith("▸ ") else text.strip()
+    parts = [clean_line(part) for part in content.split("<br>") if clean_line(part)]
+    if not parts:
+        return
+    for part in parts:
+        if part.startswith("▸ "):
+            part = part[2:].strip()
+        rendered.append(f"{indent}> {part}")
 
 
 def postprocess_service_guide(raw_text: str) -> str:
