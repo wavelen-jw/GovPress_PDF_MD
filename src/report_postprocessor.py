@@ -1133,6 +1133,13 @@ def postprocess_report(raw_text: str) -> str:
     title_done = False
     meta_done = False
     context: str | None = None
+    in_section_ii = False
+    in_section_iii = False
+    in_guideline_callout = False
+    in_progress = False
+    in_schedule_meta = False
+    current_group: str | None = None
+    group_counts: dict[str, int] = {}
 
     for text in lines:
         # ── 제목 ──────────────────────────────────────────────
@@ -1184,6 +1191,72 @@ def postprocess_report(raw_text: str) -> str:
             rendered.append("")
             rendered.append(f"## {text}")
             context = "section"
+            in_section_ii = text.startswith("Ⅱ.")
+            in_section_iii = text.startswith("Ⅲ.")
+            in_guideline_callout = False
+            in_progress = False
+            in_schedule_meta = False
+            current_group = None
+            continue
+
+        if text in {"< 기존 문서 AI 활용 >", "< 앞으로의 문서 >"}:
+            rendered.append("")
+            rendered.append(f"### {text}")
+            current_group = text.strip("<> ").strip()
+            group_counts.setdefault(current_group, 0)
+            in_guideline_callout = False
+            in_progress = False
+            in_schedule_meta = False
+            continue
+
+        task_match = re.match(r"^[󰋎󰋏󰋐]\s+(.+)$", text)
+        if in_section_iii and current_group and task_match:
+            group_counts[current_group] += 1
+            rendered.append("")
+            rendered.append(f"### {group_counts[current_group]}. {task_match.group(1)}")
+            context = "section"
+            in_guideline_callout = False
+            continue
+
+        if text == "< 가이드라인 예시 >":
+            rendered.append("> < 가이드라인 예시 >")
+            in_guideline_callout = True
+            continue
+
+        if text == "< 추진경과 >":
+            rendered.append("> < 추진경과 >")
+            in_progress = True
+            in_schedule_meta = False
+            continue
+
+        if text in {"□ 추진체계 : 인공지능정부실, 참여혁신조직실 공동", "□ 향후일정"}:
+            rendered.append("")
+            rendered.append(f"#### {text[2:].strip()}")
+            in_progress = False
+            in_schedule_meta = text.endswith("향후일정")
+            context = "section"
+            continue
+
+        if in_guideline_callout and text.startswith("▸ "):
+            indent = _quote_indent_from_previous_bullet(rendered)
+            rendered.append(f"{indent}> {text}")
+            continue
+
+        if in_guideline_callout and not text.startswith(("▸ ", "<", ">")):
+            in_guideline_callout = False
+
+        if in_progress and text.startswith("○ "):
+            rendered.append(f"> - {text[2:].strip()}")
+            continue
+
+        if in_progress and text.startswith("- "):
+            rendered.append(f">    - {text[2:].strip()}")
+            continue
+
+        if in_schedule_meta and text.startswith("▸ "):
+            for part in [clean_line(part) for part in text.split("<br>") if clean_line(part)]:
+                indent = _quote_indent_from_previous_bullet(rendered, fallback="  ")
+                rendered.append(f"{indent}> {part}")
             continue
 
         # ── ⃝ 불릿 ─────────────────────────────────────────────
