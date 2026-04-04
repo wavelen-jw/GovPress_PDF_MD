@@ -533,6 +533,14 @@ def _flatten_structural_table(text: str) -> list[str] | None:
             left = _normalize_section_token(left)
             return [f"{left}. {right}" if not left.startswith("붙임") else f"{left} {right}"]
 
+    # Appendix/reference header box such as `| 참고 |  | 제목 |`.
+    if len(nonempty_rows) == 1 and len(nonempty_rows[0]) >= 2:
+        first = nonempty_rows[0][0]
+        if first in {"참고", "붙임", "별첨"}:
+            flattened = [first]
+            flattened.extend(cell for cell in nonempty_rows[0][1:] if cell.strip())
+            return flattened
+
     # Contact grid used in press releases.
     if any("담당 부서" in row for row in rows) and any("책임자" in row or "담당자" in row for row in rows):
         flattened: list[str] = []
