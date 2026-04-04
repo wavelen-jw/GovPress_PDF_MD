@@ -686,7 +686,7 @@ def _finalize_government_report_markdown(text: str) -> str:
                 if candidate.strip():
                     next_nonblank = candidate.strip()
                     break
-            if next_nonblank.startswith(("  - (", "|", "> ")) or "AI 인식 한계" in stripped or "문서작성 과정의 비효율" in stripped or "문서 관리·유통 과정의 데이터 고립" in stripped:
+            if next_nonblank.startswith(("  - (", "|")) or "AI 인식 한계" in stripped or "문서작성 과정의 비효율" in stripped or "문서 관리·유통 과정의 데이터 고립" in stripped:
                 lines.extend(["", f"###  {stripped[2:].strip()}", ""])
                 i += 1
                 continue
@@ -1035,7 +1035,7 @@ def _postprocess_policy_plan(lines: list[str]) -> str:
             if quote_mode:
                 rendered.append(f"> {content}")
             else:
-                indent = _quote_indent_from_previous_bullet(rendered, fallback="    ")
+                indent = _quote_indent_same_as_previous_bullet(rendered, fallback="    ")
                 rendered.append(f"{indent}> {content}")
             index += 1
             continue
@@ -1045,7 +1045,7 @@ def _postprocess_policy_plan(lines: list[str]) -> str:
             if quote_mode:
                 rendered.append(f"> {content}")
             else:
-                indent = _quote_indent_from_previous_bullet(rendered, fallback="    ")
+                indent = _quote_indent_same_as_previous_bullet(rendered, fallback="    ")
                 rendered.append(f"{indent}> {content}")
             index += 1
             continue
@@ -1055,7 +1055,7 @@ def _postprocess_policy_plan(lines: list[str]) -> str:
             if quote_mode:
                 rendered.append(f"> {content}")
             else:
-                indent = _quote_indent_from_previous_bullet(rendered, fallback="    ")
+                indent = _quote_indent_same_as_previous_bullet(rendered, fallback="    ")
                 rendered.append(f"{indent}> {content}")
             index += 1
             continue
@@ -1216,7 +1216,7 @@ def postprocess_report(raw_text: str) -> str:
 
         # ── 각주 (* 로 시작) ───────────────────────────────────
         if text.startswith("*") and not text.startswith("**"):
-            indent = _quote_indent_from_previous_bullet(rendered)
+            indent = _quote_indent_same_as_previous_bullet(rendered)
             rendered.append(f"{indent}> {text[1:].lstrip()}")
             continue
 
@@ -1482,6 +1482,17 @@ def _quote_indent_from_previous_bullet(rendered: list[str], fallback: str = "") 
         match = _LIST_LINE_RE.match(line)
         if match:
             return f"{match.group(1)}  "
+    return fallback
+
+
+def _quote_indent_same_as_previous_bullet(rendered: list[str], fallback: str = "") -> str:
+    """직전 리스트 항목과 같은 깊이의 blockquote 들여쓰기 반환."""
+    for line in reversed(rendered):
+        if not line.strip():
+            continue
+        match = _LIST_LINE_RE.match(line)
+        if match:
+            return match.group(1)
     return fallback
 
 
