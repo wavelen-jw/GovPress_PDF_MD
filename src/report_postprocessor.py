@@ -828,15 +828,13 @@ def _finalize_government_report_markdown(text: str) -> str:
         if raw.startswith("  - "):
             prev = next((item for item in reversed(lines) if item.strip()), "")
             if (
-                prev.startswith(("## ", "### ", "#### "))
-                or prev in {"> < 추진경과 >"}
+                prev in {"> < 추진경과 >"}
                 or raw.startswith("  - (")
                 or raw.startswith("  - 기존 문서의 AI 활용도를")
                 or raw.startswith("  - 업무포털")
                 or raw.startswith("  - LLM(")
                 or raw.startswith("  - VLM(")
                 or (raw.startswith("  - 온-나라") and "시스템" in raw)
-                or (next((candidate.strip() for candidate in raw_lines[i + 1 :] if candidate.strip()), "").startswith(">"))
             ):
                 raw = "- " + raw[4:]
 
