@@ -11,10 +11,14 @@ export const STORAGE_KEYS = {
 export const BUILD_TAG = "mobile-web-2026-03-29-2310-local";
 const TURNSTILE_SITE_KEY_FALLBACK = "0x4AAAAAACxpgXbUmIjLt9ZH";
 
+export function isHostedWeb(): boolean {
+  return Platform.OS === "web" && typeof window !== "undefined" && window.location.hostname.endsWith("github.io");
+}
+
 export function defaultBaseUrl(): string {
   if (Platform.OS === "web" && typeof window !== "undefined") {
-    if (window.location.hostname.endsWith("github.io")) {
-      return "https://api.govpress.cloud";
+    if (isHostedWeb()) {
+      return "https://api2.govpress.cloud";
     }
     return `${window.location.protocol}//${window.location.hostname}:8013`;
   }

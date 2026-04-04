@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
-import { DEFAULT_CONFIG, normalizeBaseUrl, STORAGE_KEYS } from "../constants";
+import { DEFAULT_CONFIG, isHostedWeb, normalizeBaseUrl, STORAGE_KEYS } from "../constants";
 import type { AppConfig } from "../types";
 
 function draftStorageKey(jobId: string): string {
@@ -10,9 +10,13 @@ function draftStorageKey(jobId: string): string {
 
 export async function loadConfig(): Promise<AppConfig> {
   if (Platform.OS === "web" && typeof window !== "undefined") {
+    const apiKey = isHostedWeb() ? DEFAULT_CONFIG.apiKey : (window.localStorage.getItem(STORAGE_KEYS.apiKey) || DEFAULT_CONFIG.apiKey);
+    if (isHostedWeb()) {
+      window.localStorage.removeItem(STORAGE_KEYS.apiKey);
+    }
     return {
       baseUrl: normalizeBaseUrl(window.localStorage.getItem(STORAGE_KEYS.baseUrl)),
-      apiKey: window.localStorage.getItem(STORAGE_KEYS.apiKey) || DEFAULT_CONFIG.apiKey,
+      apiKey,
       turnstileSiteKey: DEFAULT_CONFIG.turnstileSiteKey,
     };
   }
@@ -31,7 +35,11 @@ export async function loadConfig(): Promise<AppConfig> {
 export async function persistConfig(config: AppConfig): Promise<void> {
   if (Platform.OS === "web" && typeof window !== "undefined") {
     window.localStorage.setItem(STORAGE_KEYS.baseUrl, config.baseUrl);
-    window.localStorage.setItem(STORAGE_KEYS.apiKey, config.apiKey);
+    if (isHostedWeb()) {
+      window.localStorage.removeItem(STORAGE_KEYS.apiKey);
+    } else {
+      window.localStorage.setItem(STORAGE_KEYS.apiKey, config.apiKey);
+    }
     return;
   }
 
