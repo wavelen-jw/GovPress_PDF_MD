@@ -28,12 +28,14 @@ jobs:
           VPS_KEY: ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
           VPS_PORT: ${{ vars.GOVPRESS_VPS_PORT }}
           VPS_DEPLOY_DIR: ${{ vars.GOVPRESS_VPS_DEPLOY_DIR }}
+          VPS_SERVICE: ${{ vars.GOVPRESS_VPS_SERVICE }}
         run: |
           set -euo pipefail
           test -n "$VPS_HOST" || { echo "Missing secret: GOVPRESS_VPS_HOST"; exit 1; }
           test -n "$VPS_USER" || { echo "Missing secret: GOVPRESS_VPS_USER"; exit 1; }
           test -n "$VPS_KEY" || { echo "Missing secret: GOVPRESS_VPS_SSH_KEY"; exit 1; }
           test -n "$VPS_DEPLOY_DIR" || { echo "Missing variable: GOVPRESS_VPS_DEPLOY_DIR"; exit 1; }
+          test -n "$VPS_SERVICE" || { echo "Missing variable: GOVPRESS_VPS_SERVICE"; exit 1; }
           if [ -n "${VPS_PORT:-}" ]; then
             case "$VPS_PORT" in
               ''|*[!0-9]*) echo "GOVPRESS_VPS_PORT must be numeric"; exit 1 ;;
@@ -61,22 +63,23 @@ jobs:
           VPS_PORT: ${{ vars.GOVPRESS_VPS_PORT }}
           VPS_DEPLOY_DIR: ${{ vars.GOVPRESS_VPS_DEPLOY_DIR }}
           VPS_BRANCH: ${{ vars.GOVPRESS_VPS_BRANCH }}
-          VPS_COMPOSE_FILE: ${{ vars.GOVPRESS_VPS_COMPOSE_FILE }}
+          VPS_SERVICE: ${{ vars.GOVPRESS_VPS_SERVICE }}
           VPS_HEALTHCHECK_URL: ${{ vars.GOVPRESS_VPS_HEALTHCHECK_URL }}
         run: |
           set -euo pipefail
           PORT="${VPS_PORT:-22}"
           BRANCH="${VPS_BRANCH:-web}"
-          COMPOSE_FILE="${VPS_COMPOSE_FILE:-$VPS_DEPLOY_DIR/deploy/vps/docker-compose.yml}"
-          HEALTHCHECK_URL="${VPS_HEALTHCHECK_URL:-http://127.0.0.1:8080/health}"
+          HEALTHCHECK_URL="${VPS_HEALTHCHECK_URL:-http://127.0.0.1:8013/health}"
 
           ssh -p "$PORT" "$VPS_USER@$VPS_HOST" /bin/bash <<EOF
           set -euo pipefail
-          cd "$VPS_DEPLOY_DIR"
-          git fetch origin
-          git checkout "$BRANCH"
-          git reset --hard "origin/$BRANCH"
-          docker compose -f "$COMPOSE_FILE" up -d --build
-          docker compose -f "$COMPOSE_FILE" ps
+          sudo -n git -C "$VPS_DEPLOY_DIR" fetch origin
+          sudo -n git -C "$VPS_DEPLOY_DIR" checkout "$BRANCH"
+          sudo -n git -C "$VPS_DEPLOY_DIR" reset --hard "origin/$BRANCH"
+          sudo -n "$VPS_DEPLOY_DIR/.venv/bin/pip" install -r "$VPS_DEPLOY_DIR/requirements.txt"
+          sudo -n "$VPS_DEPLOY_DIR/.venv/bin/pip" install -U opendataloader-pdf
+          sudo -n systemctl restart "$VPS_SERVICE"
+          sleep 3
           curl -fsS "$HEALTHCHECK_URL"
+          sudo -n systemctl --no-pager --full status "$VPS_SERVICE" | sed -n '1,30p'
           EOF
