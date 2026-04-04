@@ -533,6 +533,13 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  function handleEditorTextChange(value: string): void {
+    if (!editing) {
+      setEditing(true);
+    }
+    setEditorText(value);
+  }
+
   function handleDiscardEdit(): void {
     setEditorText(selectedVariant.markdown || "");
     setEditorSelection({ start: 0, end: 0 });
@@ -874,7 +881,7 @@ export default function App(): React.JSX.Element {
                 setEditing(false);
               });
             }}
-            onChangeEditorText={setEditorText}
+            onChangeEditorText={handleEditorTextChange}
             onChangeSelection={setEditorSelection}
             onChangeTab={setActiveTab}
             onDiscardEdit={handleDiscardEdit}

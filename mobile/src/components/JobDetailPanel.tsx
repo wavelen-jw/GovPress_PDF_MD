@@ -244,7 +244,7 @@ export function JobDetailPanel({
                           scrollEventThrottle={16}
                         >
                           <MarkdownPreview
-                            markdown={editing ? editorText : selectedResultText}
+                            markdown={editorText || selectedResultText}
                             isDarkMode={isDarkMode}
                             activeBlockIndex={activePreviewBlockIndex}
                             onBlockLayout={handlePreviewBlockLayout}
@@ -290,7 +290,7 @@ export function JobDetailPanel({
                           scrollEventThrottle={16}
                         >
                           <MarkdownPreview
-                            markdown={editing ? editorText : selectedResultText}
+                            markdown={editorText || selectedResultText}
                             isDarkMode={isDarkMode}
                             activeBlockIndex={activePreviewBlockIndex}
                             onBlockLayout={handlePreviewBlockLayout}
@@ -335,7 +335,7 @@ export function JobDetailPanel({
                         scrollEventThrottle={16}
                       >
                         <MarkdownPreview
-                          markdown={editing ? editorText : selectedResultText}
+                          markdown={editorText || selectedResultText}
                           isDarkMode={isDarkMode}
                           activeBlockIndex={activePreviewBlockIndex}
                           onBlockLayout={handlePreviewBlockLayout}
