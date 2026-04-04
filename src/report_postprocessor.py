@@ -741,10 +741,12 @@ def _finalize_government_report_markdown(text: str) -> str:
 
         if stripped.startswith("▸ "):
             if in_guideline_callout:
-                lines.append(f">{stripped}")
+                indent = _quote_indent_from_previous_bullet(lines)
+                lines.append(f"{indent}> {stripped}")
             elif in_schedule_meta:
                 for part in [clean_line(part) for part in stripped.split("<br>") if clean_line(part)]:
-                    lines.append(f"  > {part}")
+                    indent = _quote_indent_from_previous_bullet(lines, fallback="  ")
+                    lines.append(f"{indent}> {part}")
             else:
                 lines.append(stripped)
             i += 1
@@ -754,12 +756,14 @@ def _finalize_government_report_markdown(text: str) -> str:
             in_guideline_callout = False
 
         if stripped.startswith("> ※ "):
-            lines.append(f"> {stripped[4:].strip()}")
+            indent = _quote_indent_from_previous_bullet(lines)
+            lines.append(f"{indent}> {stripped[4:].strip()}")
             i += 1
             continue
 
         if stripped.startswith("※ "):
-            lines.append(f"> {stripped[2:].strip()}")
+            indent = _quote_indent_from_previous_bullet(lines)
+            lines.append(f"{indent}> {stripped[2:].strip()}")
             i += 1
             continue
 
@@ -837,7 +841,7 @@ def _finalize_government_report_markdown(text: str) -> str:
                 raw = "- " + raw[4:]
 
         if in_schedule_meta and raw.startswith("▸ "):
-            raw = "  > " + raw
+            raw = f"{_quote_indent_from_previous_bullet(lines, fallback='  ')}> {raw}"
 
         lines.append(raw)
         i += 1
@@ -1031,7 +1035,8 @@ def _postprocess_policy_plan(lines: list[str]) -> str:
             if quote_mode:
                 rendered.append(f"> {content}")
             else:
-                rendered.append(f"    > {content}")
+                indent = _quote_indent_from_previous_bullet(rendered, fallback="    ")
+                rendered.append(f"{indent}> {content}")
             index += 1
             continue
 
@@ -1040,7 +1045,8 @@ def _postprocess_policy_plan(lines: list[str]) -> str:
             if quote_mode:
                 rendered.append(f"> {content}")
             else:
-                rendered.append(f"    > {content}")
+                indent = _quote_indent_from_previous_bullet(rendered, fallback="    ")
+                rendered.append(f"{indent}> {content}")
             index += 1
             continue
 
@@ -1049,7 +1055,8 @@ def _postprocess_policy_plan(lines: list[str]) -> str:
             if quote_mode:
                 rendered.append(f"> {content}")
             else:
-                rendered.append(f"    > {content}")
+                indent = _quote_indent_from_previous_bullet(rendered, fallback="    ")
+                rendered.append(f"{indent}> {content}")
             index += 1
             continue
 
@@ -1209,12 +1216,16 @@ def postprocess_report(raw_text: str) -> str:
 
         # ── 각주 (* 로 시작) ───────────────────────────────────
         if text.startswith("*") and not text.startswith("**"):
-            rendered.append(f">{text[1:].lstrip()}")
+            indent = _quote_indent_from_previous_bullet(rendered)
+            rendered.append(f"{indent}> {text[1:].lstrip()}")
             continue
 
         # ── ※ 주석 ─────────────────────────────────────────────
         if text.startswith("※"):
-            indent = _indent_for(context, "note")
+            indent = _quote_indent_from_previous_bullet(
+                rendered,
+                fallback=_indent_for(context, "note"),
+            )
             rendered.append(f"{indent}> {text}")
             continue
 
@@ -1311,6 +1322,7 @@ _DASH_BULLET_RE = re.compile(r"^(\s*)-\s+(.+)$")
 
 # > 블록쿼트 (이미 처리된 줄)
 _BLOCKQUOTE_RE = re.compile(r"^>\s*")
+_LIST_LINE_RE = re.compile(r"^(\s*)(?:[-*]|\d+[.．]|[가나다라마바사아자차카타파하][.．])\s+")
 
 # ※ 주석
 _NOTE_RE = re.compile(r"^※")
@@ -1460,6 +1472,17 @@ def _sg_bullet(leading: str, content: str) -> str:
     depth = len(leading) // 2
     indent = "  " * depth
     return f"{indent}* {content}"
+
+
+def _quote_indent_from_previous_bullet(rendered: list[str], fallback: str = "") -> str:
+    """직전 리스트 항목보다 한 단계 더 깊은 blockquote 들여쓰기 반환."""
+    for line in reversed(rendered):
+        if not line.strip():
+            continue
+        match = _LIST_LINE_RE.match(line)
+        if match:
+            return f"{match.group(1)}  "
+    return fallback
 
 
 def postprocess_service_guide(raw_text: str) -> str:
