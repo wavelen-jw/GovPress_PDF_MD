@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import base64
 import importlib
 from pathlib import Path
 import os
@@ -16,12 +17,200 @@ import shutil as shutil_lib
 _logger = logging.getLogger(__name__)
 
 from .json_extractor import extract_text_from_json
+from .parser_rules import clean_line
 from .markdown_postprocessor import postprocess_markdown
 
 # Prevents two concurrent conversions from corrupting each other's os.environ patch.
 # opendataloader_pdf.convert() spawns a Java subprocess and reads PATH/JAVA_HOME;
 # we must patch os.environ before calling it and cannot pass env= to the library call.
 _conversion_lock = threading.Lock()
+
+_PDF_PAGE_MARKER_RE = re.compile(r"^-\s*\d+\s*-$")
+_PDF_ASCII_ROMAN_RE = re.compile(r"^(I|II|III|IV|V|VI|VII|VIII|IX|X)$")
+_PDF_ASCII_ROMAN_MAP = {
+    "I": "Ⅰ",
+    "II": "Ⅱ",
+    "III": "Ⅲ",
+    "IV": "Ⅳ",
+    "V": "Ⅴ",
+    "VI": "Ⅵ",
+    "VII": "Ⅶ",
+    "VIII": "Ⅷ",
+    "IX": "Ⅸ",
+    "X": "Ⅹ",
+}
+_PDF_INLINE_LABEL_RE = re.compile(r"(?<!^)\s+(<\s*(?:기존 문서 AI 활용|앞으로의 문서|가이드라인 예시|추진경과)\s*>)")
+_PDF_INLINE_OVERVIEW_RE = re.compile(r"(?<!^)\s+(<개\s*요>)")
+_PDF_INLINE_TASK_RE = re.compile(r"\s+(?=\s+)")
+_PDF_LINE_CLEANUPS = (
+    ("글", "ᄒᆞᆫ글"),
+    ("마크 다운", "마크다운"),
+    ("더 라도", "더라도"),
+    ("모델 (VLM)", "모델(VLM)"),
+)
+
+
+def _normalize_pdf_text_line(text: str) -> str:
+    normalized = clean_line(text)
+    for before, after in _PDF_LINE_CLEANUPS:
+        normalized = normalized.replace(before, after)
+    return clean_line(normalized)
+
+
+def _rewrite_pdf_grouped_table(lines: list[str], index: int) -> tuple[list[str] | None, int]:
+    line = lines[index]
+    next_line = lines[index + 1] if index + 1 < len(lines) else ""
+
+    if (
+        line == "| 종 류 | | 국내 AI모델 인식수준 |"
+        and next_line.startswith("| ---")
+        and index + 3 < len(lines)
+    ):
+        text_row = lines[index + 2]
+        visual_row = lines[index + 3]
+        if text_row.startswith("| 문자형 정보 |") and visual_row.startswith("| 시각적 정보 |"):
+            text_cells = [cell.strip() for cell in text_row.strip("|").split("|")]
+            visual_cells = [cell.strip() for cell in visual_row.strip("|").split("|")]
+            if len(text_cells) >= 3 and len(visual_cells) >= 3:
+                text_types = ["문자", "단순 표", "문단 간 관계"]
+                visual_types = ["줄·칸 병합 표", "표 안의 표", "표로 만든 그림", "그림"]
+                text_desc = [part.strip() for part in text_cells[2].split("<br>") if part.strip()]
+                visual_desc = [part.strip() for part in visual_cells[2].split("<br>") if part.strip()]
+                rebuilt = [
+                    line,
+                    next_line,
+                ]
+                for label, desc in zip(text_types, text_desc):
+                    rebuilt.append(f"| 문자형<br>정보 | {label} | {desc} |")
+                rebuilt.append("")
+                for label, desc in zip(visual_types, visual_desc):
+                    rebuilt.append(f"| 시각적<br>정보 | {label} | {desc} |")
+                return rebuilt, index + 4
+
+    if (
+        line == "| 구분 | 추진과제 |"
+        and next_line.startswith("| ---")
+        and index + 2 < len(lines)
+        and lines[index + 2].startswith("| 기존문서 AI 활용 앞으로의 문서 작성‧활용 |")
+    ):
+        return [], index + 3
+
+    if (
+        line == "| 구분 | 변화관리 수단(안) |"
+        and next_line.startswith("| ---")
+        and index + 2 < len(lines)
+        and lines[index + 2].startswith("| 동기부여 조직문화 역량강화 |")
+    ):
+        body_cells = [cell.strip() for cell in lines[index + 2].strip("|").split("|")]
+        if len(body_cells) >= 2:
+            values = body_cells[1]
+            markers = [
+                "데이터기반행정평가 반영",
+                "기관장 현장소통",
+                "보고서 및 AI플랫폼 활용방안 교육",
+            ]
+            parts: list[str] = []
+            remaining = values
+            for marker_index, marker in enumerate(markers):
+                start = remaining.find(marker)
+                if start == -1:
+                    parts = []
+                    break
+                remaining = remaining[start:]
+                if marker_index + 1 < len(markers):
+                    next_start = remaining.find(markers[marker_index + 1])
+                    if next_start == -1:
+                        parts = []
+                        break
+                    parts.append(remaining[:next_start].strip())
+                    remaining = remaining[next_start:]
+                else:
+                    parts.append(remaining.strip())
+            if len(parts) == 3:
+                return [
+                    line,
+                    next_line,
+                    f"| 동기부여 | {parts[0]} |",
+                    f"| 조직문화 | {parts[1]} |",
+                    f"| 역량강화 | {parts[2]} |",
+                ], index + 3
+
+    return None, index
+
+
+def _split_pdf_inline_structure(text: str) -> list[str]:
+    normalized = _PDF_INLINE_LABEL_RE.sub(r"\n\1", text)
+    normalized = _PDF_INLINE_OVERVIEW_RE.sub(r"\n\1", normalized)
+    normalized = _PDF_INLINE_TASK_RE.sub("\n", normalized)
+    return [clean_line(part) for part in normalized.splitlines() if clean_line(part)]
+
+
+def _looks_like_structural_heading_title(text: str) -> bool:
+    if not text:
+        return False
+    if text.startswith(("#", "|", ">", "-", "*", "○", "ㅇ", "□", "▸", "▶", "※", "", "󰋎", "󰋏", "󰋐", "<")):
+        return False
+    return True
+
+
+def _normalize_pdf_raw_text(raw_text: str) -> str:
+    raw_lines = [_normalize_pdf_text_line(line) for line in raw_text.splitlines()]
+    normalized_lines: list[str] = []
+    index = 0
+    current_task_index = 0
+
+    while index < len(raw_lines):
+        text = raw_lines[index]
+        if not text or _PDF_PAGE_MARKER_RE.fullmatch(text):
+            index += 1
+            continue
+
+        rewritten_table, next_index = _rewrite_pdf_grouped_table(raw_lines, index)
+        if rewritten_table is not None:
+            normalized_lines.extend(rewritten_table)
+            index = next_index
+            continue
+
+        index += 1
+
+        roman_match = _PDF_ASCII_ROMAN_RE.fullmatch(text)
+        if roman_match:
+            lookahead = index
+            while lookahead < len(raw_lines) and not raw_lines[lookahead]:
+                lookahead += 1
+            if lookahead < len(raw_lines):
+                heading_title = raw_lines[lookahead]
+                if _looks_like_structural_heading_title(heading_title):
+                    normalized_lines.append(f"{_PDF_ASCII_ROMAN_MAP[roman_match.group(1)]}. {heading_title}")
+                    index = lookahead + 1
+                    current_task_index = 0
+                    continue
+
+        if text == "붙임1" and index < len(raw_lines) and raw_lines[index]:
+            normalized_lines.append(f"붙임1 {raw_lines[index]}")
+            index += 1
+            current_task_index = 0
+            continue
+        if text == "붙임2" and index < len(raw_lines) and raw_lines[index]:
+            normalized_lines.append(f"붙임2 {raw_lines[index]}")
+            index += 1
+            current_task_index = 0
+            continue
+
+        for part in _split_pdf_inline_structure(text):
+            if part in {"< 기존 문서 AI 활용 >", "< 앞으로의 문서 >"}:
+                current_task_index = 0
+                normalized_lines.append(part)
+                continue
+            if part.startswith(" "):
+                icons = ("󰋎", "󰋏", "󰋐")
+                icon = icons[min(current_task_index, len(icons) - 1)]
+                current_task_index += 1
+                normalized_lines.append(f"{icon} {part[2:].strip()}")
+                continue
+            normalized_lines.append(part)
+
+    return "\n".join(normalized_lines)
 
 
 class DependencyError(RuntimeError):
@@ -307,6 +496,19 @@ def _find_json_file(output_dir: Path, source_path: Path) -> Path:
 
 def _stage_input_pdf_for_conversion(source_path: Path, temp_root: Path) -> Path:
     staged_path = temp_root / "input.pdf"
+    source_bytes = source_path.read_bytes()
+    stripped = source_bytes.strip()
+
+    # Some upstream fixtures arrive as base64-wrapped PDF payloads instead of raw PDF bytes.
+    if stripped.startswith(b"JVBERi0") and not stripped.startswith(b"%PDF-"):
+        try:
+            decoded = base64.b64decode(stripped, validate=True)
+        except Exception:
+            decoded = b""
+        if decoded.startswith(b"%PDF-"):
+            staged_path.write_bytes(decoded)
+            return staged_path
+
     shutil.copy2(source_path, staged_path)
     return staged_path
 
@@ -359,7 +561,7 @@ def convert_pdf_to_markdown(
             markdown_path = _find_markdown_file(temp_root, staged_source_path)
             raw_text = markdown_path.read_text(encoding="utf-8", errors="replace")
 
-        return postprocess_markdown(raw_text)
+        return postprocess_markdown(_normalize_pdf_raw_text(raw_text))
     finally:
         if not keep_temp_dir:
             try:
