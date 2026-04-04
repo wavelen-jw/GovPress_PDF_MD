@@ -1227,6 +1227,36 @@ def _normalize_heading_spacing(markdown: str) -> str:
     return "\n".join(normalized) + ("\n" if markdown.endswith("\n") or normalized else "")
 
 
+def _normalize_table_spacing(markdown: str) -> str:
+    lines = markdown.splitlines()
+    normalized: list[str] = []
+    index = 0
+
+    while index < len(lines):
+      line = lines[index]
+      if line.lstrip().startswith("|"):
+          table_block: list[str] = []
+          while index < len(lines) and lines[index].lstrip().startswith("|"):
+              table_block.append(lines[index])
+              index += 1
+          while normalized and normalized[-1] == "":
+              normalized.pop()
+          if normalized:
+              normalized.append("")
+          normalized.extend(table_block)
+          normalized.append("")
+          continue
+
+      normalized.append(line)
+      index += 1
+
+    while normalized and normalized[0] == "":
+        normalized.pop(0)
+    while normalized and normalized[-1] == "":
+        normalized.pop()
+    return "\n".join(normalized) + ("\n" if markdown.endswith("\n") or normalized else "")
+
+
 # ── Public API ───────────────────────────────────────────────────────────────
 
 def postprocess_markdown(
@@ -1235,9 +1265,9 @@ def postprocess_markdown(
     raw_text = raw_text.replace("\x00", "")
     if _is_press_release(raw_text):
         cleaned_lines = _preclean_lines(raw_text)
-        return _normalize_heading_spacing(_postprocess_press_release("\n".join(cleaned_lines), template))
+        return _normalize_table_spacing(_normalize_heading_spacing(_postprocess_press_release("\n".join(cleaned_lines), template)))
     if _is_government_report(raw_text):
-        return _normalize_heading_spacing(postprocess_report(raw_text))
+        return _normalize_table_spacing(_normalize_heading_spacing(postprocess_report(raw_text)))
     if _is_service_guide(raw_text):
-        return _normalize_heading_spacing(postprocess_service_guide(raw_text))
-    return _normalize_heading_spacing(_postprocess_generic_markdown(raw_text))
+        return _normalize_table_spacing(_normalize_heading_spacing(postprocess_service_guide(raw_text)))
+    return _normalize_table_spacing(_normalize_heading_spacing(_postprocess_generic_markdown(raw_text)))

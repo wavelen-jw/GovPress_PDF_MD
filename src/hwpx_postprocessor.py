@@ -586,16 +586,17 @@ def _repair_broken_table_rows(markdown: str) -> str:
 
     while index < len(lines):
         line = lines[index]
-        if (
-            repaired
-            and repaired[-1].lstrip().startswith("|")
-            and not repaired[-1].rstrip().endswith("|")
-            and line.lstrip().startswith("- ")
-            and line.rstrip().endswith("|")
-        ):
-            repaired[-1] = repaired[-1].rstrip() + " " + line.lstrip()
-            index += 1
-            continue
+        if repaired and repaired[-1].lstrip().startswith("|") and not repaired[-1].rstrip().endswith("|"):
+            if line.lstrip().startswith("- ") and line.rstrip().endswith("|"):
+                repaired[-1] = repaired[-1].rstrip() + " " + line.lstrip()
+                index += 1
+                continue
+            if line == "" and index + 1 < len(lines):
+                next_line = lines[index + 1]
+                if next_line.lstrip().startswith("- ") and next_line.rstrip().endswith("|"):
+                    repaired[-1] = repaired[-1].rstrip() + " " + next_line.lstrip()
+                    index += 2
+                    continue
         repaired.append(line)
         index += 1
 
