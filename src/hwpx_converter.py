@@ -374,6 +374,52 @@ def _render_payload_table_text(grid: list[list[str]]) -> str:
     return "\n".join(lines)
 
 
+def _render_series_table_text(grid: list[list[str]]) -> str | None:
+    normalized = [[cell.strip() for cell in row] for row in grid if any(cell.strip() for cell in row)]
+    if len(normalized) < 4:
+        return None
+    if max((len(row) for row in normalized), default=0) != 2:
+        return None
+
+    blocks: list[str] = []
+    index = 0
+    found = False
+    while index < len(normalized):
+        row = normalized[index]
+        nonempty = [cell for cell in row if cell]
+        if len(nonempty) == 1:
+            title = nonempty[0]
+            next_row = normalized[index + 1] if index + 1 < len(normalized) else None
+            body_row = normalized[index + 2] if index + 2 < len(normalized) else None
+            if (
+                next_row
+                and body_row
+                and len([cell for cell in next_row if cell]) == 2
+                and len([cell for cell in body_row if cell]) >= 1
+            ):
+                headers = [(next_row[col] if col < len(next_row) else "") for col in range(2)]
+                body = [(body_row[col] if col < len(body_row) else "") for col in range(2)]
+                blocks.extend(
+                    [
+                        title,
+                        "| " + " | ".join(headers) + " |",
+                        "| --- | --- |",
+                        "| " + " | ".join(body) + " |",
+                        "",
+                    ]
+                )
+                found = True
+                index += 3
+                continue
+        index += 1
+
+    if found:
+        while blocks and not blocks[-1].strip():
+            blocks.pop()
+        return "\n".join(blocks)
+    return None
+
+
 def _render_labeled_table_text(grid: list[list[str]]) -> str | None:
     nonempty_rows = [row for row in grid if any(cell.strip() for cell in row)]
     if len(nonempty_rows) < 3:
@@ -410,6 +456,10 @@ def _render_grid_markdown_table(grid: list[list[str]]) -> str:
     normalized = _trim_trailing_empty_columns(grid)
     if not normalized or not normalized[0]:
         return ""
+
+    series = _render_series_table_text(normalized)
+    if series:
+        return series
 
     labeled = _render_labeled_table_text(normalized)
     if labeled:
