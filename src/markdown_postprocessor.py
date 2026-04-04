@@ -24,11 +24,14 @@ Internal helpers (shared / pre-cleaning):
 from __future__ import annotations
 
 import re
-from typing import Iterable
+from typing import Iterable, Literal
 
 from .document_template import DEFAULT_TEMPLATE, PressReleaseTemplate
 from .parser_rules import clean_line, extract_sections, is_reference_line, split_contact_chunks
 from .report_postprocessor import postprocess_report, postprocess_service_guide
+
+
+MarkdownDocType = Literal["press_release", "report", "service_guide", "generic"]
 
 
 # ── Patterns & constants ─────────────────────────────────────────────────────
@@ -263,6 +266,17 @@ def _is_press_release(raw_text: str) -> bool:
         if _PRESS_STAMP_RE.match(line.strip()):
             return True
     return False
+
+
+def detect_markdown_doc_type(raw_text: str) -> MarkdownDocType:
+    """Detect the formatter route once so callers can avoid reclassification."""
+    if _is_press_release(raw_text):
+        return "press_release"
+    if _is_government_report(raw_text):
+        return "report"
+    if _is_service_guide(raw_text):
+        return "service_guide"
+    return "generic"
 
 
 # ── Metadata & section rendering ─────────────────────────────────────────────
@@ -1263,17 +1277,28 @@ def _normalize_table_spacing(markdown: str) -> str:
     return "\n".join(normalized) + ("\n" if markdown.endswith("\n") or normalized else "")
 
 
+def format_markdown_by_type(
+    raw_text: str,
+    doc_type: MarkdownDocType,
+    template: PressReleaseTemplate = DEFAULT_TEMPLATE,
+) -> str:
+    """Format already-classified text without rerunning document-type routing."""
+    raw_text = raw_text.replace("\x00", "")
+    if doc_type == "press_release":
+        cleaned_lines = _preclean_lines(raw_text)
+        body = _postprocess_press_release("\n".join(cleaned_lines), template)
+    elif doc_type == "report":
+        body = postprocess_report(raw_text)
+    elif doc_type == "service_guide":
+        body = postprocess_service_guide(raw_text)
+    else:
+        body = _postprocess_generic_markdown(raw_text)
+    return _normalize_table_spacing(_normalize_heading_spacing(body))
+
+
 # ── Public API ───────────────────────────────────────────────────────────────
 
 def postprocess_markdown(
     raw_text: str, template: PressReleaseTemplate = DEFAULT_TEMPLATE
 ) -> str:
-    raw_text = raw_text.replace("\x00", "")
-    if _is_press_release(raw_text):
-        cleaned_lines = _preclean_lines(raw_text)
-        return _normalize_table_spacing(_normalize_heading_spacing(_postprocess_press_release("\n".join(cleaned_lines), template)))
-    if _is_government_report(raw_text):
-        return _normalize_table_spacing(_normalize_heading_spacing(postprocess_report(raw_text)))
-    if _is_service_guide(raw_text):
-        return _normalize_table_spacing(_normalize_heading_spacing(postprocess_service_guide(raw_text)))
-    return _normalize_table_spacing(_normalize_heading_spacing(_postprocess_generic_markdown(raw_text)))
+    return format_markdown_by_type(raw_text, detect_markdown_doc_type(raw_text), template)
