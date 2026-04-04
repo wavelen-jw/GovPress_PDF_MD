@@ -1082,115 +1082,14 @@ def postprocess_report(raw_text: str) -> str:
         if handled:
             continue
 
-        # ── ⃝ 불릿 ─────────────────────────────────────────────
-        if text.startswith(CIRCLE_BULLET):
-            content = text[1:].strip()
-            rendered.append(f"- {content}")
-            context = "circle"
-            continue
-
-        # ── □ 불릿 (최상위, 정책문서 스타일) ─────────────────
-        if text.startswith(SQUARE_BULLET):
-            content = text[1:].strip()
-            if current_section == "ii":
-                rendered.append("")
-                rendered.append(f"### {content}")
-                context = "section"
-                continue
-            if current_section == "appendix2":
-                rendered.append("")
-                rendered.append(f"#### {content}")
-                context = "section"
-                continue
-            rendered.append(f"- {content}")
-            context = "square"
-            continue
-
-        # ── ○ 불릿 (□ 하위 항목) ──────────────────────────────
-        if text.startswith(CIRCLE_OPEN):
-            content = text[1:].strip()
-            rendered.append(f"- {content}")
-            context = "circle"
-            continue
-
-        # ── √ / ‣ / ⦁ 불릿 ────────────────────────────────────
-        if text and text[0] in (CHECK_BULLET, TRI_BULLET, FILLED_CIRCLE):
-            content = text[1:].strip()
-            rendered.append(f"  - {content}")
-            continue
-
-        # ── 각주 (* 로 시작) ───────────────────────────────────
-        if text.startswith("*") and not text.startswith("**"):
-            indent = _quote_indent_same_as_previous_bullet(rendered)
-            rendered.append(f"{indent}> {text[1:].lstrip()}")
-            continue
-
-        # ── ※ 주석 ─────────────────────────────────────────────
-        if text.startswith("※"):
-            indent = _quote_indent_from_previous_bullet(
-                rendered,
-                fallback=_indent_for(context, "note"),
-            )
-            rendered.append(f"{indent}> {text}")
-            continue
-
-        if text.startswith("|"):
-            rendered.append(text)
-            context = "section"
-            continue
-
-        # ── 한글 자모 + 꺾쇠 라벨 분리 ───────────────────────────
-        kl_label = KOREAN_LETTER_WITH_LABEL_RE.match(text)
-        if kl_label:
-            korean_part = kl_label.group(1).strip()
-            label_part = kl_label.group(2).strip()
-            if context in ("numbered_top", "numbered_after_korean", "korean_letter_sub"):
-                rendered.append(f"  {korean_part}")
-                context = "korean_letter_sub"
-            else:
-                rendered.append(korean_part)
-                context = "korean_letter"
-            child_indent = _indent_for(context, "angle")
-            rendered.append(f"{child_indent}> {label_part}")
-            continue
-
-        # ── 한글 자모 항목 (가. 나. 다.) ──────────────────────────
-        if KOREAN_LETTER_RE.match(text):
-            if context in ("numbered_top", "numbered_after_korean", "korean_letter_sub"):
-                rendered.append(f"  {text}")
-                context = "korean_letter_sub"
-            else:
-                rendered.append(text)
-                context = "korean_letter"
-            continue
-
-        # ── 꺾쇠 라벨 ──────────────────────────────────────────
-        if ANGLE_BRACKET_RE.match(text):
-            indent = _indent_for(context, "angle")
-            rendered.append(f"{indent}> {text}")
-            continue
-
-        # ── 번호 항목 (1. 2. 3.) ────────────────────────────────
-        if NUMBERED_ITEM_RE.match(text):
-            indent = _indent_for(context, "numbered")
-            # 최상위 번호 항목이 들여쓰기된 줄 직후에 올 때 앞에 빈 줄 삽입
-            if not indent and rendered:
-                last_nonblank = next((l for l in reversed(rendered) if l.strip()), None)
-                if last_nonblank and last_nonblank[0] == " ":
-                    rendered.append("")
-            rendered.append(f"{indent}{text}")
-            if context in ("circle", "numbered_sub"):
-                context = "numbered_sub"
-            elif context in ("korean_letter", "korean_letter_sub", "numbered_after_korean"):
-                context = "numbered_after_korean"
-            else:
-                context = "numbered_top"
-            continue
-
-        # ── - 불릿 ─────────────────────────────────────────────
-        if BULLET_RE.match(text):
-            indent = _indent_for(context, "dash")
-            rendered.append(f"{indent}{text}")
+        handled, next_context = _handle_report_standard_item(
+            rendered,
+            text,
+            context=context,
+            current_section=current_section,
+        )
+        context = next_context
+        if handled:
             continue
 
         # ── 나머지 본문 ────────────────────────────────────────
@@ -1502,6 +1401,100 @@ def _handle_report_special_block(
         return False, None, current_group, None
 
     return False, block_mode, current_group, None
+
+
+def _handle_report_standard_item(
+    rendered: list[str],
+    text: str,
+    *,
+    context: str | None,
+    current_section: str | None,
+) -> tuple[bool, str | None]:
+    if text.startswith(CIRCLE_BULLET):
+        rendered.append(f"- {text[1:].strip()}")
+        return True, "circle"
+
+    if text.startswith(SQUARE_BULLET):
+        content = text[1:].strip()
+        if current_section == "ii":
+            _append_spaced_heading(rendered, "###", content)
+            return True, "section"
+        if current_section == "appendix2":
+            _append_spaced_heading(rendered, "####", content)
+            return True, "section"
+        rendered.append(f"- {content}")
+        return True, "square"
+
+    if text.startswith(CIRCLE_OPEN):
+        rendered.append(f"- {text[1:].strip()}")
+        return True, "circle"
+
+    if text and text[0] in (CHECK_BULLET, TRI_BULLET, FILLED_CIRCLE):
+        rendered.append(f"  - {text[1:].strip()}")
+        return True, context
+
+    if text.startswith("*") and not text.startswith("**"):
+        indent = _quote_indent_same_as_previous_bullet(rendered)
+        rendered.append(f"{indent}> {text[1:].lstrip()}")
+        return True, context
+
+    if text.startswith("※"):
+        indent = _quote_indent_from_previous_bullet(
+            rendered,
+            fallback=_indent_for(context, "note"),
+        )
+        rendered.append(f"{indent}> {text}")
+        return True, context
+
+    if text.startswith("|"):
+        rendered.append(text)
+        return True, "section"
+
+    kl_label = KOREAN_LETTER_WITH_LABEL_RE.match(text)
+    if kl_label:
+        korean_part = kl_label.group(1).strip()
+        label_part = kl_label.group(2).strip()
+        if context in ("numbered_top", "numbered_after_korean", "korean_letter_sub"):
+            rendered.append(f"  {korean_part}")
+            next_context = "korean_letter_sub"
+        else:
+            rendered.append(korean_part)
+            next_context = "korean_letter"
+        child_indent = _indent_for(next_context, "angle")
+        rendered.append(f"{child_indent}> {label_part}")
+        return True, next_context
+
+    if KOREAN_LETTER_RE.match(text):
+        if context in ("numbered_top", "numbered_after_korean", "korean_letter_sub"):
+            rendered.append(f"  {text}")
+            return True, "korean_letter_sub"
+        rendered.append(text)
+        return True, "korean_letter"
+
+    if ANGLE_BRACKET_RE.match(text):
+        indent = _indent_for(context, "angle")
+        rendered.append(f"{indent}> {text}")
+        return True, context
+
+    if NUMBERED_ITEM_RE.match(text):
+        indent = _indent_for(context, "numbered")
+        if not indent and rendered:
+            last_nonblank = next((l for l in reversed(rendered) if l.strip()), None)
+            if last_nonblank and last_nonblank[0] == " ":
+                rendered.append("")
+        rendered.append(f"{indent}{text}")
+        if context in ("circle", "numbered_sub"):
+            return True, "numbered_sub"
+        if context in ("korean_letter", "korean_letter_sub", "numbered_after_korean"):
+            return True, "numbered_after_korean"
+        return True, "numbered_top"
+
+    if BULLET_RE.match(text):
+        indent = _indent_for(context, "dash")
+        rendered.append(f"{indent}{text}")
+        return True, context
+
+    return False, context
 
 
 def postprocess_service_guide(raw_text: str) -> str:
