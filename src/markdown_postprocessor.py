@@ -381,9 +381,11 @@ def _join_continuation_rendered(lines: list[str]) -> list[str]:
         if not line:
             joined.append(line)
             continue
-        is_structural = line.lstrip()[:1] in "#>|-" or line.startswith(("  -", "  >"))
+        is_html_table = HTML_TABLE_TAG_PATTERN.match(line.lstrip())
+        is_structural = is_html_table or line.lstrip()[:1] in "#>|-" or line.startswith(("  -", "  >"))
         prev = joined[-1] if joined else ""
-        prev_is_structural = not prev or prev.lstrip()[:1] in "#>|-" or prev.startswith(("  -", "  >"))
+        prev_is_html_table = HTML_TABLE_TAG_PATTERN.match(prev.lstrip()) if prev else None
+        prev_is_structural = not prev or prev_is_html_table or prev.lstrip()[:1] in "#>|-" or prev.startswith(("  -", "  >"))
         if (
             prev
             and not prev.rstrip().endswith(".")
@@ -1004,10 +1006,10 @@ def _collapse_wrapped_lines(lines: list[str]) -> list[str]:
         if text.startswith("〈") or previous.startswith("〈"):
             collapsed.append(text)
             continue
-        if text.startswith(("#", "-", ">", "|")):
+        if text.startswith(("#", "-", ">", "|")) or HTML_TABLE_TAG_PATTERN.match(text):
             collapsed.append(text)
             continue
-        if previous.startswith(("#", "-", ">")):
+        if previous.startswith(("#", "-", ">", "|")):
             collapsed.append(text)
             continue
         if len(previous) < 35:
@@ -1084,6 +1086,7 @@ def _post_clean(lines: list[str]) -> list[str]:
             and cleaned[-1]
             and cleaned[-1].lstrip().startswith("-")
             and not text.lstrip().startswith(("#", "-", ">", "---", "|"))
+            and not HTML_TABLE_TAG_PATTERN.match(text.lstrip())
         ):
             if text.lstrip().startswith("△"):
                 cleaned.append("")
