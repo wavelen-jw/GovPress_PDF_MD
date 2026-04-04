@@ -11,7 +11,6 @@ type Props = {
   isWideLayout: boolean;
   isDarkMode: boolean;
   isPdfPickReady: boolean;
-  hwpxTableMode: HwpxTableMode;
   selectedTableMode: HwpxTableMode;
   htmlVariantState: "ready" | "pending" | "unavailable";
   editing: boolean;
@@ -19,7 +18,6 @@ type Props = {
   onDiscardEdit: () => void;
   onOpenInfo: () => void;
   onPickPdf: () => void;
-  onChangeHwpxTableMode: (value: HwpxTableMode) => void;
   onChangeSelectedTableMode: (value: HwpxTableMode) => void;
   onSaveEdit: () => void;
   onSaveMarkdownFile: () => void;
@@ -34,7 +32,6 @@ export function WorkspaceToolbar({
   isWideLayout,
   isDarkMode,
   isPdfPickReady,
-  hwpxTableMode,
   selectedTableMode,
   htmlVariantState,
   editing,
@@ -42,7 +39,6 @@ export function WorkspaceToolbar({
   onDiscardEdit,
   onOpenInfo,
   onPickPdf,
-  onChangeHwpxTableMode,
   onChangeSelectedTableMode,
   onSaveEdit,
   onSaveMarkdownFile,
@@ -76,41 +72,6 @@ export function WorkspaceToolbar({
             </View>
             <View style={styles.workspaceToolbarUtility}>
               <View style={styles.workspaceToolbarPrimaryUtility}>
-                {!hasResult ? (
-                  <View style={[styles.workspaceModeGroup, isDarkMode && styles.workspaceModeGroupDark]}>
-                    {(
-                      [
-                        { key: "text", label: "HWPX 표: 텍스트" },
-                        { key: "html", label: "HWPX 표: HTML" },
-                      ] as const
-                    ).map((option) => {
-                      const active = hwpxTableMode === option.key;
-                      return (
-                        <Pressable
-                          key={option.key}
-                          style={[
-                            styles.workspaceModeButton,
-                            isDarkMode && styles.workspaceModeButtonDark,
-                            active && styles.workspaceModeButtonActive,
-                          ]}
-                          onPress={() => onChangeHwpxTableMode(option.key)}
-                          accessibilityLabel={option.label}
-                          {...webTitle(option.label)}
-                        >
-                          <Text
-                            style={[
-                              styles.workspaceModeLabel,
-                              isDarkMode && styles.workspaceModeLabelDark,
-                              active && styles.workspaceModeLabelActive,
-                            ]}
-                          >
-                            {option.key === "text" ? "표: 텍스트" : "표: HTML"}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ) : null}
                 <Pressable
                   style={
                     isPdfPickReady
@@ -171,7 +132,7 @@ export function WorkspaceToolbar({
                       ] as const
                     ).map((tab) => {
                       const active = tab.key === selectedTableMode;
-                      const disabled = tab.key === "html" && htmlVariantState !== "ready";
+                      const disabled = tab.key === "html" && htmlVariantState === "unavailable";
                       return (
                         <Pressable
                           key={tab.key}

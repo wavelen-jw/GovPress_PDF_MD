@@ -298,7 +298,7 @@ export default function App(): React.JSX.Element {
     setEditorText(selectedVariant.markdown || "");
   }, [editing, result, selectedVariant.markdown]);
 
-  async function refreshSelectedJob(jobId: string, editToken: string, syncResult = true): Promise<void> {
+  async function refreshSelectedJob(jobId: string, editToken: string, syncResult = true): Promise<ResultPayload | null> {
     try {
       const payload = await fetchJob(config, jobId, editToken);
       setNotice(null);
@@ -321,10 +321,12 @@ export default function App(): React.JSX.Element {
             setEditorFocusToken((current) => current + 1);
           }
         });
+        return resultPayload;
       }
     } catch (error) {
       showError("작업 상태를 불러오지 못했습니다.", error);
     }
+    return null;
   }
 
   async function openLocalMarkdown(asset: DocumentPicker.DocumentPickerAsset): Promise<void> {
@@ -448,6 +450,31 @@ export default function App(): React.JSX.Element {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleChangeSelectedTableMode(mode: HwpxTableMode): Promise<void> {
+    if (editing && hasUnsavedChanges) {
+      setNotice("표 버전을 바꾸려면 먼저 저장하거나 되돌리세요.");
+      return;
+    }
+
+    if (mode === "html" && selectedJobId && currentEditToken && !selectedJobId.startsWith("local-md-")) {
+      setRefreshing(true);
+      try {
+        const refreshed = await refreshSelectedJob(selectedJobId, currentEditToken, true);
+        const latest = refreshed ?? result;
+        const htmlReady = !!latest?.table_variants?.html?.markdown;
+        setSelectedTableMode(htmlReady ? "html" : "text");
+        setHwpxTableMode(htmlReady ? "html" : "text");
+        setNotice(htmlReady ? "HTML 표 버전을 불러왔습니다." : "HTML 표 결과를 아직 준비 중입니다. 잠시 후 다시 시도하세요.");
+      } finally {
+        setRefreshing(false);
+      }
+      return;
+    }
+
+    setHwpxTableMode(mode);
+    setSelectedTableMode(mode);
   }
 
   async function handleSaveEdit(): Promise<void> {
@@ -797,7 +824,6 @@ export default function App(): React.JSX.Element {
             isWideLayout={isWideLayout}
             isDarkMode={isDarkMode}
             isPdfPickReady={isPdfPickReady}
-            hwpxTableMode={hwpxTableMode}
             selectedTableMode={selectedTableMode}
             htmlVariantState={htmlVariantState}
             editing={editing}
@@ -805,15 +831,7 @@ export default function App(): React.JSX.Element {
             onDiscardEdit={handleDiscardEdit}
             onOpenInfo={handleOpenInfo}
             onPickPdf={() => void handlePickPdf()}
-            onChangeHwpxTableMode={setHwpxTableMode}
-            onChangeSelectedTableMode={(mode) => {
-              if (editing && hasUnsavedChanges) {
-                setNotice("표 버전을 바꾸려면 먼저 저장하거나 되돌리세요.");
-                return;
-              }
-              setHwpxTableMode(mode);
-              setSelectedTableMode(mode);
-            }}
+            onChangeSelectedTableMode={(mode) => void handleChangeSelectedTableMode(mode)}
             onSaveEdit={() => void handleSaveEdit()}
             onSaveMarkdownFile={() => void handleSaveMarkdownFile()}
             onShareMarkdown={() => void handleShareMarkdown()}
