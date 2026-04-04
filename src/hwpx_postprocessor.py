@@ -443,6 +443,24 @@ def _render_comparison_tables(lines: list[str]) -> list[str]:
     return rendered
 
 
+def _split_inline_structure_markers(lines: list[str]) -> list[str]:
+    split_lines: list[str] = []
+    pattern = re.compile(r"\s+(?=[󰋎󰋏󰋐▸▶◆])")
+    for text in lines:
+        if not text:
+            split_lines.append(text)
+            continue
+        if text.startswith("|"):
+            split_lines.append(text)
+            continue
+        parts = [part.strip() for part in pattern.split(text) if part.strip()]
+        if len(parts) <= 1:
+            split_lines.append(text)
+            continue
+        split_lines.extend(parts)
+    return split_lines
+
+
 def _parse_markdown_table_block(text: str) -> list[list[str]] | None:
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     if len(lines) < 2:
@@ -650,6 +668,7 @@ def postprocess_hwpx(paragraphs: list[HwpxParagraph]) -> str:
     lines = _normalize_preamble_lines(lines)
     lines = _merge_contact_lines(lines)
     lines = _dedupe_structural_lines(lines)
+    lines = _split_inline_structure_markers(lines)
     lines = _render_comparison_tables(lines)
     lines = _strip_table_bullet_prefix(lines)
     rendered = postprocess_markdown("\n".join(line for line in lines if line is not None))

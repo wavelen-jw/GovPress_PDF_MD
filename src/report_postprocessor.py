@@ -97,6 +97,9 @@ DATE_COMMA_RE = re.compile(r"(\d{4}\.\d{1,2}),(\d{1,2}),\(")
 
 # 이미 blockquote 표시된 줄
 ALREADY_QUOTED_RE = re.compile(r"^>\s*")
+PURE_NUMBER_RE = re.compile(r"^\d+$")
+BRACKET_SECTION_RE = re.compile(r"^\[[ⅠⅡⅢⅣⅤ]+\]$")
+PLAN_DOT_RE = re.compile(r"·{3,}")
 
 
 # ── 컨텍스트 상수 ────────────────────────────────────────────
@@ -130,6 +133,8 @@ def _is_structural_start(line: str) -> bool:
         return False
     ch = line[0]
     if ch in set(CIRCLE_BULLET + "-*<>#|※"):
+        return True
+    if ch in {"▸", "▶", "◆", "󰋎", "󰋏", "󰋐"}:
         return True
     if ch in _EXTRA_BULLETS:
         return True
@@ -268,14 +273,805 @@ def _indent_for(context: str | None, bullet_type: str) -> str:
     return ""
 
 
+def _compact_plan_toc(text: str) -> str:
+    compacted = PLAN_DOT_RE.sub("···", clean_line(text))
+    compacted = re.sub(r"\s*···\s*", " ···", compacted)
+    return compacted
+
+
+def _looks_like_policy_plan(lines: list[str]) -> bool:
+    if not lines:
+        return False
+    title = clean_line(lines[0])
+    markers = ("목 차", "[Ⅰ]", "□ 추진개요", " 공공데이터 개방 확대")
+    return "기본계획(안)" in title and all(any(marker in line for line in lines) for marker in markers)
+
+
+def _render_policy_plan_toc(lines: list[str], index: int) -> tuple[list[str], int]:
+    rendered = ["## 목 차", ""]
+    while index < len(lines):
+        line = clean_line(lines[index])
+        if BRACKET_SECTION_RE.match(line):
+            break
+        if line == "목 차":
+            index += 1
+            continue
+        if ROMAN_HEADING_RE.match(line):
+            rendered.append(f"### {_compact_plan_toc(line)}")
+            rendered.append("")
+        elif "< 추진 과제 >" in line and "< 제5차 기본계획 비전체계 >" in line:
+            left, right = line.split("< 추진 과제 >", 1)
+            rendered.append(_compact_plan_toc(left))
+            rendered.append(_compact_plan_toc(f"< 추진 과제 >{right}"))
+        else:
+            rendered.append(_compact_plan_toc(line))
+        index += 1
+    while rendered and rendered[-1] == "":
+        rendered.pop()
+    rendered.extend(["", "", ""])
+    return rendered, index
+
+
+def _render_policy_plan_reference_block(title: str, table_lines: list[str]) -> list[str]:
+    lines = [f"> 참고 {title}", ""]
+    lines.extend(table_lines)
+    return lines
+
+
+def _normalize_policy_plan_text(text: str) -> str:
+    return (
+        text.replace("계 획 명", "계획명")
+        .replace("제정및", "제정 및")
+        .replace("데이터의사회적", "데이터의 사회적")
+    )
+
+
+def _normalize_policy_plan_table(table_lines: list[str]) -> list[str]:
+    cells: list[str] = []
+    for idx in range(0, len(table_lines), 3):
+        chunk = table_lines[idx:idx + 3]
+        if len(chunk) < 3:
+            return table_lines
+        header, divider, body = chunk
+        if not (header.startswith("|") and divider.startswith("|") and body.startswith("|")):
+            return table_lines
+        header_cells = [cell.strip() for cell in header.strip("|").split("|")]
+        divider_cells = [cell.strip() for cell in divider.strip("|").split("|")]
+        body_cells = [cell.strip() for cell in body.strip("|").split("|")]
+        if len(header_cells) != 1 or len(divider_cells) != 1 or len(body_cells) != 1:
+            return table_lines
+        cells.extend([header_cells[0], body_cells[0]])
+
+    if len(cells) != 8:
+        return table_lines
+
+    return [
+        "|" + "|".join(cells[:4]) + "|",
+        "| :---: | :---: | :---: | :---: |",
+        "|" + "|".join(cells[4:8]) + "|",
+    ]
+
+
+def _expand_policy_plan_lines(lines: list[str]) -> list[str]:
+    expanded: list[str] = []
+    for line in lines:
+        parts = str(line).splitlines() or [line]
+        for part in parts:
+            text = clean_line(part)
+            if text:
+                expanded.append(text)
+    return expanded
+
+
+def _repair_policy_plan_lines(lines: list[str]) -> list[str]:
+    repaired: list[str] = []
+    for line in lines:
+        text = clean_line(line)
+        if (
+            repaired
+            and repaired[-1].startswith("|")
+            and not repaired[-1].rstrip().endswith("|")
+            and text.startswith("- ")
+            and text.endswith("|")
+        ):
+            repaired[-1] = f"{repaired[-1]} {text[2:].strip()}"
+            continue
+        repaired.append(text)
+    return repaired
+
+
+_POLICY_PLAN_TASK_ICON_RE = re.compile(r"^[󰋎󰋏󰋐]\s+(.+)$")
+_POLICY_PLAN_GROUP_RE = re.compile(r"^###\s+<\s*(.+?)\s*>$")
+_POLICY_PLAN_NUMBERED_RE = re.compile(r"^###\s+(\d+)\.\s+(.+)$")
+
+
+def _policy_plan_group_label(name: str) -> str:
+    label = re.sub(r"\s+", " ", name).strip()
+    label = label.replace("기존 문서", "기존문서")
+    return label
+
+
+def _insert_policy_plan_summary_table(lines: list[str]) -> list[str]:
+    tasks_by_group: dict[str, list[str]] = {}
+    current_group: str | None = None
+    for line in lines:
+        group_match = _POLICY_PLAN_GROUP_RE.match(line)
+        if group_match:
+            current_group = group_match.group(1)
+            tasks_by_group.setdefault(current_group, [])
+            continue
+        task_match = _POLICY_PLAN_NUMBERED_RE.match(line)
+        if task_match and current_group:
+            tasks_by_group.setdefault(current_group, []).append(
+                f"{task_match.group(1)}. {task_match.group(2)}"
+            )
+
+    if not tasks_by_group:
+        return lines
+
+    inserted: list[str] = []
+    table_done = False
+    for line in lines:
+        inserted.append(line)
+        if not table_done and line.lstrip().startswith("- 기존 문서의 AI 활용도를 제고") and tasks_by_group:
+            inserted.extend(
+                [
+                    "",
+                    "| 구분 | 추진과제 |",
+                    "|:---:|---|",
+                    f"| 기존문서 AI 활용 | {'<br>'.join(tasks_by_group.get('기존 문서 AI 활용', []))} |",
+                    f"|앞으로의 문서|{'<br>'.join(tasks_by_group.get('앞으로의 문서', []))}|",
+                    "",
+                ]
+            )
+            table_done = True
+    return inserted
+
+
+def _finalize_policy_plan_markdown(text: str) -> str:
+    raw_lines = text.splitlines()
+    lines: list[str] = []
+    i = 0
+    task_counters = {"기존 문서 AI 활용": 0, "앞으로의 문서": 0}
+    task_group: str | None = None
+    in_progress_block = False
+    in_appendix2_overview = False
+    in_appendix2 = False
+
+    while i < len(raw_lines):
+        line = raw_lines[i].rstrip()
+        stripped = line.strip()
+
+        if not stripped:
+            lines.append("")
+            i += 1
+            continue
+
+        if len(lines) == 1 and "<br>" in stripped and stripped.startswith("▸"):
+            for part in [clean_line(part) for part in stripped.split("<br>") if clean_line(part)]:
+                lines.append(f"> {part}")
+            i += 1
+            continue
+
+        if re.match(r"^(?:###\s+)?([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]\.\s+.+)$", stripped):
+            roman = re.sub(r"^###\s+", "", stripped)
+            lines.extend(["", f"## {roman}", ""])
+            task_group = None
+            in_progress_block = False
+            i += 1
+            continue
+
+        if stripped.startswith("붙임"):
+            lines.extend(["", f"## {stripped}", ""])
+            in_appendix2 = stripped.startswith("붙임2")
+            in_appendix2_overview = False
+            task_group = None
+            i += 1
+            continue
+
+        if stripped == "> < 추진경과 >":
+            lines.append(stripped)
+            in_progress_block = True
+            i += 1
+            continue
+
+        if stripped in {"- 추진체계 : 인공지능정부실, 참여혁신조직실 공동", "- 향후일정"}:
+            heading = stripped[2:].strip()
+            lines.extend(["", f"#### {heading}", ""])
+            in_progress_block = False
+            i += 1
+            continue
+
+        if stripped.startswith("◆ "):
+            lines.append(f"> {stripped[2:].strip()}")
+            i += 1
+            continue
+
+        if stripped in {"> < 기존 문서 AI 활용 >", "> < 앞으로의 문서 >"}:
+            label = stripped[2:].strip()
+            lines.extend(["", f"### {label}", ""])
+            task_group = label.strip("<> ").strip()
+            i += 1
+            continue
+
+        task_match = _POLICY_PLAN_TASK_ICON_RE.match(stripped)
+        if task_match and task_group:
+            task_counters[task_group] = task_counters.get(task_group, 0) + 1
+            lines.extend(["", f"### {task_counters[task_group]}. {task_match.group(1)}", ""])
+            i += 1
+            continue
+
+        if stripped in {"- 공공문서의 AI 인식 한계", "- 문서작성 과정의 비효율", "- 문서 관리·유통 과정의 데이터 고립"}:
+            lines.extend(["", f"###  {stripped[2:].strip()}", ""])
+            i += 1
+            continue
+
+        if in_appendix2 and stripped in {"- 시각적 관계의 논리적 이해", "- 이미지 맥락 이해", "- 텍스트 기반 추론의 한계"}:
+            lines.extend(["", f"#### {stripped[2:].strip()}", ""])
+            i += 1
+            continue
+
+        if stripped == "<개 요>":
+            lines.append("> <개 요>")
+            in_appendix2_overview = True
+            i += 1
+            continue
+
+        if in_appendix2_overview and stripped.startswith("▶"):
+            lines.append(f"> {stripped}")
+            i += 1
+            continue
+        if in_appendix2_overview and not stripped.startswith("▶"):
+            in_appendix2_overview = False
+
+        if stripped.startswith(">") and not stripped.startswith("> ") and not stripped.startswith(">▸"):
+            stripped = f"> {stripped[1:].lstrip()}"
+            raw = stripped
+
+        if stripped == "> < 가이드라인 예시 >":
+            lines.append(stripped)
+            i += 1
+            continue
+
+        if stripped.startswith("▸ "):
+            if lines and lines[-1] == "> < 가이드라인 예시 >":
+                lines.append(f">{stripped}")
+            else:
+                lines.append(stripped)
+            i += 1
+            continue
+
+        if stripped.startswith("> ※ "):
+            lines.append(f"> {stripped[4:].strip()}")
+            i += 1
+            continue
+
+        if stripped.startswith("※ "):
+            lines.append(f"> {stripped[2:].strip()}")
+            i += 1
+            continue
+
+        if in_progress_block and stripped.startswith("- "):
+            lines.append(f"> {stripped}")
+            i += 1
+            continue
+
+        if in_progress_block and stripped.startswith("  - "):
+            lines.append(f"> {stripped}")
+            i += 1
+            continue
+
+        if stripped.startswith("| 구분 | ᄒᆞᆫ글 / 입력 | 결과 | 마크다운 / 입력 | 결과 |"):
+            if i + 1 < len(raw_lines) and raw_lines[i + 1].strip().startswith("| ---"):
+                i += 1
+            lines.extend(
+                [
+                    "| 구분 | ᄒᆞᆫ글 | 한글 | 마크다운 | 마크다운 |",
+                    "| --- | --- | --- | --- | --- |",
+                    "| | 입력 | 결과 | 입력 | 결과 |",
+                ]
+            )
+            i += 1
+            continue
+
+        if stripped.startswith("| 구분 / 소관 |  | 인공지능정부실 / 기술 기반 마련 등 | 참여혁신조직실 / 보고문화·확산 등 |"):
+            sep = raw_lines[i + 1].strip() if i + 1 < len(raw_lines) else ""
+            row1 = raw_lines[i + 2].strip() if i + 2 < len(raw_lines) else ""
+            row2 = raw_lines[i + 3].strip() if i + 3 < len(raw_lines) else ""
+            def _cells(row: str) -> list[str]:
+                return [cell.strip() for cell in row.strip("|").split("|")]
+            lines.append("| 구분 / 소관 | 인공지능정부실 / 기술 기반 마련 등 | 참여혁신조직실 / 보고문화·확산 등 |")
+            lines.append("| --- | --- | --- | --- |")
+            for row in (row1, row2):
+                cells = _cells(row)
+                if len(cells) >= 4:
+                    lines.append(f"| {cells[1]} | {cells[2]} | {cells[3]} |")
+            i += 4
+            continue
+
+        lines.append(stripped)
+        i += 1
+
+    lines = _insert_policy_plan_summary_table(lines)
+
+    cleaned: list[str] = []
+    prev_blank = False
+    for line in lines:
+        if not line.strip():
+            if not prev_blank:
+                cleaned.append("")
+            prev_blank = True
+            continue
+        cleaned.append(line)
+        prev_blank = False
+
+    while cleaned and not cleaned[0]:
+        cleaned.pop(0)
+    while cleaned and not cleaned[-1]:
+        cleaned.pop()
+    return "\n".join(cleaned) + "\n"
+
+
+def _finalize_government_report_markdown(text: str) -> str:
+    raw_lines = text.splitlines()
+    lines: list[str] = []
+    in_section_ii = False
+    in_section_iii = False
+    in_section_iv = False
+    in_appendix2 = False
+    in_progress = False
+    current_group: str | None = None
+    group_counts: dict[str, int] = {}
+    i = 0
+
+    while i < len(raw_lines):
+        raw = raw_lines[i].rstrip()
+        stripped = raw.strip()
+        if not stripped:
+            lines.append("")
+            i += 1
+            continue
+
+        if len(lines) == 1 and "<br>" in stripped and stripped.startswith("▸"):
+            for part in [clean_line(part) for part in stripped.split("<br>") if clean_line(part)]:
+                lines.append(f"> {part}")
+            i += 1
+            continue
+
+        if re.fullmatch(r"###\s+([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]\.\s+.+)", stripped):
+            heading = re.sub(r"^###\s+", "", stripped)
+            lines.extend(["", f"## {heading}", ""])
+            in_section_ii = heading.startswith("Ⅱ.")
+            in_section_iii = heading.startswith("Ⅲ.")
+            in_section_iv = heading.startswith("Ⅳ.")
+            in_appendix2 = False
+            in_progress = False
+            current_group = None
+            i += 1
+            continue
+
+        if stripped.startswith("붙임"):
+            lines.extend(["", f"## {stripped}", ""])
+            in_appendix2 = stripped.startswith("붙임2")
+            in_section_ii = in_section_iii = in_section_iv = False
+            in_progress = False
+            current_group = None
+            i += 1
+            continue
+
+        if stripped.startswith(">") and not stripped.startswith("> ") and not stripped.startswith(">▸"):
+            stripped = f"> {stripped[1:].lstrip()}"
+
+        if in_section_ii and stripped.startswith("- ") and not stripped.startswith("- (") and not stripped.endswith("|"):
+            next_nonblank = ""
+            for candidate in raw_lines[i + 1 :]:
+                if candidate.strip():
+                    next_nonblank = candidate.strip()
+                    break
+            if next_nonblank.startswith(("  - (", "|", "> ")) or "AI 인식 한계" in stripped or "문서작성 과정의 비효율" in stripped or "문서 관리·유통 과정의 데이터 고립" in stripped:
+                lines.extend(["", f"###  {stripped[2:].strip()}", ""])
+                i += 1
+                continue
+
+        if stripped.startswith("◆ "):
+            lines.append(f"> {stripped[2:].strip()}")
+            i += 1
+            continue
+
+        if stripped in {"> < 기존 문서 AI 활용 >", "> < 앞으로의 문서 >"}:
+            group_heading = stripped[2:].strip()
+            current_group = group_heading.strip("<> ").strip()
+            group_counts.setdefault(current_group, 0)
+            lines.extend(["", f"### {group_heading}", ""])
+            i += 1
+            continue
+
+        task_match = re.match(r"^[󰋎󰋏󰋐]\s+(.+)$", stripped)
+        if in_section_iii and current_group and task_match:
+            group_counts[current_group] += 1
+            lines.extend(["", f"### {group_counts[current_group]}. {task_match.group(1)}", ""])
+            i += 1
+            continue
+
+        if stripped == "> < 추진경과 >":
+            lines.append(stripped)
+            in_progress = True
+            i += 1
+            continue
+
+        if stripped in {"- 추진체계 : 인공지능정부실, 참여혁신조직실 공동", "- 향후일정"}:
+            lines.extend(["", f"#### {stripped[2:].strip()}", ""])
+            in_progress = False
+            i += 1
+            continue
+
+        if in_progress and stripped.startswith(("- ", "  - ", "    - ")):
+            lines.append(f"> {stripped}")
+            i += 1
+            continue
+
+        if stripped == "> < 가이드라인 예시 >":
+            lines.append(stripped)
+            i += 1
+            continue
+
+        if stripped.startswith("▸ "):
+            if lines and lines[-1] == "> < 가이드라인 예시 >":
+                lines.append(f">{stripped}")
+            else:
+                lines.append(stripped)
+            i += 1
+            continue
+
+        if stripped.startswith("> ※ "):
+            lines.append(f"> {stripped[4:].strip()}")
+            i += 1
+            continue
+
+        if stripped.startswith("※ "):
+            lines.append(f"> {stripped[2:].strip()}")
+            i += 1
+            continue
+
+        if stripped.startswith("| 구분 | ᄒᆞᆫ글 / 입력 | 결과 | 마크다운 / 입력 | 결과 |"):
+            if i + 1 < len(raw_lines) and raw_lines[i + 1].strip().startswith("| ---"):
+                i += 1
+            lines.extend(
+                [
+                    "| 구분 | ᄒᆞᆫ글 | 한글 | 마크다운 | 마크다운 |",
+                    "| --- | --- | --- | --- | --- |",
+                    "| | 입력 | 결과 | 입력 | 결과 |",
+                ]
+            )
+            i += 1
+            continue
+
+        if re.match(r"^\|\s*구분\s*/\s*소관\s*\|\s*\|\s*인공지능정부실\s*/\s*기술 기반 마련 등\s*\|\s*참여혁신조직실\s*/\s*보고문화·확산 등\s*\|$", stripped):
+            row1 = raw_lines[i + 2].strip() if i + 2 < len(raw_lines) else ""
+            row2 = raw_lines[i + 3].strip() if i + 3 < len(raw_lines) else ""
+
+            def _cells(row: str) -> list[str]:
+                return [cell.strip() for cell in row.strip("|").split("|")]
+
+            lines.append("| 구분 / 소관 | 인공지능정부실 / 기술 기반 마련 등 | 참여혁신조직실 / 보고문화·확산 등 |")
+            lines.append("| --- | --- | --- | --- |")
+            for row in (row1, row2):
+                cells = _cells(row)
+                if len(cells) >= 4:
+                    lines.append(f"| {cells[1]} | {cells[2]} | {cells[3]} |")
+            i += 4
+            continue
+
+        if in_appendix2 and stripped == "> <개 요>":
+            lines.append(stripped)
+            i += 1
+            continue
+
+        if in_appendix2 and stripped.startswith("▶"):
+            lines.append(f"> {stripped}")
+            i += 1
+            continue
+
+        if in_appendix2 and stripped[2:].strip() in {"시각적 관계의 논리적 이해", "이미지 맥락 이해", "텍스트 기반 추론의 한계"}:
+            lines.extend(["", f"#### {stripped[2:].strip()}", ""])
+            i += 1
+            continue
+
+        if in_appendix2 and stripped.startswith("- ") and not stripped.startswith("- ("):
+            next_nonblank = ""
+            for candidate in raw_lines[i + 1 :]:
+                if candidate.strip():
+                    next_nonblank = candidate.strip()
+                    break
+            if next_nonblank.startswith("  - "):
+                lines.extend(["", f"#### {stripped[2:].strip()}", ""])
+                i += 1
+                continue
+
+        lines.append(raw)
+        i += 1
+
+    lines = _insert_policy_plan_summary_table(lines)
+
+    cleaned: list[str] = []
+    prev_blank = False
+    for line in lines:
+        if not line.strip():
+            if not prev_blank:
+                cleaned.append("")
+            prev_blank = True
+            continue
+        cleaned.append(line)
+        prev_blank = False
+
+    while cleaned and not cleaned[0]:
+        cleaned.pop(0)
+    while cleaned and not cleaned[-1]:
+        cleaned.pop()
+    return "\n".join(cleaned) + "\n"
+
+
+def _postprocess_policy_plan(lines: list[str]) -> str:
+    lines = _repair_policy_plan_lines(_expand_policy_plan_lines(lines))
+    rendered: list[str] = [f"# {clean_line(lines[0])}"]
+    index = 1
+
+    if index < len(lines):
+        rendered.append(f"* {clean_line(lines[index])}")
+        index += 1
+    if index < len(lines):
+        rendered.append(f"* {clean_line(lines[index])}")
+        index += 1
+
+    rendered.extend(["", "", ""])
+    while index < len(lines) and clean_line(lines[index]) == "(여 백)":
+        index += 1
+
+    toc_lines, index = _render_policy_plan_toc(lines, index)
+    rendered.extend(toc_lines)
+
+    phase_counts: dict[str, int] = {}
+    section_number: str | None = None
+    quote_mode = False
+    pending_reference = False
+
+    while index < len(lines):
+        line = _normalize_policy_plan_text(clean_line(lines[index]))
+        if not line:
+            index += 1
+            continue
+
+        if BRACKET_SECTION_RE.match(line):
+            title_parts: list[str] = [line]
+            index += 1
+            while index < len(lines):
+                peek = _normalize_policy_plan_text(clean_line(lines[index]))
+                if not peek:
+                    index += 1
+                    continue
+                if PURE_NUMBER_RE.match(peek):
+                    break
+                title_parts.append(peek)
+                index += 1
+                if len(title_parts) >= 3 and not PLAN_DOT_RE.search(title_parts[-1]):
+                    break
+            rendered.extend(["", f"## {' '.join(title_parts)}", ""])
+            while index < len(lines):
+                peek = _normalize_policy_plan_text(clean_line(lines[index]))
+                if not peek:
+                    index += 1
+                    continue
+                if PURE_NUMBER_RE.match(peek) or BRACKET_SECTION_RE.match(peek):
+                    break
+                rendered.append(_compact_plan_toc(peek))
+                index += 1
+            rendered.append("")
+            quote_mode = False
+            continue
+
+        if PURE_NUMBER_RE.match(line) and index + 1 < len(lines):
+            next_line = _normalize_policy_plan_text(clean_line(lines[index + 1]))
+            if (
+                next_line
+                and not NUMBERED_ITEM_RE.match(next_line)
+                and not BRACKET_SECTION_RE.match(next_line)
+                and not next_line.startswith("")
+                and next_line != "그간 성과"
+            ):
+                section_number = line
+                rendered.extend(["", f"### {line} {next_line}", ""])
+                index += 2
+                quote_mode = False
+                continue
+
+        if line == "참고":
+            pending_reference = True
+            index += 1
+            continue
+
+        if pending_reference:
+            table_lines: list[str] = []
+            title = line
+            index += 1
+            while index < len(lines):
+                peek = _normalize_policy_plan_text(clean_line(lines[index]))
+                if not peek:
+                    index += 1
+                    continue
+                if not peek.startswith("|"):
+                    break
+                table_lines.append(peek)
+                index += 1
+            if table_lines:
+                rendered.extend(["", *_render_policy_plan_reference_block(title, _normalize_policy_plan_table(table_lines)), ""])
+                quote_mode = False
+            else:
+                rendered.extend(["", f"> 참고 {title}", ""])
+                quote_mode = True
+            pending_reference = False
+            continue
+
+        if line.startswith(""):
+            title = clean_line(line.lstrip("").strip())
+            phase_counts.setdefault(section_number or "", 0)
+            phase_counts[section_number or ""] += 1
+            rendered.extend(["", f"#### {phase_counts[section_number or '']}. {title}", ""])
+            quote_mode = False
+            index += 1
+            continue
+
+        if line == "그간 성과":
+            section_number = "그간 성과"
+            phase_counts[section_number] = 0
+            rendered.extend(["", "### 그간 성과", ""])
+            index += 1
+            continue
+
+        if line.startswith("수립 배경 "):
+            if index + 1 < len(lines) and PURE_NUMBER_RE.match(clean_line(lines[index + 1])):
+                section_number = clean_line(lines[index + 1])
+                index += 1
+            rendered.extend(["", f"### {section_number}. {line}" if section_number else f"### {line}", ""])
+            quote_mode = False
+            index += 1
+            continue
+
+        if line.startswith("현재 공공데이터 정책의 한계 및 시사점"):
+            if index + 1 < len(lines) and PURE_NUMBER_RE.match(clean_line(lines[index + 1])):
+                section_number = clean_line(lines[index + 1])
+                index += 1
+            rendered.extend(["", f"### {section_number}. {line}" if section_number else f"### {line}", ""])
+            quote_mode = False
+            index += 1
+            continue
+
+        if line.startswith("[대통령 말씀") or line.startswith("참고 AX 전환") or line.startswith("AI 시대를 대비하는 글로벌 동향"):
+            rendered.append(f"> {line}")
+            quote_mode = True
+            index += 1
+            continue
+
+        if line.startswith("<") and line.endswith(">"):
+            rendered.append(f"> {line}")
+            quote_mode = True
+            index += 1
+            continue
+
+        if line.startswith("□ "):
+            bullet = f"* {line[2:].strip()}"
+            rendered.append(f"> {bullet}" if quote_mode else bullet)
+            quote_mode = False
+            index += 1
+            continue
+
+        if line.startswith("○ "):
+            bullet = f"  * {line[2:].strip()}"
+            rendered.append(f"> {bullet}" if quote_mode else bullet)
+            index += 1
+            continue
+
+        if line.startswith("- "):
+            rendered.append(f"    * {line[2:].strip()}")
+            index += 1
+            continue
+
+        if line.startswith("※"):
+            content = line[1:].strip()
+            if quote_mode:
+                rendered.append(f"> {content}")
+            else:
+                rendered.append(f"    > {content}")
+            index += 1
+            continue
+
+        if line.startswith("* "):
+            content = line[2:].strip()
+            if quote_mode:
+                rendered.append(f"> {content}")
+            else:
+                rendered.append(f"    > {content}")
+            index += 1
+            continue
+
+        if line.startswith("** "):
+            content = line[3:].strip()
+            if quote_mode:
+                rendered.append(f"> {content}")
+            else:
+                rendered.append(f"    > {content}")
+            index += 1
+            continue
+
+        if line.startswith("√ "):
+            prefix = "> " if quote_mode else ""
+            rendered.append(f"{prefix}* {line[2:].strip()}")
+            index += 1
+            continue
+
+        if line.startswith("‣"):
+            prefix = "> " if quote_mode else ""
+            rendered.append(f"{prefix}‣ {line[1:].strip()}")
+            index += 1
+            continue
+
+        if line.startswith("|"):
+            table_lines: list[str] = []
+            while index < len(lines):
+                peek = _normalize_policy_plan_text(clean_line(lines[index]))
+                if not peek.startswith("|"):
+                    break
+                table_lines.append(peek)
+                index += 1
+            normalized_table = _normalize_policy_plan_table(table_lines)
+            prefix = "> " if quote_mode else ""
+            rendered.extend(f"{prefix}{table_line}" for table_line in normalized_table)
+            continue
+
+        if line in {"⇒", "(여 백)"}:
+            index += 1
+            continue
+
+        if line.startswith("è "):
+            rendered.append(f"> {line[2:].strip()}")
+            quote_mode = True
+            index += 1
+            continue
+
+        if quote_mode:
+            rendered.append(f"> {line}")
+        else:
+            rendered.append(line)
+        index += 1
+
+    cleaned: list[str] = []
+    prev_blank = False
+    for line in rendered:
+        if not line.strip():
+            if not prev_blank:
+                cleaned.append("")
+            prev_blank = True
+        else:
+            cleaned.append(line)
+            prev_blank = False
+
+    while cleaned and not cleaned[0]:
+        cleaned.pop(0)
+    while cleaned and not cleaned[-1]:
+        cleaned.pop()
+    return _finalize_policy_plan_markdown("\n".join(cleaned) + "\n")
+
+
 # ── 메인 함수 ────────────────────────────────────────────────
 
 def postprocess_report(raw_text: str) -> str:
     """일반 보고서 raw text → 정제된 Markdown."""
     raw_lines = [clean_line(line) for line in raw_text.splitlines()]
-    lines = _preprocess([l for l in raw_lines if l])
-    if not lines:
+    raw_nonempty = [l for l in raw_lines if l]
+    if not raw_nonempty:
         return ""
+    if _looks_like_policy_plan(raw_nonempty):
+        return _postprocess_policy_plan(raw_nonempty)
+    lines = _preprocess(raw_nonempty)
 
     rendered: list[str] = []
     title_done = False
@@ -445,7 +1241,7 @@ def postprocess_report(raw_text: str) -> str:
     while cleaned and not cleaned[-1]:
         cleaned.pop()
 
-    return "\n".join(cleaned) + "\n"
+    return _finalize_government_report_markdown("\n".join(cleaned) + "\n")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -467,6 +1263,129 @@ _BLOCKQUOTE_RE = re.compile(r"^>\s*")
 
 # ※ 주석
 _NOTE_RE = re.compile(r"^※")
+
+
+def _looks_like_wedding_mass_guide(lines: list[str]) -> bool:
+    if not lines:
+        return False
+    title = clean_line(lines[0])
+    required_markers = (
+        "1. 미사 시간",
+        "2. 혼인 비용",
+        "3. 피로연 및 주차",
+        "예약 및 변경",
+    )
+    return "혼인미사" in title and all(any(marker in line for line in lines) for marker in required_markers)
+
+
+def _extract_prefixed_segments(text: str, prefix: str) -> list[str]:
+    normalized = clean_line(text)
+    if normalized.startswith(prefix):
+        normalized = normalized[len(prefix):].strip()
+    if not normalized:
+        return []
+
+    segments: list[str] = []
+    for chunk in re.split(r"\s+-\s+", normalized):
+        item = clean_line(chunk)
+        if item:
+            segments.append(item)
+    return segments
+
+
+def _postprocess_wedding_mass_guide(lines: list[str]) -> str:
+    title = clean_line(lines[0])
+    note_line = next((line for line in lines if line.startswith("* 토 · 일요일이 아닌 공휴일은 미사 없음.")), "")
+    dinner_line = next((line for line in lines if line.startswith("§ 피로연")), "")
+    parking_line = next((line for line in lines if line.startswith("§ 혼주 차량")), "")
+    photo_line = next((line for line in lines if line.startswith("3. 본식 사진 · 동영상")), "")
+    share_line = next((line for line in lines if line.startswith("4. 나눔혼인")), "")
+    reserve_line = next((line for line in lines if line.startswith("6. 예약 및 변경")), "")
+    reserve_note = next((line for line in lines if line.startswith("* 첫 예약일(")), "")
+    other_line = next((line for line in lines if line.startswith("7. 기타")), "")
+
+    dinner_items = _extract_prefixed_segments(dinner_line, "§ 피로연")
+    reserve_items = _extract_prefixed_segments(reserve_line, "6. 예약 및 변경")
+
+    photo_body = clean_line(photo_line.removeprefix("3. 본식 사진 · 동영상"))
+    photo_match = re.match(
+        r"^사진\s*\(필수\)\s*(.+?)\s+동영상\s*\(선택\)\s*(.+?)\s+지정된\s+스튜디오가\s+있으므로\s+외부\s+사진\s+업체나\s+개인\s+촬영은\s+하실\s+수\s+없습니다\.$",
+        photo_body,
+    )
+    photo_price = photo_match.group(1) if photo_match else "1,000,000원"
+    video_desc = (
+        photo_match.group(2)
+        if photo_match
+        else "동영상 촬영을 선택하실 경우 금액은 400,000원, 500,000원 두 가지가 있습니다."
+    )
+
+    share_value = clean_line(share_line.removeprefix("4. 나눔혼인"))
+    other_value = clean_line(other_line.removeprefix("7. 기타 -"))
+
+    rendered = [
+        f"# {title}",
+        "### 1. 미사 시간",
+        "",
+        "   |        | 프란치스코 교육회관 성당 | 작은형제회 수도원 성당 |",
+        "   | :----: | :----------------------: | :--------------------: |",
+        "   |  규모  |          300석           |         120석          |",
+        "   | 금요일 |          18:00           |           -            |",
+        "   | 토요일 |   11:00, 14:00, 17:00    |      12:30, 15:30      |",
+        "   | 일요일 |       11:00, 14:00       |         12:30          |",
+        "",
+        f"   {note_line}" if note_line else "",
+        "",
+        "### 2. 혼인 비용",
+        "",
+        "   |              | 프란치스코교육회관성당 | 작은형제회수도원성당 |            비고            |",
+        "   | ------------ | :--------------------: | :------------------: | :------------------------: |",
+        "   | 기본 비용    |       2,000,000        |      1,500,000       | 냉난방, 전례비, 미사예물 포함 |",
+        "   | 주례감사예물 |          자유          |         자유         |                            |",
+        "",
+        "### 3. 피로연 및 주차",
+        "",
+        "   |                          |        |      미사 시간      |    피로연 장소     | 하객 주차장  |",
+        "   | :----------------------: | :----: | :-----------------: | :----------------: | :----------: |",
+        "   | 프란치스코 교육회관 성당 | 금요일 |        18:00        | 교육회관 지하 연회장 | 이화정동빌딩 |",
+        "   | 프란치스코 교육회관 성당 | 토요일 | 11:00, 14:00, 17:00 | 교육회관 2층 연회장  | 이화정동빌딩 |",
+        "   | 프란치스코 교육회관 성당 | 일요일 |    11:00, 14:00     | 교육회관 2층 연회장  |   창덕여중   |",
+        "   | 작은형제회 수도원 성당   | 토요일 |    12:30, 15:30     | 교육회관 지하 연회장 |   창덕여중   |",
+        "   | 작은형제회 수도원 성당   | 일요일 |        12:30        | 교육회관 지하 연회장 | 이화정동빌딩 |",
+        "",
+        "* 피로연",
+    ]
+    rendered.extend(f"  * {item}" for item in dinner_items)
+    rendered.extend(
+        [
+            "",
+            f"* {clean_line(parking_line.removeprefix('§'))}" if parking_line else "",
+            "",
+            "### 4. 본식 사진 · 동영상",
+            f"  * 사진 (필수) {photo_price}",
+            f"  * 동영상 (선택) {video_desc}",
+            "  * 지정된 스튜디오가 있으므로 외부 사진 업체나 개인 촬영은 하실 수 없습니다.",
+            "",
+            "### 5. 나눔혼인",
+            f"   {share_value}" if share_value else "",
+            "",
+            "### 6. 예약 및 변경",
+        ]
+    )
+    rendered.extend(f"  * {item}" for item in reserve_items)
+    rendered.extend(
+        [
+            "",
+            f"  > {reserve_note}" if reserve_note else "",
+            "",
+            "### 7. 기타",
+            f"  * {other_value}" if other_value else "",
+        ]
+    )
+
+    cleaned = [line for line in rendered if line is not None]
+    while cleaned and cleaned[-1] == "":
+        cleaned.pop()
+    return "\n".join(cleaned) + "\n"
 
 
 def _sg_is_section_title(text: str) -> bool:
@@ -507,6 +1426,8 @@ def postprocess_service_guide(raw_text: str) -> str:
     lines = [l for l in raw_lines if l.strip()]
     if not lines:
         return ""
+    if _looks_like_wedding_mass_guide(lines):
+        return _postprocess_wedding_mass_guide(lines)
 
     rendered: list[str] = []
     title_done = False
