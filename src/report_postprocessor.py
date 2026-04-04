@@ -1367,7 +1367,7 @@ def _handle_report_standard_item(
         return True, context
 
     if text.startswith("*") and not text.startswith("**"):
-        indent = _quote_indent_same_as_previous_bullet(rendered)
+        indent = _quote_indent_from_previous_bullet(rendered)
         rendered.append(f"{indent}> {text[1:].lstrip()}")
         return True, context
 
@@ -1423,6 +1423,11 @@ def _handle_report_standard_item(
         return True, "numbered_top"
 
     if BULLET_RE.match(text):
+        if current_section == "ii":
+            last_nonblank = next((line for line in reversed(rendered) if line.strip()), "")
+            if last_nonblank.startswith("|") or context == "circle":
+                rendered.append(f"  {text}")
+                return True, "circle"
         indent = _indent_for(context, "dash")
         rendered.append(f"{indent}{text}")
         return True, context
