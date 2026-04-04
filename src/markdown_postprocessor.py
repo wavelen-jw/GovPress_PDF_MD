@@ -954,6 +954,12 @@ def _normalize_generic_line(text: str) -> list[str]:
     if text.startswith("* "):
         return [f"- {text[2:].strip()}"]
 
+    if text.startswith("○ ") or text.startswith("○\t"):
+        return [f"- {text[2:].strip()}"]
+
+    if text.startswith("□ "):
+        return [f"## {text[2:].strip()}", ""]
+
     if text.startswith("- ㅇ "):
         return [f"- {text[4:].strip()}"]
 
@@ -1081,14 +1087,20 @@ def _post_clean(lines: list[str]) -> list[str]:
             cleaned[-1] = f"{cleaned[-1].rstrip()} {text}"
             previous_blank = False
             continue
+        _stripped_text = text.lstrip()
+        _first_ch = _stripped_text[0] if _stripped_text else ""
+        _text_is_structural = (
+            _first_ch in _STRUCTURAL_STARTS
+            or "\ue000" <= _first_ch <= "\uf8ff"  # Unicode PUA (한컴 특수 불릿 포함)
+            or HTML_TABLE_TAG_PATTERN.match(_stripped_text)
+        )
         if (
             cleaned
             and cleaned[-1]
             and cleaned[-1].lstrip().startswith("-")
-            and not text.lstrip().startswith(("#", "-", ">", "---", "|"))
-            and not HTML_TABLE_TAG_PATTERN.match(text.lstrip())
+            and not _text_is_structural
         ):
-            if text.lstrip().startswith("△"):
+            if _stripped_text.startswith("△"):
                 cleaned.append("")
             else:
                 cleaned[-1] = f"{cleaned[-1].rstrip()} {text}"

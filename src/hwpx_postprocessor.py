@@ -444,6 +444,28 @@ def _render_comparison_tables(lines: list[str]) -> list[str]:
     return rendered
 
 
+# HWPX 섹션 헤더 표 패턴: | I |  | 추진배경 | 또는 | 붙임1 |  | 제목 |
+_SECTION_HEADER_RE = re.compile(
+    r"^\|\s*(I{1,3}|IV|VI{0,3}|IX|X{1,3}|붙임\s*\d+|별첨\s*\d+|참고\s*\d+)\s*\|\s*\|\s*(.{2,60}?)\s*\|\s*$"
+)
+
+
+def _convert_section_header_tables(lines: list[str]) -> list[str]:
+    """| I |  | 추진배경 | 패턴의 레이아웃 표를 ## 제목으로 변환."""
+    result: list[str] = []
+    for line in lines:
+        # 멀티라인 문자열(표 + 구분선)의 첫 줄만 검사
+        first_line = line.split("\n")[0].strip()
+        m = _SECTION_HEADER_RE.match(first_line)
+        if m:
+            section = m.group(1).strip()
+            title = m.group(2).strip()
+            result.append(f"## {section}. {title}")
+        else:
+            result.append(line)
+    return result
+
+
 def postprocess_hwpx(paragraphs: list[HwpxParagraph]) -> str:
     if not paragraphs:
         return ""
@@ -453,4 +475,5 @@ def postprocess_hwpx(paragraphs: list[HwpxParagraph]) -> str:
     lines = _merge_contact_lines(lines)
     lines = _dedupe_structural_lines(lines)
     lines = _render_comparison_tables(lines)
+    lines = _convert_section_header_tables(lines)
     return postprocess_markdown("\n".join(line for line in lines if line is not None))
