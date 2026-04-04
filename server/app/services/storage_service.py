@@ -17,12 +17,12 @@ class StorageService:
         for directory in (self.originals_dir, self.results_dir, self.edits_dir):
             directory.mkdir(parents=True, exist_ok=True)
 
-    def save_original_file(self, job_id: str, file_name: str, content: bytes) -> Path:
+    def save_original_pdf(self, job_id: str, file_name: str, content: bytes) -> Path:
         path = self.originals_dir / f"{job_id}-{file_name}"
         path.write_bytes(content)
         return path
 
-    async def save_original_file_stream(
+    async def save_original_pdf_stream(
         self,
         job_id: str,
         file_name: str,
