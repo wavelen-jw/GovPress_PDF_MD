@@ -1201,16 +1201,19 @@ def _postprocess_press_release(
 def _normalize_heading_spacing(markdown: str) -> str:
     lines = markdown.splitlines()
     normalized: list[str] = []
+    index = 0
 
     def trim_trailing_blanks() -> None:
         while normalized and normalized[-1] == "":
             normalized.pop()
 
-    for raw_line in lines:
+    while index < len(lines):
+        raw_line = lines[index]
         stripped = raw_line.strip()
         heading_match = re.match(r"^(#{1,5})\s+.+$", stripped)
         if not heading_match:
             normalized.append(raw_line)
+            index += 1
             continue
 
         level = len(heading_match.group(1))
@@ -1219,6 +1222,9 @@ def _normalize_heading_spacing(markdown: str) -> str:
             normalized.append("")
         normalized.append(stripped)
         normalized.append("")
+        index += 1
+        while index < len(lines) and not lines[index].strip():
+            index += 1
 
     while normalized and normalized[0] == "":
         normalized.pop(0)
