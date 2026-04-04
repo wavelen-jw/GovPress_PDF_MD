@@ -1203,7 +1203,8 @@ def postprocess_report(raw_text: str) -> str:
         # ── ○ 불릿 (□ 하위 항목) ──────────────────────────────
         if text.startswith(CIRCLE_OPEN):
             content = text[1:].strip()
-            rendered.append(f"  - {content}")
+            rendered.append(f"- {content}")
+            context = "circle"
             continue
 
         # ── √ / ‣ / ⦁ 불릿 ────────────────────────────────────
