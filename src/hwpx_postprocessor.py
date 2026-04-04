@@ -443,11 +443,129 @@ def _render_comparison_tables(lines: list[str]) -> list[str]:
     return rendered
 
 
+def _parse_markdown_table_block(text: str) -> list[list[str]] | None:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) < 2:
+        return None
+    if not all(line.startswith("|") and line.endswith("|") for line in lines):
+        return None
+
+    rows: list[list[str]] = []
+    for line in lines:
+        if set(line.replace("|", "").replace(":", "").replace("-", "").replace(" ", "")) == set():
+            continue
+        rows.append([cell.strip() for cell in line.strip("|").split("|")])
+    return rows or None
+
+
+def _parse_text_table_block(text: str) -> tuple[list[str], list[str]] | None:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) < 3 or lines[0] != "[표]":
+        return None
+    header_line = next((line for line in lines[1:] if line.startswith("- 열:")), "")
+    row_line = next((line for line in lines[1:] if line.startswith("- 행 ")), "")
+    if not header_line or not row_line:
+        return None
+
+    header_cells = [cell.strip() for cell in header_line.removeprefix("- 열:").split("|")]
+    row_cells = [cell.strip() for cell in row_line.split(":", 1)[1].split("|")]
+    header_cells = [cell for cell in header_cells if cell]
+    row_cells = [cell for cell in row_cells if cell]
+    if not header_cells or not row_cells:
+        return None
+    return header_cells, row_cells
+
+
+def _normalize_section_token(token: str) -> str:
+    mapping = {
+        "I": "Ⅰ",
+        "II": "Ⅱ",
+        "III": "Ⅲ",
+        "IV": "Ⅳ",
+        "V": "Ⅴ",
+        "VI": "Ⅵ",
+        "VII": "Ⅶ",
+        "VIII": "Ⅷ",
+        "IX": "Ⅸ",
+        "X": "Ⅹ",
+    }
+    stripped = re.sub(r"\s+", "", token).upper()
+    return mapping.get(stripped, token.strip())
+
+
+def _flatten_structural_table(text: str) -> list[str] | None:
+    text_table = _parse_text_table_block(text)
+    if text_table is not None:
+        header_cells, row_cells = text_table
+        if len(header_cells) == 1 and ("참고" in header_cells[0] or "예시" in header_cells[0]):
+            flattened = [header_cells[0]]
+            payload = "<br>".join(row_cells)
+            flattened.extend(part.strip() for part in payload.split("<br>") if part.strip())
+            return flattened
+
+    rows = _parse_markdown_table_block(text)
+    if not rows:
+        return None
+
+    nonempty_rows = [[cell for cell in row if cell.strip()] for row in rows]
+    nonempty_rows = [row for row in nonempty_rows if row]
+    if not nonempty_rows:
+        return []
+
+    # Press-release stamp box.
+    if len(nonempty_rows) == 1 and len(nonempty_rows[0]) == 1 and nonempty_rows[0][0] == "보도자료":
+        return ["보도자료"]
+
+    # Metadata box.
+    if all(len(row) == 2 and row[0] == "보도시점" for row in nonempty_rows):
+        flattened = ["보도시점"]
+        flattened.extend(row[1] for row in nonempty_rows if row[1].strip())
+        return flattened
+
+    # Single-column title/subtitle box.
+    if all(len(row) == 1 for row in nonempty_rows):
+        return [row[0] for row in nonempty_rows]
+
+    # Section caption box such as `| I | | 추진배경 |`.
+    if len(nonempty_rows) == 1 and len(nonempty_rows[0]) == 2:
+        left, right = nonempty_rows[0]
+        if re.fullmatch(r"(?:[IVX]+|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]|붙임\d+)", left):
+            left = _normalize_section_token(left)
+            return [f"{left}. {right}" if not left.startswith("붙임") else f"{left} {right}"]
+
+    # Contact grid used in press releases.
+    if any("담당 부서" in row for row in rows) and any("책임자" in row or "담당자" in row for row in rows):
+        flattened: list[str] = []
+        for row in rows:
+            for cell in row:
+                if cell.strip():
+                    flattened.append(cell.strip())
+        return flattened
+
+    # Drop empty artifact tables.
+    if all(not "".join(row).strip() for row in rows):
+        return []
+
+    return None
+
+
+def _flatten_structural_tables(lines: list[str]) -> list[str]:
+    flattened: list[str] = []
+    for text in lines:
+        table_lines = _flatten_structural_table(text.strip())
+        if table_lines is None:
+            flattened.append(text)
+            continue
+        flattened.extend(table_lines)
+    return flattened
+
+
 def postprocess_hwpx(paragraphs: list[HwpxParagraph]) -> str:
     if not paragraphs:
         return ""
 
     lines = [para.text for para in _clean_paragraphs(paragraphs)]
+    lines = _flatten_structural_tables(lines)
     lines = _normalize_preamble_lines(lines)
     lines = _merge_contact_lines(lines)
     lines = _dedupe_structural_lines(lines)
