@@ -18,6 +18,10 @@ def utcnow() -> datetime:
 class JobResult:
     markdown: str | None = None
     html_preview: str | None = None
+    markdown_text: str | None = None
+    markdown_html: str | None = None
+    html_preview_text: str | None = None
+    html_preview_html: str | None = None
     title: str | None = None
     department: str | None = None
     edited_markdown: str | None = None
@@ -26,7 +30,7 @@ class JobResult:
 
 @dataclass
 class JobArtifacts:
-    original_file_path: Path
+    original_pdf_path: Path
     final_markdown_path: Path | None = None
     edited_markdown_path: Path | None = None
 

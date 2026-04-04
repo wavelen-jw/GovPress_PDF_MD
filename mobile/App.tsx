@@ -25,7 +25,7 @@ import { DEFAULT_CONFIG } from "./src/constants";
 import { fetchJob, fetchResult, retryJob, saveResult, uploadPdf } from "./src/services/api";
 import { clearDraft, loadConfig, loadDraft, persistConfig, persistDraft } from "./src/storage/config";
 import { styles } from "./src/styles";
-import type { AppConfig, HwpxTableMode, Job, ResultPayload } from "./src/types";
+import type { AppConfig, HwpxTableMode, Job, ResultPayload, ResultVariant } from "./src/types";
 
 type EditorSelection = {
   start: number;
@@ -65,7 +65,7 @@ export default function App(): React.JSX.Element {
   const [result, setResult] = useState<ResultPayload | null>(null);
   const [editorText, setEditorText] = useState("");
   const deferredEditorText = useDeferredValue(editorText);
-  const [activeTab, setActiveTab] = useState<"preview" | "markdown" | "diff">("preview");
+  const [activeTab, setActiveTab] = useState<"preview" | "markdown">("preview");
   const [editorSelection, setEditorSelection] = useState<EditorSelection>({ start: 0, end: 0 });
   const [editorFocusToken, setEditorFocusToken] = useState(0);
   const [loadingConfig, setLoadingConfig] = useState(true);
@@ -78,15 +78,24 @@ export default function App(): React.JSX.Element {
   const [infoVisible, setInfoVisible] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [hwpxTableMode, setHwpxTableMode] = useState<HwpxTableMode>("text");
+  const [selectedTableMode, setSelectedTableMode] = useState<HwpxTableMode>("text");
   const [draftHydratedJobId, setDraftHydratedJobId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const selectedResultText = useMemo(() => {
+  const selectedVariant = useMemo<ResultVariant>(() => {
     if (!result) {
+      return { markdown: null, html_preview: null };
+    }
+    return result.table_variants?.[selectedTableMode] || { markdown: result.markdown, html_preview: result.html_preview };
+  }, [result, selectedTableMode]);
+  const selectedResultText = useMemo(() => {
+    if (!selectedVariant.markdown) {
       return "";
     }
-    return editing ? deferredEditorText : result.markdown || "";
-  }, [deferredEditorText, editing, result]);
-  const hasUnsavedChanges = editing && editorText !== (result?.markdown || "");
+    return editing ? deferredEditorText : selectedVariant.markdown;
+  }, [deferredEditorText, editing, selectedVariant.markdown]);
+  const hasUnsavedChanges = editing && editorText !== (selectedVariant.markdown || "");
+  const htmlVariantReady = !!result?.table_variants?.html?.markdown;
+  const needsHtmlVariant = !!selectedJob && selectedJob.file_name.toLowerCase().endsWith(".hwpx") && !htmlVariantReady;
   const sectionHeadings = useMemo(() => extractSectionHeadings(editorText), [editorText]);
   function showError(title: string, error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);
@@ -189,6 +198,16 @@ export default function App(): React.JSX.Element {
   }, [selectedJobId, currentEditToken]);
 
   useEffect(() => {
+    if (!selectedJobId || !currentEditToken || selectedJobId.startsWith("local-md-") || !needsHtmlVariant) {
+      return;
+    }
+    const handle = setInterval(() => {
+      void refreshSelectedJob(selectedJobId, currentEditToken, true);
+    }, 2500);
+    return () => clearInterval(handle);
+  }, [selectedJobId, currentEditToken, needsHtmlVariant]);
+
+  useEffect(() => {
     if (!selectedJobId || !currentEditToken || selectedJobId.startsWith("local-md-") || !selectedJob) {
       return;
     }
@@ -242,14 +261,21 @@ export default function App(): React.JSX.Element {
     }
     loadDraft(selectedJobId)
       .then((draft) => {
-        if (draft && draft !== result.markdown) {
+        if (draft && draft !== selectedVariant.markdown) {
           setEditorText(draft);
           setEditing(true);
           setNotice("임시 저장된 편집본을 복원했습니다.");
         }
       })
       .finally(() => setDraftHydratedJobId(selectedJobId));
-  }, [draftHydratedJobId, result, selectedJobId]);
+  }, [draftHydratedJobId, result, selectedJobId, selectedVariant.markdown]);
+
+  useEffect(() => {
+    if (!result || editing) {
+      return;
+    }
+    setEditorText(selectedVariant.markdown || "");
+  }, [editing, result, selectedVariant.markdown]);
 
   async function refreshSelectedJob(jobId: string, editToken: string, syncResult = true): Promise<void> {
     try {
@@ -265,6 +291,9 @@ export default function App(): React.JSX.Element {
         const resultPayload = await fetchResult(config, jobId, editToken);
         startTransition(() => {
           setResult(resultPayload);
+          if (result?.job_id !== payload.job_id) {
+            setSelectedTableMode("text");
+          }
           setEditorText(resultPayload.markdown || "");
           setEditorSelection({ start: 0, end: 0 });
           setEditorFocusToken((current) => current + 1);
@@ -305,6 +334,10 @@ export default function App(): React.JSX.Element {
       status: "completed",
       markdown,
       html_preview: null,
+      table_variants: {
+        text: { markdown, html_preview: null },
+        html: { markdown, html_preview: null },
+      },
       meta: {
         title: asset.name.replace(/\.md$/i, ""),
         department: null,
@@ -316,6 +349,7 @@ export default function App(): React.JSX.Element {
       setCurrentEditToken(null);
       setSelectedJob(localJob);
       setResult(localResult);
+      setSelectedTableMode("text");
       setEditorText(markdown);
       setEditorSelection({ start: 0, end: 0 });
       setEditing(false);
@@ -358,6 +392,7 @@ export default function App(): React.JSX.Element {
         setCurrentEditToken(job.edit_token);
         setSelectedJob(job);
         setResult(null);
+        setSelectedTableMode("text");
         setEditorText("");
         setEditorSelection({ start: 0, end: 0 });
         setEditorFocusToken((current) => current + 1);
@@ -400,7 +435,18 @@ export default function App(): React.JSX.Element {
     }
     if (selectedJobId.startsWith("local-md-")) {
       const nextMarkdown = editorText;
-      setResult((current) => (current ? { ...current, markdown: nextMarkdown } : current));
+      setResult((current) => (
+        current
+          ? {
+              ...current,
+              markdown: nextMarkdown,
+              table_variants: {
+                text: { markdown: nextMarkdown, html_preview: current.table_variants.text.html_preview },
+                html: { markdown: nextMarkdown, html_preview: current.table_variants.html.html_preview },
+              },
+            }
+          : current
+      ));
       setEditing(false);
       setNotice("편집 내용을 적용했습니다. 필요하면 MD 저장으로 내려받으세요.");
       return;
@@ -421,7 +467,7 @@ export default function App(): React.JSX.Element {
       setNotice("수정본을 저장했습니다.");
       startTransition(() => {
         setResult(updated);
-        setEditorText(updated.markdown || "");
+        setEditorText(updated.table_variants?.[selectedTableMode]?.markdown || updated.markdown || "");
         setEditorSelection({ start: 0, end: 0 });
         setEditorFocusToken((current) => current + 1);
         setEditing(false);
@@ -434,7 +480,7 @@ export default function App(): React.JSX.Element {
   }
 
   function handleDiscardEdit(): void {
-    setEditorText(result?.markdown || "");
+    setEditorText(selectedVariant.markdown || "");
     setEditorSelection({ start: 0, end: 0 });
     setEditorFocusToken((current) => current + 1);
     if (selectedJobId) {
@@ -568,21 +614,22 @@ export default function App(): React.JSX.Element {
   }
 
   async function handleShareMarkdown(): Promise<void> {
-    if (!result?.markdown || !selectedJob) {
+    if (!selectedVariant.markdown || !selectedJob) {
       return;
     }
     try {
-      const shareBody = `# ${result.meta.title || selectedJob.file_name}\n\n${result.markdown}`;
+      const documentTitle = result?.meta.title || selectedJob.file_name;
+      const shareBody = `# ${documentTitle}\n\n${selectedVariant.markdown}`;
       if (Platform.OS === "web" && navigator.share) {
         await navigator.share({
-          title: result.meta.title || selectedJob.file_name,
+          title: documentTitle,
           text: shareBody,
         });
         return;
       }
       if (Platform.OS !== "web") {
         await Share.share({
-          title: result.meta.title || selectedJob.file_name,
+          title: documentTitle,
           message: shareBody,
         });
         return;
@@ -606,11 +653,11 @@ export default function App(): React.JSX.Element {
   }
 
   async function handleSaveMarkdownFile(): Promise<void> {
-    if ((!editorText && !result?.markdown) || !selectedJob) {
+    if ((!editorText && !selectedVariant.markdown) || !selectedJob) {
       setNotice("저장할 Markdown이 없습니다.");
       return;
     }
-    const content = editorText || result?.markdown || "";
+    const content = editorText || selectedVariant.markdown || "";
     const outputName = selectedJob.file_name.replace(/\.(pdf|hwpx)$/i, ".md");
 
     try {
@@ -642,10 +689,10 @@ export default function App(): React.JSX.Element {
   }
 
   async function handleCopyMarkdown(): Promise<void> {
-    if (!result?.markdown || !selectedJob) {
+    if (!selectedVariant.markdown || !selectedJob) {
       return;
     }
-    const shareBody = `# ${result.meta.title || selectedJob.file_name}\n\n${result.markdown}`;
+    const shareBody = `# ${result?.meta.title || selectedJob.file_name}\n\n${selectedVariant.markdown}`;
     if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.clipboard) {
       await navigator.clipboard.writeText(shareBody);
       setNotice("Markdown를 클립보드에 복사했습니다.");
@@ -730,14 +777,22 @@ export default function App(): React.JSX.Element {
             isDarkMode={isDarkMode}
             isPdfPickReady={isPdfPickReady}
             hwpxTableMode={hwpxTableMode}
+            selectedTableMode={selectedTableMode}
+            htmlVariantReady={htmlVariantReady}
             editing={editing}
-            activeTab={activeTab}
-            onChangeTab={setActiveTab}
             onCopyMarkdown={() => void handleCopyMarkdown()}
             onDiscardEdit={handleDiscardEdit}
             onOpenInfo={handleOpenInfo}
             onPickPdf={() => void handlePickPdf()}
             onChangeHwpxTableMode={setHwpxTableMode}
+            onChangeSelectedTableMode={(mode) => {
+              if (editing && hasUnsavedChanges) {
+                setNotice("표 버전을 바꾸려면 먼저 저장하거나 되돌리세요.");
+                return;
+              }
+              setHwpxTableMode(mode);
+              setSelectedTableMode(mode);
+            }}
             onSaveEdit={() => void handleSaveEdit()}
             onSaveMarkdownFile={() => void handleSaveMarkdownFile()}
             onShareMarkdown={() => void handleShareMarkdown()}

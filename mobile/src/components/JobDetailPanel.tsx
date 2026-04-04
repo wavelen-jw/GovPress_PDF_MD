@@ -3,12 +3,11 @@ import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 
 
 import { styles } from "../styles";
 import type { Job, ResultPayload } from "../types";
-import { DiffPreview } from "./DiffPreview";
 import { EmptyDetailState } from "./EmptyDetailState";
 import { MarkdownPreview, parseMarkdownBlockRanges } from "./MarkdownPreview";
 
 type Props = {
-  activeTab: "preview" | "markdown" | "diff";
+  activeTab: "preview" | "markdown";
   editorSelection: { start: number; end: number };
   editorFocusToken: number;
   hasUnsavedChanges: boolean;
@@ -27,7 +26,7 @@ type Props = {
   onBack: () => void;
   onChangeEditorText: (value: string) => void;
   onChangeSelection: (selection: { start: number; end: number }) => void;
-  onChangeTab: (value: "preview" | "markdown" | "diff") => void;
+  onChangeTab: (value: "preview" | "markdown") => void;
   onDiscardEdit: () => void;
   onDeleteJob: () => void;
   onCopyMarkdown: () => void;
@@ -233,7 +232,7 @@ export function JobDetailPanel({
                       </View>
                     </View>
                     <View style={[styles.previewPanel, styles.previewPanelDesktop, styles.previewPanelSplit, isDarkMode && styles.previewPanelDark]}>
-                      <Text style={[styles.previewLabel, isDarkMode && styles.previewLabelDark]}>{activeTab === "diff" ? "차이 보기" : "미리보기"}</Text>
+                      <Text style={[styles.previewLabel, isDarkMode && styles.previewLabelDark]}>미리보기</Text>
                       <View style={styles.splitPanelBody}>
                         <ScrollView
                           ref={previewScrollRef}
@@ -247,16 +246,12 @@ export function JobDetailPanel({
                           }}
                           scrollEventThrottle={16}
                         >
-                          {activeTab === "diff" ? (
-                            <DiffPreview original={result.markdown || ""} edited={editorText} isDarkMode={isDarkMode} />
-                          ) : (
-                            <MarkdownPreview
-                              markdown={editorText}
-                              isDarkMode={isDarkMode}
-                              activeBlockIndex={activePreviewBlockIndex}
-                              onBlockLayout={handlePreviewBlockLayout}
-                            />
-                          )}
+                          <MarkdownPreview
+                            markdown={editing ? editorText : selectedResultText}
+                            isDarkMode={isDarkMode}
+                            activeBlockIndex={activePreviewBlockIndex}
+                            onBlockLayout={handlePreviewBlockLayout}
+                          />
                         </ScrollView>
                       </View>
                     </View>

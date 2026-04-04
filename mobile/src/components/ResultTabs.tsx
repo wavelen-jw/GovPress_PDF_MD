@@ -8,9 +8,9 @@ export function ResultTabs({
   value,
   onChange,
 }: {
-  tabs: Array<{ key: "preview" | "markdown" | "diff"; label: string }>;
-  value: "preview" | "markdown" | "diff";
-  onChange: (next: "preview" | "markdown" | "diff") => void;
+  tabs: Array<{ key: "preview" | "markdown"; label: string }>;
+  value: "preview" | "markdown";
+  onChange: (next: "preview" | "markdown") => void;
 }) {
   return (
     <View style={styles.tabRow}>

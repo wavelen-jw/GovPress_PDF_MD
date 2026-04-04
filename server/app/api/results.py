@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..core.security import require_edit_token
-from ..schemas.results import ResultMeta, ResultResponse, ResultUpdateRequest, ResultUpdateResponse
+from ..schemas.results import ResultMeta, ResultResponse, ResultTableVariants, ResultUpdateRequest, ResultUpdateResponse, ResultVariant
 
 
 def build_router(result_service, verify_api_key) -> APIRouter:
@@ -23,6 +23,16 @@ def build_router(result_service, verify_api_key) -> APIRouter:
             status=record.status,
             markdown=record.result.edited_markdown or record.result.markdown,
             html_preview=record.result.html_preview,
+            table_variants=ResultTableVariants(
+                text=ResultVariant(
+                    markdown=record.result.edited_markdown or record.result.markdown_text or record.result.markdown,
+                    html_preview=record.result.html_preview_text or record.result.html_preview,
+                ),
+                html=ResultVariant(
+                    markdown=record.result.edited_markdown or record.result.markdown_html or record.result.markdown,
+                    html_preview=record.result.html_preview_html or record.result.html_preview,
+                ),
+            ),
             meta=ResultMeta(
                 title=record.result.title,
                 department=record.result.department,

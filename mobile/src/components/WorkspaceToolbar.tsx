@@ -12,14 +12,15 @@ type Props = {
   isDarkMode: boolean;
   isPdfPickReady: boolean;
   hwpxTableMode: HwpxTableMode;
+  selectedTableMode: HwpxTableMode;
+  htmlVariantReady: boolean;
   editing: boolean;
-  activeTab: "preview" | "markdown" | "diff";
-  onChangeTab: (value: "preview" | "markdown" | "diff") => void;
   onCopyMarkdown: () => void;
   onDiscardEdit: () => void;
   onOpenInfo: () => void;
   onPickPdf: () => void;
   onChangeHwpxTableMode: (value: HwpxTableMode) => void;
+  onChangeSelectedTableMode: (value: HwpxTableMode) => void;
   onSaveEdit: () => void;
   onSaveMarkdownFile: () => void;
   onShareMarkdown: () => void;
@@ -34,14 +35,15 @@ export function WorkspaceToolbar({
   isDarkMode,
   isPdfPickReady,
   hwpxTableMode,
+  selectedTableMode,
+  htmlVariantReady,
   editing,
-  activeTab,
-  onChangeTab,
   onCopyMarkdown,
   onDiscardEdit,
   onOpenInfo,
   onPickPdf,
   onChangeHwpxTableMode,
+  onChangeSelectedTableMode,
   onSaveEdit,
   onSaveMarkdownFile,
   onShareMarkdown,
@@ -74,39 +76,41 @@ export function WorkspaceToolbar({
             </View>
             <View style={styles.workspaceToolbarUtility}>
               <View style={styles.workspaceToolbarPrimaryUtility}>
-                <View style={[styles.workspaceModeGroup, isDarkMode && styles.workspaceModeGroupDark]}>
-                  {(
-                    [
-                      { key: "text", label: "HWPX 표: 텍스트" },
-                      { key: "html", label: "HWPX 표: HTML" },
-                    ] as const
-                  ).map((option) => {
-                    const active = hwpxTableMode === option.key;
-                    return (
-                      <Pressable
-                        key={option.key}
-                        style={[
-                          styles.workspaceModeButton,
-                          isDarkMode && styles.workspaceModeButtonDark,
-                          active && styles.workspaceModeButtonActive,
-                        ]}
-                        onPress={() => onChangeHwpxTableMode(option.key)}
-                        accessibilityLabel={option.label}
-                        {...webTitle(option.label)}
-                      >
-                        <Text
+                {!hasResult ? (
+                  <View style={[styles.workspaceModeGroup, isDarkMode && styles.workspaceModeGroupDark]}>
+                    {(
+                      [
+                        { key: "text", label: "HWPX 표: 텍스트" },
+                        { key: "html", label: "HWPX 표: HTML" },
+                      ] as const
+                    ).map((option) => {
+                      const active = hwpxTableMode === option.key;
+                      return (
+                        <Pressable
+                          key={option.key}
                           style={[
-                            styles.workspaceModeLabel,
-                            isDarkMode && styles.workspaceModeLabelDark,
-                            active && styles.workspaceModeLabelActive,
+                            styles.workspaceModeButton,
+                            isDarkMode && styles.workspaceModeButtonDark,
+                            active && styles.workspaceModeButtonActive,
                           ]}
+                          onPress={() => onChangeHwpxTableMode(option.key)}
+                          accessibilityLabel={option.label}
+                          {...webTitle(option.label)}
                         >
-                          {option.key === "text" ? "표: 텍스트" : "표: HTML"}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                          <Text
+                            style={[
+                              styles.workspaceModeLabel,
+                              isDarkMode && styles.workspaceModeLabelDark,
+                              active && styles.workspaceModeLabelActive,
+                            ]}
+                          >
+                            {option.key === "text" ? "표: 텍스트" : "표: HTML"}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ) : null}
                 <Pressable
                   style={
                     isPdfPickReady
@@ -152,26 +156,42 @@ export function WorkspaceToolbar({
                 ) : null}
                 {hasResult && isWideLayout ? (
                   <View style={styles.workspaceTabsRow}>
-                    {(isWideLayout
-                      ? [
-                          { key: "preview", label: "미리보기" },
-                          { key: "diff", label: "차이 보기" },
-                        ]
-                      : [
-                          { key: "preview", label: "미리보기" },
-                          { key: "markdown", label: "Markdown" },
-                          { key: "diff", label: "차이 보기" },
-                        ]).map((tab) => {
-                      const active = tab.key === activeTab;
+                    {(
+                      [
+                        { key: "text", label: "표: MD" },
+                        { key: "html", label: htmlVariantReady ? "표: HTML" : "표: HTML 준비중" },
+                      ] as const
+                    ).map((tab) => {
+                      const active = tab.key === selectedTableMode;
+                      const disabled = tab.key === "html" && !htmlVariantReady;
                       return (
                         <Pressable
                           key={tab.key}
-                          style={[styles.workspaceTabButton, isDarkMode && styles.workspaceTabButtonDark, active && styles.workspaceTabButtonActive]}
-                          onPress={() => onChangeTab(tab.key as "preview" | "markdown" | "diff")}
+                          style={[
+                            styles.workspaceTabButton,
+                            isDarkMode && styles.workspaceTabButtonDark,
+                            active && styles.workspaceTabButtonActive,
+                            disabled && styles.toolbarDisabledButton,
+                          ]}
+                          onPress={() => {
+                            if (disabled) {
+                              return;
+                            }
+                            onChangeSelectedTableMode(tab.key);
+                          }}
                           accessibilityLabel={tab.label}
                           {...webTitle(tab.label)}
                         >
-                          <Text style={[styles.workspaceTabLabel, isDarkMode && styles.workspaceTabLabelDark, active && styles.workspaceTabLabelActive]}>{tab.label}</Text>
+                          <Text
+                            style={[
+                              styles.workspaceTabLabel,
+                              isDarkMode && styles.workspaceTabLabelDark,
+                              active && styles.workspaceTabLabelActive,
+                              disabled && styles.toolbarDisabledButtonLabel,
+                            ]}
+                          >
+                            {tab.label}
+                          </Text>
                         </Pressable>
                       );
                     })}

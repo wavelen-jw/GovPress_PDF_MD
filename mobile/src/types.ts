@@ -16,11 +16,20 @@ export type JobCreatePayload = Job & {
   edit_token: string;
 };
 
+export type ResultVariant = {
+  markdown: string | null;
+  html_preview: string | null;
+};
+
 export type ResultPayload = {
   job_id: string;
   status: JobStatus;
   markdown: string | null;
   html_preview: string | null;
+  table_variants: {
+    text: ResultVariant;
+    html: ResultVariant;
+  };
   meta: {
     title: string | null;
     department: string | null;

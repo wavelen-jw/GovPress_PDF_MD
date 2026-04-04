@@ -35,13 +35,17 @@ def _row_to_record(row: sqlite3.Row) -> JobRecord:
         result=JobResult(
             markdown=row["markdown"],
             html_preview=row["html_preview"],
+            markdown_text=row["markdown_text"] if "markdown_text" in row.keys() else None,
+            markdown_html=row["markdown_html"] if "markdown_html" in row.keys() else None,
+            html_preview_text=row["html_preview_text"] if "html_preview_text" in row.keys() else None,
+            html_preview_html=row["html_preview_html"] if "html_preview_html" in row.keys() else None,
             title=row["title"],
             department=row["department"],
             edited_markdown=row["edited_markdown"],
             saved_at=_fromisoformat(row["saved_at"]),
         ),
         artifacts=JobArtifacts(
-            original_file_path=Path(row["original_pdf_path"]),
+            original_pdf_path=Path(row["original_pdf_path"]),
             final_markdown_path=Path(row["final_markdown_path"]) if row["final_markdown_path"] else None,
             edited_markdown_path=Path(row["edited_markdown_path"]) if row["edited_markdown_path"] else None,
         ),
@@ -58,7 +62,7 @@ class JobRepository(Protocol):
         source: str,
         hwpx_table_mode: HwpxTableMode,
         client_request_id: str | None,
-        original_file_path: Path,
+        original_pdf_path: Path,
     ) -> JobRecord: ...
 
     def get_by_client_request_id(self, client_request_id: str) -> JobRecord | None: ...
@@ -89,8 +93,32 @@ class JobRepository(Protocol):
         *,
         markdown: str,
         html_preview: str,
+        markdown_text: str,
+        markdown_html: str,
+        html_preview_text: str,
+        html_preview_html: str,
         title: str | None,
         department: str | None,
+        final_markdown_path: Path | None,
+    ) -> JobRecord: ...
+
+    def save_text_result(
+        self,
+        job_id: str,
+        *,
+        markdown_text: str,
+        html_preview_text: str,
+        title: str | None,
+        department: str | None,
+        final_markdown_path: Path | None,
+    ) -> JobRecord: ...
+
+    def save_html_variant(
+        self,
+        job_id: str,
+        *,
+        markdown_html: str,
+        html_preview_html: str,
         final_markdown_path: Path | None,
     ) -> JobRecord: ...
 
@@ -103,8 +131,6 @@ class JobRepository(Protocol):
     ) -> JobRecord: ...
 
     def recover_incomplete_jobs(self) -> int: ...
-
-    def count_queued_jobs(self) -> int: ...
 
     def claim_next_queued_job(self, worker_id: str) -> JobRecord | None: ...
 
@@ -153,6 +179,10 @@ class SQLiteJobRepository:
                     edited_markdown_path TEXT,
                     markdown TEXT,
                     html_preview TEXT,
+                    markdown_text TEXT,
+                    markdown_html TEXT,
+                    html_preview_text TEXT,
+                    html_preview_html TEXT,
                     title TEXT,
                     department TEXT,
                     edited_markdown TEXT,
@@ -171,6 +201,14 @@ class SQLiteJobRepository:
                 conn.execute("ALTER TABLE jobs ADD COLUMN edit_token TEXT")
             if "hwpx_table_mode" not in columns:
                 conn.execute("ALTER TABLE jobs ADD COLUMN hwpx_table_mode TEXT NOT NULL DEFAULT 'text'")
+            if "markdown_text" not in columns:
+                conn.execute("ALTER TABLE jobs ADD COLUMN markdown_text TEXT")
+            if "markdown_html" not in columns:
+                conn.execute("ALTER TABLE jobs ADD COLUMN markdown_html TEXT")
+            if "html_preview_text" not in columns:
+                conn.execute("ALTER TABLE jobs ADD COLUMN html_preview_text TEXT")
+            if "html_preview_html" not in columns:
+                conn.execute("ALTER TABLE jobs ADD COLUMN html_preview_html TEXT")
             conn.execute(
                 """
                 UPDATE jobs
@@ -196,7 +234,7 @@ class SQLiteJobRepository:
         source: str,
         hwpx_table_mode: HwpxTableMode,
         client_request_id: str | None,
-        original_file_path: Path,
+        original_pdf_path: Path,
     ) -> JobRecord:
         with self._lock, self._connect() as conn:
             if client_request_id:
@@ -211,10 +249,11 @@ class SQLiteJobRepository:
                     job_id, edit_token, file_name, source, status, created_at, updated_at,
                     progress, error_code, error_message, client_request_id, hwpx_table_mode,
                     result_version, original_pdf_path, final_markdown_path,
-                    edited_markdown_path, markdown, html_preview, title,
+                    edited_markdown_path, markdown, html_preview, markdown_text,
+                    markdown_html, html_preview_text, html_preview_html, title,
                     department, edited_markdown, saved_at
                     , claimed_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job_id,
@@ -230,7 +269,11 @@ class SQLiteJobRepository:
                     client_request_id,
                     hwpx_table_mode,
                     0,
-                    str(original_file_path),
+                    str(original_pdf_path),
+                    None,
+                    None,
+                    None,
+                    None,
                     None,
                     None,
                     None,
@@ -331,12 +374,12 @@ class SQLiteJobRepository:
         assert updated is not None
         return updated
 
-    def save_result(
+    def save_text_result(
         self,
         job_id: str,
         *,
-        markdown: str,
-        html_preview: str,
+        markdown_text: str,
+        html_preview_text: str,
         title: str | None,
         department: str | None,
         final_markdown_path: Path | None,
@@ -349,7 +392,96 @@ class SQLiteJobRepository:
             conn.execute(
                 """
                 UPDATE jobs
-                SET markdown = ?, html_preview = ?, title = ?, department = ?,
+                SET markdown = ?, html_preview = ?, markdown_text = ?, html_preview_text = ?,
+                    title = ?, department = ?, final_markdown_path = ?, result_version = ?,
+                    progress = 100, status = 'completed', error_code = NULL, error_message = NULL,
+                    updated_at = ?, claimed_by = NULL
+                WHERE job_id = ?
+                """,
+                (
+                    markdown_text,
+                    html_preview_text,
+                    markdown_text,
+                    html_preview_text,
+                    title,
+                    department,
+                    str(final_markdown_path) if final_markdown_path else None,
+                    current.result_version + 1,
+                    utcnow().isoformat(),
+                    job_id,
+                ),
+            )
+            conn.commit()
+        updated = self.get(job_id)
+        assert updated is not None
+        return updated
+
+    def save_html_variant(
+        self,
+        job_id: str,
+        *,
+        markdown_html: str,
+        html_preview_html: str,
+        final_markdown_path: Path | None,
+    ) -> JobRecord:
+        current = self.get(job_id)
+        if current is None:
+            raise KeyError(job_id)
+
+        primary_markdown = markdown_html if current.hwpx_table_mode == "html" else current.result.markdown or current.result.markdown_text or markdown_html
+        primary_preview = html_preview_html if current.hwpx_table_mode == "html" else current.result.html_preview or current.result.html_preview_text or html_preview_html
+        final_path_value = str(final_markdown_path) if final_markdown_path else None
+        if current.hwpx_table_mode != "html":
+            final_path_value = str(current.artifacts.final_markdown_path) if current.artifacts and current.artifacts.final_markdown_path else final_path_value
+
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE jobs
+                SET markdown = ?, html_preview = ?, markdown_html = ?, html_preview_html = ?,
+                    final_markdown_path = ?, result_version = ?, updated_at = ?
+                WHERE job_id = ?
+                """,
+                (
+                    primary_markdown,
+                    primary_preview,
+                    markdown_html,
+                    html_preview_html,
+                    final_path_value,
+                    current.result_version + 1,
+                    utcnow().isoformat(),
+                    job_id,
+                ),
+            )
+            conn.commit()
+        updated = self.get(job_id)
+        assert updated is not None
+        return updated
+
+    def save_result(
+        self,
+        job_id: str,
+        *,
+        markdown: str,
+        html_preview: str,
+        markdown_text: str,
+        markdown_html: str,
+        html_preview_text: str,
+        html_preview_html: str,
+        title: str | None,
+        department: str | None,
+        final_markdown_path: Path | None,
+    ) -> JobRecord:
+        current = self.get(job_id)
+        if current is None:
+            raise KeyError(job_id)
+
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE jobs
+                SET markdown = ?, html_preview = ?, markdown_text = ?, markdown_html = ?,
+                    html_preview_text = ?, html_preview_html = ?, title = ?, department = ?,
                     final_markdown_path = ?, result_version = ?, progress = 100,
                     status = 'completed', error_code = NULL, error_message = NULL,
                     updated_at = ?, claimed_by = NULL
@@ -358,6 +490,10 @@ class SQLiteJobRepository:
                 (
                     markdown,
                     html_preview,
+                    markdown_text,
+                    markdown_html,
+                    html_preview_text,
+                    html_preview_html,
                     title,
                     department,
                     str(final_markdown_path) if final_markdown_path else None,
@@ -428,11 +564,6 @@ class SQLiteJobRepository:
             )
             conn.commit()
         return int(cursor.rowcount or 0)
-
-    def count_queued_jobs(self) -> int:
-        with self._lock, self._connect() as conn:
-            row = conn.execute("SELECT COUNT(*) FROM jobs WHERE status = 'queued'").fetchone()
-        return int(row[0]) if row else 0
 
     def claim_next_queued_job(self, worker_id: str) -> JobRecord | None:
         with self._lock, self._connect() as conn:
@@ -508,8 +639,9 @@ class InMemoryJobRepository:
         edit_token: str,
         file_name: str,
         source: str,
+        hwpx_table_mode: HwpxTableMode,
         client_request_id: str | None,
-        original_file_path: Path,
+        original_pdf_path: Path,
     ) -> JobRecord:
         with self._lock:
             if client_request_id and client_request_id in self._client_request_ids:
@@ -527,7 +659,8 @@ class InMemoryJobRepository:
                 updated_at=now,
                 progress=0,
                 client_request_id=client_request_id,
-                artifacts=JobArtifacts(original_file_path=original_file_path),
+                hwpx_table_mode=hwpx_table_mode,
+                artifacts=JobArtifacts(original_pdf_path=original_pdf_path),
             )
             self._jobs[job_id] = record
             self._job_order.append(job_id)
@@ -585,11 +718,28 @@ class InMemoryJobRepository:
             record.updated_at = utcnow()
             return record
 
-    def save_result(self, job_id: str, *, markdown: str, html_preview: str, title: str | None, department: str | None, final_markdown_path: Path | None) -> JobRecord:
+    def save_result(
+        self,
+        job_id: str,
+        *,
+        markdown: str,
+        html_preview: str,
+        markdown_text: str,
+        markdown_html: str,
+        html_preview_text: str,
+        html_preview_html: str,
+        title: str | None,
+        department: str | None,
+        final_markdown_path: Path | None,
+    ) -> JobRecord:
         with self._lock:
             record = self._jobs[job_id]
             record.result.markdown = markdown
             record.result.html_preview = html_preview
+            record.result.markdown_text = markdown_text
+            record.result.markdown_html = markdown_html
+            record.result.html_preview_text = html_preview_text
+            record.result.html_preview_html = html_preview_html
             record.result.title = title
             record.result.department = department
             record.result_version += 1
@@ -600,6 +750,55 @@ class InMemoryJobRepository:
             record.updated_at = utcnow()
             if record.artifacts:
                 record.artifacts.final_markdown_path = final_markdown_path
+            return record
+
+    def save_text_result(
+        self,
+        job_id: str,
+        *,
+        markdown_text: str,
+        html_preview_text: str,
+        title: str | None,
+        department: str | None,
+        final_markdown_path: Path | None,
+    ) -> JobRecord:
+        with self._lock:
+            record = self._jobs[job_id]
+            record.result.markdown = markdown_text
+            record.result.html_preview = html_preview_text
+            record.result.markdown_text = markdown_text
+            record.result.html_preview_text = html_preview_text
+            record.result.title = title
+            record.result.department = department
+            record.result_version += 1
+            record.progress = 100
+            record.status = "completed"
+            record.error_code = None
+            record.error_message = None
+            record.updated_at = utcnow()
+            if record.artifacts:
+                record.artifacts.final_markdown_path = final_markdown_path
+            return record
+
+    def save_html_variant(
+        self,
+        job_id: str,
+        *,
+        markdown_html: str,
+        html_preview_html: str,
+        final_markdown_path: Path | None,
+    ) -> JobRecord:
+        with self._lock:
+            record = self._jobs[job_id]
+            record.result.markdown_html = markdown_html
+            record.result.html_preview_html = html_preview_html
+            if record.hwpx_table_mode == "html":
+                record.result.markdown = markdown_html
+                record.result.html_preview = html_preview_html
+                if record.artifacts:
+                    record.artifacts.final_markdown_path = final_markdown_path
+            record.result_version += 1
+            record.updated_at = utcnow()
             return record
 
     def save_edited_markdown(self, job_id: str, *, markdown: str, edited_markdown_path: Path | None) -> JobRecord:
