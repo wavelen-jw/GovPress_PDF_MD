@@ -673,33 +673,16 @@ def _finalize_government_report_markdown(text: str) -> str:
             i += 1
             continue
 
-        if stripped.startswith("| 구분 | ᄒᆞᆫ글 / 입력 | 결과 | 마크다운 / 입력 | 결과 |"):
-            if i + 1 < len(raw_lines) and raw_lines[i + 1].strip().startswith("| ---"):
-                i += 1
-            lines.extend(
-                [
-                    "| 구분 | ᄒᆞᆫ글 | 한글 | 마크다운 | 마크다운 |",
-                    "| --- | --- | --- | --- | --- |",
-                    "| | 입력 | 결과 | 입력 | 결과 |",
-                ]
-            )
-            i += 1
+        compare_table, next_i = _rewrite_report_compare_table(raw_lines, i)
+        if compare_table is not None:
+            lines.extend(compare_table)
+            i = next_i
             continue
 
-        if re.match(r"^\|\s*구분\s*/\s*소관\s*\|\s*\|\s*인공지능정부실\s*/\s*기술 기반 마련 등\s*\|\s*참여혁신조직실\s*/\s*보고문화·확산 등\s*\|$", stripped):
-            row1 = raw_lines[i + 2].strip() if i + 2 < len(raw_lines) else ""
-            row2 = raw_lines[i + 3].strip() if i + 3 < len(raw_lines) else ""
-
-            def _cells(row: str) -> list[str]:
-                return [cell.strip() for cell in row.strip("|").split("|")]
-
-            lines.append("| 구분 / 소관 | 인공지능정부실 / 기술 기반 마련 등 | 참여혁신조직실 / 보고문화·확산 등 |")
-            lines.append("| --- | --- | --- | --- |")
-            for row in (row1, row2):
-                cells = _cells(row)
-                if len(cells) >= 4:
-                    lines.append(f"| {cells[1]} | {_replace_task_icons(cells[2])} | {_replace_task_icons(cells[3])} |")
-            i += 4
+        assignment_table, next_i = _rewrite_report_assignment_table(raw_lines, i)
+        if assignment_table is not None:
+            lines.extend(assignment_table)
+            i = next_i
             continue
 
         if raw.startswith(">") and not raw.startswith("> "):
@@ -709,23 +692,7 @@ def _finalize_government_report_markdown(text: str) -> str:
         i += 1
 
     lines = _insert_policy_plan_summary_table(lines)
-
-    cleaned: list[str] = []
-    prev_blank = False
-    for line in lines:
-        if not line.strip():
-            if not prev_blank:
-                cleaned.append("")
-            prev_blank = True
-            continue
-        cleaned.append(line)
-        prev_blank = False
-
-    while cleaned and not cleaned[0]:
-        cleaned.pop(0)
-    while cleaned and not cleaned[-1]:
-        cleaned.pop()
-    return "\n".join(cleaned) + "\n"
+    return "\n".join(_collapse_blank_lines(lines)) + "\n"
 
 
 def _postprocess_policy_plan(lines: list[str]) -> str:
@@ -1490,6 +1457,67 @@ def _handle_report_section_entry(
         return True, "section", next_section, None
 
     return False, None, None, None
+
+
+def _rewrite_report_compare_table(raw_lines: list[str], index: int) -> tuple[list[str] | None, int]:
+    stripped = raw_lines[index].strip()
+    if not stripped.startswith("| 구분 | ᄒᆞᆫ글 / 입력 | 결과 | 마크다운 / 입력 | 결과 |"):
+        return None, index
+    next_index = index
+    if next_index + 1 < len(raw_lines) and raw_lines[next_index + 1].strip().startswith("| ---"):
+        next_index += 1
+    return (
+        [
+            "| 구분 | ᄒᆞᆫ글 | 한글 | 마크다운 | 마크다운 |",
+            "| --- | --- | --- | --- | --- |",
+            "| | 입력 | 결과 | 입력 | 결과 |",
+        ],
+        next_index + 1,
+    )
+
+
+def _rewrite_report_assignment_table(raw_lines: list[str], index: int) -> tuple[list[str] | None, int]:
+    stripped = raw_lines[index].strip()
+    if not re.match(
+        r"^\|\s*구분\s*/\s*소관\s*\|\s*\|\s*인공지능정부실\s*/\s*기술 기반 마련 등\s*\|\s*참여혁신조직실\s*/\s*보고문화·확산 등\s*\|$",
+        stripped,
+    ):
+        return None, index
+
+    row1 = raw_lines[index + 2].strip() if index + 2 < len(raw_lines) else ""
+    row2 = raw_lines[index + 3].strip() if index + 3 < len(raw_lines) else ""
+
+    def _cells(row: str) -> list[str]:
+        return [cell.strip() for cell in row.strip("|").split("|")]
+
+    lines = [
+        "| 구분 / 소관 | 인공지능정부실 / 기술 기반 마련 등 | 참여혁신조직실 / 보고문화·확산 등 |",
+        "| --- | --- | --- | --- |",
+    ]
+    for row in (row1, row2):
+        cells = _cells(row)
+        if len(cells) >= 4:
+            lines.append(f"| {cells[1]} | {_replace_task_icons(cells[2])} | {_replace_task_icons(cells[3])} |")
+    return lines, index + 4
+
+
+def _collapse_blank_lines(lines: list[str]) -> list[str]:
+    cleaned: list[str] = []
+    prev_blank = False
+    for line in lines:
+        if not line.strip():
+            if not prev_blank:
+                cleaned.append("")
+            prev_blank = True
+            continue
+        cleaned.append(line)
+        prev_blank = False
+
+    while cleaned and not cleaned[0]:
+        cleaned.pop(0)
+    while cleaned and not cleaned[-1]:
+        cleaned.pop()
+    return cleaned
 
 
 def postprocess_service_guide(raw_text: str) -> str:
