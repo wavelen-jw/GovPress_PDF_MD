@@ -3,11 +3,14 @@ from __future__ import annotations
 
 import zipfile
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass, field
 from pathlib import Path
 import re
 
 from .hwpx_postprocessor import HwpxParagraph, postprocess_hwpx
 
+
+# ── XML helpers ───────────────────────────────────────────────────────────────
 
 def _local_name(tag: str) -> str:
     if "}" in tag:
@@ -19,6 +22,12 @@ def _iter_local(elem: ET.Element, name: str):
     for node in elem.iter():
         if _local_name(node.tag) == name:
             yield node
+
+
+def _direct_children_local(elem: ET.Element, name: str):
+    for child in elem:
+        if _local_name(child.tag) == name:
+            yield child
 
 
 def _find_local(elem: ET.Element, name: str) -> ET.Element | None:
@@ -49,30 +58,284 @@ def _collect_run_text(p_elem: ET.Element) -> str:
     return "".join(parts).strip()
 
 
-def _collect_table_text(tbl_elem: ET.Element) -> str:
-    rows: list[list[str]] = []
-    for tr in _iter_local(tbl_elem, "tr"):
-        row: list[str] = []
-        for tc in _iter_local(tr, "tc"):
-            cell_parts: list[str] = []
-            for paragraph in _iter_local(tc, "p"):
-                text = _collect_run_text(paragraph).strip()
-                if text:
-                    cell_parts.append(text)
-            row.append(" ".join(cell_parts))
-        if row:
-            rows.append(row)
+# ── Table data model ──────────────────────────────────────────────────────────
 
-    if not rows:
-        return ""
+@dataclass
+class TableCell:
+    row: int
+    col: int
+    rowspan: int = 1
+    colspan: int = 1
+    paragraphs: list[str] = field(default_factory=list)
+    nested_tables: list["Table"] = field(default_factory=list)
 
-    lines = ["| " + " | ".join(rows[0]) + " |"]
-    lines.append("| " + " | ".join("---" for _ in rows[0]) + " |")
-    for row in rows[1:]:
-        padded = row + [""] * (len(rows[0]) - len(row))
-        lines.append("| " + " | ".join(padded[: len(rows[0])]) + " |")
+
+@dataclass
+class Table:
+    rows: int
+    cols: int
+    cells: list[TableCell]
+    has_rowspan: bool = False
+    has_colspan: bool = False
+    is_drawing_table: bool = False
+
+
+# colspan/rowspan 후보 속성명 (HWPX 버전에 따라 다를 수 있음)
+_COLSPAN_ATTRS = ("colSpan", "colspan", "numMergedCols", "columnSpan",
+                  "mergedColCount", "spanCols", "col_span")
+_ROWSPAN_ATTRS = ("rowSpan", "rowspan", "numMergedRows", "rowCount",
+                  "mergedRowCount", "spanRows", "row_span")
+
+
+def _read_span(elem: ET.Element, candidates: tuple[str, ...]) -> int:
+    """요소 및 하위 cellPr에서 span 값을 읽어 반환. 없으면 1."""
+    v = _get_attr(elem, *candidates)
+    if v:
+        try:
+            return max(int(v), 1)
+        except ValueError:
+            pass
+    # cellPr 등 자식 요소에서 시도
+    for child in elem:
+        cv = _get_attr(child, *candidates)
+        if cv:
+            try:
+                return max(int(cv), 1)
+            except ValueError:
+                pass
+    return 1
+
+
+def _is_drawing_table(cells: list[TableCell], rows: int, cols: int) -> bool:
+    """80% 이상 빈 셀 + 3행 이상이면 레이아웃용 표로 간주."""
+    if rows < 3 or not cells:
+        return False
+    empty = sum(
+        1 for c in cells
+        if not any(p.strip() for p in c.paragraphs) and not c.nested_tables
+    )
+    return (empty / len(cells)) >= 0.80
+
+
+def _collect_cell_paragraphs(tc: ET.Element) -> list[str]:
+    """tc 직접 자식 <p> 요소에서만 텍스트 수집 (중첩 표 내부 제외)."""
+    parts: list[str] = []
+    for p in _direct_children_local(tc, "p"):
+        text = _collect_run_text(p).strip()
+        if text:
+            parts.append(text)
+    return parts
+
+
+def _collect_table_data(tbl_elem: ET.Element) -> Table:
+    """tbl 요소에서 구조화된 Table 객체를 추출."""
+    cells: list[TableCell] = []
+    # 점유 슬롯 추적 (rowspan으로 미리 점유된 위치)
+    occupied: set[tuple[int, int]] = set()
+    max_col = 0
+
+    for tr_idx, tr in enumerate(list(_direct_children_local(tbl_elem, "tr"))):
+        col_cursor = 0
+        for tc in _direct_children_local(tr, "tc"):
+            # 점유된 슬롯 건너뜀
+            while (tr_idx, col_cursor) in occupied:
+                col_cursor += 1
+
+            colspan = _read_span(tc, _COLSPAN_ATTRS)
+            rowspan = _read_span(tc, _ROWSPAN_ATTRS)
+
+            paragraphs = _collect_cell_paragraphs(tc)
+
+            # 중첩 표 재귀 처리
+            nested: list[Table] = []
+            for ctrl in _direct_children_local(tc, "ctrl"):
+                for sub_tbl in _iter_local(ctrl, "tbl"):
+                    nested.append(_collect_table_data(sub_tbl))
+            # ctrl 없이 바로 tbl인 경우
+            for sub_tbl in _direct_children_local(tc, "tbl"):
+                nested.append(_collect_table_data(sub_tbl))
+
+            cells.append(TableCell(
+                row=tr_idx, col=col_cursor,
+                rowspan=rowspan, colspan=colspan,
+                paragraphs=paragraphs,
+                nested_tables=nested,
+            ))
+
+            # rowspan으로 아래 행의 슬롯 점유 표시
+            for dr in range(rowspan):
+                for dc in range(colspan):
+                    if dr > 0 or dc > 0:
+                        occupied.add((tr_idx + dr, col_cursor + dc))
+
+            end_col = col_cursor + colspan
+            if end_col > max_col:
+                max_col = end_col
+            col_cursor = end_col
+
+    # 행 수: tr 태그 실제 수
+    row_count = sum(1 for _ in _direct_children_local(tbl_elem, "tr"))
+    has_colspan = any(c.colspan > 1 for c in cells)
+    has_rowspan = any(c.rowspan > 1 for c in cells)
+    is_drawing = _is_drawing_table(cells, row_count, max_col)
+
+    return Table(
+        rows=row_count,
+        cols=max_col,
+        cells=cells,
+        has_rowspan=has_rowspan,
+        has_colspan=has_colspan,
+        is_drawing_table=is_drawing,
+    )
+
+
+# ── Tiered renderer ───────────────────────────────────────────────────────────
+
+def _escape_md_cell(text: str) -> str:
+    return text.replace("|", "\\|")
+
+
+def _escape_html(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _cell_text(cell: TableCell, html: bool = False) -> str:
+    """셀 단락들을 <br> 구분으로 합쳐 단일 문자열로 반환."""
+    parts = list(cell.paragraphs)
+    # 중첩 표는 간단히 [표] 표시
+    for nt in cell.nested_tables:
+        sub = _render_table(nt)
+        parts.append(sub if html else "[중첩표]")
+    joined = "<br>".join(parts) if len(parts) > 1 else (parts[0] if parts else "")
+    return _escape_html(joined) if html else _escape_md_cell(joined)
+
+
+def _render_tier1_markdown(table: Table) -> str:
+    """등급 1: 단순 Markdown 표."""
+    grid: dict[tuple[int, int], str] = {}
+    for cell in table.cells:
+        grid[(cell.row, cell.col)] = _cell_text(cell)
+
+    lines: list[str] = []
+    for r in range(table.rows):
+        row_cells = [grid.get((r, c), "") for c in range(table.cols)]
+        lines.append("| " + " | ".join(row_cells) + " |")
+        if r == 0:
+            lines.append("| " + " | ".join("---" for _ in range(table.cols)) + " |")
     return "\n".join(lines)
 
+
+def _render_tier2_markdown_rowspan(table: Table) -> str:
+    """등급 2: rowspan 있는 Markdown 표 (병합 셀 내용 반복)."""
+    # active_spans: col → (remaining_rows, text)
+    active_spans: dict[int, tuple[int, str]] = {}
+    grid_by_row: dict[int, dict[int, str]] = {}
+
+    # cells를 row 순으로 처리
+    cells_by_row: dict[int, list[TableCell]] = {}
+    for cell in table.cells:
+        cells_by_row.setdefault(cell.row, []).append(cell)
+
+    for r in range(table.rows):
+        row_grid: dict[int, str] = {}
+        next_spans: dict[int, tuple[int, str]] = {}
+
+        # 이전 rowspan 적용
+        for col, (remaining, text) in active_spans.items():
+            row_grid[col] = text
+            if remaining > 1:
+                next_spans[col] = (remaining - 1, text)
+
+        for cell in sorted(cells_by_row.get(r, []), key=lambda c: c.col):
+            text = _cell_text(cell)
+            for dc in range(cell.colspan):
+                c = cell.col + dc
+                row_grid[c] = text if dc == 0 else ""
+                if cell.rowspan > 1:
+                    next_spans[c] = (cell.rowspan - 1, text if dc == 0 else "")
+
+        grid_by_row[r] = row_grid
+        active_spans = next_spans
+
+    lines: list[str] = []
+    for r in range(table.rows):
+        row_cells = [grid_by_row.get(r, {}).get(c, "") for c in range(table.cols)]
+        lines.append("| " + " | ".join(row_cells) + " |")
+        if r == 0:
+            lines.append("| " + " | ".join("---" for _ in range(table.cols)) + " |")
+    return "\n".join(lines)
+
+
+def _render_tier3_html(table: Table) -> str:
+    """등급 3: HTML <table> (colspan/rowspan 완전 지원)."""
+    # 점유 맵: 이미 상위 셀이 span으로 처리한 위치
+    occupied: set[tuple[int, int]] = set()
+    cells_by_row: dict[int, list[TableCell]] = {}
+    for cell in table.cells:
+        cells_by_row.setdefault(cell.row, []).append(cell)
+
+    html_lines: list[str] = ["<table>"]
+    for r in range(table.rows):
+        html_lines.append("<tr>")
+        for cell in sorted(cells_by_row.get(r, []), key=lambda c: c.col):
+            if (cell.row, cell.col) in occupied:
+                continue
+            tag = "th" if r == 0 else "td"
+            attrs = ""
+            if cell.colspan > 1:
+                attrs += f' colspan="{cell.colspan}"'
+            if cell.rowspan > 1:
+                attrs += f' rowspan="{cell.rowspan}"'
+            text = _cell_text(cell, html=True)
+            html_lines.append(f"<{tag}{attrs}>{text}</{tag}>")
+            # span 점유 표시
+            for dr in range(cell.rowspan):
+                for dc in range(cell.colspan):
+                    if dr > 0 or dc > 0:
+                        occupied.add((r + dr, cell.col + dc))
+        html_lines.append("</tr>")
+    html_lines.append("</table>")
+    return "\n".join(html_lines)
+
+
+def _render_tier4_drawing(table: Table) -> str:
+    """등급 4: 레이아웃 표 — 텍스트가 있으면 한 줄로 요약, 없으면 생략."""
+    texts = []
+    for cell in table.cells:
+        t = " ".join(cell.paragraphs).strip()
+        if t:
+            texts.append(t)
+    if not texts:
+        return ""
+    return "[표: " + " / ".join(texts[:8]) + "]"
+
+
+def _render_table(table: Table) -> str:
+    """복잡도에 따라 적절한 등급으로 렌더링."""
+    if not table.cells:
+        return ""
+
+    if table.is_drawing_table:
+        return _render_tier4_drawing(table)
+
+    has_nested = any(c.nested_tables for c in table.cells)
+
+    if table.has_colspan or has_nested or table.cols > 8:
+        return "\n" + _render_tier3_html(table) + "\n"
+
+    if table.has_rowspan:
+        return _render_tier2_markdown_rowspan(table)
+
+    return _render_tier1_markdown(table)
+
+
+def _collect_table_text(tbl_elem: ET.Element) -> str:
+    """하위 호환 래퍼 — 단순 Markdown 표 문자열 반환."""
+    table = _collect_table_data(tbl_elem)
+    return _render_table(table)
+
+
+# ── XML paragraph parser ──────────────────────────────────────────────────────
 
 def _parse_paragraphs_from_xml(xml_bytes: bytes) -> list[HwpxParagraph]:
     try:
@@ -94,16 +357,18 @@ def _parse_paragraphs_from_xml(xml_bytes: bytes) -> list[HwpxParagraph]:
                 except ValueError:
                     level = 0
 
-        table_lines: list[str] = []
+        table_paragraphs: list[HwpxParagraph] = []
         for ctrl in (child for child in paragraph if _local_name(child.tag) == "ctrl"):
             for tbl in _iter_local(ctrl, "tbl"):
-                table_text = _collect_table_text(tbl)
-                if table_text:
-                    table_lines.append(table_text)
+                table = _collect_table_data(tbl)
+                rendered = _render_table(table)
+                if rendered or table.cells:
+                    table_paragraphs.append(
+                        HwpxParagraph(style_id="표", text=rendered, level=0, table=table)
+                    )
 
-        if table_lines:
-            for table_text in table_lines:
-                paragraphs.append(HwpxParagraph(style_id="표", text=table_text, level=0))
+        if table_paragraphs:
+            paragraphs.extend(table_paragraphs)
             continue
 
         paragraphs.append(
@@ -112,6 +377,8 @@ def _parse_paragraphs_from_xml(xml_bytes: bytes) -> list[HwpxParagraph]:
 
     return paragraphs
 
+
+# ── Section loading ───────────────────────────────────────────────────────────
 
 def _get_section_names_from_hpf(zf: zipfile.ZipFile) -> list[str]:
     try:
@@ -171,6 +438,8 @@ def _extract_paragraphs(hwpx_path: str) -> list[HwpxParagraph]:
 
     return paragraphs
 
+
+# ── Public API ────────────────────────────────────────────────────────────────
 
 def convert_hwpx(hwpx_path: str) -> str:
     if not Path(hwpx_path).exists():
