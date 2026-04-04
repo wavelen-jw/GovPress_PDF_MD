@@ -1138,6 +1138,7 @@ def postprocess_report(raw_text: str) -> str:
     in_guideline_callout = False
     in_progress = False
     in_schedule_meta = False
+    in_appendix2 = False
     current_group: str | None = None
     group_counts: dict[str, int] = {}
 
@@ -1196,6 +1197,20 @@ def postprocess_report(raw_text: str) -> str:
             in_guideline_callout = False
             in_progress = False
             in_schedule_meta = False
+            in_appendix2 = False
+            current_group = None
+            continue
+
+        if text.startswith("붙임"):
+            rendered.append("")
+            rendered.append(f"## {text}")
+            context = "section"
+            in_section_ii = False
+            in_section_iii = False
+            in_guideline_callout = False
+            in_progress = False
+            in_schedule_meta = False
+            in_appendix2 = text.startswith("붙임2")
             current_group = None
             continue
 
@@ -1221,6 +1236,14 @@ def postprocess_report(raw_text: str) -> str:
         if text == "< 가이드라인 예시 >":
             rendered.append("> < 가이드라인 예시 >")
             in_guideline_callout = True
+            continue
+
+        if in_appendix2 and text == "<개 요>":
+            rendered.append("> <개 요>")
+            continue
+
+        if in_appendix2 and text.startswith("▶"):
+            rendered.append(f"> {text}")
             continue
 
         if text == "< 추진경과 >":
@@ -1269,6 +1292,16 @@ def postprocess_report(raw_text: str) -> str:
         # ── □ 불릿 (최상위, 정책문서 스타일) ─────────────────
         if text.startswith(SQUARE_BULLET):
             content = text[1:].strip()
+            if in_section_ii:
+                rendered.append("")
+                rendered.append(f"### {content}")
+                context = "section"
+                continue
+            if in_appendix2:
+                rendered.append("")
+                rendered.append(f"#### {content}")
+                context = "section"
+                continue
             rendered.append(f"- {content}")
             context = "square"
             continue
