@@ -1765,6 +1765,37 @@ export const styles = StyleSheet.create({
     paddingVertical: 12,
     color: "#2f2318",
   },
+  settingsPresetGroup: {
+    gap: 8,
+  },
+  settingsPresetButton: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#dcc9b0",
+    backgroundColor: "#fffdfa",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  settingsPresetButtonActive: {
+    borderColor: "#2f6f6f",
+    backgroundColor: "#edf8f6",
+  },
+  settingsPresetLabel: {
+    color: "#2f2318",
+    fontWeight: "800",
+    fontSize: 13,
+  },
+  settingsPresetLabelActive: {
+    color: "#185a58",
+  },
+  settingsPresetUrl: {
+    color: "#7b664f",
+    fontSize: 11,
+  },
+  settingsPresetUrlActive: {
+    color: "#185a58",
+  },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 6 },
   busyOverlay: {
     ...StyleSheet.absoluteFillObject,

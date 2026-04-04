@@ -1,8 +1,13 @@
 import React from "react";
-import { Modal, Pressable, Text, TextInput, View } from "react-native";
+import { Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
 
 import { styles } from "../styles";
 import type { AppConfig } from "../types";
+
+const SERVER_PRESETS = [
+  { key: "wsl", label: "WSL 서버", url: "https://api.govpress.cloud" },
+  { key: "vps", label: "VPS 서버", url: "https://api2.govpress.cloud" },
+] as const;
 
 export function SettingsModal({
   visible,
@@ -23,6 +28,23 @@ export function SettingsModal({
         <View style={styles.modalCard}>
           <Text style={styles.modalTitle}>서버 설정</Text>
           <Text style={styles.modalHint}>GovPress API 주소와 선택적 API 키를 입력합니다.</Text>
+          {Platform.OS === "web" ? (
+            <View style={styles.settingsPresetGroup}>
+              {SERVER_PRESETS.map((preset) => {
+                const active = draft.baseUrl === preset.url;
+                return (
+                  <Pressable
+                    key={preset.key}
+                    onPress={() => onChange({ ...draft, baseUrl: preset.url })}
+                    style={[styles.settingsPresetButton, active && styles.settingsPresetButtonActive]}
+                  >
+                    <Text style={[styles.settingsPresetLabel, active && styles.settingsPresetLabelActive]}>{preset.label}</Text>
+                    <Text style={[styles.settingsPresetUrl, active && styles.settingsPresetUrlActive]}>{preset.url}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
           <TextInput
             value={draft.baseUrl}
             onChangeText={(baseUrl) => onChange({ ...draft, baseUrl })}

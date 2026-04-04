@@ -18,11 +18,12 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 
 import { JobDetailPanel } from "./src/components/JobDetailPanel";
+import { SettingsModal } from "./src/components/SettingsModal";
 import { TurnstileGate } from "./src/components/TurnstileGate";
 import { WorkspaceToolbar } from "./src/components/WorkspaceToolbar";
 import { DEFAULT_CONFIG } from "./src/constants";
 import { fetchJob, fetchResult, retryJob, saveResult, uploadPdf } from "./src/services/api";
-import { clearDraft, loadConfig, loadDraft, persistDraft } from "./src/storage/config";
+import { clearDraft, loadConfig, loadDraft, persistConfig, persistDraft } from "./src/storage/config";
 import { styles } from "./src/styles";
 import type { AppConfig, HwpxTableMode, Job, ResultPayload } from "./src/types";
 
@@ -68,6 +69,8 @@ export default function App(): React.JSX.Element {
   const [editorSelection, setEditorSelection] = useState<EditorSelection>({ start: 0, end: 0 });
   const [editorFocusToken, setEditorFocusToken] = useState(0);
   const [loadingConfig, setLoadingConfig] = useState(true);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [configDraft, setConfigDraft] = useState<AppConfig>(DEFAULT_CONFIG);
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -97,6 +100,7 @@ export default function App(): React.JSX.Element {
     loadConfig()
       .then((loaded) => {
         setConfig(loaded);
+        setConfigDraft(loaded);
       })
       .finally(() => setLoadingConfig(false));
   }, []);
@@ -671,6 +675,23 @@ export default function App(): React.JSX.Element {
     setInfoVisible(true);
   }
 
+  function handleOpenSettings(): void {
+    setConfigDraft(config);
+    setSettingsVisible(true);
+  }
+
+  async function handleSaveSettings(): Promise<void> {
+    const next = {
+      ...configDraft,
+      baseUrl: configDraft.baseUrl.trim(),
+      apiKey: configDraft.apiKey.trim(),
+    };
+    await persistConfig(next);
+    setConfig(next);
+    setSettingsVisible(false);
+    setNotice("서버 설정을 저장했습니다.");
+  }
+
   function handleToggleDarkMode(): void {
     setIsDarkMode((current) => !current);
   }
@@ -814,6 +835,10 @@ export default function App(): React.JSX.Element {
                   <Text style={styles.infoMetaLink}>wavelen-jw/GovPress_PDF_MD</Text>
                 </Pressable>
               </View>
+              <View style={styles.infoMetaRow}>
+                <Text style={styles.infoMetaLabel}>현재 서버</Text>
+                <Text style={styles.infoMetaValue}>{config.baseUrl}</Text>
+              </View>
             </View>
             <View style={styles.infoCapabilityList}>
               <View style={styles.infoCapabilityRow}>
@@ -836,6 +861,9 @@ export default function App(): React.JSX.Element {
               이 도구는 개발자가 아닌 공무원이 AI를 활용하여 업무에 도움이 되는 도구를 만드는 '행정안전부 AI 챔피언' 교육과정을 통해 만들어졌습니다.
             </Text>
             <View style={styles.modalActions}>
+              <Pressable onPress={() => void handleOpenSettings()} style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonLabel}>서버 설정</Text>
+              </Pressable>
               <Pressable onPress={() => setInfoVisible(false)} style={styles.primaryButton}>
                 <Text style={styles.primaryButtonLabel}>닫기</Text>
               </Pressable>
@@ -843,6 +871,14 @@ export default function App(): React.JSX.Element {
           </View>
         </View>
       </Modal>
+
+      <SettingsModal
+        visible={settingsVisible}
+        draft={configDraft}
+        onChange={setConfigDraft}
+        onClose={() => setSettingsVisible(false)}
+        onSave={() => void handleSaveSettings()}
+      />
 
       {busy ? (
         <View style={styles.busyOverlay}>
