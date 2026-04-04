@@ -200,9 +200,6 @@ export function JobDetailPanel({
                                 onChangeTab("markdown");
                                 return;
                               }
-                              if (editing) {
-                                onRequestToggleEditing();
-                              }
                               onChangeTab("preview");
                             }}
                           >
