@@ -73,13 +73,14 @@ jobs:
 
           ssh -p "$PORT" "$VPS_USER@$VPS_HOST" /bin/bash <<EOF
           set -euo pipefail
-          sudo -n git -C "$VPS_DEPLOY_DIR" fetch origin
-          sudo -n git -C "$VPS_DEPLOY_DIR" checkout "$BRANCH"
-          sudo -n git -C "$VPS_DEPLOY_DIR" reset --hard "origin/$BRANCH"
-          sudo -n "$VPS_DEPLOY_DIR/.venv/bin/pip" install -r "$VPS_DEPLOY_DIR/requirements.txt"
-          sudo -n "$VPS_DEPLOY_DIR/.venv/bin/pip" install -U opendataloader-pdf
-          sudo -n systemctl restart "$VPS_SERVICE"
+          export XDG_RUNTIME_DIR=/run/user/\$(id -u)
+          git -C "$VPS_DEPLOY_DIR" fetch origin
+          git -C "$VPS_DEPLOY_DIR" checkout "$BRANCH"
+          git -C "$VPS_DEPLOY_DIR" reset --hard "origin/$BRANCH"
+          "$VPS_DEPLOY_DIR/.venv/bin/pip" install -r "$VPS_DEPLOY_DIR/requirements.txt"
+          "$VPS_DEPLOY_DIR/.venv/bin/pip" install -U opendataloader-pdf
+          systemctl --user restart "$VPS_SERVICE"
           sleep 3
           curl -fsS "$HEALTHCHECK_URL"
-          sudo -n systemctl --no-pager --full status "$VPS_SERVICE" | sed -n '1,30p'
+          systemctl --user --no-pager --full status "$VPS_SERVICE" | sed -n '1,30p'
           EOF
