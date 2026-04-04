@@ -1,0 +1,16 @@
+:8080 {
+    encode gzip zstd
+
+    @health path /health
+    handle @health {
+        reverse_proxy api:8013
+    }
+
+    handle /v1/* {
+        reverse_proxy api:8013
+    }
+
+    handle {
+        respond "GovPress API gateway is running." 200
+    }
+}

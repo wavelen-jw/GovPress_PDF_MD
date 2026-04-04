@@ -1,0 +1,99 @@
+name: Deploy API To VPS
+
+on:
+  push:
+    branches:
+      - web
+    paths:
+      - ".github/workflows/vps.yml"
+      - "deploy/**"
+      - "requirements.txt"
+      - "server/**"
+      - "src/**"
+  workflow_dispatch:
+
+concurrency:
+  group: vps-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate deploy settings
+        env:
+          VPS_HOST: ${{ secrets.GOVPRESS_VPS_HOST }}
+          VPS_USER: ${{ secrets.GOVPRESS_VPS_USER }}
+          VPS_KEY: ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
+          VPS_PORT: ${{ vars.GOVPRESS_VPS_PORT }}
+          VPS_DEPLOY_DIR: ${{ vars.GOVPRESS_VPS_DEPLOY_DIR }}
+          VPS_SERVICE: ${{ vars.GOVPRESS_VPS_SERVICE }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST" || { echo "Missing secret: GOVPRESS_VPS_HOST"; exit 1; }
+          test -n "$VPS_USER" || { echo "Missing secret: GOVPRESS_VPS_USER"; exit 1; }
+          test -n "$VPS_KEY" || { echo "Missing secret: GOVPRESS_VPS_SSH_KEY"; exit 1; }
+          test -n "$VPS_DEPLOY_DIR" || { echo "Missing variable: GOVPRESS_VPS_DEPLOY_DIR"; exit 1; }
+          test -n "$VPS_SERVICE" || { echo "Missing variable: GOVPRESS_VPS_SERVICE"; exit 1; }
+          if [ -n "${VPS_PORT:-}" ]; then
+            case "$VPS_PORT" in
+              ''|*[!0-9]*) echo "GOVPRESS_VPS_PORT must be numeric"; exit 1 ;;
+            esac
+          fi
+
+      - name: Materialize deploy key
+        env:
+          VPS_KEY: ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          KEY_FILE=~/.ssh/govpress_vps_key
+
+          if printf '%s' "$VPS_KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+            printf '%s\n' "$VPS_KEY" | tr -d '\r' > "$KEY_FILE"
+          else
+            printf '%s' "$VPS_KEY" | tr -d '\r\n ' | base64 -d > "$KEY_FILE"
+          fi
+
+          chmod 600 "$KEY_FILE"
+          ssh-keygen -y -f "$KEY_FILE" > /dev/null
+
+      - name: Add VPS to known_hosts
+        env:
+          VPS_HOST: ${{ secrets.GOVPRESS_VPS_HOST }}
+          VPS_PORT: ${{ vars.GOVPRESS_VPS_PORT }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${VPS_PORT:-22}" -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy on VPS
+        env:
+          VPS_HOST: ${{ secrets.GOVPRESS_VPS_HOST }}
+          VPS_USER: ${{ secrets.GOVPRESS_VPS_USER }}
+          VPS_PORT: ${{ vars.GOVPRESS_VPS_PORT }}
+          VPS_DEPLOY_DIR: ${{ vars.GOVPRESS_VPS_DEPLOY_DIR }}
+          VPS_BRANCH: ${{ vars.GOVPRESS_VPS_BRANCH }}
+          VPS_SERVICE: ${{ vars.GOVPRESS_VPS_SERVICE }}
+          VPS_HEALTHCHECK_URL: ${{ vars.GOVPRESS_VPS_HEALTHCHECK_URL }}
+        run: |
+          set -euo pipefail
+          PORT="${VPS_PORT:-22}"
+          BRANCH="${VPS_BRANCH:-web}"
+          HEALTHCHECK_URL="${VPS_HEALTHCHECK_URL:-http://127.0.0.1:8013/health}"
+          KEY_FILE=~/.ssh/govpress_vps_key
+
+          ssh -i "$KEY_FILE" -o IdentitiesOnly=yes -p "$PORT" "$VPS_USER@$VPS_HOST" /bin/bash <<EOF
+          set -euo pipefail
+          export XDG_RUNTIME_DIR=/run/user/\$(id -u)
+          git -C "$VPS_DEPLOY_DIR" fetch origin
+          git -C "$VPS_DEPLOY_DIR" checkout "$BRANCH"
+          git -C "$VPS_DEPLOY_DIR" reset --hard "origin/$BRANCH"
+          "$VPS_DEPLOY_DIR/.venv/bin/pip" install -r "$VPS_DEPLOY_DIR/requirements.txt"
+          "$VPS_DEPLOY_DIR/.venv/bin/pip" install -U opendataloader-pdf
+          systemctl --user restart "$VPS_SERVICE"
+          sleep 3
+          curl -fsS "$HEALTHCHECK_URL"
+          systemctl --user --no-pager --full status "$VPS_SERVICE" | sed -n '1,30p'
+          EOF

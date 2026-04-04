@@ -1,0 +1,87 @@
+name: Build Windows App
+
+on:
+  push:
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build application
+        shell: pwsh
+        env:
+          GOVPRESS_PY_CMD: python
+        run: |
+          New-Item -ItemType Directory -Force -Path logs | Out-Null
+          cmd /c packaging\build_windows.bat 2>&1 | Tee-Object -FilePath logs/build_windows.log
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content logs/build_windows.log -Tail 200 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            exit $LASTEXITCODE
+          }
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GovPress_PDF_MD-build-logs
+          path: logs/build_windows.log
+          if-no-files-found: ignore
+
+      - name: Package portable build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Compress-Archive -Path dist/GovPress_PDF_MD.exe -DestinationPath release/GovPress_PDF_MD-windows.zip -Force
+
+      - name: Upload application artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GovPress_PDF_MD-windows
+          path: |
+            release/GovPress_PDF_MD-windows.zip
+            dist/GovPress_PDF_MD.exe
+            build/**
+          if-no-files-found: error
+
+      - name: Upload installer artifact
+        if: ${{ hashFiles('dist_installer/GovPress_PDF_MD_Setup.exe') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: GovPress_PDF_MD-installer
+          path: dist_installer/GovPress_PDF_MD_Setup.exe
+
+      - name: Publish release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: release/GovPress_PDF_MD-windows.zip
+
+      - name: Publish installer asset
+        if: startsWith(github.ref, 'refs/tags/') && hashFiles('dist_installer/GovPress_PDF_MD_Setup.exe') != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist_installer/GovPress_PDF_MD_Setup.exe
