@@ -997,12 +997,8 @@ def postprocess_report(raw_text: str) -> str:
     title_done = False
     meta_done = False
     context: str | None = None
-    in_section_ii = False
-    in_section_iii = False
-    in_guideline_callout = False
-    in_progress = False
-    in_schedule_meta = False
-    in_appendix2 = False
+    current_section: str | None = None
+    block_mode: str | None = None
     current_group: str | None = None
     group_counts: dict[str, int] = {}
 
@@ -1034,6 +1030,8 @@ def postprocess_report(raw_text: str) -> str:
             rendered.append("")
             rendered.append("## 요약")
             context = "section"
+            current_section = None
+            block_mode = None
             continue
 
         # ── <참고 N> 섹션 ─────────────────────────────────────
@@ -1042,6 +1040,8 @@ def postprocess_report(raw_text: str) -> str:
             rendered.append("")
             rendered.append(f"## {ref}")
             context = "section"
+            current_section = None
+            block_mode = None
             continue
 
         # ── bare 참고 섹션 (꺾쇠 없이 "참고" 단독) ───────────
@@ -1049,6 +1049,8 @@ def postprocess_report(raw_text: str) -> str:
             rendered.append("")
             rendered.append("## 참고")
             context = "section"
+            current_section = None
+            block_mode = None
             continue
 
         # ── 로마자 섹션 제목 ───────────────────────────────────
@@ -1056,12 +1058,15 @@ def postprocess_report(raw_text: str) -> str:
             rendered.append("")
             rendered.append(f"## {text}")
             context = "section"
-            in_section_ii = text.startswith("Ⅱ.")
-            in_section_iii = text.startswith("Ⅲ.")
-            in_guideline_callout = False
-            in_progress = False
-            in_schedule_meta = False
-            in_appendix2 = False
+            if text.startswith("Ⅱ."):
+                current_section = "ii"
+            elif text.startswith("Ⅲ."):
+                current_section = "iii"
+            elif text.startswith("Ⅳ."):
+                current_section = "iv"
+            else:
+                current_section = None
+            block_mode = None
             current_group = None
             continue
 
@@ -1069,12 +1074,8 @@ def postprocess_report(raw_text: str) -> str:
             rendered.append("")
             rendered.append(f"## {text}")
             context = "section"
-            in_section_ii = False
-            in_section_iii = False
-            in_guideline_callout = False
-            in_progress = False
-            in_schedule_meta = False
-            in_appendix2 = text.startswith("붙임2")
+            current_section = "appendix2" if text.startswith("붙임2") else None
+            block_mode = None
             current_group = None
             continue
 
@@ -1083,64 +1084,60 @@ def postprocess_report(raw_text: str) -> str:
             rendered.append(f"### {text}")
             current_group = text.strip("<> ").strip()
             group_counts.setdefault(current_group, 0)
-            in_guideline_callout = False
-            in_progress = False
-            in_schedule_meta = False
+            block_mode = None
             continue
 
         task_match = re.match(r"^[󰋎󰋏󰋐]\s+(.+)$", text)
-        if in_section_iii and current_group and task_match:
+        if current_section == "iii" and current_group and task_match:
             group_counts[current_group] += 1
             rendered.append("")
             rendered.append(f"### {group_counts[current_group]}. {task_match.group(1)}")
             context = "section"
-            in_guideline_callout = False
+            block_mode = None
             continue
 
         if text == "< 가이드라인 예시 >":
             rendered.append("> < 가이드라인 예시 >")
-            in_guideline_callout = True
+            block_mode = "guideline"
             continue
 
-        if in_appendix2 and text == "<개 요>":
+        if current_section == "appendix2" and text == "<개 요>":
             rendered.append("> <개 요>")
             continue
 
-        if in_appendix2 and text.startswith("▶"):
+        if current_section == "appendix2" and text.startswith("▶"):
             rendered.append(f"> {text}")
             continue
 
         if text == "< 추진경과 >":
             rendered.append("> < 추진경과 >")
-            in_progress = True
-            in_schedule_meta = False
+            block_mode = "progress"
             continue
 
         if text in {"□ 추진체계 : 인공지능정부실, 참여혁신조직실 공동", "□ 향후일정"}:
             rendered.append("")
             rendered.append(f"#### {text[2:].strip()}")
-            in_progress = False
-            in_schedule_meta = text.endswith("향후일정")
+            block_mode = "schedule" if text.endswith("향후일정") else None
             context = "section"
             continue
 
-        if in_guideline_callout and text.startswith("▸ "):
+        if block_mode == "guideline" and text.startswith("▸ "):
             indent = _quote_indent_from_previous_bullet(rendered)
             _render_quote_parts(rendered, text, indent=indent)
             continue
 
-        if in_guideline_callout and not text.startswith(("▸ ", "<", ">")):
-            in_guideline_callout = False
+        if block_mode == "guideline" and not text.startswith(("▸ ", "<", ">")):
+            block_mode = None
 
-        if in_progress and text.startswith("○ "):
+        if block_mode == "progress" and text.startswith("○ "):
             rendered.append(f"> - {text[2:].strip()}")
             continue
 
-        if in_progress and text.startswith("- "):
+        if block_mode == "progress" and text.startswith("- "):
             rendered.append(f">    - {text[2:].strip()}")
             continue
 
-        if in_schedule_meta and text.startswith("▸ "):
+        if block_mode == "schedule" and text.startswith("▸ "):
             indent = _quote_indent_from_previous_bullet(rendered, fallback="  ")
             _render_quote_parts(rendered, text, indent=indent)
             continue
@@ -1160,12 +1157,12 @@ def postprocess_report(raw_text: str) -> str:
         # ── □ 불릿 (최상위, 정책문서 스타일) ─────────────────
         if text.startswith(SQUARE_BULLET):
             content = text[1:].strip()
-            if in_section_ii:
+            if current_section == "ii":
                 rendered.append("")
                 rendered.append(f"### {content}")
                 context = "section"
                 continue
-            if in_appendix2:
+            if current_section == "appendix2":
                 rendered.append("")
                 rendered.append(f"#### {content}")
                 context = "section"
