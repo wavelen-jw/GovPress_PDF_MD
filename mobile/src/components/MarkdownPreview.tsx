@@ -8,7 +8,7 @@ type TableAlign = "left" | "center" | "right";
 type Block =
   | { type: "heading"; level: number; text: string }
   | { type: "paragraph"; text: string }
-  | { type: "blockquote"; paragraphs: string[] }
+  | { type: "blockquote"; paragraphs: string[]; level: number }
   | { type: "list_item"; ordered: boolean; level: number; text: string; orderIndex: number }
   | { type: "checklist_item"; checked: boolean; level: number; text: string }
   | { type: "image"; alt: string; src: string }
@@ -383,10 +383,23 @@ function parseMarkdown(markdown: string): Block[] {
       continue;
     }
 
-    if (/^>\s?/.test(trimmed)) {
+    const quoteStartMatch = rawLine.match(/^(\s*)>\s?(.*)$/);
+    if (quoteStartMatch) {
+      const quoteIndent = quoteStartMatch[1].length;
+      const quoteLevel = Math.min(4, Math.floor(quoteIndent / 2));
       const quoteLines: string[] = [];
-      while (index < lines.length && /^>\s?/.test(lines[index].trim())) {
-        quoteLines.push(lines[index].trim().replace(/^>\s?/, ""));
+      while (index < lines.length) {
+        const currentRawLine = lines[index];
+        const currentQuoteMatch = currentRawLine.match(/^(\s*)>\s?(.*)$/);
+        if (!currentQuoteMatch) {
+          break;
+        }
+        const leading = currentQuoteMatch[1].length;
+        const currentLevel = Math.min(4, Math.floor(leading / 2));
+        if (currentLevel !== quoteLevel) {
+          break;
+        }
+        quoteLines.push(currentQuoteMatch[2]);
         index += 1;
       }
       const quotedHtml = quoteLines.join("\n").trim();
@@ -402,7 +415,7 @@ function parseMarkdown(markdown: string): Block[] {
       for (const line of quoteLines) {
         if (!line.trim()) {
           if (paragraphBuffer.length) {
-            paragraphs.push(paragraphBuffer.join(" "));
+            paragraphs.push(paragraphBuffer.join("\n"));
             paragraphBuffer = [];
           }
           continue;
@@ -410,9 +423,9 @@ function parseMarkdown(markdown: string): Block[] {
         paragraphBuffer.push(line);
       }
       if (paragraphBuffer.length) {
-        paragraphs.push(paragraphBuffer.join(" "));
+        paragraphs.push(paragraphBuffer.join("\n"));
       }
-      blocks.push({ type: "blockquote", paragraphs: paragraphs.length ? paragraphs : [""] });
+      blocks.push({ type: "blockquote", paragraphs: paragraphs.length ? paragraphs : [""], level: quoteLevel });
       continue;
     }
 
@@ -461,7 +474,15 @@ function parseMarkdown(markdown: string): Block[] {
       index += 2;
       while (index < lines.length) {
         const candidate = lines[index].trim();
-        if (!candidate || !candidate.includes("|")) {
+        if (!candidate) {
+          const nextCandidate = index + 1 < lines.length ? lines[index + 1].trim() : "";
+          if (nextCandidate.startsWith("|")) {
+            index += 1;
+            continue;
+          }
+          break;
+        }
+        if (!candidate.includes("|")) {
           break;
         }
         rows.push(splitTableRow(candidate));
@@ -605,8 +626,18 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
       continue;
     }
 
-    if (/^>\s?/.test(trimmed)) {
-      while (index < lines.length && /^>\s?/.test(lines[index].trim())) {
+    if (/^\s*>\s?/.test(rawLine)) {
+      const quoteStartMatch = rawLine.match(/^(\s*)>\s?/);
+      const quoteLevel = Math.min(4, Math.floor((quoteStartMatch?.[1].length || 0) / 2));
+      while (index < lines.length) {
+        const currentMatch = lines[index].match(/^(\s*)>\s?/);
+        if (!currentMatch) {
+          break;
+        }
+        const currentLevel = Math.min(4, Math.floor((currentMatch[1].length || 0) / 2));
+        if (currentLevel !== quoteLevel) {
+          break;
+        }
         advanceLine(lines[index]);
       }
       ranges.push({ start: blockStart, end: offset });
@@ -629,7 +660,15 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
       advanceLine(lines[index]);
       while (index < lines.length) {
         const candidate = lines[index].trim();
-        if (!candidate || !candidate.includes("|")) {
+        if (!candidate) {
+          const nextCandidate = index + 1 < lines.length ? lines[index + 1].trim() : "";
+          if (nextCandidate.startsWith("|")) {
+            advanceLine(lines[index]);
+            continue;
+          }
+          break;
+        }
+        if (!candidate.includes("|")) {
           break;
         }
         advanceLine(lines[index]);
@@ -758,13 +797,34 @@ export function MarkdownPreview({
 
         if (block.type === "blockquote") {
           return (
-            <View key={key} style={[styles.markdownQuote, isDarkMode && styles.markdownQuoteDark, blockHighlightStyle]} onLayout={(event) => handleBlockLayout(blockIndex, event)}>
+            <View
+              key={key}
+              style={[
+                styles.markdownQuote,
+                isDarkMode && styles.markdownQuoteDark,
+                block.level > 0 && { marginLeft: block.level * 18 },
+                blockHighlightStyle,
+              ]}
+              onLayout={(event) => handleBlockLayout(blockIndex, event)}
+            >
               {block.paragraphs.map((paragraph, paragraphIndex) => (
                 <View
                   key={`${key}-paragraph-${paragraphIndex}`}
                   style={paragraphIndex > 0 ? styles.markdownQuoteParagraph : undefined}
                 >
-                  {renderInlineMarkdown(paragraph, [styles.markdownQuoteText, isDarkMode && styles.markdownQuoteTextDark] as unknown as object, `${key}-${paragraphIndex}`, isDarkMode)}
+                  {paragraph.split("\n").map((quoteLine, quoteLineIndex) => (
+                    <View
+                      key={`${key}-paragraph-${paragraphIndex}-line-${quoteLineIndex}`}
+                      style={quoteLineIndex > 0 ? styles.markdownQuoteLine : undefined}
+                    >
+                      {renderInlineMarkdown(
+                        quoteLine,
+                        [styles.markdownQuoteText, isDarkMode && styles.markdownQuoteTextDark] as unknown as object,
+                        `${key}-${paragraphIndex}-${quoteLineIndex}`,
+                        isDarkMode,
+                      )}
+                    </View>
+                  ))}
                 </View>
               ))}
             </View>
