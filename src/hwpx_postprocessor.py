@@ -579,6 +579,29 @@ def _strip_table_bullet_prefix(lines: list[str]) -> list[str]:
     return stripped_lines
 
 
+def _repair_broken_table_rows(markdown: str) -> str:
+    lines = markdown.splitlines()
+    repaired: list[str] = []
+    index = 0
+
+    while index < len(lines):
+        line = lines[index]
+        if (
+            repaired
+            and repaired[-1].lstrip().startswith("|")
+            and not repaired[-1].rstrip().endswith("|")
+            and line.lstrip().startswith("- ")
+            and line.rstrip().endswith("|")
+        ):
+            repaired[-1] = repaired[-1].rstrip() + " " + line.lstrip()
+            index += 1
+            continue
+        repaired.append(line)
+        index += 1
+
+    return "\n".join(repaired) + ("\n" if markdown.endswith("\n") else "")
+
+
 def postprocess_hwpx(paragraphs: list[HwpxParagraph]) -> str:
     if not paragraphs:
         return ""
@@ -590,4 +613,5 @@ def postprocess_hwpx(paragraphs: list[HwpxParagraph]) -> str:
     lines = _dedupe_structural_lines(lines)
     lines = _render_comparison_tables(lines)
     lines = _strip_table_bullet_prefix(lines)
-    return postprocess_markdown("\n".join(line for line in lines if line is not None))
+    rendered = postprocess_markdown("\n".join(line for line in lines if line is not None))
+    return _repair_broken_table_rows(rendered)

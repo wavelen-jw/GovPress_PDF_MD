@@ -200,11 +200,15 @@ def _collect_table_data(tbl_elem: ET.Element) -> Table:
 
 
 def _escape_md_cell(text: str) -> str:
-    return text.replace("\n", "<br>").replace("|", "\\|")
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    normalized = re.sub(r"\s*\n\s*", "<br>", normalized)
+    return normalized.replace("|", "\\|")
 
 
 def _escape_html(text: str) -> str:
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    normalized = re.sub(r"\s*\n\s*", "<br>", normalized)
+    return normalized.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def _cell_text(cell: TableCell, html: bool = False) -> str:
