@@ -97,7 +97,19 @@ def _join_title(lines: Iterable[str]) -> str:
 
 def _split_lines(raw_text: str) -> list[str]:
     expanded: list[str] = []
+    in_html_table = False
     for raw_line in raw_text.splitlines():
+        # HTML <table> 블록 내부에서는 <br> 확장 및 노이즈 제거 건너뜀
+        stripped = raw_line.strip()
+        if HTML_TABLE_TAG_PATTERN.match(stripped):
+            if stripped.lower().startswith("<table"):
+                in_html_table = True
+            if in_html_table:
+                expanded.append(stripped)
+                if stripped.lower().startswith("</table"):
+                    in_html_table = False
+                continue
+
         service_parts = _split_inline_service_table_bundle(raw_line)
         if len(service_parts) > 1 or service_parts[0] != raw_line:
             for part in service_parts:
@@ -895,6 +907,8 @@ def _render_contacts(lines: list[str]) -> list[str]:
 
 
 def _normalize_generic_line(text: str) -> list[str]:
+    if HTML_TABLE_TAG_PATTERN.match(text):
+        return [text]
     if text.startswith("< 핵심 정책과제 >") or text.startswith("<핵심 정책과제>"):
         suffix = text.split(">", 1)[1].strip() if ">" in text else ""
         lines = ["> <핵심 정책과제>"]

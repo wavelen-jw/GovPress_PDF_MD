@@ -118,12 +118,23 @@ def _is_drawing_table(cells: list[TableCell], rows: int, cols: int) -> bool:
 
 
 def _collect_cell_paragraphs(tc: ET.Element) -> list[str]:
-    """tc 직접 자식 <p> 요소에서만 텍스트 수집 (중첩 표 내부 제외)."""
+    """tc > subList > p 경로에서 텍스트 수집.
+
+    HWPX XML 구조: <tc> → <subList> → <p>
+    <p>는 tc의 직접 자식이 아니므로 subList를 통해야 한다.
+    """
     parts: list[str] = []
-    for p in _direct_children_local(tc, "p"):
-        text = _collect_run_text(p).strip()
-        if text:
-            parts.append(text)
+    for sub_list in _direct_children_local(tc, "subList"):
+        for p in _direct_children_local(sub_list, "p"):
+            text = _collect_run_text(p).strip()
+            if text:
+                parts.append(text)
+    # fallback: 일부 HWPX 변형에서 p가 tc 직접 자식인 경우
+    if not parts:
+        for p in _direct_children_local(tc, "p"):
+            text = _collect_run_text(p).strip()
+            if text:
+                parts.append(text)
     return parts
 
 
@@ -146,12 +157,17 @@ def _collect_table_data(tbl_elem: ET.Element) -> Table:
 
             paragraphs = _collect_cell_paragraphs(tc)
 
-            # 중첩 표 재귀 처리
+            # 중첩 표 재귀 처리: tc > subList > p > ctrl > tbl
             nested: list[Table] = []
+            for sub_list in _direct_children_local(tc, "subList"):
+                for p in _direct_children_local(sub_list, "p"):
+                    for ctrl in _direct_children_local(p, "ctrl"):
+                        for sub_tbl in _iter_local(ctrl, "tbl"):
+                            nested.append(_collect_table_data(sub_tbl))
+            # fallback: ctrl 혹은 tbl이 tc 직접 자식인 경우
             for ctrl in _direct_children_local(tc, "ctrl"):
                 for sub_tbl in _iter_local(ctrl, "tbl"):
                     nested.append(_collect_table_data(sub_tbl))
-            # ctrl 없이 바로 tbl인 경우
             for sub_tbl in _direct_children_local(tc, "tbl"):
                 nested.append(_collect_table_data(sub_tbl))
 
@@ -201,13 +217,17 @@ def _escape_html(text: str) -> str:
 
 def _cell_text(cell: TableCell, html: bool = False) -> str:
     """셀 단락들을 <br> 구분으로 합쳐 단일 문자열로 반환."""
-    parts = list(cell.paragraphs)
-    # 중첩 표는 간단히 [표] 표시
-    for nt in cell.nested_tables:
-        sub = _render_table(nt)
-        parts.append(sub if html else "[중첩표]")
-    joined = "<br>".join(parts) if len(parts) > 1 else (parts[0] if parts else "")
-    return _escape_html(joined) if html else _escape_md_cell(joined)
+    if html:
+        # 개별 단락을 먼저 이스케이프한 뒤 <br>로 연결 (이스케이프 후 <br> 삽입)
+        parts = [_escape_html(p) for p in cell.paragraphs]
+        for nt in cell.nested_tables:
+            parts.append(_render_table(nt))
+        return "<br>".join(parts)
+    else:
+        parts = [_escape_md_cell(p) for p in cell.paragraphs]
+        for nt in cell.nested_tables:
+            parts.append("[중첩표]")
+        return "<br>".join(parts)
 
 
 def _render_tier1_markdown(table: Table) -> str:
@@ -344,7 +364,9 @@ def _parse_paragraphs_from_xml(xml_bytes: bytes) -> list[HwpxParagraph]:
         raise ValueError(f"HWPX 섹션 XML 파싱 실패: {exc}") from exc
 
     paragraphs: list[HwpxParagraph] = []
-    for paragraph in _iter_local(root, "p"):
+    # 최상위 <p>만 순회 — _iter_local은 표 셀 내부 <p>까지 포함되어 중복 발생
+    # HWPX 구조: <sec> → <p> (직접 자식), <p> 내 ctrl → <tbl> → <tr>→<tc>→<subList>→<p>
+    for paragraph in _direct_children_local(root, "p"):
         style_id = _get_attr(paragraph, "styleIDRef", "styleId", "styleID", "styleIdRef")
 
         level = 0
@@ -358,8 +380,13 @@ def _parse_paragraphs_from_xml(xml_bytes: bytes) -> list[HwpxParagraph]:
                     level = 0
 
         table_paragraphs: list[HwpxParagraph] = []
-        for ctrl in (child for child in paragraph if _local_name(child.tag) == "ctrl"):
-            for tbl in _iter_local(ctrl, "tbl"):
+        # HWPX 실제 구조: <p> → <run> → <tbl>  (ctrl이 아닌 run 안에 내장)
+        # fallback: <p> → <ctrl> → <tbl> (일부 버전)
+        for container in paragraph:
+            container_ln = _local_name(container.tag)
+            if container_ln not in ("run", "ctrl"):
+                continue
+            for tbl in _direct_children_local(container, "tbl"):
                 table = _collect_table_data(tbl)
                 rendered = _render_table(table)
                 if rendered or table.cells:

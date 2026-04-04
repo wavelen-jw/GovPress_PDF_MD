@@ -200,6 +200,12 @@ def _normalize_preamble_lines(lines: list[str]) -> list[str]:
             index += 1
             continue
 
+        # HTML table blocks must pass through unchanged — never split or transform
+        if text.lower().startswith("<table"):
+            normalized.append(text)
+            index += 1
+            continue
+
         if text.startswith("보도자료보도시점") and any(item == "보도시점" for item in lines[index + 1 : index + 4]):
             index += 1
             continue
