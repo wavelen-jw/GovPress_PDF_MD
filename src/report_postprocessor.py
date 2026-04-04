@@ -654,8 +654,8 @@ def _finalize_government_report_markdown(text: str) -> str:
             i += 1
             continue
 
-        if re.fullmatch(r"###\s+([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]\.\s+.+)", stripped):
-            heading = re.sub(r"^###\s+", "", stripped)
+        if re.fullmatch(r"##\s+([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]\.\s+.+)", stripped):
+            heading = re.sub(r"^##\s+", "", stripped)
             lines.extend(["", f"## {heading}", ""])
             in_section_ii = heading.startswith("Ⅱ.")
             in_section_iii = heading.startswith("Ⅲ.")
@@ -1182,7 +1182,7 @@ def postprocess_report(raw_text: str) -> str:
         # ── 로마자 섹션 제목 ───────────────────────────────────
         if ROMAN_HEADING_RE.match(text):
             rendered.append("")
-            rendered.append(f"### {text}")
+            rendered.append(f"## {text}")
             context = "section"
             continue
 
@@ -1532,7 +1532,7 @@ def postprocess_service_guide(raw_text: str) -> str:
         # ── 섹션 헤딩: N. 짧은제목 ───────────────────────────
         if _sg_is_section_title(text):
             rendered.append("")
-            rendered.append(f"### {text}")
+            rendered.append(f"## {text}")
             continue
 
         # ── 테이블 줄 ─────────────────────────────────────────
