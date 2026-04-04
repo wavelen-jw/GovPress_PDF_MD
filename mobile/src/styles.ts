@@ -1323,6 +1323,9 @@ export const styles = StyleSheet.create({
   markdownQuoteParagraph: {
     marginTop: 8,
   },
+  markdownQuoteLine: {
+    marginTop: 2,
+  },
   markdownList: {
     gap: 8,
   },
