@@ -1027,8 +1027,7 @@ def postprocess_report(raw_text: str) -> str:
 
         # ── 요약 ──────────────────────────────────────────────
         if SUMMARY_RE.match(text):
-            rendered.append("")
-            rendered.append("## 요약")
+            _append_spaced_heading(rendered, "##", "요약")
             context = "section"
             current_section = None
             block_mode = None
@@ -1037,8 +1036,7 @@ def postprocess_report(raw_text: str) -> str:
         # ── <참고 N> 섹션 ─────────────────────────────────────
         ref = _match_reference_section(text)
         if ref is not None:
-            rendered.append("")
-            rendered.append(f"## {ref}")
+            _append_spaced_heading(rendered, "##", ref)
             context = "section"
             current_section = None
             block_mode = None
@@ -1046,8 +1044,7 @@ def postprocess_report(raw_text: str) -> str:
 
         # ── bare 참고 섹션 (꺾쇠 없이 "참고" 단독) ───────────
         if BARE_REFERENCE_RE.match(text):
-            rendered.append("")
-            rendered.append("## 참고")
+            _append_spaced_heading(rendered, "##", "참고")
             context = "section"
             current_section = None
             block_mode = None
@@ -1055,96 +1052,34 @@ def postprocess_report(raw_text: str) -> str:
 
         # ── 로마자 섹션 제목 ───────────────────────────────────
         if ROMAN_HEADING_RE.match(text):
-            rendered.append("")
-            rendered.append(f"## {text}")
+            _append_spaced_heading(rendered, "##", text)
             context = "section"
-            if text.startswith("Ⅱ."):
-                current_section = "ii"
-            elif text.startswith("Ⅲ."):
-                current_section = "iii"
-            elif text.startswith("Ⅳ."):
-                current_section = "iv"
-            else:
-                current_section = None
+            current_section = _report_section_key(text)
             block_mode = None
             current_group = None
             continue
 
         if text.startswith("붙임"):
-            rendered.append("")
-            rendered.append(f"## {text}")
+            _append_spaced_heading(rendered, "##", text)
             context = "section"
             current_section = "appendix2" if text.startswith("붙임2") else None
             block_mode = None
             current_group = None
             continue
 
-        if text in {"< 기존 문서 AI 활용 >", "< 앞으로의 문서 >"}:
-            rendered.append("")
-            rendered.append(f"### {text}")
-            current_group = text.strip("<> ").strip()
-            group_counts.setdefault(current_group, 0)
-            block_mode = None
-            continue
-
-        task_match = re.match(r"^[󰋎󰋏󰋐]\s+(.+)$", text)
-        if current_section == "iii" and current_group and task_match:
-            group_counts[current_group] += 1
-            rendered.append("")
-            rendered.append(f"### {group_counts[current_group]}. {task_match.group(1)}")
-            context = "section"
-            block_mode = None
-            continue
-
-        if text == "< 가이드라인 예시 >":
-            rendered.append("> < 가이드라인 예시 >")
-            block_mode = "guideline"
-            continue
-
-        if current_section == "appendix2" and text == "<개 요>":
-            rendered.append("> <개 요>")
-            continue
-
-        if current_section == "appendix2" and text.startswith("▶"):
-            rendered.append(f"> {text}")
-            continue
-
-        if text == "< 추진경과 >":
-            rendered.append("> < 추진경과 >")
-            block_mode = "progress"
-            continue
-
-        if text in {"□ 추진체계 : 인공지능정부실, 참여혁신조직실 공동", "□ 향후일정"}:
-            rendered.append("")
-            rendered.append(f"#### {text[2:].strip()}")
-            block_mode = "schedule" if text.endswith("향후일정") else None
-            context = "section"
-            continue
-
-        if block_mode == "guideline" and text.startswith("▸ "):
-            indent = _quote_indent_from_previous_bullet(rendered)
-            _render_quote_parts(rendered, text, indent=indent)
-            continue
-
-        if block_mode == "guideline" and not text.startswith(("▸ ", "<", ">")):
-            block_mode = None
-
-        if block_mode == "progress" and text.startswith("○ "):
-            rendered.append(f"> - {text[2:].strip()}")
-            continue
-
-        if block_mode == "progress" and text.startswith("- "):
-            rendered.append(f">    - {text[2:].strip()}")
-            continue
-
-        if block_mode == "schedule" and text.startswith("▸ "):
-            indent = _quote_indent_from_previous_bullet(rendered, fallback="  ")
-            _render_quote_parts(rendered, text, indent=indent)
-            continue
-
-        if text.startswith("▸ "):
-            indent = _quote_indent_from_previous_bullet(rendered)
-            _render_quote_parts(rendered, text, indent=indent)
+        handled, next_block_mode, next_group, next_context = _handle_report_special_block(
+            rendered,
+            text,
+            current_section=current_section,
+            block_mode=block_mode,
+            current_group=current_group,
+            group_counts=group_counts,
+        )
+        block_mode = next_block_mode
+        current_group = next_group
+        if next_context is not None:
+            context = next_context
+        if handled:
             continue
 
         # ── ⃝ 불릿 ─────────────────────────────────────────────
@@ -1481,6 +1416,92 @@ def _render_quote_parts(rendered: list[str], text: str, *, indent: str, strip_ma
         if part.startswith("▸ "):
             part = part[2:].strip()
         rendered.append(f"{indent}> {part}")
+
+
+def _append_spaced_heading(rendered: list[str], level: str, text: str) -> None:
+    rendered.append("")
+    rendered.append(f"{level} {text}")
+
+
+def _report_section_key(text: str) -> str | None:
+    if text.startswith("Ⅱ."):
+        return "ii"
+    if text.startswith("Ⅲ."):
+        return "iii"
+    if text.startswith("Ⅳ."):
+        return "iv"
+    return None
+
+
+def _handle_report_special_block(
+    rendered: list[str],
+    text: str,
+    *,
+    current_section: str | None,
+    block_mode: str | None,
+    current_group: str | None,
+    group_counts: dict[str, int],
+) -> tuple[bool, str | None, str | None, str | None]:
+    if text in {"< 기존 문서 AI 활용 >", "< 앞으로의 문서 >"}:
+        _append_spaced_heading(rendered, "###", text)
+        next_group = text.strip("<> ").strip()
+        group_counts.setdefault(next_group, 0)
+        return True, None, next_group, None
+
+    task_match = re.match(r"^[󰋎󰋏󰋐]\s+(.+)$", text)
+    if current_section == "iii" and current_group and task_match:
+        group_counts[current_group] += 1
+        _append_spaced_heading(rendered, "###", f"{group_counts[current_group]}. {task_match.group(1)}")
+        return True, None, current_group, "section"
+
+    if text == "< 가이드라인 예시 >":
+        rendered.append("> < 가이드라인 예시 >")
+        return True, "guideline", current_group, None
+
+    if current_section == "appendix2" and text == "<개 요>":
+        rendered.append("> <개 요>")
+        return True, block_mode, current_group, None
+
+    if current_section == "appendix2" and text.startswith("▶"):
+        rendered.append(f"> {text}")
+        return True, block_mode, current_group, None
+
+    if text == "< 추진경과 >":
+        rendered.append("> < 추진경과 >")
+        return True, "progress", current_group, None
+
+    if text in {"□ 추진체계 : 인공지능정부실, 참여혁신조직실 공동", "□ 향후일정"}:
+        _append_spaced_heading(rendered, "####", text[2:].strip())
+        next_mode = "schedule" if text.endswith("향후일정") else None
+        return True, next_mode, current_group, "section"
+
+    if block_mode == "guideline" and text.startswith("▸ "):
+        indent = _quote_indent_from_previous_bullet(rendered)
+        _render_quote_parts(rendered, text, indent=indent)
+        return True, block_mode, current_group, None
+
+    if block_mode == "progress" and text.startswith("○ "):
+        rendered.append(f"> - {text[2:].strip()}")
+        return True, block_mode, current_group, None
+
+    if block_mode == "progress" and text.startswith("- "):
+        rendered.append(f">    - {text[2:].strip()}")
+        return True, block_mode, current_group, None
+
+    if block_mode == "schedule" and text.startswith("▸ "):
+        indent = _quote_indent_from_previous_bullet(rendered, fallback="  ")
+        _render_quote_parts(rendered, text, indent=indent)
+        return True, block_mode, current_group, None
+
+    if text.startswith("▸ "):
+        indent = _quote_indent_from_previous_bullet(rendered)
+        _render_quote_parts(rendered, text, indent=indent)
+        return True, block_mode, current_group, None
+
+    if block_mode == "guideline" and not text.startswith(("▸ ", "<", ">")):
+        return False, None, current_group, None
+
+    return False, block_mode, current_group, None
 
 
 def postprocess_service_guide(raw_text: str) -> str:
