@@ -629,15 +629,6 @@ def _finalize_policy_plan_markdown(text: str) -> str:
 def _finalize_government_report_markdown(text: str) -> str:
     raw_lines = text.splitlines()
     lines: list[str] = []
-    in_section_ii = False
-    in_section_iii = False
-    in_section_iv = False
-    in_appendix2 = False
-    in_progress = False
-    current_group: str | None = None
-    group_counts: dict[str, int] = {}
-    in_guideline_callout = False
-    in_schedule_meta = False
     i = 0
 
     while i < len(raw_lines):
@@ -657,103 +648,18 @@ def _finalize_government_report_markdown(text: str) -> str:
         if re.fullmatch(r"##\s+([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]\.\s+.+)", stripped):
             heading = re.sub(r"^##\s+", "", stripped)
             lines.extend(["", f"## {heading}", ""])
-            in_section_ii = heading.startswith("Ⅱ.")
-            in_section_iii = heading.startswith("Ⅲ.")
-            in_section_iv = heading.startswith("Ⅳ.")
-            in_appendix2 = False
-            in_progress = False
-            current_group = None
             i += 1
             continue
 
         if stripped.startswith("붙임"):
             lines.extend(["", f"## {stripped}", ""])
-            in_appendix2 = stripped.startswith("붙임2")
-            in_section_ii = in_section_iii = in_section_iv = False
-            in_progress = False
-            in_guideline_callout = False
-            in_schedule_meta = False
-            current_group = None
             i += 1
             continue
-
-        if stripped.startswith(">") and not stripped.startswith("> ") and not stripped.startswith(">▸"):
-            stripped = f"> {stripped[1:].lstrip()}"
-
-        if in_section_ii and stripped.startswith("- ") and not stripped.startswith("- (") and not stripped.endswith("|"):
-            next_nonblank = ""
-            for candidate in raw_lines[i + 1 :]:
-                if candidate.strip():
-                    next_nonblank = candidate.strip()
-                    break
-            if next_nonblank.startswith(("  - (", "|")) or "AI 인식 한계" in stripped or "문서작성 과정의 비효율" in stripped or "문서 관리·유통 과정의 데이터 고립" in stripped:
-                lines.extend(["", f"###  {stripped[2:].strip()}", ""])
-                i += 1
-                continue
 
         if stripped.startswith("◆ "):
             lines.append(f"> {stripped[2:].strip()}")
             i += 1
             continue
-
-        if stripped in {"> < 기존 문서 AI 활용 >", "> < 앞으로의 문서 >"}:
-            group_heading = stripped[2:].strip()
-            current_group = group_heading.strip("<> ").strip()
-            group_counts.setdefault(current_group, 0)
-            lines.extend(["", f"### {group_heading}", ""])
-            i += 1
-            continue
-
-        task_match = re.match(r"^[󰋎󰋏󰋐]\s+(.+)$", stripped)
-        if in_section_iii and current_group and task_match:
-            group_counts[current_group] += 1
-            lines.extend(["", f"### {group_counts[current_group]}. {task_match.group(1)}", ""])
-            i += 1
-            continue
-
-        if stripped == "> < 추진경과 >":
-            lines.append(stripped)
-            in_progress = True
-            in_schedule_meta = False
-            i += 1
-            continue
-
-        if stripped in {"- 추진체계 : 인공지능정부실, 참여혁신조직실 공동", "- 향후일정"}:
-            lines.extend(["", f"#### {stripped[2:].strip()}", ""])
-            in_progress = False
-            in_schedule_meta = stripped.endswith("향후일정")
-            i += 1
-            continue
-
-        if in_progress and raw.lstrip().startswith("- "):
-            if raw.startswith(("  - ", "    - ")):
-                lines.append(f">    - {raw.lstrip()[2:].strip()}")
-            else:
-                lines.append(f"> {stripped}")
-            i += 1
-            continue
-
-        if stripped == "> < 가이드라인 예시 >":
-            lines.append(stripped)
-            in_guideline_callout = True
-            i += 1
-            continue
-
-        if stripped.startswith("▸ "):
-            if in_guideline_callout:
-                indent = _quote_indent_from_previous_bullet(lines)
-                lines.append(f"{indent}> {stripped}")
-            elif in_schedule_meta:
-                for part in [clean_line(part) for part in stripped.split("<br>") if clean_line(part)]:
-                    indent = _quote_indent_from_previous_bullet(lines, fallback="  ")
-                    lines.append(f"{indent}> {part}")
-            else:
-                lines.append(stripped)
-            i += 1
-            continue
-
-        if in_guideline_callout and not stripped.startswith(("▸ ", ">")):
-            in_guideline_callout = False
 
         if stripped.startswith("> ※ "):
             indent = _quote_indent_from_previous_bullet(lines)
@@ -796,50 +702,8 @@ def _finalize_government_report_markdown(text: str) -> str:
             i += 4
             continue
 
-        if in_appendix2 and stripped == "> <개 요>":
-            lines.append(stripped)
-            i += 1
-            continue
-
-        if in_appendix2 and stripped.startswith("▶"):
-            lines.append(f"> {stripped}")
-            i += 1
-            continue
-
-        if in_appendix2 and stripped[2:].strip() in {"시각적 관계의 논리적 이해", "이미지 맥락 이해", "텍스트 기반 추론의 한계"}:
-            lines.extend(["", f"#### {stripped[2:].strip()}", ""])
-            i += 1
-            continue
-
-        if in_appendix2 and stripped.startswith("- ") and not stripped.startswith("- ("):
-            next_nonblank = ""
-            for candidate in raw_lines[i + 1 :]:
-                if candidate.strip():
-                    next_nonblank = candidate.strip()
-                    break
-            if next_nonblank.startswith("  - "):
-                lines.extend(["", f"#### {stripped[2:].strip()}", ""])
-                i += 1
-                continue
-
         if raw.startswith(">") and not raw.startswith("> "):
             raw = "> " + raw[1:].lstrip()
-
-        if raw.startswith("  - "):
-            prev = next((item for item in reversed(lines) if item.strip()), "")
-            if (
-                prev in {"> < 추진경과 >"}
-                or raw.startswith("  - (")
-                or raw.startswith("  - 기존 문서의 AI 활용도를")
-                or raw.startswith("  - 업무포털")
-                or raw.startswith("  - LLM(")
-                or raw.startswith("  - VLM(")
-                or (raw.startswith("  - 온-나라") and "시스템" in raw)
-            ):
-                raw = "- " + raw[4:]
-
-        if in_schedule_meta and raw.startswith("▸ "):
-            raw = f"{_quote_indent_from_previous_bullet(lines, fallback='  ')}> {raw}"
 
         lines.append(raw)
         i += 1
