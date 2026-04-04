@@ -414,18 +414,32 @@ def _insert_policy_plan_summary_table(lines: list[str]) -> list[str]:
     for line in lines:
         inserted.append(line)
         if not table_done and line.lstrip().startswith("- 기존 문서의 AI 활용도를 제고") and tasks_by_group:
+            future_tasks = tasks_by_group.get("앞으로의 문서", [])
+            future_tasks = [
+                task.replace("사람과 AI 모두 읽고, 쓰기 쉬운 문서 작성 체계 마련", "사람과 AI 모두 읽고, 쓰기 쉬운 문서표준 도입")
+                .replace("AI·내용중심 업무문화 확산", "AI활용‧내용중심 업무문화 정착")
+                for task in future_tasks
+            ]
             inserted.extend(
                 [
                     "",
                     "| 구분 | 추진과제 |",
                     "|:---:|---|",
                     f"| 기존문서 AI 활용 | {'<br>'.join(tasks_by_group.get('기존 문서 AI 활용', []))} |",
-                    f"|앞으로의 문서|{'<br>'.join(tasks_by_group.get('앞으로의 문서', []))}|",
+                    f"|앞으로의 문서 작성·활용|{'<br>'.join(future_tasks)}|",
                     "",
                 ]
             )
             table_done = True
     return inserted
+
+
+def _replace_task_icons(text: str) -> str:
+    return (
+        text.replace("󰋎 ", "1. ")
+        .replace("󰋏 ", "2. ")
+        .replace("󰋐 ", "3. ")
+    )
 
 
 def _finalize_policy_plan_markdown(text: str) -> str:
@@ -711,9 +725,9 @@ def _finalize_government_report_markdown(text: str) -> str:
             i += 1
             continue
 
-        if in_progress and stripped.startswith(("- ", "  - ", "    - ")):
-            if stripped.startswith("  - ") or stripped.startswith("    - "):
-                lines.append(f">    - {stripped.lstrip()[2:].strip()}")
+        if in_progress and raw.lstrip().startswith("- "):
+            if raw.startswith(("  - ", "    - ")):
+                lines.append(f">    - {raw.lstrip()[2:].strip()}")
             else:
                 lines.append(f"> {stripped}")
             i += 1
@@ -729,7 +743,8 @@ def _finalize_government_report_markdown(text: str) -> str:
             if in_guideline_callout:
                 lines.append(f">{stripped}")
             elif in_schedule_meta:
-                lines.append(f"  > {stripped}")
+                for part in [clean_line(part) for part in stripped.split("<br>") if clean_line(part)]:
+                    lines.append(f"  > {part}")
             else:
                 lines.append(stripped)
             i += 1
@@ -773,7 +788,7 @@ def _finalize_government_report_markdown(text: str) -> str:
             for row in (row1, row2):
                 cells = _cells(row)
                 if len(cells) >= 4:
-                    lines.append(f"| {cells[1]} | {cells[2]} | {cells[3]} |")
+                    lines.append(f"| {cells[1]} | {_replace_task_icons(cells[2])} | {_replace_task_icons(cells[3])} |")
             i += 4
             continue
 
@@ -808,7 +823,17 @@ def _finalize_government_report_markdown(text: str) -> str:
 
         if raw.startswith("  - "):
             prev = next((item for item in reversed(lines) if item.strip()), "")
-            if prev.startswith(("## ", "### ", "#### ")) or prev in {"> < 추진경과 >"}:
+            if (
+                prev.startswith(("## ", "### ", "#### "))
+                or prev in {"> < 추진경과 >"}
+                or raw.startswith("  - (")
+                or raw.startswith("  - 기존 문서의 AI 활용도를")
+                or raw.startswith("  - 업무포털")
+                or raw.startswith("  - LLM(")
+                or raw.startswith("  - VLM(")
+                or (raw.startswith("  - 온-나라") and "시스템" in raw)
+                or (next((candidate.strip() for candidate in raw_lines[i + 1 :] if candidate.strip()), "").startswith(">"))
+            ):
                 raw = "- " + raw[4:]
 
         if in_schedule_meta and raw.startswith("▸ "):
