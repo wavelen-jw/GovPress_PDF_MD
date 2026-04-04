@@ -622,6 +622,8 @@ def _finalize_government_report_markdown(text: str) -> str:
     in_progress = False
     current_group: str | None = None
     group_counts: dict[str, int] = {}
+    in_guideline_callout = False
+    in_schedule_meta = False
     i = 0
 
     while i < len(raw_lines):
@@ -655,6 +657,8 @@ def _finalize_government_report_markdown(text: str) -> str:
             in_appendix2 = stripped.startswith("붙임2")
             in_section_ii = in_section_iii = in_section_iv = False
             in_progress = False
+            in_guideline_callout = False
+            in_schedule_meta = False
             current_group = None
             i += 1
             continue
@@ -696,32 +700,43 @@ def _finalize_government_report_markdown(text: str) -> str:
         if stripped == "> < 추진경과 >":
             lines.append(stripped)
             in_progress = True
+            in_schedule_meta = False
             i += 1
             continue
 
         if stripped in {"- 추진체계 : 인공지능정부실, 참여혁신조직실 공동", "- 향후일정"}:
             lines.extend(["", f"#### {stripped[2:].strip()}", ""])
             in_progress = False
+            in_schedule_meta = stripped.endswith("향후일정")
             i += 1
             continue
 
         if in_progress and stripped.startswith(("- ", "  - ", "    - ")):
-            lines.append(f"> {stripped}")
+            if stripped.startswith("  - ") or stripped.startswith("    - "):
+                lines.append(f">    - {stripped.lstrip()[2:].strip()}")
+            else:
+                lines.append(f"> {stripped}")
             i += 1
             continue
 
         if stripped == "> < 가이드라인 예시 >":
             lines.append(stripped)
+            in_guideline_callout = True
             i += 1
             continue
 
         if stripped.startswith("▸ "):
-            if lines and lines[-1] == "> < 가이드라인 예시 >":
+            if in_guideline_callout:
                 lines.append(f">{stripped}")
+            elif in_schedule_meta:
+                lines.append(f"  > {stripped}")
             else:
                 lines.append(stripped)
             i += 1
             continue
+
+        if in_guideline_callout and not stripped.startswith(("▸ ", ">")):
+            in_guideline_callout = False
 
         if stripped.startswith("> ※ "):
             lines.append(f"> {stripped[4:].strip()}")
@@ -787,6 +802,17 @@ def _finalize_government_report_markdown(text: str) -> str:
                 lines.extend(["", f"#### {stripped[2:].strip()}", ""])
                 i += 1
                 continue
+
+        if raw.startswith(">") and not raw.startswith("> "):
+            raw = "> " + raw[1:].lstrip()
+
+        if raw.startswith("  - "):
+            prev = next((item for item in reversed(lines) if item.strip()), "")
+            if prev.startswith(("## ", "### ", "#### ")) or prev in {"> < 추진경과 >"}:
+                raw = "- " + raw[4:]
+
+        if in_schedule_meta and raw.startswith("▸ "):
+            raw = "  > " + raw
 
         lines.append(raw)
         i += 1
