@@ -310,15 +310,16 @@ export default function App(): React.JSX.Element {
       });
       if (shouldLoadResult) {
         const resultPayload = await fetchResult(config, jobId, editToken);
+        const isNewJob = result?.job_id !== payload.job_id;
         startTransition(() => {
           setResult(resultPayload);
-          if (result?.job_id !== payload.job_id) {
+          if (isNewJob) {
             setLoadedTableMode(payload.file_name.toLowerCase().endsWith(".hwpx") ? hwpxTableMode : "text");
             setSelectedTableMode("text");
+            setEditorText(resultPayload.markdown || "");
+            setEditorSelection({ start: 0, end: 0 });
+            setEditorFocusToken((current) => current + 1);
           }
-          setEditorText(resultPayload.markdown || "");
-          setEditorSelection({ start: 0, end: 0 });
-          setEditorFocusToken((current) => current + 1);
         });
       }
     } catch (error) {
