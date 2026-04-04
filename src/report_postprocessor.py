@@ -1025,45 +1025,11 @@ def postprocess_report(raw_text: str) -> str:
             rendered.append(text)
             continue
 
-        # ── 요약 ──────────────────────────────────────────────
-        if SUMMARY_RE.match(text):
-            _append_spaced_heading(rendered, "##", "요약")
-            context = "section"
-            current_section = None
-            block_mode = None
-            continue
-
-        # ── <참고 N> 섹션 ─────────────────────────────────────
-        ref = _match_reference_section(text)
-        if ref is not None:
-            _append_spaced_heading(rendered, "##", ref)
-            context = "section"
-            current_section = None
-            block_mode = None
-            continue
-
-        # ── bare 참고 섹션 (꺾쇠 없이 "참고" 단독) ───────────
-        if BARE_REFERENCE_RE.match(text):
-            _append_spaced_heading(rendered, "##", "참고")
-            context = "section"
-            current_section = None
-            block_mode = None
-            continue
-
-        # ── 로마자 섹션 제목 ───────────────────────────────────
-        if ROMAN_HEADING_RE.match(text):
-            _append_spaced_heading(rendered, "##", text)
-            context = "section"
-            current_section = _report_section_key(text)
-            block_mode = None
-            current_group = None
-            continue
-
-        if text.startswith("붙임"):
-            _append_spaced_heading(rendered, "##", text)
-            context = "section"
-            current_section = "appendix2" if text.startswith("붙임2") else None
-            block_mode = None
+        handled, next_context, next_section, next_block_mode = _handle_report_section_entry(rendered, text)
+        if handled:
+            context = next_context
+            current_section = next_section
+            block_mode = next_block_mode
             current_group = None
             continue
 
@@ -1495,6 +1461,35 @@ def _handle_report_standard_item(
         return True, context
 
     return False, context
+
+
+def _handle_report_section_entry(
+    rendered: list[str],
+    text: str,
+) -> tuple[bool, str | None, str | None, str | None]:
+    if SUMMARY_RE.match(text):
+        _append_spaced_heading(rendered, "##", "요약")
+        return True, "section", None, None
+
+    ref = _match_reference_section(text)
+    if ref is not None:
+        _append_spaced_heading(rendered, "##", ref)
+        return True, "section", None, None
+
+    if BARE_REFERENCE_RE.match(text):
+        _append_spaced_heading(rendered, "##", "참고")
+        return True, "section", None, None
+
+    if ROMAN_HEADING_RE.match(text):
+        _append_spaced_heading(rendered, "##", text)
+        return True, "section", _report_section_key(text), None
+
+    if text.startswith("붙임"):
+        _append_spaced_heading(rendered, "##", text)
+        next_section = "appendix2" if text.startswith("붙임2") else None
+        return True, "section", next_section, None
+
+    return False, None, None, None
 
 
 def postprocess_service_guide(raw_text: str) -> str:
