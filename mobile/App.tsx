@@ -99,6 +99,12 @@ export default function App(): React.JSX.Element {
     return editing ? deferredEditorText : selectedVariant.markdown;
   }, [deferredEditorText, editing, selectedVariant.markdown]);
   const hasUnsavedChanges = editing && editorText !== (selectedVariant.markdown || "");
+  const previewMarkdown = useMemo(() => {
+    if (editing || hasUnsavedChanges) {
+      return editorText;
+    }
+    return selectedResultText;
+  }, [editing, hasUnsavedChanges, editorText, selectedResultText]);
   const hasAsyncTableVariants = !!result?.table_variants;
   const htmlVariantState: "ready" | "pending" | "unavailable" = useMemo(() => {
     if (!selectedJob || !selectedJob.file_name.toLowerCase().endsWith(".hwpx")) {
@@ -856,7 +862,7 @@ export default function App(): React.JSX.Element {
             showBackButton={isCompactLayout}
             result={result}
             selectedJob={selectedJob}
-            selectedResultText={selectedResultText}
+            selectedResultText={previewMarkdown}
             onApplyEditorAction={applyEditorAction}
             onBack={() => {
                 confirmDiscardChanges(() => {
