@@ -602,6 +602,44 @@ def _repair_broken_table_rows(markdown: str) -> str:
     return "\n".join(repaired) + ("\n" if markdown.endswith("\n") else "")
 
 
+def _indent_callout_subitems(markdown: str) -> str:
+    lines = markdown.splitlines()
+    adjusted: list[str] = []
+    in_callout = False
+    seen_top_item = False
+
+    for line in lines:
+        stripped = line.strip()
+        if line.startswith("> <"):
+            in_callout = True
+            seen_top_item = False
+            adjusted.append(line)
+            continue
+
+        if in_callout:
+            if not stripped or stripped.startswith(("### ", "## ", "# ", "|", "> <")):
+                in_callout = False
+                seen_top_item = False
+                adjusted.append(line)
+                continue
+            if line.startswith("  - "):
+                seen_top_item = True
+                adjusted.append(line)
+                continue
+            if seen_top_item and line.startswith("- ("):
+                adjusted.append("    " + line)
+                continue
+            if line.startswith("- "):
+                in_callout = False
+                seen_top_item = False
+                adjusted.append(line)
+                continue
+
+        adjusted.append(line)
+
+    return "\n".join(adjusted) + ("\n" if markdown.endswith("\n") else "")
+
+
 def postprocess_hwpx(paragraphs: list[HwpxParagraph]) -> str:
     if not paragraphs:
         return ""
@@ -614,4 +652,5 @@ def postprocess_hwpx(paragraphs: list[HwpxParagraph]) -> str:
     lines = _render_comparison_tables(lines)
     lines = _strip_table_bullet_prefix(lines)
     rendered = postprocess_markdown("\n".join(line for line in lines if line is not None))
-    return _repair_broken_table_rows(rendered)
+    rendered = _repair_broken_table_rows(rendered)
+    return _indent_callout_subitems(rendered)
