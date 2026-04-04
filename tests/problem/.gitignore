@@ -1,0 +1,4 @@
+*.pdf
+*.hwpx
+*:Zone.Identifier
+!*.md
