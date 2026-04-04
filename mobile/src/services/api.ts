@@ -1,7 +1,6 @@
 import { Platform } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 
-import { isHostedWeb } from "../constants";
 import type { AppConfig, HwpxTableMode, Job, JobCreatePayload, ResultPayload } from "../types";
 
 function buildHeaders(config: AppConfig, contentType?: string, editToken?: string | null): Record<string, string> {
@@ -9,7 +8,7 @@ function buildHeaders(config: AppConfig, contentType?: string, editToken?: strin
   if (contentType) {
     headers["Content-Type"] = contentType;
   }
-  if (!isHostedWeb() && config.apiKey.trim()) {
+  if (config.apiKey.trim()) {
     headers["X-API-Key"] = config.apiKey.trim();
   }
   if (editToken?.trim()) {

@@ -21,7 +21,7 @@ import { JobDetailPanel } from "./src/components/JobDetailPanel";
 import { SettingsModal } from "./src/components/SettingsModal";
 import { TurnstileGate } from "./src/components/TurnstileGate";
 import { WorkspaceToolbar } from "./src/components/WorkspaceToolbar";
-import { DEFAULT_CONFIG, isHostedWeb } from "./src/constants";
+import { DEFAULT_CONFIG } from "./src/constants";
 import { fetchJob, fetchResult, retryJob, saveResult, uploadPdf } from "./src/services/api";
 import { clearDraft, loadConfig, loadDraft, persistConfig, persistDraft } from "./src/storage/config";
 import { styles } from "./src/styles";
@@ -684,7 +684,7 @@ export default function App(): React.JSX.Element {
     const next = {
       ...configDraft,
       baseUrl: configDraft.baseUrl.trim(),
-      apiKey: isHostedWeb() ? "" : configDraft.apiKey.trim(),
+      apiKey: configDraft.apiKey.trim(),
     };
     await persistConfig(next);
     setConfig(next);
