@@ -767,6 +767,7 @@ def _finalize_government_report_markdown(text: str) -> str:
     lines = _insert_policy_plan_summary_table(lines)
     finalized = "\n".join(_collapse_blank_lines(lines)) + "\n"
     finalized = _indent_ordered_list_children(finalized)
+    finalized = _pad_before_new_numbered_sequences(finalized)
     return _finalize_generic_report_patterns(finalized)
 
 
@@ -1361,7 +1362,8 @@ def _finalize_generic_report_patterns(text: str) -> str:
     rewritten = _pad_after_quote_blocks(rewritten)
     rewritten_text = "\n".join(rewritten)
     finalized = "\n".join(_collapse_blank_lines(rewritten_text.splitlines())) + ("\n" if text.endswith("\n") else "")
-    return _indent_ordered_list_children(finalized)
+    finalized = _indent_ordered_list_children(finalized)
+    return _pad_before_new_numbered_sequences(finalized)
 
 
 def _postprocess_policy_plan(lines: list[str]) -> str:
@@ -2676,6 +2678,25 @@ def _indent_ordered_list_children(markdown: str) -> str:
         if active_ordered and not line.startswith(("  ", "\t")) and not re.match(r"^\d+\.\s+", stripped):
             active_ordered = False
 
+        adjusted.append(line)
+
+    return "\n".join(adjusted) + ("\n" if markdown.endswith("\n") else "")
+
+
+def _pad_before_new_numbered_sequences(markdown: str) -> str:
+    lines = markdown.splitlines()
+    adjusted: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if re.match(r"^1\.\s+", stripped):
+            blank_count = 0
+            cursor = len(adjusted) - 1
+            while cursor >= 0 and adjusted[cursor] == "":
+                blank_count += 1
+                cursor -= 1
+            if cursor >= 0 and blank_count < 2:
+                adjusted.extend("" for _ in range(2 - blank_count))
         adjusted.append(line)
 
     return "\n".join(adjusted) + ("\n" if markdown.endswith("\n") else "")

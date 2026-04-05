@@ -340,15 +340,23 @@ function parseMarkdown(markdown: string): Block[] {
   const lines = markdown.replace(/\r\n/g, "\n").split("\n");
   const blocks: Block[] = [];
   let index = 0;
+  let blankRun = 0;
+  const orderedSequenceByLevel = new Map<number, number>();
 
   while (index < lines.length) {
     const rawLine = lines[index];
     const trimmed = rawLine.trim();
 
     if (!trimmed) {
+      blankRun += 1;
+      if (blankRun >= 2) {
+        orderedSequenceByLevel.clear();
+      }
       index += 1;
       continue;
     }
+
+    blankRun = 0;
 
     const codeFenceMatch = trimmed.match(/^```([\w-]+)?$/);
     if (codeFenceMatch) {
@@ -526,13 +534,22 @@ function parseMarkdown(markdown: string): Block[] {
           if (!orderedMatch) {
             break;
           }
+          for (const existingLevel of [...orderedSequenceByLevel.keys()]) {
+            if (existingLevel > level) {
+              orderedSequenceByLevel.delete(existingLevel);
+            }
+          }
+          const sourceNumber = Number(orderedMatch[1]);
+          const previousNumber = orderedSequenceByLevel.get(level);
+          const orderNumber = previousNumber !== undefined ? previousNumber + 1 : sourceNumber;
+          orderedSequenceByLevel.set(level, orderNumber);
           blocks.push({
             type: "list_item",
             ordered: true,
             level,
             text: orderedMatch[2].trim(),
             orderIndex,
-            orderNumber: Number(orderedMatch[1]),
+            orderNumber,
           });
           orderIndex += 1;
           index += 1;
