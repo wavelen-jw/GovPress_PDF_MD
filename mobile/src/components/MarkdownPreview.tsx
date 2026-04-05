@@ -9,7 +9,7 @@ type Block =
   | { type: "heading"; level: number; text: string }
   | { type: "paragraph"; text: string }
   | { type: "blockquote"; paragraphs: string[]; level: number }
-  | { type: "list_item"; ordered: boolean; level: number; text: string; orderIndex: number }
+  | { type: "list_item"; ordered: boolean; level: number; text: string; orderIndex: number; orderNumber?: number }
   | { type: "checklist_item"; checked: boolean; level: number; text: string }
   | { type: "image"; alt: string; src: string }
   | { type: "table"; headers: string[]; aligns: TableAlign[]; rows: string[][] }
@@ -240,9 +240,9 @@ function textAlignStyle(align: TableAlign) {
   return styles.markdownTableTextLeft;
 }
 
-function getListBullet(level: number, ordered: boolean, itemIndex: number): string {
+function getListBullet(level: number, ordered: boolean, itemIndex: number, orderNumber?: number): string {
   if (ordered) {
-    return `${itemIndex + 1}.`;
+    return `${orderNumber ?? itemIndex + 1}.`;
   }
   if (level <= 0) {
     return "•";
@@ -522,12 +522,17 @@ function parseMarkdown(markdown: string): Block[] {
         const indent = rawCandidate.match(/^\s*/)?.[0].length || 0;
         const level = Math.min(3, Math.floor(indent / 2));
         if (ordered && /^\d+\.\s+/.test(candidate)) {
+          const orderedMatch = candidate.match(/^(\d+)\.\s+(.*)$/);
+          if (!orderedMatch) {
+            break;
+          }
           blocks.push({
             type: "list_item",
             ordered: true,
             level,
-            text: candidate.replace(/^\d+\.\s+/, "").trim(),
+            text: orderedMatch[2].trim(),
             orderIndex,
+            orderNumber: Number(orderedMatch[1]),
           });
           orderIndex += 1;
           index += 1;
@@ -841,7 +846,7 @@ export function MarkdownPreview({
                 ]}
               >
                 <Text style={[styles.markdownListBullet, isDarkMode && styles.markdownListBulletDark]}>
-                  {getListBullet(block.level, block.ordered, block.orderIndex)}
+                  {getListBullet(block.level, block.ordered, block.orderIndex, block.orderNumber)}
                 </Text>
                 <View style={styles.markdownListTextWrap}>
                   {renderInlineMarkdown(block.text, [styles.markdownListText, isDarkMode && styles.markdownListTextDark] as unknown as object, key, isDarkMode)}

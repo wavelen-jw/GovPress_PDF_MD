@@ -306,12 +306,14 @@ def _indent_for(context: str | None, bullet_type: str) -> str:
     """
     if bullet_type == "numbered":
         if context in ("circle", "numbered_sub"):
-            return "  "
+            return "    "
+        if context in ("korean_letter", "korean_letter_sub", "numbered_after_korean"):
+            return "    "
         return ""  # section, numbered_top → 들여쓰기 없음
     if bullet_type == "dash":
         if context in ("korean_letter_sub", "numbered_sub"):
             return "    "
-        if context in ("korean_letter", "circle", "numbered_after_korean"):
+        if context in ("korean_letter", "circle", "numbered_after_korean", "numbered_top"):
             return "  "
         return ""
     if bullet_type == "note":  # ※
@@ -764,6 +766,7 @@ def _finalize_government_report_markdown(text: str) -> str:
 
     lines = _insert_policy_plan_summary_table(lines)
     finalized = "\n".join(_collapse_blank_lines(lines)) + "\n"
+    finalized = _indent_ordered_list_children(finalized)
     return _finalize_generic_report_patterns(finalized)
 
 
@@ -1167,6 +1170,15 @@ def _expand_hwpx_textbox(line: str) -> list[str] | None:
     if not parts:
         return [prefix] if prefix else []
 
+    if len(parts) == 1:
+        part = parts[0]
+        if not part.startswith(("※", "- ", "○ ", "ㅇ ", "□ ", "<", "＜")):
+            heading_prefix = prefix.strip()
+            if heading_prefix in {"#", "##", "###", "####", "#####"}:
+                return [f"{heading_prefix} {part}".rstrip()]
+            if not prefix:
+                return [part]
+
     rendered: list[str] = []
     quote_indent = ""
     if prefix:
@@ -1240,6 +1252,14 @@ def _finalize_generic_report_patterns(text: str) -> str:
             next_line = lines[i + 1].strip()
             if next_line and not _is_structural_start(next_line):
                 rewritten.append(f"## 참고{reference_number_match.group(1)} {next_line}")
+                i += 2
+                continue
+
+        appendix_number_match = re.fullmatch(r"(참고|붙임|별첨)\s*([0-9]+)", stripped)
+        if appendix_number_match and i + 1 < len(lines):
+            next_line = lines[i + 1].strip()
+            if next_line and not _is_structural_start(next_line):
+                rewritten.append(f"## {appendix_number_match.group(1)}{appendix_number_match.group(2)} {next_line}")
                 i += 2
                 continue
 
@@ -1340,7 +1360,8 @@ def _finalize_generic_report_patterns(text: str) -> str:
     rewritten = _remove_orphan_bullets_before_quotes(rewritten)
     rewritten = _pad_after_quote_blocks(rewritten)
     rewritten_text = "\n".join(rewritten)
-    return "\n".join(_collapse_blank_lines(rewritten_text.splitlines())) + ("\n" if text.endswith("\n") else "")
+    finalized = "\n".join(_collapse_blank_lines(rewritten_text.splitlines())) + ("\n" if text.endswith("\n") else "")
+    return _indent_ordered_list_children(finalized)
 
 
 def _postprocess_policy_plan(lines: list[str]) -> str:
@@ -1904,7 +1925,8 @@ def postprocess_report(raw_text: str) -> str:
     group_counts: dict[str, int] = {}
     reference_memo_mode = False
 
-    for text in lines:
+    for index, text in enumerate(lines):
+        next_nonblank = next((line for line in lines[index + 1 :] if line.strip()), None)
         # ── 제목 ──────────────────────────────────────────────
         if not title_done:
             rendered.append(f"# {text.lstrip('# ').strip()}")
@@ -1981,6 +2003,7 @@ def postprocess_report(raw_text: str) -> str:
             text,
             context=context,
             current_section=current_section,
+            next_nonblank=next_nonblank,
         )
         context = next_context
         if handled:
@@ -2323,6 +2346,7 @@ def _handle_report_standard_item(
     *,
     context: str | None,
     current_section: str | None,
+    next_nonblank: str | None = None,
 ) -> tuple[bool, str | None]:
     last_nonblank = next((line for line in reversed(rendered) if line.strip()), "")
 
@@ -2459,8 +2483,15 @@ def _handle_report_standard_item(
             "⑨": "9",
             "⑩": "10",
         }
-        rendered.append(f"  {number_map[circled_match.group(1)]}. {circled_match.group(2).strip()}")
-        return True, "numbered_after_korean"
+        indent = _indent_for(context, "numbered")
+        if not indent and rendered:
+            last_nonblank = next((l for l in reversed(rendered) if l.strip()), None)
+            if last_nonblank and last_nonblank[0] == " ":
+                rendered.append("")
+        rendered.append(f"{indent}{number_map[circled_match.group(1)]}. {circled_match.group(2).strip()}")
+        if context in ("korean_letter", "korean_letter_sub", "numbered_after_korean", "circle", "numbered_sub"):
+            return True, "numbered_after_korean"
+        return True, "numbered_top"
 
     if text.startswith("⇒"):
         rendered.append(f"    - {text[1:].strip()}")
@@ -2606,6 +2637,48 @@ def _collapse_blank_lines(lines: list[str]) -> list[str]:
     while cleaned and not cleaned[-1]:
         cleaned.pop()
     return cleaned
+
+
+def _indent_ordered_list_children(markdown: str) -> str:
+    lines = markdown.splitlines()
+    adjusted: list[str] = []
+    active_ordered = False
+
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        next_nonblank = next((candidate.strip() for candidate in lines[index + 1 :] if candidate.strip()), "")
+
+        if re.match(r"^\d+\.\s+", stripped):
+            active_ordered = True
+            adjusted.append(line)
+            continue
+
+        if active_ordered and stripped == "-" and next_nonblank.startswith("- "):
+            continue
+
+        if active_ordered and line.startswith("- "):
+            adjusted.append(f"  {line}")
+            continue
+
+        if active_ordered and line.startswith("> "):
+            adjusted.append(f"  {line}")
+            continue
+
+        if stripped.startswith(("## ", "### ", "#### ", "# ", "|")):
+            active_ordered = False
+            adjusted.append(line)
+            continue
+
+        if not stripped:
+            adjusted.append(line)
+            continue
+
+        if active_ordered and not line.startswith(("  ", "\t")) and not re.match(r"^\d+\.\s+", stripped):
+            active_ordered = False
+
+        adjusted.append(line)
+
+    return "\n".join(adjusted) + ("\n" if markdown.endswith("\n") else "")
 
 
 def postprocess_service_guide(raw_text: str) -> str:

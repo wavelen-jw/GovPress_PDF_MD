@@ -552,6 +552,15 @@ def _flatten_structural_table(text: str) -> list[str] | None:
             left = _normalize_section_token(left)
             return [f"{left}. {right}" if not left.startswith("붙임") else f"{left} {right}"]
 
+    # Numbered appendix/reference header boxes such as `| 참고2 | | 기대효과 |`.
+    if len(nonempty_rows) == 1 and len(nonempty_rows[0]) >= 2:
+        first = nonempty_rows[0][0]
+        numbered_match = re.fullmatch(r"(참고|붙임|별첨)\s*(\d+)", first)
+        if numbered_match:
+            flattened = [f"{numbered_match.group(1)}{numbered_match.group(2)}"]
+            flattened.extend(cell for cell in nonempty_rows[0][1:] if cell.strip())
+            return flattened
+
     # Appendix/reference header box such as `| 참고 |  | 제목 |`.
     if len(nonempty_rows) == 1 and len(nonempty_rows[0]) >= 2:
         first = nonempty_rows[0][0]
