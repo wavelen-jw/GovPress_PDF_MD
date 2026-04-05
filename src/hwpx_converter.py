@@ -11,6 +11,7 @@ from typing import Literal
 from .hwpx_postprocessor import HwpxParagraph, postprocess_hwpx
 
 TableMode = Literal["text", "html"]
+TEXTBOX_MARKER = "[[TEXTBOX]]"
 
 
 def _local_name(tag: str) -> str:
@@ -54,9 +55,14 @@ def _collect_run_text(p_elem: ET.Element) -> str:
     parts: list[str] = []
     for run in (child for child in p_elem if _local_name(child.tag) == "run"):
         for text_node in _iter_local(run, "t"):
-            if text_node.text:
-                parts.append(text_node.text)
+            text = "".join(text_node.itertext())
+            if text:
+                parts.append(text)
     return "".join(parts).strip()
+
+
+def _contains_picture(p_elem: ET.Element) -> bool:
+    return any(_local_name(node.tag) == "pic" for node in p_elem.iter())
 
 
 @dataclass
@@ -74,6 +80,7 @@ class Table:
     rows: int
     cols: int
     cells: list[TableCell]
+    captions: list[str] = field(default_factory=list)
     has_rowspan: bool = False
     has_colspan: bool = False
     is_drawing_table: bool = False
@@ -138,10 +145,22 @@ def _collect_cell_paragraphs(tc: ET.Element) -> list[str]:
     return parts
 
 
+def _collect_table_captions(tbl_elem: ET.Element) -> list[str]:
+    captions: list[str] = []
+    for caption in _direct_children_local(tbl_elem, "caption"):
+        for sub_list in _direct_children_local(caption, "subList"):
+            for p in _direct_children_local(sub_list, "p"):
+                text = _collect_run_text(p).strip()
+                if text:
+                    captions.append(text)
+    return captions
+
+
 def _collect_table_data(tbl_elem: ET.Element) -> Table:
     cells: list[TableCell] = []
     occupied: set[tuple[int, int]] = set()
     max_col = 0
+    captions = _collect_table_captions(tbl_elem)
 
     for tr_idx, tr in enumerate(list(_direct_children_local(tbl_elem, "tr"))):
         col_cursor = 0
@@ -193,6 +212,7 @@ def _collect_table_data(tbl_elem: ET.Element) -> Table:
         rows=row_count,
         cols=max_col,
         cells=cells,
+        captions=captions,
         has_rowspan=has_rowspan,
         has_colspan=has_colspan,
         is_drawing_table=_is_drawing_table(cells, row_count, max_col),
@@ -217,6 +237,21 @@ def _cell_text(cell: TableCell, html: bool = False) -> str:
         for nested_table in cell.nested_tables:
             parts.append(_render_table(nested_table, table_mode="html"))
         return "<br>".join(parts)
+    parts = [_escape_md_cell(p) for p in cell.paragraphs]
+    for nested_table in cell.nested_tables:
+        parts.append(_render_table(nested_table, table_mode="text"))
+    return "<br>".join(parts)
+
+
+def _render_textbox(table: Table) -> str:
+    if not table.cells:
+        return ""
+    cell = min(table.cells, key=lambda current: (current.row, current.col))
+    parts = [part.strip() for part in cell.paragraphs if part.strip()]
+    if not parts:
+        return ""
+    content = "<br>".join(parts)
+    return f"{TEXTBOX_MARKER} {content}".strip()
 
     parts = [_escape_md_cell(p) for p in cell.paragraphs]
     for nested_table in cell.nested_tables:
@@ -273,6 +308,11 @@ def _render_tier2_markdown_rowspan(table: Table) -> str:
         if row == 0:
             lines.append("| " + " | ".join("---" for _ in range(table.cols)) + " |")
     return "\n".join(lines)
+
+
+def _render_tier2_markdown_flattened(table: Table) -> str:
+    grid = _expand_table_grid(table, repeat_rowspan=True)
+    return _render_grid_markdown_table(grid)
 
 
 def _expand_table_grid(table: Table, *, repeat_rowspan: bool) -> list[list[str]]:
@@ -556,20 +596,102 @@ def _render_tier4_drawing(table: Table) -> str:
     return "[표: " + " / ".join(texts[:8]) + "]"
 
 
+_BOXED_TITLE_RE = re.compile(r"^[≪<＜]{1,2}\s*(.+?)\s*[≫>＞]{1,2}$")
+
+
+def _render_boxed_callout_table(table: Table) -> str | None:
+    if table.rows < 2 or table.cols < 2 or any(cell.nested_tables for cell in table.cells):
+        return None
+
+    title_cell = None
+    body_cell = None
+    for cell in table.cells:
+        text = " ".join(part.strip() for part in cell.paragraphs if part.strip()).strip()
+        if not text:
+            continue
+        if title_cell is None and _BOXED_TITLE_RE.match(text):
+            title_cell = (cell, text)
+        if body_cell is None and len(text) > 20 and not _BOXED_TITLE_RE.match(text):
+            body_cell = (cell, text)
+
+    if title_cell is None or body_cell is None:
+        return None
+
+    title_text = _BOXED_TITLE_RE.match(title_cell[1]).group(1).strip()
+    body_text = body_cell[1]
+    body_lines = [part.strip() for part in body_text.split("<br>") if part.strip()]
+    if not body_lines:
+        return title_text
+
+    rendered = [title_text]
+    for line in body_lines:
+        rendered.append(f"> {line.lstrip('vV* ').strip()}")
+    return "\n".join(rendered)
+
+
+def _render_single_row_title_table(table: Table) -> str | None:
+    if table.rows != 1 or any(cell.nested_tables for cell in table.cells):
+        return None
+    texts = []
+    for cell in sorted(table.cells, key=lambda current: current.col):
+        text = " ".join(part.strip() for part in cell.paragraphs if part.strip()).strip()
+        if text:
+            texts.append(text)
+    if len(texts) == 1:
+        title = re.sub(r"\s+", " ", texts[0]).strip()
+    elif len(texts) == 2 and re.fullmatch(r"\d+", texts[0].strip()):
+        title = f"{texts[0].strip()}. {re.sub(r'\s+', ' ', texts[1]).strip()}"
+    else:
+        return None
+    if not title or len(title) > 80:
+        return None
+    if title.startswith("|") or "<br>" in title:
+        return None
+    return title
+
+
 def _render_table(table: Table, *, table_mode: TableMode) -> str:
     if not table.cells:
         return ""
+    caption_prefix = ""
+    if table.captions:
+        caption_prefix = "\n".join(caption.strip() for caption in table.captions if caption.strip())
+        if caption_prefix:
+            caption_prefix = caption_prefix.strip() + "\n"
+    if table.rows == 1 and table.cols == 1 and not any(cell.nested_tables for cell in table.cells):
+        if table_mode == "text":
+            rendered = _render_textbox(table)
+            return f"{caption_prefix}{rendered}".strip() if caption_prefix else rendered
+    if table_mode == "text":
+        single_row_title = _render_single_row_title_table(table)
+        if single_row_title:
+            return f"{caption_prefix}{single_row_title}".strip() if caption_prefix else single_row_title
     if table.is_drawing_table:
-        return _render_tier4_drawing(table)
+        rendered = _render_tier4_drawing(table)
+        return f"{caption_prefix}{rendered}".strip() if caption_prefix else rendered
+
+    if table_mode == "text":
+        boxed_callout = _render_boxed_callout_table(table)
+        if boxed_callout:
+            return f"{caption_prefix}{boxed_callout}".strip() if caption_prefix else boxed_callout
 
     has_nested = any(cell.nested_tables for cell in table.cells)
+    if not has_nested and table_mode == "text" and (table.has_colspan or table.has_rowspan):
+        flattened = _render_tier2_markdown_flattened(table)
+        if flattened:
+            return f"{caption_prefix}{flattened}".strip() if caption_prefix else flattened
+
     if table.has_colspan or has_nested or table.cols > 8:
         if table_mode == "html":
-            return "\n" + _render_tier3_html(table) + "\n"
-        return _render_tier3_text(table)
+            rendered = "\n" + _render_tier3_html(table) + "\n"
+            return f"{caption_prefix}{rendered}".strip() if caption_prefix else rendered
+        rendered = _render_tier3_text(table)
+        return f"{caption_prefix}{rendered}".strip() if caption_prefix else rendered
     if table.has_rowspan:
-        return _render_tier2_markdown_rowspan(table)
-    return _render_tier1_markdown(table)
+        rendered = _render_tier2_markdown_rowspan(table)
+        return f"{caption_prefix}{rendered}".strip() if caption_prefix else rendered
+    rendered = _render_tier1_markdown(table)
+    return f"{caption_prefix}{rendered}".strip() if caption_prefix else rendered
 
 
 def _parse_paragraphs_from_xml(xml_bytes: bytes, *, table_mode: TableMode) -> list[HwpxParagraph]:
@@ -607,7 +729,10 @@ def _parse_paragraphs_from_xml(xml_bytes: bytes, *, table_mode: TableMode) -> li
             paragraphs.extend(table_paragraphs)
             continue
 
-        paragraphs.append(HwpxParagraph(style_id=style_id, text=_collect_run_text(paragraph), level=level))
+        text = _collect_run_text(paragraph)
+        if not text and _contains_picture(paragraph):
+            text = "<그림>"
+        paragraphs.append(HwpxParagraph(style_id=style_id, text=text, level=level))
 
     return paragraphs
 

@@ -4,12 +4,10 @@ Responsibility map
 ------------------
 postprocess_markdown()          Public entry point; detects document type and dispatches.
 _is_press_release()             Detects 보도자료 stamp in first 10 lines.
-_is_government_report()         Detects Roman-numeral sections / 요약 / 참고 headers.
-_is_service_guide()             Detects Arabic-numbered section guides (안내문).
+_is_government_report()         Legacy helper retained for report-shaped heuristics.
 
 _postprocess_press_release()    Formats 보도자료: title → metadata → subtitle → body.
-_postprocess_generic_markdown() Formats annual plans, white papers, and other docs.
-postprocess_report()            Formats government reports (imported from report_postprocessor).
+postprocess_report()            Formats all non-press documents (imported from report_postprocessor).
 
 Internal helpers (press release body):
   _render_body()                Stateful line-by-line rendering of the body section.
@@ -28,10 +26,9 @@ from typing import Iterable, Literal
 
 from .document_template import DEFAULT_TEMPLATE, PressReleaseTemplate
 from .parser_rules import clean_line, extract_sections, is_reference_line, split_contact_chunks
-from .report_postprocessor import postprocess_report, postprocess_service_guide
+from .report_postprocessor import postprocess_full_report, postprocess_report
 
-
-MarkdownDocType = Literal["press_release", "report", "service_guide", "generic"]
+MarkdownDocType = Literal["press_release", "report", "full_report"]
 
 
 # ── Patterns & constants ─────────────────────────────────────────────────────
@@ -269,14 +266,16 @@ def _is_press_release(raw_text: str) -> bool:
 
 
 def detect_markdown_doc_type(raw_text: str) -> MarkdownDocType:
-    """Detect the formatter route once so callers can avoid reclassification."""
+    """Only press releases are handled separately; every other document is report."""
     if _is_press_release(raw_text):
         return "press_release"
-    if _is_government_report(raw_text):
-        return "report"
-    if _is_service_guide(raw_text):
-        return "service_guide"
-    return "generic"
+    if (
+        "기본계획(안)" in raw_text
+        and re.search(r"목\s*차", raw_text)
+        and ("지방행정공통시스템" in raw_text or "디지털플랫폼정부" in raw_text)
+    ):
+        return "full_report"
+    return "report"
 
 
 # ── Metadata & section rendering ─────────────────────────────────────────────
@@ -1253,22 +1252,33 @@ def _normalize_table_spacing(markdown: str) -> str:
     index = 0
 
     while index < len(lines):
-      line = lines[index]
-      if line.lstrip().startswith("|"):
-          table_block: list[str] = []
-          while index < len(lines) and lines[index].lstrip().startswith("|"):
-              table_block.append(lines[index])
-              index += 1
-          while normalized and normalized[-1] == "":
-              normalized.pop()
-          if normalized:
-              normalized.append("")
-          normalized.extend(table_block)
-          normalized.append("")
-          continue
+        line = lines[index]
+        if line.lstrip().startswith("|"):
+            table_block: list[str] = []
+            while index < len(lines):
+                current = lines[index]
+                if current.lstrip().startswith("|"):
+                    table_block.append(current)
+                    index += 1
+                    continue
+                if (
+                    current.strip() == ""
+                    and index + 1 < len(lines)
+                    and lines[index + 1].lstrip().startswith("|")
+                ):
+                    index += 1
+                    continue
+                break
+            while normalized and normalized[-1] == "":
+                normalized.pop()
+            if normalized:
+                normalized.append("")
+            normalized.extend(table_block)
+            normalized.append("")
+            continue
 
-      normalized.append(line)
-      index += 1
+        normalized.append(line)
+        index += 1
 
     while normalized and normalized[0] == "":
         normalized.pop(0)
@@ -1287,12 +1297,10 @@ def format_markdown_by_type(
     if doc_type == "press_release":
         cleaned_lines = _preclean_lines(raw_text)
         body = _postprocess_press_release("\n".join(cleaned_lines), template)
-    elif doc_type == "report":
-        body = postprocess_report(raw_text)
-    elif doc_type == "service_guide":
-        body = postprocess_service_guide(raw_text)
+    elif doc_type == "full_report":
+        body = postprocess_full_report(raw_text)
     else:
-        body = _postprocess_generic_markdown(raw_text)
+        body = postprocess_report(raw_text)
     return _normalize_table_spacing(_normalize_heading_spacing(body))
 
 

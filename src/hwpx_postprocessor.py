@@ -6,6 +6,7 @@ import re
 from typing import TYPE_CHECKING
 
 from .markdown_postprocessor import detect_markdown_doc_type, format_markdown_by_type
+from .report_postprocessor import _finalize_generic_report_patterns
 
 if TYPE_CHECKING:
     from .hwpx_converter import Table
@@ -445,7 +446,7 @@ def _render_comparison_tables(lines: list[str]) -> list[str]:
 
 def _split_inline_structure_markers(lines: list[str]) -> list[str]:
     split_lines: list[str] = []
-    pattern = re.compile(r"\s+(?=[󰋎󰋏󰋐▸▶◆])")
+    pattern = re.compile(r"\s+(?=(?:[󰋎󰋏󰋐▸▶◆]|붙임\d+|참고\d+|별첨\d+))")
     for text in lines:
         if not text:
             split_lines.append(text)
@@ -604,6 +605,15 @@ def _repair_broken_table_rows(markdown: str) -> str:
 
     while index < len(lines):
         line = lines[index]
+        if (
+            line == ""
+            and repaired
+            and repaired[-1].lstrip().startswith("|")
+            and index + 1 < len(lines)
+            and lines[index + 1].lstrip().startswith("|")
+        ):
+            index += 1
+            continue
         if repaired and repaired[-1].lstrip().startswith("|") and not repaired[-1].rstrip().endswith("|"):
             if line.lstrip().startswith("- ") and line.rstrip().endswith("|"):
                 repaired[-1] = repaired[-1].rstrip() + " " + line.lstrip()
@@ -659,6 +669,65 @@ def _indent_callout_subitems(markdown: str) -> str:
     return "\n".join(adjusted) + ("\n" if markdown.endswith("\n") else "")
 
 
+def _flatten_quoted_reference_sections(markdown: str) -> str:
+    def _is_reference_heading(text: str) -> bool:
+        return bool(re.match(r"^##\s+(참고|붙임|별첨)", text.strip()))
+
+    def _flush_section(section_lines: list[str]) -> list[str]:
+        if not section_lines:
+            return []
+        if not _is_reference_heading(section_lines[0]):
+            return section_lines
+
+        flattened: list[str] = [section_lines[0]]
+        keep_nested_quote = False
+        for line in section_lines[1:]:
+            stripped = line.strip()
+            if not stripped:
+                flattened.append(line)
+                keep_nested_quote = False
+                continue
+            if stripped.startswith(">"):
+                if keep_nested_quote:
+                    flattened.append(line)
+                    continue
+                match = re.match(r"^(\s*)>\s?(.*)$", line)
+                if match:
+                    indent, content = match.groups()
+                    if indent:
+                        flattened.append(line)
+                        continue
+                    flattened.append(f"{indent}{content}")
+                else:
+                    flattened.append(stripped[1:].lstrip())
+            else:
+                flattened.append(line)
+                previous_plain = stripped and not stripped.startswith(("#", "-", "|", ">"))
+                keep_nested_quote = previous_plain
+        return flattened
+
+    lines = markdown.splitlines()
+    adjusted: list[str] = []
+    current_section: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if _is_reference_heading(stripped):
+            adjusted.extend(_flush_section(current_section))
+            current_section = [line]
+            continue
+        if current_section and re.match(r"^##\s+", stripped):
+            adjusted.extend(_flush_section(current_section))
+            current_section = []
+        if current_section:
+            current_section.append(line)
+        else:
+            adjusted.append(line)
+
+    adjusted.extend(_flush_section(current_section))
+    return "\n".join(adjusted) + ("\n" if markdown.endswith("\n") else "")
+
+
 def postprocess_hwpx(paragraphs: list[HwpxParagraph]) -> str:
     if not paragraphs:
         return ""
@@ -675,4 +744,8 @@ def postprocess_hwpx(paragraphs: list[HwpxParagraph]) -> str:
     doc_type = detect_markdown_doc_type(raw_text)
     rendered = format_markdown_by_type(raw_text, doc_type)
     rendered = _repair_broken_table_rows(rendered)
-    return _indent_callout_subitems(rendered)
+    rendered = _indent_callout_subitems(rendered)
+    if doc_type == "report":
+        rendered = _finalize_generic_report_patterns(rendered)
+        rendered = _flatten_quoted_reference_sections(rendered)
+    return rendered

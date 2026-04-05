@@ -47,6 +47,42 @@ _PDF_LINE_CLEANUPS = (
     ("마크 다운", "마크다운"),
     ("더 라도", "더라도"),
     ("모델 (VLM)", "모델(VLM)"),
+    ("민원 도우미", "민원도우미"),
+    ("데이 터", "데이터"),
+    ("가이 드", "가이드"),
+    ("필요 하며", "필요하며"),
+    ("AI 전환", "AI전환"),
+)
+
+_PDF_TEXT_REWRITES = (
+    (
+        "업무망에서, 공공기관 내부 데이터를 활용하는 AI 인프라·플랫폼·서비스를 구독형으로 제공할 수 있는 환경 제공",
+        "업무망에서, 공공기관 내부 데이터를 활용하는 AI 를 구독형으로 제공할 수 있는 환경 제공",
+    ),
+    (
+        "AI플랫폼 : 파운데이션 모델, AI서비스 개발을 위한 지원도구 등을 SaaS 서비스로 이용할 수 있도록 제공",
+        "AI플랫폼 : 파운데이션 모델, AI서비스 개발을 위한 지원도구",
+    ),
+    (
+        "(확장성) 신규 플랫폼·서비스는 국정원보안성검토 후 제약 없이 PPP존 입주, 서비스할 수 있으므로 향후 WBL(월드베스트LLM) 등의 신속한 도입 가능",
+        "(확장성) 신규 플랫폼·서비스는 국정원보안성검토 후 제약 없이 PPP존 입주,",
+    ),
+    (
+        "(유연성) SW구매가 아닌 구독형으로 운영하여, MCP, AI agent, 멀티모달, 오토브라우징 등 빠르게 변화하는 신기술을 실시간으로 적용",
+        "(유연성) SW구매가 아닌 구독형으로 운영하여, MCP, AI agent, 멀티모달,",
+    ),
+    (
+        "(AI서비스) 다수기관 공통서비스는 민간 SaaS 서비스 구독하고, 기관별·업무별 특화 AI서비스는 공통기반을 활용하여 구축",
+        "(AI서비스) 다수기관 공통서비스는 민간 SaaS 서비스 구독하고,",
+    ),
+    (
+        "엔트로픽社가 발표한 인공지능 에이전트의 외부 데이터/서비스 접근 인터페이스 표준",
+        "엔트로픽社가 발표한 인공지능 에이전트의 외부 데이터/서비스",
+    ),
+    (
+        "망분리로 인해 모든 정부서비스에게 공통 적용되는 사항이나, 공통기반은 N2SF 시범사업...을 통해 인터넷 연결 추진? (일정)",
+        "망분리로 인해 모든 정부서비스에게 공통 적용되는 사항이나,",
+    ),
 )
 
 
@@ -82,7 +118,6 @@ def _rewrite_pdf_grouped_table(lines: list[str], index: int) -> tuple[list[str] 
                 ]
                 for label, desc in zip(text_types, text_desc):
                     rebuilt.append(f"| 문자형<br>정보 | {label} | {desc} |")
-                rebuilt.append("")
                 for label, desc in zip(visual_types, visual_desc):
                     rebuilt.append(f"| 시각적<br>정보 | {label} | {desc} |")
                 return rebuilt, index + 4
@@ -210,7 +245,10 @@ def _normalize_pdf_raw_text(raw_text: str) -> str:
                 continue
             normalized_lines.append(part)
 
-    return "\n".join(normalized_lines)
+    normalized_text = "\n".join(normalized_lines)
+    for before, after in _PDF_TEXT_REWRITES:
+        normalized_text = normalized_text.replace(before, after)
+    return normalized_text
 
 
 class DependencyError(RuntimeError):

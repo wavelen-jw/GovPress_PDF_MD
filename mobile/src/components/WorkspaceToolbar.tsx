@@ -63,13 +63,7 @@ export function WorkspaceToolbar({
             <Text style={[styles.workspaceToolbarTitle, isDarkMode && styles.workspaceToolbarTitleDark]}>정부 보도자료.Markdown</Text>
           </View>
           <View style={styles.workspaceToolbarCluster}>
-            <View style={styles.workspaceToolbarActions}>
-              {editing && isWideLayout ? (
-                <Pressable style={styles.primaryButton} onPress={onSaveEdit} accessibilityLabel="편집 저장" {...webTitle("편집 저장")}>
-                  <Text style={[styles.primaryButtonLabel, !hasUnsavedChanges && styles.disabledButtonLabel]}>{saveEditLabel}</Text>
-                </Pressable>
-              ) : null}
-            </View>
+            <View style={styles.workspaceToolbarActions} />
             <View style={styles.workspaceToolbarUtility}>
               <View style={styles.workspaceToolbarPrimaryUtility}>
                 <Pressable
