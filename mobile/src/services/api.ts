@@ -1,7 +1,18 @@
 import { Platform } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 
-import type { AppConfig, HwpxTableMode, Job, JobCreatePayload, ResultPayload } from "../types";
+import { getFallbackBaseUrls, SERVER_FALLBACK_TIMEOUT_MS } from "../constants";
+import type { AppConfig, HwpxTableMode, Job, ResultPayload, UploadResult } from "../types";
+
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
 
 function buildHeaders(config: AppConfig, contentType?: string, editToken?: string | null): Record<string, string> {
   const headers: Record<string, string> = {};
@@ -28,10 +39,55 @@ async function fetchJson<T>(config: AppConfig, path: string, init?: RequestInit,
 
   if (!response.ok) {
     const detail = await response.text();
-    throw new Error(detail || `Request failed: ${response.status}`);
+    throw new ApiError(response.status, detail || `Request failed: ${response.status}`);
   }
 
   return (await response.json()) as T;
+}
+
+async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function isRetryableUploadError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  if (error.name === "AbortError") {
+    return true;
+  }
+  const message = error.message.toLowerCase();
+  if (message.includes("network") || message.includes("fetch")) {
+    return true;
+  }
+  // API key rejected by a specific server — fall back to next server
+  if (message.includes("invalid api key") || message.includes("api key")) {
+    return true;
+  }
+  return false;
+}
+
+function buildUploadBody(asset: DocumentPicker.DocumentPickerAsset, hwpxTableMode: HwpxTableMode): FormData {
+  const form = new FormData();
+  form.append("source", "mobile");
+  form.append("hwpx_table_mode", hwpxTableMode);
+  const webFile = (asset as DocumentPicker.DocumentPickerAsset & { file?: File }).file;
+  if (Platform.OS === "web" && webFile) {
+    form.append("file", webFile);
+  } else {
+    form.append("file", {
+      uri: asset.uri,
+      name: asset.name,
+      type: asset.mimeType || "application/pdf",
+    } as unknown as Blob);
+  }
+  return form;
 }
 
 export async function fetchJob(config: AppConfig, jobId: string, editToken: string): Promise<Job> {
@@ -46,31 +102,35 @@ export async function uploadPdf(
   config: AppConfig,
   asset: DocumentPicker.DocumentPickerAsset,
   hwpxTableMode: HwpxTableMode,
-): Promise<JobCreatePayload> {
-  const form = new FormData();
-  form.append("source", "mobile");
-  form.append("hwpx_table_mode", hwpxTableMode);
-  const webFile = (asset as DocumentPicker.DocumentPickerAsset & { file?: File }).file;
-  if (Platform.OS === "web" && webFile) {
-    form.append("file", webFile);
-  } else {
-    form.append("file", {
-      uri: asset.uri,
-      name: asset.name,
-      type: asset.mimeType || "application/pdf",
-    } as unknown as Blob);
+): Promise<UploadResult> {
+  const attempts = getFallbackBaseUrls(config.baseUrl);
+  const failures: string[] = [];
+
+  for (const baseUrl of attempts) {
+    try {
+      const response = await fetchWithTimeout(`${baseUrl}/v1/jobs`, {
+        method: "POST",
+        headers: buildHeaders(config),
+        body: buildUploadBody(asset, hwpxTableMode),
+      }, SERVER_FALLBACK_TIMEOUT_MS);
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(detail || `Upload failed: ${response.status}`);
+      }
+      return {
+        job: (await response.json()) as UploadResult["job"],
+        resolvedBaseUrl: baseUrl,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(`${baseUrl}: ${message}`);
+      if (!isRetryableUploadError(error)) {
+        throw error;
+      }
+    }
   }
 
-  const response = await fetch(`${config.baseUrl}/v1/jobs`, {
-    method: "POST",
-    headers: buildHeaders(config),
-    body: form,
-  });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `Upload failed: ${response.status}`);
-  }
-  return (await response.json()) as JobCreatePayload;
+  throw new Error(`모든 서버 업로드에 실패했습니다. ${failures.join(" | ")}`);
 }
 
 export async function retryJob(config: AppConfig, jobId: string, editToken: string): Promise<Job> {

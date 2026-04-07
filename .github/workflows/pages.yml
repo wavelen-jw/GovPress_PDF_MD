@@ -48,3 +48,13 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Add deployment metadata summary
+        run: |
+          set -euo pipefail
+          {
+            echo "## Deployment Metadata"
+            echo
+            echo "- Commit: https://github.com/${{ github.repository }}/commit/${{ github.sha }}"
+            echo "- Pages URL: ${{ steps.deployment.outputs.page_url }}"
+          } >> "$GITHUB_STEP_SUMMARY"

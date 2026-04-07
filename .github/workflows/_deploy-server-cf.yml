@@ -1,0 +1,147 @@
+name: _Deploy Server via Cloudflare Tunnel (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      ssh_port:
+        type: string
+        default: "2222"
+      deploy_dir:
+        type: string
+        required: true
+      branch:
+        type: string
+        default: "web"
+      compose_file:
+        # docker-compose.yml 경로 (deploy_dir 기준 상대경로)
+        # 설정하면 systemctl 대신 docker compose restart 사용
+        type: string
+        default: ""
+      service:
+        type: string
+        default: ""
+      healthcheck_url:
+        type: string
+        default: "http://127.0.0.1:8013/health"
+      ssh_host:
+        # e.g. ssh-h.govpress.cloud
+        type: string
+        required: true
+    secrets:
+      user:
+        required: true
+      ssh_key:
+        required: true
+      cf_client_id:
+        required: true
+      cf_client_secret:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install cloudflared
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb \
+            -o cloudflared.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: Materialize deploy key
+        env:
+          VPS_KEY: ${{ secrets.ssh_key }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          KEY_FILE=~/.ssh/deploy_key
+
+          if printf '%s' "$VPS_KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+            printf '%s\n' "$VPS_KEY" | tr -d '\r' > "$KEY_FILE"
+          else
+            printf '%s' "$VPS_KEY" | tr -d '\r\n ' | base64 -d > "$KEY_FILE"
+          fi
+
+          chmod 600 "$KEY_FILE"
+          ssh-keygen -y -f "$KEY_FILE" > /dev/null
+
+      - name: Configure SSH to use Cloudflare Tunnel
+        env:
+          SSH_HOST: ${{ inputs.ssh_host }}
+          CF_ID: ${{ secrets.cf_client_id }}
+          CF_SECRET: ${{ secrets.cf_client_secret }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          # GitHub Actions 같은 자동화 환경에서는 service token + access ssh 조합이 안정적이다.
+          cat >> ~/.ssh/config << EOF
+          Host ${SSH_HOST}
+            StrictHostKeyChecking accept-new
+            Port ${{ inputs.ssh_port }}
+            ProxyCommand cloudflared access ssh --hostname %h --service-token-id ${CF_ID} --service-token-secret ${CF_SECRET}
+          EOF
+
+      - name: Preflight SSH over Cloudflare Tunnel
+        env:
+          USER: ${{ secrets.user }}
+          SSH_HOST: ${{ inputs.ssh_host }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=~/.ssh/deploy_key
+          ssh -tt -v -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 \
+            "$USER@$SSH_HOST" 'echo "cloudflare-tunnel-ssh-ok"'
+
+      - name: Deploy
+        continue-on-error: true
+        env:
+          USER: ${{ secrets.user }}
+          SSH_HOST: ${{ inputs.ssh_host }}
+          DEPLOY_DIR: ${{ inputs.deploy_dir }}
+          BRANCH: ${{ inputs.branch }}
+          COMPOSE_FILE: ${{ inputs.compose_file }}
+          SERVICE: ${{ inputs.service }}
+          HEALTHCHECK_URL: ${{ inputs.healthcheck_url }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=~/.ssh/deploy_key
+
+          ssh -tt -i "$KEY_FILE" -o IdentitiesOnly=yes "$USER@$SSH_HOST" /bin/bash -l <<EOF
+          set -euo pipefail
+          git -C "$DEPLOY_DIR" fetch origin
+          git -C "$DEPLOY_DIR" checkout "$BRANCH"
+          git -C "$DEPLOY_DIR" reset --hard "origin/$BRANCH"
+
+          if [ -n "$COMPOSE_FILE" ]; then
+            # Docker Compose 방식: 컨테이너 직접 재시작
+            DOCKER=\$(command -v docker || echo "/usr/bin/docker")
+            "\$DOCKER" restart govpress-api govpress-worker
+            sleep 5
+            curl -fsS "$HEALTHCHECK_URL"
+            "\$DOCKER" ps --filter "name=govpress"
+          else
+            # venv + systemctl 방식
+            export XDG_RUNTIME_DIR=/run/user/\$(id -u)
+            if [ ! -x "$DEPLOY_DIR/.venv/bin/python" ]; then
+              python3 -m venv "$DEPLOY_DIR/.venv"
+            fi
+            "$DEPLOY_DIR/.venv/bin/python" -m pip install -U pip -q
+            "$DEPLOY_DIR/.venv/bin/python" -m pip install -r "$DEPLOY_DIR/requirements.txt" -q
+            "$DEPLOY_DIR/.venv/bin/python" -m pip install -U opendataloader-pdf -q
+            systemctl --user restart "$SERVICE"
+            sleep 3
+            curl -fsS "$HEALTHCHECK_URL"
+          fi
+          EOF
+
+      - name: Summary
+        run: |
+          {
+            echo "- Commit: https://github.com/${{ github.repository }}/commit/${{ github.sha }}"
+            echo "- Branch: \`${{ inputs.branch }}\`"
+            echo "- Service: \`${{ inputs.service }}\`"
+            echo "- Host: \`${{ inputs.ssh_host }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

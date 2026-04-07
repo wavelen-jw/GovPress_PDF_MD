@@ -93,10 +93,10 @@ export const styles = StyleSheet.create({
     backgroundColor: "#fff8f1",
     borderRadius: 16,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 5,
     borderWidth: 1,
     borderColor: "#e8d7bf",
-    gap: 6,
+    gap: 4,
   },
   workspaceToolbarDesktop: {
     alignItems: "stretch",
@@ -109,13 +109,13 @@ export const styles = StyleSheet.create({
     position: "relative",
   },
   workspaceToolbarBar: {
-    gap: 4,
+    gap: 0,
   },
   workspaceToolbarMain: {
     gap: 8,
   },
   workspaceToolbarTopRow: {
-    gap: 8,
+    gap: 6,
   },
   workspaceToolbarTopRowDesktop: {
     flexDirection: "row",
@@ -124,9 +124,9 @@ export const styles = StyleSheet.create({
     gap: 14,
   },
   workspaceToolbarBrand: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 2,
     flexShrink: 0,
   },
   workspaceToolbarTitle: {
@@ -135,6 +135,17 @@ export const styles = StyleSheet.create({
     color: "#2f2318",
     fontFamily: FONT_SANS,
     fontWeight: "700",
+  },
+  workspaceToolbarTagline: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#9a6a3a",
+    fontFamily: FONT_SANS,
+    fontWeight: "400",
+    fontStyle: "normal",
+  },
+  workspaceToolbarTaglineDark: {
+    color: "#d7b38a",
   },
   workspaceToolbarTitleDark: {
     color: "#f5e6d6",
@@ -150,14 +161,14 @@ export const styles = StyleSheet.create({
   },
   workspaceToolbarDocument: {
     color: "#806b56",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
   },
   workspaceToolbarDocumentDark: {
     color: "#d8c1a7",
   },
   workspaceToolbarDocumentRow: {
-    minHeight: 22,
+    minHeight: 18,
     justifyContent: "center",
   },
   workspaceToolbarCluster: {
@@ -181,6 +192,8 @@ export const styles = StyleSheet.create({
     gap: 14,
     justifyContent: "flex-end",
     flexWrap: "wrap",
+    flexShrink: 1,
+    maxWidth: "100%",
   },
   workspaceToolbarPrimaryUtility: {
     flexDirection: "row",
@@ -227,10 +240,12 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    flexWrap: "wrap",
+    flexWrap: "nowrap",
     paddingLeft: 10,
+    paddingRight: 4,
     borderLeftWidth: 1,
     borderLeftColor: "#dccab3",
+    flexShrink: 0,
   },
   workspaceToolbarSecondaryUtilityDark: {
     borderLeftColor: "#4a3b2f",
@@ -278,6 +293,7 @@ export const styles = StyleSheet.create({
     backgroundColor: "#fbf4ec",
     paddingHorizontal: 10,
     paddingVertical: 6,
+    flexShrink: 0,
   },
   utilityButtonDark: {
     backgroundColor: "#2e2620",
@@ -1055,7 +1071,7 @@ export const styles = StyleSheet.create({
   },
   editorSplitLayout: {
     flexDirection: "row",
-    gap: 14,
+    gap: 0,
     alignItems: "stretch",
     justifyContent: "center",
     minHeight: 722,
@@ -1077,6 +1093,12 @@ export const styles = StyleSheet.create({
     padding: 14,
     gap: 10,
     minHeight: 0,
+  },
+  editorPanelDesktop: {
+    width: undefined,
+    minWidth: 360,
+    maxWidth: undefined,
+    flexGrow: 1,
   },
   editorPanelDark: {
     backgroundColor: "#241e19",
@@ -1108,15 +1130,30 @@ export const styles = StyleSheet.create({
     borderColor: "#46392d",
   },
   previewPanelDesktop: {
-    flexGrow: 0,
+    flexGrow: 1,
     flexShrink: 0,
-    width: "46%",
-    minWidth: 620,
-    maxWidth: 860,
+    width: undefined,
+    minWidth: 360,
+    maxWidth: undefined,
     minHeight: 0,
   },
   previewPanelSplit: {
     minHeight: 722,
+  },
+  desktopResizeHandle: {
+    width: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  desktopResizeTrack: {
+    width: 6,
+    alignSelf: "stretch",
+    borderRadius: 999,
+    backgroundColor: "#d9c7ad",
+    marginVertical: 20,
+  },
+  desktopResizeTrackDark: {
+    backgroundColor: "#5f4f40",
   },
   previewPanelTablet: {
     width: "100%",
@@ -1155,6 +1192,87 @@ export const styles = StyleSheet.create({
     paddingTop: 2,
     paddingBottom: 6,
     paddingRight: 10,
+  },
+  dragOverlay: {
+    position: "absolute",
+    inset: 0,
+    backgroundColor: "rgba(15, 61, 52, 0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    zIndex: 60,
+  },
+  dragOverlayCard: {
+    width: "100%",
+    maxWidth: 640,
+    borderRadius: 28,
+    borderWidth: 3,
+    borderStyle: "dashed",
+    borderColor: "#2e6758",
+    backgroundColor: "rgba(255, 252, 246, 0.96)",
+    paddingHorizontal: 28,
+    paddingVertical: 32,
+    gap: 10,
+    alignItems: "center",
+  },
+  dragOverlayEyebrow: {
+    color: "#2e6758",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 1.4,
+  },
+  dragOverlayTitle: {
+    color: "#2f2318",
+    fontSize: 28,
+    lineHeight: 36,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  dragOverlayBody: {
+    color: "#705a45",
+    fontSize: 15,
+    lineHeight: 24,
+    textAlign: "center",
+  },
+  emptyDropZone: {
+    borderRadius: 24,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: "#c8a77d",
+    backgroundColor: "#fff7ec",
+    paddingHorizontal: 22,
+    paddingVertical: 22,
+    gap: 8,
+    marginBottom: 18,
+  },
+  emptyDropZoneDark: {
+    backgroundColor: "#31271f",
+    borderColor: "#8f7154",
+  },
+  emptyDropZoneEyebrow: {
+    color: "#9a6a3a",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.1,
+  },
+  emptyDropZoneEyebrowDark: {
+    color: "#d7b38a",
+  },
+  emptyDropZoneTitle: {
+    color: "#5a3b22",
+    fontSize: 22,
+    lineHeight: 30,
+    fontWeight: "800",
+  },
+  emptyDropZoneTitleDark: {
+    color: "#f2ddc4",
+  },
+  emptyDropZoneBody: {
+    color: "#7a6148",
+    lineHeight: 22,
+  },
+  emptyDropZoneBodyDark: {
+    color: "#d2b89c",
   },
   previewText: { color: "#2f2318", fontSize: 16, lineHeight: 26 },
   previewTextDark: { color: "#eadfce" },
@@ -1820,11 +1938,30 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  settingsStatusSpacer: {
+    width: 20,
+    height: 20,
+  },
   settingsStatusText: {
     color: "#7b664f",
     fontSize: 12,
     lineHeight: 18,
     flex: 1,
+  },
+  settingsStatusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    flexShrink: 0,
+  },
+  settingsStatusDotUp: {
+    backgroundColor: "#2f9e44",
+  },
+  settingsStatusDotDown: {
+    backgroundColor: "#d94841",
+  },
+  settingsStatusDotUnknown: {
+    backgroundColor: "#c8baa8",
   },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 6 },
   busyOverlay: {

@@ -1,0 +1,100 @@
+name: _Deploy Server (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      port:
+        type: string
+        default: "22"
+      deploy_dir:
+        type: string
+        required: true
+      branch:
+        type: string
+        default: "web"
+      service:
+        type: string
+        required: true
+      healthcheck_url:
+        type: string
+        default: "http://127.0.0.1:8013/health"
+    secrets:
+      host:
+        required: true
+      user:
+        required: true
+      ssh_key:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Materialize deploy key
+        env:
+          VPS_KEY: ${{ secrets.ssh_key }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          KEY_FILE=~/.ssh/deploy_key
+
+          if printf '%s' "$VPS_KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+            printf '%s\n' "$VPS_KEY" | tr -d '\r' > "$KEY_FILE"
+          else
+            printf '%s' "$VPS_KEY" | tr -d '\r\n ' | base64 -d > "$KEY_FILE"
+          fi
+
+          chmod 600 "$KEY_FILE"
+          ssh-keygen -y -f "$KEY_FILE" > /dev/null
+
+      - name: Add server to known_hosts
+        env:
+          HOST: ${{ secrets.host }}
+          PORT: ${{ inputs.port }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${PORT}" -H "$HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy
+        env:
+          HOST: ${{ secrets.host }}
+          USER: ${{ secrets.user }}
+          PORT: ${{ inputs.port }}
+          DEPLOY_DIR: ${{ inputs.deploy_dir }}
+          BRANCH: ${{ inputs.branch }}
+          SERVICE: ${{ inputs.service }}
+          HEALTHCHECK_URL: ${{ inputs.healthcheck_url }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=~/.ssh/deploy_key
+
+          ssh -i "$KEY_FILE" -o IdentitiesOnly=yes -p "$PORT" "$USER@$HOST" /bin/bash <<EOF
+          set -euo pipefail
+          export XDG_RUNTIME_DIR=/run/user/\$(id -u)
+          git -C "$DEPLOY_DIR" fetch origin
+          git -C "$DEPLOY_DIR" checkout "$BRANCH"
+          git -C "$DEPLOY_DIR" reset --hard "origin/$BRANCH"
+          if [ ! -x "$DEPLOY_DIR/.venv/bin/python" ]; then
+            python3 -m venv "$DEPLOY_DIR/.venv"
+          fi
+          "$DEPLOY_DIR/.venv/bin/python" -m pip install -U pip -q
+          "$DEPLOY_DIR/.venv/bin/python" -m pip install -r "$DEPLOY_DIR/requirements.txt" -q
+          "$DEPLOY_DIR/.venv/bin/python" -m pip install -U opendataloader-pdf -q
+          systemctl --user restart "$SERVICE"
+          sleep 3
+          curl -fsS "$HEALTHCHECK_URL"
+          systemctl --user --no-pager --full status "$SERVICE" | sed -n '1,30p'
+          EOF
+
+      - name: Summary
+        run: |
+          {
+            echo "- Commit: https://github.com/${{ github.repository }}/commit/${{ github.sha }}"
+            echo "- Branch: \`${{ inputs.branch }}\`"
+            echo "- Service: \`${{ inputs.service }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

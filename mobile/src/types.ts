@@ -41,3 +41,8 @@ export type AppConfig = {
   baseUrl: string;
   apiKey: string;
 };
+
+export type UploadResult = {
+  job: JobCreatePayload;
+  resolvedBaseUrl: string;
+};

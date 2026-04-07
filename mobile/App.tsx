@@ -1,4 +1,4 @@
-import React, { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
+import React, { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -20,8 +20,8 @@ import * as Sharing from "expo-sharing";
 import { JobDetailPanel } from "./src/components/JobDetailPanel";
 import { SettingsModal } from "./src/components/SettingsModal";
 import { WorkspaceToolbar } from "./src/components/WorkspaceToolbar";
-import { DEFAULT_CONFIG } from "./src/constants";
-import { fetchJob, fetchResult, retryJob, saveResult, uploadPdf } from "./src/services/api";
+import { DEFAULT_CONFIG, getServerLabel } from "./src/constants";
+import { ApiError, fetchJob, fetchResult, retryJob, saveResult, uploadPdf } from "./src/services/api";
 import { clearDraft, loadConfig, loadDraft, persistConfig, persistDraft } from "./src/storage/config";
 import { styles } from "./src/styles";
 import type { AppConfig, HwpxTableMode, Job, ResultPayload, ResultVariant } from "./src/types";
@@ -30,6 +30,8 @@ type EditorSelection = {
   start: number;
   end: number;
 };
+
+type WebDropAsset = DocumentPicker.DocumentPickerAsset & { file?: File };
 
 function findLineStart(text: string, index: number): number {
   const newlineIndex = text.lastIndexOf("\n", Math.max(0, index - 1));
@@ -80,6 +82,10 @@ export default function App(): React.JSX.Element {
   const [loadedTableMode, setLoadedTableMode] = useState<HwpxTableMode>("text");
   const [draftHydratedJobId, setDraftHydratedJobId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [desktopSplitRatio, setDesktopSplitRatio] = useState(0.5);
+  const [dragOverlayVisible, setDragOverlayVisible] = useState(false);
+  const prevBaseUrlRef = useRef(config.baseUrl);
+  const jobRefreshSeqRef = useRef(0);
   const selectedVariant = useMemo<ResultVariant>(() => {
     if (!result) {
       return { markdown: null, html_preview: null };
@@ -132,6 +138,10 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  function invalidateJobRefreshes(): void {
+    jobRefreshSeqRef.current += 1;
+  }
+
   useEffect(() => {
     loadConfig()
       .then((loaded) => {
@@ -142,10 +152,22 @@ export default function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
-    if (!loadingConfig && selectedJobId && currentEditToken && !selectedJobId.startsWith("local-md-")) {
-      void refreshSelectedJob(selectedJobId, currentEditToken);
+    const prevBaseUrl = prevBaseUrlRef.current;
+    prevBaseUrlRef.current = config.baseUrl;
+    if (loadingConfig || prevBaseUrl === config.baseUrl) {
+      return;
     }
-  }, [loadingConfig, config.baseUrl, config.apiKey]);
+    invalidateJobRefreshes();
+    setSelectedJobId(null);
+    setCurrentEditToken(null);
+    setSelectedJob(null);
+    setResult(null);
+    setEditorText("");
+    setEditing(false);
+    setDraftHydratedJobId(null);
+    setActiveTab("preview");
+    setNotice(null);
+  }, [config.baseUrl, loadingConfig]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") {
@@ -219,35 +241,6 @@ export default function App(): React.JSX.Element {
   }, [isDarkMode]);
 
   useEffect(() => {
-    if (selectedJobId && currentEditToken && !selectedJobId.startsWith("local-md-")) {
-      void refreshSelectedJob(selectedJobId, currentEditToken);
-    }
-  }, [selectedJobId, currentEditToken]);
-
-  useEffect(() => {
-    if (!selectedJobId || !currentEditToken || selectedJobId.startsWith("local-md-") || !needsHtmlVariant) {
-      return;
-    }
-    const handle = setInterval(() => {
-      void refreshSelectedJob(selectedJobId, currentEditToken, true);
-    }, 2500);
-    return () => clearInterval(handle);
-  }, [selectedJobId, currentEditToken, needsHtmlVariant]);
-
-  useEffect(() => {
-    if (!selectedJobId || !currentEditToken || selectedJobId.startsWith("local-md-") || !selectedJob) {
-      return;
-    }
-    if (selectedJob.status !== "queued" && selectedJob.status !== "processing") {
-      return;
-    }
-    const handle = setInterval(() => {
-      void refreshSelectedJob(selectedJobId, currentEditToken, false);
-    }, 2500);
-    return () => clearInterval(handle);
-  }, [selectedJobId, currentEditToken, selectedJob?.status]);
-
-  useEffect(() => {
     if (!editing || !selectedJobId) {
       return;
     }
@@ -268,6 +261,90 @@ export default function App(): React.JSX.Element {
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [editing, hasUnsavedChanges]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") {
+      return;
+    }
+
+    let dragDepth = 0;
+
+    function isSupportedFile(file: File | null | undefined): boolean {
+      if (!file) {
+        return false;
+      }
+      const name = file.name.toLowerCase();
+      return name.endsWith(".pdf") || name.endsWith(".hwpx") || name.endsWith(".md");
+    }
+
+    function hasSupportedFiles(event: DragEvent): boolean {
+      const files = Array.from(event.dataTransfer?.files || []);
+      return files.some((file) => isSupportedFile(file));
+    }
+
+    const handleDragEnter = (event: DragEvent) => {
+      if (!hasSupportedFiles(event)) {
+        return;
+      }
+      event.preventDefault();
+      dragDepth += 1;
+      setDragOverlayVisible(true);
+    };
+
+    const handleDragOver = (event: DragEvent) => {
+      if (!hasSupportedFiles(event)) {
+        return;
+      }
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "copy";
+      }
+    };
+
+    const handleDragLeave = (event: DragEvent) => {
+      if (!hasSupportedFiles(event)) {
+        return;
+      }
+      event.preventDefault();
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) {
+        setDragOverlayVisible(false);
+      }
+    };
+
+    const handleDrop = (event: DragEvent) => {
+      if (!hasSupportedFiles(event)) {
+        return;
+      }
+      event.preventDefault();
+      dragDepth = 0;
+      setDragOverlayVisible(false);
+      const file = Array.from(event.dataTransfer?.files || []).find((candidate) => isSupportedFile(candidate));
+      if (!file) {
+        return;
+      }
+      const asset: WebDropAsset = {
+        uri: window.URL.createObjectURL(file),
+        mimeType: file.type || undefined,
+        name: file.name,
+        size: file.size,
+        file,
+        lastModified: file.lastModified,
+      };
+      void handleSelectedAsset(asset);
+    };
+
+    window.addEventListener("dragenter", handleDragEnter);
+    window.addEventListener("dragover", handleDragOver);
+    window.addEventListener("dragleave", handleDragLeave);
+    window.addEventListener("drop", handleDrop);
+    return () => {
+      window.removeEventListener("dragenter", handleDragEnter);
+      window.removeEventListener("dragover", handleDragOver);
+      window.removeEventListener("dragleave", handleDragLeave);
+      window.removeEventListener("drop", handleDrop);
+    };
+  }, [config, hwpxTableMode]);
 
   useEffect(() => {
     if (!notice) {
@@ -304,9 +381,18 @@ export default function App(): React.JSX.Element {
     setEditorText(selectedVariant.markdown || "");
   }, [editing, result, selectedVariant.markdown]);
 
-  async function refreshSelectedJob(jobId: string, editToken: string, syncResult = true): Promise<ResultPayload | null> {
+  async function refreshSelectedJob(
+    jobId: string,
+    editToken: string,
+    syncResult = true,
+    suppressErrors = false,
+  ): Promise<ResultPayload | null> {
+    const refreshSeq = ++jobRefreshSeqRef.current;
     try {
       const payload = await fetchJob(config, jobId, editToken);
+      if (refreshSeq !== jobRefreshSeqRef.current) {
+        return null;
+      }
       setNotice(null);
       const shouldLoadResult =
         payload.status === "completed" &&
@@ -315,28 +401,87 @@ export default function App(): React.JSX.Element {
         setSelectedJob(payload);
       });
       if (shouldLoadResult) {
-        const resultPayload = await fetchResult(config, jobId, editToken);
-        const isNewJob = result?.job_id !== payload.job_id;
-        startTransition(() => {
-          setResult(resultPayload);
-          if (isNewJob) {
-            setLoadedTableMode(payload.file_name.toLowerCase().endsWith(".hwpx") ? hwpxTableMode : "text");
-            setSelectedTableMode("text");
-            setEditorText(resultPayload.markdown || "");
-            setEditorSelection({ start: 0, end: 0 });
-            setEditorFocusToken((current) => current + 1);
+        try {
+          const resultPayload = await fetchResult(config, jobId, editToken);
+          if (refreshSeq !== jobRefreshSeqRef.current) {
+            return null;
           }
-        });
-        return resultPayload;
+          const isNewJob = result?.job_id !== payload.job_id;
+          startTransition(() => {
+            setResult(resultPayload);
+            if (isNewJob) {
+              setLoadedTableMode(payload.file_name.toLowerCase().endsWith(".hwpx") ? hwpxTableMode : "text");
+              setSelectedTableMode("text");
+              setEditorText(resultPayload.markdown || "");
+              setEditorSelection({ start: 0, end: 0 });
+              setEditorFocusToken((current) => current + 1);
+            }
+          });
+          return resultPayload;
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 404) {
+            if (refreshSeq !== jobRefreshSeqRef.current) {
+              return null;
+            }
+            startTransition(() => {
+              setSelectedJobId(null);
+              setSelectedJob(null);
+              setResult(null);
+              setEditorText("");
+              setEditing(false);
+              setNotice(null);
+            });
+            return null;
+          }
+          throw error;
+        }
       }
+      return null;
     } catch (error) {
-      showError("작업 상태를 불러오지 못했습니다.", error);
+      if (error instanceof ApiError && error.status === 404) {
+        if (refreshSeq !== jobRefreshSeqRef.current) {
+          return null;
+        }
+        if (selectedJobId === jobId) {
+          startTransition(() => {
+            setSelectedJobId(null);
+            setSelectedJob(null);
+            setResult(null);
+            setEditorText("");
+            setEditing(false);
+            setNotice(null);
+          });
+        }
+        return null;
+      }
+      if (!suppressErrors) {
+        showError("작업 상태를 불러오지 못했습니다.", error);
+      }
     }
     return null;
   }
 
+  useEffect(() => {
+    if (!selectedJobId || !currentEditToken || selectedJobId.startsWith("local-md-")) {
+      return;
+    }
+
+    const shouldPollJob = selectedJob?.status === "queued" || selectedJob?.status === "processing";
+    const shouldPollResult = selectedJob?.status === "completed" && !result;
+
+    if (!shouldPollJob && !shouldPollResult) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      void refreshSelectedJob(selectedJobId, currentEditToken, shouldPollResult, true);
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [currentEditToken, result, selectedJob?.status, selectedJobId]);
+
   async function openLocalMarkdown(asset: DocumentPicker.DocumentPickerAsset): Promise<void> {
-    const webFile = (asset as DocumentPicker.DocumentPickerAsset & { file?: File }).file;
+    const webFile = (asset as WebDropAsset).file;
     let markdown = "";
 
     if (Platform.OS === "web") {
@@ -390,6 +535,51 @@ export default function App(): React.JSX.Element {
     setNotice("Markdown 문서를 열었습니다.");
   }
 
+  async function handleSelectedAsset(asset: DocumentPicker.DocumentPickerAsset): Promise<void> {
+    const lowerName = asset.name.toLowerCase();
+    if (lowerName.endsWith(".md")) {
+      await openLocalMarkdown(asset);
+      return;
+    }
+    if (!lowerName.endsWith(".pdf") && !lowerName.endsWith(".hwpx")) {
+      setNotice("PDF, HWPX 또는 Markdown 파일만 열 수 있습니다.");
+      return;
+    }
+    setBusy(true);
+    setNotice(lowerName.endsWith(".hwpx") ? "HWPX 업로드 중..." : "PDF 업로드 중...");
+    try {
+      const { job, resolvedBaseUrl } = await uploadPdf(config, asset, hwpxTableMode);
+      if (resolvedBaseUrl !== config.baseUrl) {
+        const nextConfig = { ...config, baseUrl: resolvedBaseUrl };
+        invalidateJobRefreshes();
+        await persistConfig(nextConfig);
+        startTransition(() => {
+          setConfig(nextConfig);
+          setConfigDraft(nextConfig);
+        });
+        setNotice(`${getServerLabel(resolvedBaseUrl)}로 자동 전환했습니다.`);
+      }
+      startTransition(() => {
+        setSelectedJobId(job.job_id);
+        setCurrentEditToken(job.edit_token);
+        setSelectedJob(job);
+        setResult(null);
+        setLoadedTableMode(hwpxTableMode);
+        setSelectedTableMode("text");
+        setEditorText("");
+        setEditorSelection({ start: 0, end: 0 });
+        setEditorFocusToken((current) => current + 1);
+        setEditing(false);
+        setActiveTab("preview");
+      });
+      await refreshSelectedJob(job.job_id, job.edit_token, false);
+    } catch (error) {
+      showError("파일 업로드에 실패했습니다.", error);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handlePickPdf(): Promise<void> {
     try {
       const picked = await DocumentPicker.getDocumentAsync({
@@ -402,36 +592,9 @@ export default function App(): React.JSX.Element {
       if (picked.canceled || !picked.assets.length) {
         return;
       }
-      const asset = picked.assets[0];
-      const lowerName = asset.name.toLowerCase();
-      if (lowerName.endsWith(".md")) {
-        await openLocalMarkdown(asset);
-        return;
-      }
-      if (!lowerName.endsWith(".pdf") && !lowerName.endsWith(".hwpx")) {
-        setNotice("PDF, HWPX 또는 Markdown 파일만 열 수 있습니다.");
-        return;
-      }
-      setBusy(true);
-      setNotice(lowerName.endsWith(".hwpx") ? "HWPX 업로드 중..." : "PDF 업로드 중...");
-      const job = await uploadPdf(config, asset, hwpxTableMode);
-      startTransition(() => {
-        setSelectedJobId(job.job_id);
-        setCurrentEditToken(job.edit_token);
-        setSelectedJob(job);
-        setResult(null);
-        setLoadedTableMode(hwpxTableMode);
-        setSelectedTableMode("text");
-        setEditorText("");
-        setEditorSelection({ start: 0, end: 0 });
-        setEditorFocusToken((current) => current + 1);
-        setEditing(false);
-      });
-      await refreshSelectedJob(job.job_id, job.edit_token, false);
+      await handleSelectedAsset(picked.assets[0]);
     } catch (error) {
       showError("파일 업로드에 실패했습니다.", error);
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -794,10 +957,17 @@ export default function App(): React.JSX.Element {
       baseUrl: configDraft.baseUrl.trim(),
       apiKey: configDraft.apiKey.trim(),
     };
+    invalidateJobRefreshes();
     await persistConfig(next);
     setConfig(next);
+    setSelectedJobId(null);
+    setCurrentEditToken(null);
+    setSelectedJob(null);
+    setResult(null);
+    setEditorText("");
+    setEditing(false);
+    setNotice(null);
     setSettingsVisible(false);
-    setNotice("서버 설정을 저장했습니다.");
   }
 
   function handleToggleDarkMode(): void {
@@ -812,7 +982,7 @@ export default function App(): React.JSX.Element {
     return (
       <SafeAreaView style={styles.loadingShell}>
         <ActivityIndicator size="large" color="#b75e1f" />
-        <Text style={styles.loadingLabel}>GovPress Mobile 준비 중</Text>
+        <Text style={styles.loadingLabel}>정부 보고서.Markdown 준비 중</Text>
       </SafeAreaView>
     );
   }
@@ -835,6 +1005,7 @@ export default function App(): React.JSX.Element {
             hasResult={!!(selectedJob?.status === "completed" && result)}
             hasUnsavedChanges={hasUnsavedChanges}
             isWideLayout={isWideLayout}
+            isTabletLayout={isTabletLayout}
             isDarkMode={isDarkMode}
             isPdfPickReady={isPdfPickReady}
             selectedTableMode={selectedTableMode}
@@ -865,6 +1036,7 @@ export default function App(): React.JSX.Element {
             isTabletLayout={isTabletLayout}
             isCompactLayout={isCompactLayout}
             isWideLayout={isWideLayout}
+            desktopSplitRatio={desktopSplitRatio}
             sectionHeadings={sectionHeadings}
             showBackButton={isCompactLayout}
             result={result}
@@ -908,6 +1080,7 @@ export default function App(): React.JSX.Element {
             onRetry={() => void handleRetry()}
             onSaveEdit={() => void handleSaveEdit()}
             onShareMarkdown={() => void handleShareMarkdown()}
+            onResizeDesktopSplit={setDesktopSplitRatio}
             onToggleEditing={() => setEditing((current) => !current)}
           />
         ) : null}
@@ -916,28 +1089,24 @@ export default function App(): React.JSX.Element {
       <Modal visible={infoVisible} animationType="fade" transparent onRequestClose={() => setInfoVisible(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.infoModalCard}>
-            <Text style={styles.modalTitle}>정부 보도자료 Markdown 편집기</Text>
+            <Text style={styles.modalTitle}>정부 보고서 Markdown 편집기</Text>
             <Text style={styles.modalHint}>
-              PDF로 배포되는 정부 보도자료를 Markdown으로 바꾸고, 바로 수정하고, 저장할 수 있도록 만든 웹 도구입니다.
+              HWPX, PDF로 만들어진 정부 보고서를 Markdown으로 바꾸고, 바로 수정하고, 저장할 수 있도록 만든 웹 도구입니다.
             </Text>
             <View style={styles.infoMetaList}>
               <View style={styles.infoMetaRow}>
                 <Text style={styles.infoMetaLabel}>대상 문서</Text>
-                <Text style={styles.infoMetaValue}>정부 보도자료 PDF, Markdown</Text>
+                <Text style={styles.infoMetaValue}>정부 보고서 HWPX, PDF, Markdown</Text>
               </View>
               <View style={styles.infoMetaRow}>
                 <Text style={styles.infoMetaLabel}>주요 기능</Text>
-                <Text style={styles.infoMetaValue}>PDF 변환, Markdown 편집, 미리보기, 저장</Text>
+                <Text style={styles.infoMetaValue}>HWPX, PDF → Markdown 변환, 편집, 저장</Text>
               </View>
               <View style={styles.infoMetaRow}>
                 <Text style={styles.infoMetaLabel}>GitHub 저장소</Text>
                 <Pressable onPress={handleOpenGithub}>
                   <Text style={styles.infoMetaLink}>wavelen-jw/GovPress_PDF_MD</Text>
                 </Pressable>
-              </View>
-              <View style={styles.infoMetaRow}>
-                <Text style={styles.infoMetaLabel}>현재 서버</Text>
-                <Text style={styles.infoMetaValue}>{config.baseUrl}</Text>
               </View>
             </View>
             <View style={styles.infoCapabilityList}>
@@ -983,6 +1152,16 @@ export default function App(): React.JSX.Element {
       {busy ? (
         <View style={styles.busyOverlay}>
           <ActivityIndicator size="large" color="#fff7ee" />
+        </View>
+      ) : null}
+
+      {Platform.OS === "web" && dragOverlayVisible ? (
+        <View pointerEvents="none" style={styles.dragOverlay}>
+          <View style={styles.dragOverlayCard}>
+            <Text style={styles.dragOverlayEyebrow}>DROP TO CONVERT</Text>
+            <Text style={styles.dragOverlayTitle}>PDF, HWPX, Markdown 파일을 놓으세요</Text>
+            <Text style={styles.dragOverlayBody}>드래그앤드롭으로 바로 업로드하고 결과를 편집기와 미리보기에서 확인할 수 있습니다.</Text>
+          </View>
         </View>
       ) : null}
     </SafeAreaView>

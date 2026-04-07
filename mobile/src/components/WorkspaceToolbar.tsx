@@ -9,6 +9,7 @@ type Props = {
   hasResult: boolean;
   hasUnsavedChanges: boolean;
   isWideLayout: boolean;
+  isTabletLayout: boolean;
   isDarkMode: boolean;
   isPdfPickReady: boolean;
   selectedTableMode: HwpxTableMode;
@@ -30,6 +31,7 @@ export function WorkspaceToolbar({
   hasResult,
   hasUnsavedChanges,
   isWideLayout,
+  isTabletLayout,
   isDarkMode,
   isPdfPickReady,
   selectedTableMode,
@@ -53,14 +55,15 @@ export function WorkspaceToolbar({
   const saveEditLabel = isWideLayout ? "💾 저장" : "💾 저장";
   const shareLabel = isWideLayout ? "⇪" : "⇪ 공유";
   const webTitle = (label: string) => (Platform.OS === "web" ? { title: label } : {});
-  const toolbarDocumentText = currentDocumentName || "PDF, HWPX 또는 Markdown 파일을 열어 작업을 시작하세요.";
-
   return (
     <View style={[styles.workspaceToolbar, isWideLayout && styles.workspaceToolbarDesktop, isDarkMode && styles.workspaceToolbarDark]}>
       <View style={styles.workspaceToolbarBar}>
-        <View style={[styles.workspaceToolbarTopRow, isWideLayout && styles.workspaceToolbarTopRowDesktop]}>
+        <View style={[styles.workspaceToolbarTopRow, isTabletLayout && styles.workspaceToolbarTopRowDesktop]}>
           <View style={styles.workspaceToolbarBrand}>
-            <Text style={[styles.workspaceToolbarTitle, isDarkMode && styles.workspaceToolbarTitleDark]}>정부 보도자료.Markdown</Text>
+            <Text style={[styles.workspaceToolbarTitle, isDarkMode && styles.workspaceToolbarTitleDark]}>정부 보고서.Markdown</Text>
+            <Text style={[styles.workspaceToolbarTagline, isDarkMode && styles.workspaceToolbarTaglineDark]} numberOfLines={1}>
+              {currentDocumentName ?? "HWPX, PDF로 만들어진 정부 보고서를 깔끔하게 마크다운으로 바꿉니다."}
+            </Text>
           </View>
           <View style={styles.workspaceToolbarCluster}>
             <View style={styles.workspaceToolbarActions} />
@@ -116,17 +119,12 @@ export function WorkspaceToolbar({
                         { key: "text", label: "표: MD" },
                         {
                           key: "html",
-                          label:
-                            htmlVariantState === "ready"
-                              ? "표: HTML"
-                              : htmlVariantState === "pending"
-                                ? "표: HTML 준비중"
-                                : "표: HTML 없음",
+                          label: "표: HTML",
                         },
                       ] as const
                     ).map((tab) => {
                       const active = tab.key === selectedTableMode;
-                      const disabled = tab.key === "html" && htmlVariantState === "unavailable";
+                      const disabled = tab.key === "html";
                       return (
                         <Pressable
                           key={tab.key}
@@ -153,7 +151,7 @@ export function WorkspaceToolbar({
                               disabled && styles.toolbarDisabledButtonLabel,
                             ]}
                           >
-                            {tab.label}
+                            {disabled ? "표: HTML 잠시 중지" : tab.label}
                           </Text>
                         </Pressable>
                       );
@@ -192,14 +190,16 @@ export function WorkspaceToolbar({
                 ) : null}
               </View>
               <View style={[styles.workspaceToolbarSecondaryUtility, isDarkMode && styles.workspaceToolbarSecondaryUtilityDark]}>
-                <Pressable
-                  style={[styles.utilityButton, styles.utilityIconButton, isDarkMode && styles.utilityButtonDark]}
-                  onPress={onToggleDarkMode}
-                  accessibilityLabel={isDarkMode ? "라이트 모드" : "다크 모드"}
-                  {...webTitle(isDarkMode ? "라이트 모드" : "다크 모드")}
-                >
-                  <Text style={[styles.utilityButtonLabel, styles.utilityIconLabel, isDarkMode && styles.utilityButtonLabelDark]}>{isDarkMode ? "☀" : "☾"}</Text>
-                </Pressable>
+                {isWideLayout ? (
+                  <Pressable
+                    style={[styles.utilityButton, styles.utilityIconButton, isDarkMode && styles.utilityButtonDark]}
+                    onPress={onToggleDarkMode}
+                    accessibilityLabel={isDarkMode ? "라이트 모드" : "다크 모드"}
+                    {...webTitle(isDarkMode ? "라이트 모드" : "다크 모드")}
+                  >
+                    <Text style={[styles.utilityButtonLabel, styles.utilityIconLabel, isDarkMode && styles.utilityButtonLabelDark]}>{isDarkMode ? "☀" : "☾"}</Text>
+                  </Pressable>
+                ) : null}
                 <Pressable
                   style={[styles.utilityButton, styles.utilityIconButton, isDarkMode && styles.utilityButtonDark]}
                   onPress={onOpenInfo}
@@ -213,11 +213,6 @@ export function WorkspaceToolbar({
               </View>
             </View>
           </View>
-        </View>
-        <View style={styles.workspaceToolbarDocumentRow}>
-          <Text style={[styles.workspaceToolbarDocument, isDarkMode && styles.workspaceToolbarDocumentDark]} numberOfLines={1}>
-            {toolbarDocumentText}
-          </Text>
         </View>
       </View>
     </View>

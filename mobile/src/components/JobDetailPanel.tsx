@@ -8,6 +8,7 @@ import { MarkdownPreview, parseMarkdownBlockRanges } from "./MarkdownPreview";
 
 type Props = {
   activeTab: "preview" | "markdown";
+  desktopSplitRatio: number;
   editorSelection: { start: number; end: number };
   editorFocusToken: number;
   hasUnsavedChanges: boolean;
@@ -35,11 +36,13 @@ type Props = {
   onRetry: () => void;
   onSaveEdit: () => void;
   onShareMarkdown: () => void;
+  onResizeDesktopSplit: (ratio: number) => void;
   onToggleEditing: () => void;
 };
 
 export function JobDetailPanel({
   activeTab,
+  desktopSplitRatio,
   editorSelection,
   editorFocusToken,
   hasUnsavedChanges,
@@ -67,9 +70,11 @@ export function JobDetailPanel({
   onRetry,
   onSaveEdit,
   onShareMarkdown,
+  onResizeDesktopSplit,
   onToggleEditing,
 }: Props) {
   const editorRef = useRef<TextInput | null>(null);
+  const splitLayoutRef = useRef<View | null>(null);
   const previewScrollRef = useRef<ScrollView | null>(null);
   const previewBlockPositionsRef = useRef<Record<number, number>>({});
   const previewViewportHeightRef = useRef(0);
@@ -120,6 +125,23 @@ export function JobDetailPanel({
 
   function handlePreviewBlockLayout(blockIndex: number, y: number): void {
     previewBlockPositionsRef.current[blockIndex] = y;
+  }
+
+  function clampDesktopRatio(next: number): number {
+    return Math.min(0.72, Math.max(0.28, next));
+  }
+
+  function handleDesktopResize(event: { nativeEvent: { locationX: number; pageX: number } }): void {
+    if (!isWideLayout) {
+      return;
+    }
+    splitLayoutRef.current?.measureInWindow((x, _y, width) => {
+      if (!width) {
+        return;
+      }
+      const ratio = clampDesktopRatio((event.nativeEvent.pageX - x) / width);
+      onResizeDesktopSplit(ratio);
+    });
   }
 
   return (
@@ -212,8 +234,15 @@ export function JobDetailPanel({
                 </View>
 
                 {isWideLayout ? (
-                  <View style={styles.editorSplitLayout}>
-                    <View style={[styles.editorPanel, isDarkMode && styles.editorPanelDark]}>
+                  <View ref={splitLayoutRef} style={styles.editorSplitLayout}>
+                    <View
+                      style={[
+                        styles.editorPanel,
+                        styles.editorPanelDesktop,
+                        isDarkMode && styles.editorPanelDark,
+                        { flexBasis: `${desktopSplitRatio * 100}%` },
+                      ]}
+                    >
                       <Text style={[styles.previewLabel, isDarkMode && styles.previewLabelDark]}>편집기</Text>
                       <View style={styles.splitPanelBody}>
                         <TextInput
@@ -228,7 +257,24 @@ export function JobDetailPanel({
                         />
                       </View>
                     </View>
-                    <View style={[styles.previewPanel, styles.previewPanelDesktop, styles.previewPanelSplit, isDarkMode && styles.previewPanelDark]}>
+                    <View
+                      style={styles.desktopResizeHandle}
+                      onStartShouldSetResponder={() => true}
+                      onMoveShouldSetResponder={() => true}
+                      onResponderGrant={handleDesktopResize}
+                      onResponderMove={handleDesktopResize}
+                    >
+                      <View style={[styles.desktopResizeTrack, isDarkMode && styles.desktopResizeTrackDark]} />
+                    </View>
+                    <View
+                      style={[
+                        styles.previewPanel,
+                        styles.previewPanelDesktop,
+                        styles.previewPanelSplit,
+                        isDarkMode && styles.previewPanelDark,
+                        { flexBasis: `${(1 - desktopSplitRatio) * 100}%` },
+                      ]}
+                    >
                       <Text style={[styles.previewLabel, isDarkMode && styles.previewLabelDark]}>미리보기</Text>
                       <View style={styles.splitPanelBody}>
                         <ScrollView

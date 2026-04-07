@@ -6,14 +6,9 @@ import { styles } from "../styles";
 export function EmptyDetailState({ isDarkMode = false }: { isDarkMode?: boolean }) {
   return (
     <View style={[styles.stateCardNeutral, isDarkMode && styles.stateCardNeutralDark]}>
-      <Text style={[styles.stateTitle, isDarkMode && styles.stateTitleDark]}>PDF로 제공되는 정부 보도자료를 Markdown으로 바꿉니다.</Text>
-      <Text style={[styles.stateBody, isDarkMode && styles.stateBodyDark]}>
-        PDF를 열면 변환 결과가 이 화면에 바로 나타나고, 필요하면 내용을 수정해서 저장할 수 있습니다.
-      </Text>
-      <View style={styles.emptyDetailChecklist}>
-        <Text style={[styles.emptyDetailChecklistItem, isDarkMode && styles.emptyDetailChecklistItemDark]}>1. 상단에서 PDF, HWPX 또는 Markdown 파일을 엽니다.</Text>
-        <Text style={[styles.emptyDetailChecklistItem, isDarkMode && styles.emptyDetailChecklistItemDark]}>2. PDF는 자동으로 Markdown으로 변환됩니다.</Text>
-        <Text style={[styles.emptyDetailChecklistItem, isDarkMode && styles.emptyDetailChecklistItemDark]}>3. 결과를 확인하고 바로 수정하거나 저장하면 됩니다.</Text>
+      <View style={[styles.emptyDropZone, isDarkMode && styles.emptyDropZoneDark]}>
+        <Text style={[styles.emptyDropZoneEyebrow, isDarkMode && styles.emptyDropZoneEyebrowDark]}>DRAG AND DROP</Text>
+        <Text style={[styles.emptyDropZoneTitle, isDarkMode && styles.emptyDropZoneTitleDark]}>파일을 여기로 끌어 놓아 바로 변환하세요</Text>
       </View>
       <View style={[styles.emptyDetailDivider, isDarkMode && styles.emptyDetailDividerDark]} />
       <Text style={[styles.markdownIntroTitle, isDarkMode && styles.markdownIntroTitleDark]}>
@@ -97,9 +92,6 @@ export function EmptyDetailState({ isDarkMode = false }: { isDarkMode?: boolean 
         </View>
         </View>
       </ScrollView>
-      <Text style={[styles.stateBody, isDarkMode && styles.stateBodyDark]}>
-        Markdown으로 바꾸면 별도 뷰어 프로그램이 없어도 웹브라우저나 일반 문서 편집기에서 읽기 쉽고, AI가 문서 구조를 이해하고 활용하기에도 더 적합합니다.
-      </Text>
     </View>
   );
 }

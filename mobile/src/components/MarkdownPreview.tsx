@@ -541,7 +541,12 @@ function parseMarkdown(markdown: string): Block[] {
           }
           const sourceNumber = Number(orderedMatch[1]);
           const previousNumber = orderedSequenceByLevel.get(level);
-          const orderNumber = previousNumber !== undefined ? previousNumber + 1 : sourceNumber;
+          // Reset counter when source restarts from 1 (new section), otherwise increment from previous
+          const isNewSequence = sourceNumber === 1 && previousNumber !== undefined && previousNumber > 1;
+          if (isNewSequence) {
+            orderedSequenceByLevel.delete(level);
+          }
+          const orderNumber = !isNewSequence && previousNumber !== undefined ? previousNumber + 1 : sourceNumber;
           orderedSequenceByLevel.set(level, orderNumber);
           blocks.push({
             type: "list_item",
