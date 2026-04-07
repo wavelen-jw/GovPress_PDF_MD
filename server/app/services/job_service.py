@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import secrets
 import uuid
+from hmac import compare_digest
 
 from ..models import JobRecord
 from ..models import JobStatus
@@ -92,7 +93,7 @@ class JobService:
 
     def get_job(self, job_id: str, edit_token: str) -> JobRecord | None:
         record = self._repository.get(job_id)
-        if record is None or record.edit_token != edit_token:
+        if record is None or not compare_digest(record.edit_token, edit_token):
             return None
         return record
 

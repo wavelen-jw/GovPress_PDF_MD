@@ -17,11 +17,20 @@ from .services.storage_service import StorageService
 from .workers.converter_worker import ConverterWorker
 from .workers.poller import PollingWorker
 
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+}
+
 
 def create_app(storage_root: Path | None = None, *, run_worker: bool = False):
     try:
         from fastapi import FastAPI
         from fastapi.middleware.cors import CORSMiddleware
+        from starlette.middleware.base import BaseHTTPMiddleware
+        from starlette.requests import Request as StarletteRequest
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError(
             "FastAPI is not installed. Install server dependencies from requirements.txt first."
@@ -51,12 +60,21 @@ def create_app(storage_root: Path | None = None, *, run_worker: bool = False):
             worker.stop()
 
     app = FastAPI(title="GovPress Mobile API", version="0.1.0", lifespan=lifespan)
+
+    class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: StarletteRequest, call_next):
+            response = await call_next(request)
+            for header, value in _SECURITY_HEADERS.items():
+                response.headers[header] = value
+            return response
+
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allow_origins,
         allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "X-API-Key", "X-Edit-Token"],
     )
     auth_dependency = partial(verify_api_key, settings)
     app.include_router(jobs_api.build_router(job_service, settings, auth_dependency))

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ResultMeta(BaseModel):
@@ -31,7 +31,7 @@ class ResultResponse(BaseModel):
 
 
 class ResultUpdateRequest(BaseModel):
-    markdown: str
+    markdown: str = Field(..., max_length=5_000_000)  # 5 MB 상한 (DoS 방지)
 
 
 class ResultUpdateResponse(BaseModel):

@@ -82,11 +82,11 @@ class ConverterWorker:
                     final_markdown_path=final_path,
                 )
         except Exception as exc:  # pragma: no cover - exact exceptions vary by runtime
-            self._logger.exception("Conversion failed for job %s", job_id)
+            self._logger.exception("Conversion failed for job %s: %s", job_id, exc)
             self._jobs.update_status(
                 job_id,
                 status="failed",
                 progress=100,
                 error_code="CONVERSION_FAILED",
-                error_message=str(exc),
+                error_message="변환 중 오류가 발생했습니다. 파일 형식을 확인하거나 다시 시도해 주세요.",
             )

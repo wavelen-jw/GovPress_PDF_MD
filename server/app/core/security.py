@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from hmac import compare_digest
+
 from fastapi import HTTPException, Security
 from fastapi.security import APIKeyHeader
 
@@ -11,8 +13,8 @@ EDIT_TOKEN_HEADER = APIKeyHeader(name="X-Edit-Token", auto_error=False, scheme_n
 def verify_api_key(settings, api_key: str | None = Security(API_KEY_HEADER)) -> None:
     expected = settings.api_key
     if not expected:
-        return
-    if api_key == expected:
+        raise HTTPException(status_code=503, detail="Server is not properly configured")
+    if api_key and compare_digest(api_key, expected):
         return
     raise HTTPException(status_code=401, detail="Invalid API key")
 

@@ -34,11 +34,16 @@ _UNSAFE_TAG_PATTERN = re.compile(
     r"<script[\s\S]*?</script\s*>"          # <script>…</script>
     r"|<iframe[\s\S]*?(?:</iframe\s*>|/>)"  # <iframe>…</iframe>
     r"|<object[\s\S]*?(?:</object\s*>|/>)"  # <object>…</object>
-    r"|<embed\b[^>]*>",                     # <embed>
+    r"|<embed\b[^>]*>"                      # <embed>
+    r"|<form\b[^>]*>|</form>",              # <form> (phishing 방지)
     re.IGNORECASE,
 )
 _UNSAFE_ATTR_PATTERN = re.compile(
     r"""\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|\S+)""",  # on* event handlers
+    re.IGNORECASE,
+)
+_UNSAFE_URL_ATTR_PATTERN = re.compile(
+    r"""((?:href|src|action)\s*=\s*["']?)\s*(?:javascript|data|vbscript)\s*:""",
     re.IGNORECASE,
 )
 
@@ -47,6 +52,7 @@ def _strip_unsafe_html(html: str) -> str:
     """Remove executable HTML injected via raw-HTML pass-through in Markdown."""
     html = _UNSAFE_TAG_PATTERN.sub("", html)
     html = _UNSAFE_ATTR_PATTERN.sub("", html)
+    html = _UNSAFE_URL_ATTR_PATTERN.sub(r"\1#", html)
     return html
 
 

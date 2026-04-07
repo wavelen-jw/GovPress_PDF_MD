@@ -1,6 +1,30 @@
 /* GovPress PDF MD – frontend logic */
 'use strict';
 
+// ── HTML Sanitizer ─────────────────────────────────────────
+// Python 쪽에서 1차 제거 후, JS에서 2차로 DOM 파싱 기반 검증.
+// javascript:/data:/vbscript: URL과 on* 이벤트 핸들러를 제거한다.
+const _UNSAFE_URL_RE = /^\s*(?:javascript|data|vbscript)\s*:/i;
+function sanitizeHtml(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  tmp.querySelectorAll('*').forEach(el => {
+    for (const attr of Array.from(el.attributes)) {
+      if (/^on\w+$/i.test(attr.name)) {
+        el.removeAttribute(attr.name);
+      } else if (['href', 'src', 'action'].includes(attr.name.toLowerCase())) {
+        if (_UNSAFE_URL_RE.test(attr.value)) {
+          el.setAttribute(attr.name, '#');
+        }
+      }
+    }
+    if (/^(script|iframe|object|embed|form)$/i.test(el.tagName)) {
+      el.remove();
+    }
+  });
+  return tmp.innerHTML;
+}
+
 // ── State ──────────────────────────────────────────────────
 // All mutable UI state lives here. Read via state.*, mutate via the
 // setFile/setHasContent/setFollowCursor helpers so side-effects stay central.
@@ -173,17 +197,18 @@ async function renderPreview(scrollToHighlight = false) {
   const content    = editor.value;
   const cursorLine = state.followCursor ? getCurrentLine() : null;
   const html = await pywebview.api.render_markdown(content, cursorLine);
+  const safeHtml = sanitizeHtml(html);
   const scrollEl   = document.getElementById('preview-scroll');
 
   if (state.followCursor && scrollToHighlight) {
-    previewContent.innerHTML = html;
+    previewContent.innerHTML = safeHtml;
     const highlight = previewContent.querySelector('.cursor-highlight');
     if (highlight) {
       highlight.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
   } else {
     const savedTop = scrollEl.scrollTop;
-    previewContent.innerHTML = html;
+    previewContent.innerHTML = safeHtml;
     scrollEl.scrollTop = savedTop;
   }
 }

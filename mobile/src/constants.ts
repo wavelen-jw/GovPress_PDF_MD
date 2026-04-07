@@ -9,7 +9,6 @@ export const STORAGE_KEYS = {
 } as const;
 
 export const BUILD_TAG = "mobile-web-2026-04-04-2145-local";
-const API_KEY_FALLBACK = "***REMOVED***";
 
 export function isHostedWeb(): boolean {
   return Platform.OS === "web" && typeof window !== "undefined" && window.location.hostname.endsWith("github.io");
@@ -50,7 +49,7 @@ export function currentWebBaseUrl(): string {
 
 export const DEFAULT_CONFIG: AppConfig = {
   baseUrl: defaultBaseUrl(),
-  apiKey: process.env.EXPO_PUBLIC_GOVPRESS_API_KEY || API_KEY_FALLBACK,
+  apiKey: process.env.EXPO_PUBLIC_GOVPRESS_API_KEY || "",
 };
 
 export const STATUS_COPY: Record<JobStatus, string> = {
