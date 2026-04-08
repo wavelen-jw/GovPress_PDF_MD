@@ -10,7 +10,7 @@ export const STORAGE_KEYS = {
 
 export const BUILD_TAG = "mobile-web-2026-04-08-serverw";
 
-export const SERVER_FALLBACK_TIMEOUT_MS = 2000;
+export const SERVER_FALLBACK_TIMEOUT_MS = 8000;
 
 export const SERVER_PRESETS = [
   { key: "serverV", label: "서버V", shortLabel: "서버V", url: "https://api2.govpress.cloud" },
@@ -60,9 +60,7 @@ export function getServerLabel(baseUrl: string): string {
 }
 
 export function getFallbackBaseUrls(baseUrl: string): string[] {
-  const urls = SERVER_PRESETS.map((preset) => preset.url);
-  const candidates = [baseUrl, ...urls];
-  return candidates.filter((item, index) => item && candidates.indexOf(item) === index);
+  return baseUrl.trim() ? [baseUrl.trim()] : [defaultBaseUrl()];
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
