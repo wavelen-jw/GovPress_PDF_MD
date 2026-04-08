@@ -19,6 +19,9 @@
       "package": "com.wavelen.govpressmobile",
       "edgeToEdgeEnabled": true
     },
+    "web": {
+      "bundler": "metro"
+    },
     "plugins": [
       "expo-document-picker",
       "expo-secure-store",
