@@ -33,7 +33,7 @@ concurrency:
 #              GOVPRESS_H_DEPLOY_DIR, GOVPRESS_H_SERVICE,
 #              GOVPRESS_H_HEALTHCHECK_URL, GOVPRESS_H_BRANCH
 #
-# 서버W (api1.govpress.cloud) — WSL, Cloudflare Tunnel SSH
+# 서버W (api4.govpress.cloud) — WSL, Cloudflare Tunnel SSH
 #   Secrets : GOVPRESS_W_USER, GOVPRESS_W_SSH_KEY,
 #             CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET (공용)
 #   Variables: GOVPRESS_W_SSH_HOST (e.g. ssh-w.govpress.cloud),
