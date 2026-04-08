@@ -92,7 +92,7 @@ jobs:
         run: |
           set -euo pipefail
           KEY_FILE=~/.ssh/deploy_key
-          ssh -tt -v -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 \
+          ssh -v -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 \
             "$USER@$SSH_HOST" 'echo "cloudflare-tunnel-ssh-ok"'
 
       - name: Deploy
@@ -109,7 +109,7 @@ jobs:
           set -euo pipefail
           KEY_FILE=~/.ssh/deploy_key
 
-          ssh -tt -i "$KEY_FILE" -o IdentitiesOnly=yes "$USER@$SSH_HOST" /bin/bash -l <<EOF
+          ssh -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" /bin/bash -l <<EOF
           set -euo pipefail
           git -C "$DEPLOY_DIR" fetch origin
           git -C "$DEPLOY_DIR" checkout "$BRANCH"
@@ -135,6 +135,7 @@ jobs:
             sleep 3
             curl -fsS "$HEALTHCHECK_URL"
           fi
+          echo "deploy-complete"
           EOF
 
       - name: Summary
