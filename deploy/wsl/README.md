@@ -75,6 +75,8 @@ CLOUDFLARE_TUNNEL_TOKEN=eyJh...
 https://api.govpress.cloud
 ```
 
+serverW로 연결되는 현재 공개 주소는 `https://api4.govpress.cloud`입니다.
+
 주의:
 
 - `GOVPRESS_CORS_ALLOW_ORIGINS`는 실제 프론트 주소로 바꿔야 합니다.

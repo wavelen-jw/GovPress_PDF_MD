@@ -44,6 +44,7 @@ pip install -U opendataloader-pdf
 
 - `GOVPRESS_TURNSTILE_SECRET_KEY`는 비워 두고 사용합니다.
 - 실제 운영 주소는 저장소 문서에 직접 적지 않고 배포 설정에서 관리합니다.
+- 이 로컬 서버W의 Cloudflare 공개 주소는 `https://api4.govpress.cloud`입니다.
 
 배포 시 주의:
 

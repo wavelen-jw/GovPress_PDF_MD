@@ -4,6 +4,7 @@
 
 - 현재 주력 형태는 Windows 전용 데스크톱 앱보다 `웹 프론트 + FastAPI 백엔드 + worker` 구조입니다.
 - 공개 프론트는 GitHub Pages, 공개 백엔드는 Cloudflare Tunnel 뒤의 `https://api.govpress.cloud`를 사용합니다.
+- 이 로컬 기기 기준 `serverW`의 공개 주소는 `https://api4.govpress.cloud`입니다.
 
 ## UI 작업 규칙
 
