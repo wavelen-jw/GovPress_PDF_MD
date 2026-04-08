@@ -62,6 +62,7 @@ export default function App(): React.JSX.Element {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [currentEditToken, setCurrentEditToken] = useState<string | null>(null);
+  const [selectedJobBaseUrl, setSelectedJobBaseUrl] = useState<string>(DEFAULT_CONFIG.baseUrl);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [result, setResult] = useState<ResultPayload | null>(null);
   const [editorText, setEditorText] = useState("");
@@ -84,8 +85,11 @@ export default function App(): React.JSX.Element {
   const [notice, setNotice] = useState<string | null>(null);
   const [desktopSplitRatio, setDesktopSplitRatio] = useState(0.5);
   const [dragOverlayVisible, setDragOverlayVisible] = useState(false);
-  const prevBaseUrlRef = useRef(config.baseUrl);
   const jobRefreshSeqRef = useRef(0);
+  const selectedJobConfig = useMemo<AppConfig>(() => {
+    const baseUrl = selectedJobBaseUrl || config.baseUrl;
+    return { ...config, baseUrl };
+  }, [config, selectedJobBaseUrl]);
   const selectedVariant = useMemo<ResultVariant>(() => {
     if (!result) {
       return { markdown: null, html_preview: null };
@@ -147,27 +151,10 @@ export default function App(): React.JSX.Element {
       .then((loaded) => {
         setConfig(loaded);
         setConfigDraft(loaded);
+        setSelectedJobBaseUrl(loaded.baseUrl);
       })
       .finally(() => setLoadingConfig(false));
   }, []);
-
-  useEffect(() => {
-    const prevBaseUrl = prevBaseUrlRef.current;
-    prevBaseUrlRef.current = config.baseUrl;
-    if (loadingConfig || prevBaseUrl === config.baseUrl) {
-      return;
-    }
-    invalidateJobRefreshes();
-    setSelectedJobId(null);
-    setCurrentEditToken(null);
-    setSelectedJob(null);
-    setResult(null);
-    setEditorText("");
-    setEditing(false);
-    setDraftHydratedJobId(null);
-    setActiveTab("preview");
-    setNotice(null);
-  }, [config.baseUrl, loadingConfig]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") {
@@ -386,10 +373,12 @@ export default function App(): React.JSX.Element {
     editToken: string,
     syncResult = true,
     suppressErrors = false,
+    baseUrl = selectedJobBaseUrl || config.baseUrl,
   ): Promise<ResultPayload | null> {
     const refreshSeq = ++jobRefreshSeqRef.current;
     try {
-      const payload = await fetchJob(config, jobId, editToken);
+      const jobConfig = { ...config, baseUrl };
+      const payload = await fetchJob(jobConfig, jobId, editToken);
       if (refreshSeq !== jobRefreshSeqRef.current) {
         return null;
       }
@@ -402,7 +391,7 @@ export default function App(): React.JSX.Element {
       });
       if (shouldLoadResult) {
         try {
-          const resultPayload = await fetchResult(config, jobId, editToken);
+          const resultPayload = await fetchResult(jobConfig, jobId, editToken);
           if (refreshSeq !== jobRefreshSeqRef.current) {
             return null;
           }
@@ -474,11 +463,11 @@ export default function App(): React.JSX.Element {
     }
 
     const interval = setInterval(() => {
-      void refreshSelectedJob(selectedJobId, currentEditToken, shouldPollResult, true);
+      void refreshSelectedJob(selectedJobId, currentEditToken, shouldPollResult, true, selectedJobBaseUrl || config.baseUrl);
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [currentEditToken, result, selectedJob?.status, selectedJobId]);
+  }, [config.baseUrl, currentEditToken, result, selectedJob?.status, selectedJobBaseUrl, selectedJobId]);
 
   async function openLocalMarkdown(asset: DocumentPicker.DocumentPickerAsset): Promise<void> {
     const webFile = (asset as WebDropAsset).file;
@@ -563,6 +552,7 @@ export default function App(): React.JSX.Element {
         setSelectedJobId(job.job_id);
         setCurrentEditToken(job.edit_token);
         setSelectedJob(job);
+        setSelectedJobBaseUrl(resolvedBaseUrl);
         setResult(null);
         setLoadedTableMode(hwpxTableMode);
         setSelectedTableMode("text");
@@ -572,7 +562,7 @@ export default function App(): React.JSX.Element {
         setEditing(false);
         setActiveTab("preview");
       });
-      await refreshSelectedJob(job.job_id, job.edit_token, false);
+      await refreshSelectedJob(job.job_id, job.edit_token, false, false, resolvedBaseUrl);
     } catch (error) {
       showError("파일 업로드에 실패했습니다.", error);
     } finally {
@@ -604,7 +594,7 @@ export default function App(): React.JSX.Element {
     }
     try {
       setBusy(true);
-      const retried = await retryJob(config, selectedJobId, currentEditToken);
+      const retried = await retryJob(selectedJobConfig, selectedJobId, currentEditToken);
       setNotice("작업을 다시 대기열에 넣었습니다.");
       startTransition(() => {
         setSelectedJob(retried);
@@ -678,9 +668,9 @@ export default function App(): React.JSX.Element {
         setNotice("이 작업에 대한 접근 토큰이 없습니다.");
         return;
       }
-      await saveResult(config, selectedJobId, editorText, currentEditToken);
+      await saveResult(selectedJobConfig, selectedJobId, editorText, currentEditToken);
       await clearDraft(selectedJobId);
-      const updated = await fetchResult(config, selectedJobId, currentEditToken);
+      const updated = await fetchResult(selectedJobConfig, selectedJobId, currentEditToken);
       setNotice("수정본을 저장했습니다.");
       startTransition(() => {
         setResult(updated);
@@ -931,6 +921,7 @@ export default function App(): React.JSX.Element {
     }
     setSelectedJobId(null);
     setCurrentEditToken(null);
+    setSelectedJobBaseUrl(config.baseUrl);
     setSelectedJob(null);
     setResult(null);
     setEditorText("");
@@ -960,12 +951,7 @@ export default function App(): React.JSX.Element {
     invalidateJobRefreshes();
     await persistConfig(next);
     setConfig(next);
-    setSelectedJobId(null);
-    setCurrentEditToken(null);
-    setSelectedJob(null);
-    setResult(null);
-    setEditorText("");
-    setEditing(false);
+    setSelectedJobBaseUrl(next.baseUrl);
     setNotice(null);
     setSettingsVisible(false);
   }
