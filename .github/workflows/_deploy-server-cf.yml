@@ -14,7 +14,7 @@ on:
         default: "web"
       compose_file:
         # docker-compose.yml 경로 (deploy_dir 기준 상대경로)
-        # 설정하면 systemctl 대신 docker compose restart 사용
+        # 설정하면 systemctl 대신 docker compose up -d --build 사용
         type: string
         default: ""
       service:
@@ -116,12 +116,17 @@ jobs:
           git -C "$DEPLOY_DIR" reset --hard "origin/$BRANCH"
 
           if [ -n "$COMPOSE_FILE" ]; then
-            # Docker Compose 방식: 컨테이너 직접 재시작
-            DOCKER=\$(command -v docker || echo "/usr/bin/docker")
-            "\$DOCKER" restart govpress-api govpress-worker
+            # Docker Compose 방식: 이미지/컨테이너를 다시 빌드하고 기동
+            COMPOSE_PATH="$DEPLOY_DIR/$COMPOSE_FILE"
+            if command -v docker-compose >/dev/null 2>&1; then
+              docker-compose -f "$COMPOSE_PATH" up -d --build
+              docker-compose -f "$COMPOSE_PATH" ps
+            else
+              docker compose -f "$COMPOSE_PATH" up -d --build
+              docker compose -f "$COMPOSE_PATH" ps
+            fi
             sleep 5
             curl -fsS "$HEALTHCHECK_URL"
-            "\$DOCKER" ps --filter "name=govpress"
           else
             # venv + systemctl 방식
             export XDG_RUNTIME_DIR=/run/user/\$(id -u)
