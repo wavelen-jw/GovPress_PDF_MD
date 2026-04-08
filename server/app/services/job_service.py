@@ -4,6 +4,7 @@ import math
 import secrets
 import uuid
 from hmac import compare_digest
+from pathlib import Path
 
 from ..models import JobRecord
 from ..models import JobStatus
@@ -54,6 +55,47 @@ class JobService:
         if record.job_id == job_id:
             self._worker.enqueue(job_id)
         return record
+
+    def create_completed_job(
+        self,
+        *,
+        file_name: str,
+        markdown_text: str,
+        markdown_html: str,
+        html_preview_text: str,
+        html_preview_html: str,
+        title: str | None,
+        department: str | None,
+        source: str = "policy-briefing-cache",
+    ) -> JobRecord:
+        job_id = f"job_{uuid.uuid4().hex[:12]}"
+        edit_token = secrets.token_urlsafe(24)
+        original_path = self._storage.save_original_pdf(job_id, file_name, b"")
+        final_path = self._storage.save_generated_markdown(job_id, markdown_text)
+        record = self._repository.create(
+            job_id=job_id,
+            edit_token=edit_token,
+            file_name=file_name,
+            source=source,
+            hwpx_table_mode="text",
+            client_request_id=None,
+            original_pdf_path=original_path,
+        )
+        self._repository.save_result(
+            record.job_id,
+            markdown=markdown_text,
+            html_preview=html_preview_text,
+            markdown_text=markdown_text,
+            markdown_html=markdown_html,
+            html_preview_text=html_preview_text,
+            html_preview_html=html_preview_html,
+            title=title,
+            department=department,
+            final_markdown_path=Path(final_path),
+        )
+        completed = self._repository.get(record.job_id)
+        assert completed is not None
+        return completed
 
     async def create_job_from_upload(
         self,

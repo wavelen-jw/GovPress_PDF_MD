@@ -24,7 +24,7 @@ class PressReleaseTemplate:
         default_factory=lambda: re.compile(r"^\s*-\s*\d+\s*-\s*$")
     )
     press_label_pattern: Pattern[str] = field(
-        default_factory=lambda: re.compile(r"^\s*보도자료\s*$")
+        default_factory=lambda: re.compile(r"^\s*보도(?:참고)?자료\s*$")
     )
     briefing_line_pattern: Pattern[str] = field(
         default_factory=lambda: re.compile(r"^\s*보도시점\b")

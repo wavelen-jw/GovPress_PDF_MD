@@ -42,6 +42,29 @@ export type AppConfig = {
   apiKey: string;
 };
 
+export type PolicyBriefingItem = {
+  news_item_id: string;
+  title: string;
+  department: string;
+  approve_date: string;
+  original_url: string;
+  file_name: string;
+  file_url: string;
+  has_appendix_hwpx: boolean;
+};
+
+export type PolicyBriefingListPayload = {
+  date: string;
+  items: PolicyBriefingItem[];
+};
+
+export type PolicyBriefingImportPayload = JobCreatePayload & {
+  news_item_id: string;
+  title: string;
+  department: string;
+  original_url: string;
+};
+
 export type UploadResult = {
   job: JobCreatePayload;
   resolvedBaseUrl: string;

@@ -20,6 +20,7 @@ type Props = {
   onOpenInfo: () => void;
   onPickPdf: () => void;
   onChangeSelectedTableMode: (value: HwpxTableMode) => void;
+  onOpenPolicyBriefings: () => void;
   onSaveEdit: () => void;
   onSaveMarkdownFile: () => void;
   onShareMarkdown: () => void;
@@ -42,6 +43,7 @@ export function WorkspaceToolbar({
   onOpenInfo,
   onPickPdf,
   onChangeSelectedTableMode,
+  onOpenPolicyBriefings,
   onSaveEdit,
   onSaveMarkdownFile,
   onShareMarkdown,
@@ -49,6 +51,7 @@ export function WorkspaceToolbar({
 }: Props) {
   const infoIconUri = "https://thumb.mt.co.kr/cdn-cgi/image/f=avif/21/2025/06/2025061011200349911_1.jpg";
   const pickPdfLabel = "📄 파일 열기";
+  const pickPolicyBriefingLabel = "오늘 보도자료";
   const saveMdLabel = "💾 저장하기";
   const copyLabel = isWideLayout ? "⧉" : "⧉ 복사";
   const discardLabel = "↺";
@@ -91,6 +94,16 @@ export function WorkspaceToolbar({
                     }
                   >
                     {pickPdfLabel}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.secondaryButton, isDarkMode && styles.secondaryButtonDark]}
+                  onPress={onOpenPolicyBriefings}
+                  accessibilityLabel="오늘자 정책브리핑 보도자료 불러오기"
+                  {...webTitle("오늘자 정책브리핑 보도자료 불러오기")}
+                >
+                  <Text style={[styles.secondaryButtonLabel, isDarkMode && styles.secondaryButtonLabelDark]}>
+                    {pickPolicyBriefingLabel}
                   </Text>
                 </Pressable>
                 <Pressable

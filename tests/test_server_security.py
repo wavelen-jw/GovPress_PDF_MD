@@ -18,6 +18,7 @@ class ServerSecurityTests(unittest.TestCase):
             upload_rate_limit_count=1,
             upload_rate_limit_window_seconds=60,
             job_ttl_hours=72,
+            policy_briefing_service_key=None,
         )
         self.assertIsNone(verify_api_key(settings, None))
 
@@ -30,6 +31,7 @@ class ServerSecurityTests(unittest.TestCase):
             upload_rate_limit_count=1,
             upload_rate_limit_window_seconds=60,
             job_ttl_hours=72,
+            policy_briefing_service_key=None,
         )
         self.assertIsNone(verify_api_key(settings, "secret"))
 
@@ -42,6 +44,7 @@ class ServerSecurityTests(unittest.TestCase):
             upload_rate_limit_count=1,
             upload_rate_limit_window_seconds=60,
             job_ttl_hours=72,
+            policy_briefing_service_key=None,
         )
         with self.assertRaises(HTTPException) as context:
             verify_api_key(settings, "wrong")

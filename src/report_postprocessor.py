@@ -1230,14 +1230,75 @@ def _remove_orphan_bullets_before_quotes(lines: list[str]) -> list[str]:
     return cleaned
 
 
+_LABELED_QUOTE_START_RE = re.compile(r"^(\s*)>\s*[<＜][^>＞]+[>＞]")
+
+
+def _is_labeled_quote_breaker(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return True
+    if stripped.startswith(("### ", "## ", "# ", "□ ", "ㅇ ", "○ ", "|")):
+        return True
+    if NUMBERED_ITEM_RE.match(stripped):
+        return True
+    if ROMAN_HEADING_RE.match(stripped):
+        return True
+    if REFERENCE_SECTION_RE.match(stripped) or BARE_REFERENCE_RE.match(stripped):
+        return True
+    return False
+
+
 def _finalize_generic_report_patterns(text: str) -> str:
     lines = text.splitlines()
     rewritten: list[str] = []
     i = 0
+    labeled_quote_indent: str | None = None
     while i < len(lines):
         line = lines[i]
         stripped = line.strip()
 
+        if labeled_quote_indent is not None:
+            if _is_labeled_quote_breaker(stripped):
+                labeled_quote_indent = None
+            elif not stripped.startswith(">"):
+                parts = [clean_line(part) for part in stripped.split("<br>") if clean_line(part)]
+                for part in parts or [stripped]:
+                    rewritten.append(f"{labeled_quote_indent}> {part}")
+                i += 1
+                continue
+
+        if stripped.startswith("### ") and (" ◦ " in stripped or " ￮ " in stripped):
+            heading_body = stripped[4:]
+            marker = "◦" if " ◦ " in heading_body else "￮"
+            heading, payload = heading_body.split(f" {marker} ", 1)
+            payload_parts = [clean_line(part) for part in re.split(r"\s+[◦￮]\s+", payload) if clean_line(part)]
+            heading = heading.strip()
+            if len(payload_parts) == 1:
+                rewritten.append(f"### {heading} {marker}")
+            else:
+                rewritten.append(f"### {heading}")
+            rewritten.append("")
+            rewritten.extend(f"- {part}" for part in payload_parts)
+            i += 1
+            continue
+
+        if stripped.startswith(("- ◦ ", "- ￮ ")):
+            rewritten.append(f"- {stripped[4:].strip()}")
+            i += 1
+            continue
+
+        if stripped.startswith("- ") and (" ◦ " in stripped[2:] or " ￮ " in stripped[2:]):
+            body = stripped[2:].strip()
+            marker = "◦" if " ◦ " in body else "￮"
+            heading, payload = body.split(f" {marker} ", 1)
+            heading = heading.strip()
+            if len(heading) <= 24 and not heading.startswith(("(", "※", "<")):
+                payload_parts = [clean_line(part) for part in re.split(r"\s+[◦￮]\s+", payload) if clean_line(part)]
+                rewritten.append(f"### {heading}")
+                rewritten.append("")
+                rewritten.extend(f"- {part}" for part in payload_parts)
+                i += 1
+                continue
         inline_appendix = re.match(r"^(.*\S)\s+((?:붙임|별첨)\s*\d+\s+.+)$", stripped)
         if inline_appendix and not stripped.startswith(("##", "#", "|", ">")):
             prefix = inline_appendix.group(1).strip()
@@ -1352,6 +1413,12 @@ def _finalize_generic_report_patterns(text: str) -> str:
                 rewritten.append(f"{indent}{content}")
             i += 1
             continue
+
+        labeled_quote_start = _LABELED_QUOTE_START_RE.match(line)
+        if labeled_quote_start:
+            labeled_quote_indent = labeled_quote_start.group(1)
+        elif stripped and not stripped.startswith(">"):
+            labeled_quote_indent = None
 
         i += 1
         rewritten.append(line)

@@ -7,7 +7,9 @@ import os
 from pathlib import Path
 
 from .api import jobs as jobs_api
+from .api import policy_briefings as policy_briefings_api
 from .api import results as results_api
+from .adapters.policy_briefing import PolicyBriefingCache, PolicyBriefingCatalog, PolicyBriefingClient
 from .core.config import load_settings
 from .core.security import verify_api_key
 from .repositories import SQLiteJobRepository
@@ -25,7 +27,12 @@ _SECURITY_HEADERS = {
 }
 
 
-def create_app(storage_root: Path | None = None, *, run_worker: bool = False):
+def create_app(
+    storage_root: Path | None = None,
+    *,
+    run_worker: bool = False,
+    policy_briefing_client: PolicyBriefingClient | None = None,
+):
     try:
         from fastapi import FastAPI
         from fastapi.middleware.cors import CORSMiddleware
@@ -46,6 +53,15 @@ def create_app(storage_root: Path | None = None, *, run_worker: bool = False):
     poller = PollingWorker(jobs=repository, converter=worker, logger=logging.getLogger("govpress.worker"))
     job_service = JobService(repository=repository, storage=storage, worker=worker)
     result_service = ResultService(repository=repository, storage=storage)
+    policy_client = policy_briefing_client or PolicyBriefingClient(service_key=settings.policy_briefing_service_key)
+    policy_catalog = PolicyBriefingCatalog(
+        client=policy_client,
+        cache_path=storage.root / "policy_briefing_catalog.json",
+    )
+    policy_cache = PolicyBriefingCache(
+        client=policy_client,
+        cache_dir=storage.root / "policy_briefing_cache",
+    )
     job_service.recover_incomplete_jobs()
     job_service.cleanup_jobs(older_than_hours=settings.job_ttl_hours, statuses=("completed", "failed"))
 
@@ -79,6 +95,15 @@ def create_app(storage_root: Path | None = None, *, run_worker: bool = False):
     auth_dependency = partial(verify_api_key, settings)
     app.include_router(jobs_api.build_router(job_service, settings, auth_dependency))
     app.include_router(results_api.build_router(result_service, auth_dependency))
+    app.include_router(
+        policy_briefings_api.build_router(
+            job_service,
+            policy_client,
+            policy_catalog,
+            policy_cache,
+            auth_dependency,
+        )
+    )
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -89,6 +114,9 @@ def create_app(storage_root: Path | None = None, *, run_worker: bool = False):
     app.state.worker = worker
     app.state.poller = poller
     app.state.settings = settings
+    app.state.policy_briefing_client = policy_client
+    app.state.policy_briefing_catalog = policy_catalog
+    app.state.policy_briefing_cache = policy_cache
     return app
 
 

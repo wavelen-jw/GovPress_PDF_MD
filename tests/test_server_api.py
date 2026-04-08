@@ -25,6 +25,8 @@ class ServerApiContractTests(unittest.TestCase):
         self.assertIn("/v1/jobs/{job_id}", schema["paths"])
         self.assertIn("/v1/jobs/{job_id}/retry", schema["paths"])
         self.assertIn("/v1/jobs/{job_id}/result", schema["paths"])
+        self.assertIn("/v1/policy-briefings/today", schema["paths"])
+        self.assertIn("/v1/policy-briefings/import", schema["paths"])
 
     def test_openapi_contains_expected_job_operations(self) -> None:
         schema = self.app.openapi()
@@ -57,6 +59,7 @@ class ServerApiContractTests(unittest.TestCase):
         self.assertEqual(self.app.state.settings.upload_rate_limit_count, 12)
         self.assertEqual(self.app.state.settings.upload_rate_limit_window_seconds, 60)
         self.assertEqual(self.app.state.settings.job_ttl_hours, 72)
+        self.assertIsNone(self.app.state.settings.policy_briefing_service_key)
 
     def test_app_reads_environment_operational_settings(self) -> None:
         previous = {
@@ -66,6 +69,7 @@ class ServerApiContractTests(unittest.TestCase):
             "GOVPRESS_UPLOAD_RATE_LIMIT_COUNT": os.environ.get("GOVPRESS_UPLOAD_RATE_LIMIT_COUNT"),
             "GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS": os.environ.get("GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS"),
             "GOVPRESS_JOB_TTL_HOURS": os.environ.get("GOVPRESS_JOB_TTL_HOURS"),
+            "GOVPRESS_POLICY_BRIEFING_SERVICE_KEY": os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY"),
         }
         try:
             os.environ["GOVPRESS_API_KEY"] = "secret-key"
@@ -74,6 +78,7 @@ class ServerApiContractTests(unittest.TestCase):
             os.environ["GOVPRESS_UPLOAD_RATE_LIMIT_COUNT"] = "5"
             os.environ["GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS"] = "30"
             os.environ["GOVPRESS_JOB_TTL_HOURS"] = "24"
+            os.environ["GOVPRESS_POLICY_BRIEFING_SERVICE_KEY"] = "policy-key"
             app = create_app(Path(self.temp_dir.name))
         finally:
             for key, value in previous.items():
@@ -91,3 +96,4 @@ class ServerApiContractTests(unittest.TestCase):
         self.assertEqual(app.state.settings.upload_rate_limit_count, 5)
         self.assertEqual(app.state.settings.upload_rate_limit_window_seconds, 30)
         self.assertEqual(app.state.settings.job_ttl_hours, 24)
+        self.assertEqual(app.state.settings.policy_briefing_service_key, "policy-key")

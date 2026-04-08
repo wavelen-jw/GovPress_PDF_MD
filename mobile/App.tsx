@@ -21,10 +21,26 @@ import { JobDetailPanel } from "./src/components/JobDetailPanel";
 import { SettingsModal } from "./src/components/SettingsModal";
 import { WorkspaceToolbar } from "./src/components/WorkspaceToolbar";
 import { DEFAULT_CONFIG, getServerLabel } from "./src/constants";
-import { ApiError, fetchJob, fetchResult, retryJob, saveResult, uploadPdf } from "./src/services/api";
+import {
+  ApiError,
+  fetchJob,
+  fetchResult,
+  fetchTodayPolicyBriefings,
+  importPolicyBriefing,
+  retryJob,
+  saveResult,
+  uploadPdf,
+} from "./src/services/api";
 import { clearDraft, loadConfig, loadDraft, persistConfig, persistDraft } from "./src/storage/config";
 import { styles } from "./src/styles";
-import type { AppConfig, HwpxTableMode, Job, ResultPayload, ResultVariant } from "./src/types";
+import type {
+  AppConfig,
+  HwpxTableMode,
+  Job,
+  PolicyBriefingItem,
+  ResultPayload,
+  ResultVariant,
+} from "./src/types";
 
 type EditorSelection = {
   start: number;
@@ -78,11 +94,15 @@ export default function App(): React.JSX.Element {
   const [editing, setEditing] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [infoVisible, setInfoVisible] = useState(false);
+  const [policyBriefingVisible, setPolicyBriefingVisible] = useState(false);
   const [hwpxTableMode, setHwpxTableMode] = useState<HwpxTableMode>("text");
   const [selectedTableMode, setSelectedTableMode] = useState<HwpxTableMode>("text");
   const [loadedTableMode, setLoadedTableMode] = useState<HwpxTableMode>("text");
   const [draftHydratedJobId, setDraftHydratedJobId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [policyBriefings, setPolicyBriefings] = useState<PolicyBriefingItem[]>([]);
+  const [policyBriefingLoading, setPolicyBriefingLoading] = useState(false);
+  const [importingNewsItemId, setImportingNewsItemId] = useState<string | null>(null);
   const [desktopSplitRatio, setDesktopSplitRatio] = useState(0.5);
   const [dragOverlayVisible, setDragOverlayVisible] = useState(false);
   const jobRefreshSeqRef = useRef(0);
@@ -588,6 +608,49 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  async function handleOpenPolicyBriefings(): Promise<void> {
+    setPolicyBriefingVisible(true);
+    setPolicyBriefingLoading(true);
+    try {
+      const payload = await fetchTodayPolicyBriefings(config);
+      setPolicyBriefings(payload.items);
+      setNotice(`정책브리핑 목록을 갱신했습니다. 누적 HWPX 기사 ${payload.items.length}건을 불러왔습니다.`);
+    } catch (error) {
+      showError("오늘자 정책브리핑을 불러오지 못했습니다.", error);
+    } finally {
+      setPolicyBriefingLoading(false);
+    }
+  }
+
+  async function handleImportPolicyBriefing(item: PolicyBriefingItem): Promise<void> {
+    setImportingNewsItemId(item.news_item_id);
+    setBusy(true);
+    setNotice("정책브리핑 HWPX를 가져오는 중...");
+    try {
+      const imported = await importPolicyBriefing(config, item.news_item_id);
+      startTransition(() => {
+        setPolicyBriefingVisible(false);
+        setSelectedJobId(imported.job_id);
+        setCurrentEditToken(imported.edit_token);
+        setSelectedJob(imported);
+        setResult(null);
+        setLoadedTableMode("text");
+        setSelectedTableMode("text");
+        setEditorText("");
+        setEditorSelection({ start: 0, end: 0 });
+        setEditorFocusToken((current) => current + 1);
+        setEditing(false);
+        setActiveTab("preview");
+      });
+      await refreshSelectedJob(imported.job_id, imported.edit_token, false);
+    } catch (error) {
+      showError("정책브리핑 보도자료를 가져오지 못했습니다.", error);
+    } finally {
+      setImportingNewsItemId(null);
+      setBusy(false);
+    }
+  }
+
   async function handleRetry(): Promise<void> {
     if (!selectedJobId || !currentEditToken) {
       return;
@@ -1001,6 +1064,7 @@ export default function App(): React.JSX.Element {
             onDiscardEdit={handleDiscardEdit}
             onOpenInfo={handleOpenInfo}
             onPickPdf={() => void handlePickPdf()}
+            onOpenPolicyBriefings={() => void handleOpenPolicyBriefings()}
             onChangeSelectedTableMode={(mode) => void handleChangeSelectedTableMode(mode)}
             onSaveEdit={() => void handleSaveEdit()}
             onSaveMarkdownFile={() => void handleSaveMarkdownFile()}
@@ -1134,6 +1198,65 @@ export default function App(): React.JSX.Element {
         onClose={() => setSettingsVisible(false)}
         onSave={() => void handleSaveSettings()}
       />
+
+      <Modal visible={policyBriefingVisible} animationType="slide" transparent onRequestClose={() => setPolicyBriefingVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>오늘자 정책브리핑 보도자료</Text>
+            <Text style={styles.modalHint}>
+              정책브리핑 보도자료 API에서 오늘 등록된 HWPX 첨부 기사를 불러옵니다. 선택하면 서버가 원문을 내려받아 기존 변환 파이프라인으로 처리합니다.
+            </Text>
+            <View style={styles.policyBriefingMetaRow}>
+              <Text style={styles.policyBriefingMetaText}>대상: 오늘 게시된 HWPX 포함 기사</Text>
+              <Text style={styles.policyBriefingMetaText}>{policyBriefings.length}건</Text>
+            </View>
+            <ScrollView style={styles.policyBriefingList} contentContainerStyle={styles.policyBriefingListContent}>
+              {policyBriefingLoading ? (
+                <View style={styles.policyBriefingEmptyState}>
+                  <ActivityIndicator size="small" color="#7b664f" />
+                  <Text style={styles.emptyState}>목록을 불러오는 중입니다.</Text>
+                </View>
+              ) : null}
+              {!policyBriefingLoading && !policyBriefings.length ? (
+                <View style={styles.policyBriefingEmptyState}>
+                  <Text style={styles.emptyState}>오늘자 HWPX 보도자료가 없거나 불러오기에 실패했습니다.</Text>
+                </View>
+              ) : null}
+              {!policyBriefingLoading
+                ? policyBriefings.map((item) => {
+                    const active = importingNewsItemId === item.news_item_id;
+                    return (
+                      <Pressable
+                        key={item.news_item_id}
+                        style={styles.policyBriefingRow}
+                        onPress={() => void handleImportPolicyBriefing(item)}
+                        disabled={!!importingNewsItemId}
+                      >
+                        <View style={styles.policyBriefingRowBody}>
+                          <Text style={styles.policyBriefingTitle}>{item.title}</Text>
+                          <Text style={styles.policyBriefingMetaText}>
+                            {item.department} · {item.file_name}
+                          </Text>
+                          {item.has_appendix_hwpx ? (
+                            <Text style={styles.policyBriefingAppendix}>별첨 HWPX 포함</Text>
+                          ) : null}
+                        </View>
+                        <View style={styles.policyBriefingRowAction}>
+                          {active ? <ActivityIndicator size="small" color="#7b664f" /> : <Text style={styles.loadMoreLabel}>불러오기</Text>}
+                        </View>
+                      </Pressable>
+                    );
+                  })
+                : null}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <Pressable onPress={() => setPolicyBriefingVisible(false)} style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonLabel}>닫기</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {busy ? (
         <View style={styles.busyOverlay}>

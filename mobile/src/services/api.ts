@@ -2,7 +2,15 @@ import { Platform } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 
 import { getFallbackBaseUrls, SERVER_FALLBACK_TIMEOUT_MS } from "../constants";
-import type { AppConfig, HwpxTableMode, Job, ResultPayload, UploadResult } from "../types";
+import type {
+  AppConfig,
+  HwpxTableMode,
+  Job,
+  PolicyBriefingImportPayload,
+  PolicyBriefingListPayload,
+  ResultPayload,
+  UploadResult,
+} from "../types";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -135,6 +143,18 @@ export async function uploadPdf(
 
 export async function retryJob(config: AppConfig, jobId: string, editToken: string): Promise<Job> {
   return fetchJson(config, `/v1/jobs/${jobId}/retry`, { method: "POST" }, editToken);
+}
+
+export async function fetchTodayPolicyBriefings(config: AppConfig): Promise<PolicyBriefingListPayload> {
+  return fetchJson(config, "/v1/policy-briefings/today");
+}
+
+export async function importPolicyBriefing(config: AppConfig, newsItemId: string): Promise<PolicyBriefingImportPayload> {
+  return fetchJson(config, "/v1/policy-briefings/import", {
+    method: "POST",
+    headers: buildHeaders(config, "application/json"),
+    body: JSON.stringify({ news_item_id: newsItemId }),
+  });
 }
 
 export async function saveResult(config: AppConfig, jobId: string, markdown: string, editToken: string): Promise<void> {

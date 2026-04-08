@@ -67,6 +67,11 @@ def _looks_like_metadata_detail(text: str) -> bool:
     return False
 
 
+def _is_table_separator_cell(text: str) -> bool:
+    stripped = text.strip()
+    return bool(stripped) and all(ch in "-:|" for ch in stripped)
+
+
 def _split_compound_title_line(text: str) -> tuple[str, list[str]] | None:
     stripped = text.strip()
     if " - " not in stripped or stripped.startswith("-"):
@@ -273,6 +278,14 @@ def _normalize_preamble_lines(lines: list[str]) -> list[str]:
         ):
             previous_normalized = next((item.strip() for item in reversed(normalized) if item.strip()), "")
             next_line = lines[index + 1].strip() if index + 1 < len(lines) else ""
+            if (
+                index < 10
+                and previous_normalized.endswith(("…", "...", "”", "\""))
+                and not previous_normalized.startswith(("보도자료", "보도시점"))
+            ):
+                normalized.append(text)
+                index += 1
+                continue
             if next_line.startswith("-") and not previous_normalized.startswith(("보도자료", "보도시점")):
                 normalized.append(f"- {text}")
                 index += 1
@@ -512,6 +525,50 @@ def _normalize_section_token(token: str) -> str:
     return mapping.get(stripped, token.strip())
 
 
+def _is_press_title_box(parts: list[str]) -> bool:
+    if not parts:
+        return False
+    meaningful = [part.strip() for part in parts if part.strip()]
+    if not meaningful:
+        return False
+    if any(token in meaningful[0] for token in ("요약", "개요")):
+        return False
+    if meaningful[0].startswith(("-", ">", "□", "○", "ㅇ", "※", "*", "붙임", "별첨", "참고")):
+        return False
+    if len(meaningful[0]) > 120:
+        return False
+    return len(meaningful) >= 2 or any(part.startswith("-") for part in meaningful[1:])
+
+
+def _flatten_single_column_rows(nonempty_rows: list[list[str]]) -> list[str]:
+    flattened_parts: list[str] = []
+    for row in nonempty_rows:
+        cell = row[0].strip()
+        if "요약" in cell or "개요" in cell:
+            flattened_parts.extend(["> [!NOTE]", f"> **{cell.replace('<br>', ' ').strip()}**"])
+            continue
+        flattened_parts.extend(part.strip() for part in cell.split("<br>") if part.strip())
+
+    if _is_press_title_box(flattened_parts):
+        flattened: list[str] = []
+        title_count = 1
+        if len(flattened_parts) >= 2 and not flattened_parts[1].startswith("-"):
+            if flattened_parts[0].endswith((",", "…", ":", "·", "‧")) or len(flattened_parts[0]) <= 24:
+                title_count = 2
+
+        for index, part in enumerate(flattened_parts):
+            if part.startswith("-"):
+                flattened.append(part)
+                continue
+            if index >= title_count:
+                flattened.append(f"- {part}")
+                continue
+            flattened.append(part)
+        return flattened
+
+    return [f"> {part}" for part in flattened_parts]
+
+
 def _flatten_structural_table(text: str) -> list[str] | None:
     text_table = _parse_text_table_block(text)
     if text_table is not None:
@@ -524,30 +581,65 @@ def _flatten_structural_table(text: str) -> list[str] | None:
 
     rows = _parse_markdown_table_block(text)
     if not rows:
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if lines and all(set(line.replace("|", "").replace(":", "").replace("-", "").replace(" ", "")) == set() for line in lines):
+            return []
         return None
 
-    nonempty_rows = [[cell for cell in row if cell.strip()] for row in rows]
+    nonempty_rows = [
+        [cell for cell in row if cell.strip() and not _is_table_separator_cell(cell)]
+        for row in rows
+    ]
     nonempty_rows = [row for row in nonempty_rows if row]
     if not nonempty_rows:
         return []
 
     # Press-release stamp box.
-    if len(nonempty_rows) == 1 and len(nonempty_rows[0]) == 1 and nonempty_rows[0][0] == "보도자료":
-        return ["보도자료"]
+    if len(nonempty_rows) == 1:
+        if any(cell in {"보도자료", "보도참고자료"} for cell in nonempty_rows[0]):
+            label = "보도참고자료" if "보도참고자료" in nonempty_rows[0] else "보도자료"
+            return [label]
 
     # Metadata box.
-    if all(len(row) == 2 and row[0] == "보도시점" for row in nonempty_rows):
+    if all(len(row) == 2 and row[0].rstrip(":") == "보도시점" for row in nonempty_rows):
         flattened = ["보도시점"]
         flattened.extend(row[1] for row in nonempty_rows if row[1].strip())
         return flattened
+    if len(nonempty_rows) == 1 and len(nonempty_rows[0]) >= 4 and nonempty_rows[0][0].rstrip(":") == "보도시점":
+        row = nonempty_rows[0]
+        flattened = []
+        for index in range(0, len(row) - 1, 2):
+            label = row[index].strip().rstrip(":")
+            value = row[index + 1].strip()
+            if label and value:
+                flattened.append(f"{label} {value}")
+        return flattened
+    if len(nonempty_rows) >= 1 and any("보도시점" in row for row in nonempty_rows):
+        flattened = []
+        for row in nonempty_rows:
+            for index in range(0, len(row) - 1, 2):
+                label = row[index].strip().rstrip(":")
+                value = row[index + 1].strip()
+                if label == "보도시점" and value:
+                    flattened.append(f"{label} {value}")
+                elif label == "배포" and value:
+                    flattened.append(f"{label} {value}")
+        if flattened:
+            return flattened
 
     # Single-column title/subtitle box.
     if all(len(row) == 1 for row in nonempty_rows):
-        return [row[0] for row in nonempty_rows]
+        return _flatten_single_column_rows(nonempty_rows)
 
     # Section caption box such as `| I | | 추진배경 |`.
     if len(nonempty_rows) == 1 and len(nonempty_rows[0]) == 2:
         left, right = nonempty_rows[0]
+        if left.startswith("<") and right.startswith("<"):
+            return [
+                "| <그림> | <그림> |",
+                "| --- | --- |",
+                f"| {left} | {right} |",
+            ]
         if re.fullmatch(r"(?:[IVX]+|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]|붙임\d+)", left):
             left = _normalize_section_token(left)
             return [f"{left}. {right}" if not left.startswith("붙임") else f"{left} {right}"]
@@ -570,7 +662,10 @@ def _flatten_structural_table(text: str) -> list[str] | None:
             return flattened
 
     # Contact grid used in press releases.
-    if any("담당 부서" in row for row in rows) and any("책임자" in row or "담당자" in row for row in rows):
+    if (
+        any(any("담당 부서" in cell or "담당부서" in cell for cell in row) for row in rows)
+        and any(any(cell in {"책임자", "담당자"} for cell in row) for row in rows)
+    ):
         flattened: list[str] = []
         for row in rows:
             for cell in row:

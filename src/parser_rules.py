@@ -177,6 +177,11 @@ def extract_sections(
             continue
 
         if current == "preamble" and sections.metadata_lines:
+            if sections.title_lines and sections.subtitle_lines and looks_like_body_paragraph(line):
+                current = "body"
+                sections.body_lines.append(line)
+                continue
+
             if (
                 sections.title_lines
                 and sections.subtitle_lines
@@ -192,7 +197,11 @@ def extract_sections(
             if is_briefing_detail_line(line):
                 sections.metadata_lines.append(line)
             elif line.startswith("-"):
-                sections.subtitle_lines.append(line)
+                content = line.lstrip("- ").strip()
+                if not sections.title_lines and content:
+                    sections.title_lines.append(content)
+                else:
+                    sections.subtitle_lines.append(line)
             elif sections.title_lines and should_join_title_lines(sections.title_lines[-1], line):
                 sections.title_lines.append(line)
             elif sections.title_lines and not sections.subtitle_lines and looks_like_title_fragment(line):

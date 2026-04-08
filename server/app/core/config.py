@@ -13,6 +13,7 @@ class Settings:
     upload_rate_limit_count: int
     upload_rate_limit_window_seconds: int
     job_ttl_hours: int
+    policy_briefing_service_key: str | None
 
 
 def _parse_origins(raw: str | None) -> list[str]:
@@ -34,4 +35,5 @@ def load_settings() -> Settings:
         upload_rate_limit_count=max(int(raw_rate_limit_count), 1),
         upload_rate_limit_window_seconds=max(int(raw_rate_limit_window_seconds), 1),
         job_ttl_hours=max(int(raw_job_ttl_hours), 1),
+        policy_briefing_service_key=os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY") or None,
     )

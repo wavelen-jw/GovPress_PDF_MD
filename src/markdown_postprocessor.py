@@ -67,6 +67,33 @@ CASE_STUDY_HEADING_PATTERN = re.compile(r"^####\s*<\s*20\d{2}.*추진 사례\s*>
 MARKDOWN_TABLE_SEPARATOR_PATTERN = re.compile(r"^\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|$")
 INLINE_SERVICE_TABLE_BUNDLE_PATTERN = re.compile(r"(\|[^|]+\|[^|]+\|[^|]+\|)")
 APPENDIX_COUNT_ONLY_PATTERN = re.compile(r"^\(\d+개\)$")
+HWPX_TEXTBOX_MARKER = "[[TEXTBOX]]"
+CIRCLED_NUMBER_MAP = {
+    "①": "1",
+    "②": "2",
+    "③": "3",
+    "④": "4",
+    "⑤": "5",
+    "⑥": "6",
+    "⑦": "7",
+    "⑧": "8",
+    "⑨": "9",
+    "⑩": "10",
+    "➊": "1",
+    "➋": "2",
+    "➌": "3",
+    "➍": "4",
+    "➎": "5",
+    "➏": "6",
+    "➐": "7",
+    "➑": "8",
+    "➒": "9",
+    "➓": "10",
+}
+CIRCLED_NUMBER_RE = re.compile(rf"^({'|'.join(re.escape(key) for key in CIRCLED_NUMBER_MAP)})\s*(.+)$")
+INLINE_CIRCLED_SPLIT_RE = re.compile(
+    rf"\s+(?=(?:{'|'.join(re.escape(key) for key in CIRCLED_NUMBER_MAP)})\s*)"
+)
 
 
 # ── Line splitting & pre-cleaning ────────────────────────────────────────────
@@ -92,13 +119,39 @@ def _split_inline_service_table_bundle(text: str) -> list[str]:
 
 
 def _join_title(lines: Iterable[str]) -> str:
-    return " ".join(clean_line(line) for line in lines if clean_line(line)).strip()
+    parts = [clean_line(line) for line in lines if clean_line(line)]
+    if not parts:
+        return ""
+    if len(parts) > 1:
+        parts[0] = parts[0].rstrip("…").strip("“”\"' ").strip()
+        parts[-1] = parts[-1].strip("“”\"' ").strip()
+    return " ".join(part for part in parts if part).strip()
+
+
+def _should_merge_first_subtitle_into_title(title: str, subtitle_items: list[str]) -> bool:
+    if not title or len(subtitle_items) < 2:
+        return False
+    first_subtitle = subtitle_items[0]
+    second_subtitle = subtitle_items[1]
+    if len(first_subtitle) > 40:
+        return False
+    if re.search(r"(다\.|요\.|습니다\.|니다\.)$", first_subtitle):
+        return False
+    if re.search(r"(다\.|요\.|습니다\.|니다\.)$", second_subtitle):
+        return False
+    if len(title) > 40:
+        return False
+    if re.search(r"[.:;!?]$", title):
+        return False
+    return True
 
 
 def _split_lines(raw_text: str) -> list[str]:
     expanded: list[str] = []
     in_html_table = False
     for raw_line in raw_text.splitlines():
+        has_textbox_marker = HWPX_TEXTBOX_MARKER in raw_line
+        raw_line = raw_line.replace(HWPX_TEXTBOX_MARKER, " ").strip()
         stripped = raw_line.strip()
         if HTML_TABLE_TAG_PATTERN.match(stripped):
             if stripped.lower().startswith("<table"):
@@ -136,6 +189,8 @@ def _split_lines(raw_text: str) -> list[str]:
             if not line:
                 expanded.append("")
                 continue
+            if has_textbox_marker:
+                line = f"{HWPX_TEXTBOX_MARKER} {line}"
 
             if line.startswith("|") and line.endswith("|"):
                 inner = line.strip("|")
@@ -166,6 +221,8 @@ def _split_lines(raw_text: str) -> list[str]:
 def _is_meaningful_line(line: str) -> bool:
     text = clean_line(line)
     if not text:
+        return False
+    if text == "<그림>":
         return False
     if IMAGE_PATTERN.search(text):
         return False
@@ -207,14 +264,29 @@ def _preclean_lines(raw_text: str) -> list[str]:
                 in_toc = False
             else:
                 continue
+        parts = [clean_line(part) for part in INLINE_CIRCLED_SPLIT_RE.split(text) if clean_line(part)]
+        if len(parts) > 1 and _should_split_inline_circled_parts(parts):
+            cleaned.extend(parts)
+            continue
         cleaned.append(text)
 
     return cleaned
 
 
+def _should_split_inline_circled_parts(parts: list[str]) -> bool:
+    if len(parts) <= 1:
+        return False
+    prefix = parts[0]
+    if CIRCLED_NUMBER_RE.match(prefix):
+        return True
+    if len(prefix) <= 30:
+        return True
+    return prefix.endswith(("”", "\"", "'", "’", ":", "：", ">", "》"))
+
+
 # ── Document type detection ───────────────────────────────────────────────────
 
-_PRESS_STAMP_RE = re.compile(r'^(?:.+\s+)?보도자료\s*$')
+_PRESS_STAMP_RE = re.compile(r'^(?:.+\s+)?보도(?:참고)?자료\s*$')
 
 # 보고서 구조 지표: 로마자 섹션 또는 요약/참고 헤더
 _REPORT_SECTION_RE = re.compile(
@@ -267,6 +339,11 @@ def _is_press_release(raw_text: str) -> bool:
 
 def detect_markdown_doc_type(raw_text: str) -> MarkdownDocType:
     """Only press releases are handled separately; every other document is report."""
+    if (
+        ("공고" in raw_text or raw_text.splitlines()[:3] and any(token in raw_text.splitlines()[0] for token in ("별첨", "붙임")))
+        and _REPORT_SECTION_RE.search(raw_text)
+    ):
+        return "report"
     if _is_press_release(raw_text):
         return "press_release"
     if (
@@ -280,7 +357,7 @@ def detect_markdown_doc_type(raw_text: str) -> MarkdownDocType:
 
 # ── Metadata & section rendering ─────────────────────────────────────────────
 
-def _render_metadata(lines: list[str], plain_metadata: bool = False) -> list[str]:
+def _render_metadata(lines: list[str], label: str = "보도자료", plain_metadata: bool = False) -> list[str]:
     if not lines:
         return []
 
@@ -289,19 +366,22 @@ def _render_metadata(lines: list[str], plain_metadata: bool = False) -> list[str
         normalized = re.sub(r"(\d{1,2}:\d{2})\s+\(", r"\1 / (", normalized)
         return normalized
 
-    rendered = ["행정안전부 보도자료"]
+    rendered = [label]
     briefing_values: list[str] = []
+    seen_values: set[str] = set()
     for line in lines:
         text = clean_line(line)
         if text.startswith("보도시점"):
             suffix = text[len("보도시점") :].strip(" :")
             suffix = normalize_metadata_text(suffix)
-            if suffix:
+            if suffix and suffix not in seen_values:
                 briefing_values.append(suffix)
+                seen_values.add(suffix)
         else:
             normalized = normalize_metadata_text(text)
-            if normalized and normalized != "보도자료":
+            if normalized and normalized != "보도자료" and normalized not in seen_values:
                 briefing_values.append(normalized)
+                seen_values.add(normalized)
     if briefing_values:
         rendered.append(f"보도시점: {' / '.join(briefing_values)}")
     return rendered
@@ -346,7 +426,7 @@ def _split_press_callout_items(text: str) -> list[str]:
 # Next step: extract this block into press_body_renderer.py once patterns are
 # consolidated into a shared _md_patterns module.
 
-_STRUCTURAL_STARTS = frozenset("#>|-*◆■□○\u20dd§※▴▲△＜<￭▸ㅇ(▪\uf0a7")
+_STRUCTURAL_STARTS = frozenset("#>|-*◆■□○\u20dd§※▴▲△＜<￭▸ㅇ(▪\uf0a7①②③④⑤⑥⑦⑧⑨⑩➊➋➌➍➎➏➐➑➒➓")
 
 
 def _join_body_lines(lines: list[str]) -> list[str]:
@@ -361,9 +441,9 @@ def _join_body_lines(lines: list[str]) -> list[str]:
         if not text:
             joined.append(text)
             continue
-        is_structural = text[0] in _STRUCTURAL_STARTS
+        is_structural = text[0] in _STRUCTURAL_STARTS or HWPX_TEXTBOX_MARKER in text
         prev = joined[-1] if joined else ""
-        prev_is_structural = bool(prev and prev[0] in _STRUCTURAL_STARTS)
+        prev_is_structural = bool(prev and (prev[0] in _STRUCTURAL_STARTS or HWPX_TEXTBOX_MARKER in prev))
         if (
             prev
             and not prev.rstrip().endswith(".")
@@ -435,7 +515,19 @@ def _split_topic_heading(content: str) -> tuple[str, str]:
 
 
 def _normalize_body_line(text: str, template: PressReleaseTemplate) -> list[str]:
+    had_textbox = HWPX_TEXTBOX_MARKER in text
+    text = clean_line(text.replace(HWPX_TEXTBOX_MARKER, " "))
     if HTML_TABLE_TAG_PATTERN.match(text):
+        return [text]
+    if text == "<그림>":
+        return []
+    if had_textbox and text.startswith(("▪", "", "\uf0a7", "*", "※", "▸", "○", "ㅇ")):
+        quote_text = text[1:].strip() if text[:1] in {"▪", "", "\uf0a7", "▸", "○", "ㅇ"} else text
+        return [f"> {quote_text}"]
+    circled_match = CIRCLED_NUMBER_RE.match(text)
+    if circled_match:
+        return [f"{CIRCLED_NUMBER_MAP[circled_match.group(1)]}. {circled_match.group(2).strip()}"]
+    if any(marker in text for marker in (" ①", " ②", " ③", " ④", " ➊", " ➋", " ➌", " ➍")):
         return [text]
     angle_triangle_match = ANGLE_LABEL_WITH_TRIANGLE_PATTERN.match(text)
     if angle_triangle_match:
@@ -481,6 +573,8 @@ def _normalize_body_line(text: str, template: PressReleaseTemplate) -> list[str]
         content = text[1:].strip()
         if content.startswith("<") and content.endswith(">"):
             return [f"#### {content}", ""]
+        if any(marker in content for marker in ("①", "②", "③", "④", "➊", "➋", "➌", "➍")):
+            return [content]
         return [content]
     if any(text.startswith(marker) for marker in template.second_level_bullets):
         return [f"- {text[1:].strip()}"]
@@ -499,6 +593,8 @@ def _normalize_body_line(text: str, template: PressReleaseTemplate) -> list[str]
         ):
             return [f"> {text[1:].strip()}", ""]
         return [f"  - {text[1:].strip('-* ').strip()}"]
+    if text.startswith(("○ ", "ㅇ ", "￭", "▸")):
+        return [f"- {text[1:].strip()}"]
     if text.startswith("※"):
         note = text[1:].strip()
         if note.startswith("(붙임") or note.startswith("(참고"):
@@ -545,6 +641,9 @@ def _expand_inline_bullets(lines: list[str]) -> list[str]:
         if not marker:
             expanded.append(f"{leading}{text}" if leading and text.startswith("-") else text)
             continue
+        if not text.startswith(INLINE_SPLIT_MARKERS) and re.search(r"(다\.|했다\.|된다\.|있다\.|였다\.|예정이다\.)$", text):
+            expanded.append(f"{leading}{text}" if leading and text.startswith("-") else text)
+            continue
 
         parts = [clean_line(part) for part in re.split(r"[￭▲]", text) if clean_line(part)]
         if len(parts) <= 1:
@@ -573,6 +672,8 @@ def _starts_new_body_block(text: str, template: PressReleaseTemplate) -> bool:
         return False
     if HTML_TABLE_TAG_PATTERN.match(text):
         return True
+    if CIRCLED_NUMBER_RE.match(text):
+        return True
     if is_reference_line(text):
         return True
     if text.startswith(("<", "※", "* ")):
@@ -595,6 +696,8 @@ def _starts_new_body_block(text: str, template: PressReleaseTemplate) -> bool:
 
 
 def _starts_main_press_body(text: str, template: PressReleaseTemplate) -> bool:
+    if CIRCLED_NUMBER_RE.match(text):
+        return True
     if any(text.startswith(marker) for marker in template.top_level_bullets):
         return True
     if any(text.startswith(marker) for marker in template.second_level_bullets):
@@ -800,6 +903,9 @@ def _render_appendix(lines: list[str]) -> list[str]:
 
     while index < len(cleaned):
         text = cleaned[index]
+        if text == "<그림>":
+            index += 1
+            continue
 
         if text == "영역" and index + 1 < len(cleaned) and cleaned[index + 1] == "평가지표":
             rows: list[tuple[str, str]] = []
@@ -903,7 +1009,8 @@ def _looks_like_appendix_summary_label(text: str) -> bool:
 
 
 def _render_contacts(lines: list[str]) -> list[str]:
-    chunks = split_contact_chunks(lines)
+    filtered_lines = [line for line in lines if clean_line(line) != "<그림>"]
+    chunks = split_contact_chunks(filtered_lines)
     if not chunks:
         return []
 
@@ -921,8 +1028,14 @@ def _render_contacts(lines: list[str]) -> list[str]:
 
 
 def _normalize_generic_line(text: str) -> list[str]:
+    text = clean_line(text.replace(HWPX_TEXTBOX_MARKER, " "))
     if HTML_TABLE_TAG_PATTERN.match(text):
         return [text]
+    if text == "<그림>":
+        return []
+    circled_match = CIRCLED_NUMBER_RE.match(text)
+    if circled_match:
+        return [f"{CIRCLED_NUMBER_MAP[circled_match.group(1)]}. {circled_match.group(2).strip()}"]
     if text.startswith("< 핵심 정책과제 >") or text.startswith("<핵심 정책과제>"):
         suffix = text.split(">", 1)[1].strip() if ">" in text else ""
         lines = ["> <핵심 정책과제>"]
@@ -1052,6 +1165,14 @@ def _post_clean(lines: list[str]) -> list[str]:
             previous_blank = False
             continue
         if (
+            cleaned
+            and cleaned[-1].lstrip().startswith(">")
+            and not text.startswith(">")
+            and cleaned[-1] != ">"
+        ):
+            cleaned.append("")
+            previous_blank = True
+        if (
             text.startswith("△")
             and cleaned
             and cleaned[-1].lstrip().startswith(("-", "△"))
@@ -1098,6 +1219,7 @@ def _post_clean(lines: list[str]) -> list[str]:
             and cleaned[-1]
             and cleaned[-1].lstrip().startswith("-")
             and not text.lstrip().startswith(("#", "-", ">", "---", "|"))
+            and not NUMBERED_HEADING_PATTERN.match(text.lstrip())
             and not HTML_TABLE_TAG_PATTERN.match(text.lstrip())
         ):
             if text.lstrip().startswith("△"):
@@ -1106,6 +1228,14 @@ def _post_clean(lines: list[str]) -> list[str]:
                 cleaned[-1] = f"{cleaned[-1].rstrip()} {text}"
                 previous_blank = False
                 continue
+        if (
+            cleaned
+            and cleaned[-1]
+            and NUMBERED_HEADING_PATTERN.match(cleaned[-1].lstrip())
+            and not text.lstrip().startswith(("  -", ">", "|"))
+            and not HTML_TABLE_TAG_PATTERN.match(text.lstrip())
+        ):
+            cleaned.append("")
         previous_blank = False
         cleaned.append(text)
     while cleaned and not cleaned[-1]:
@@ -1171,6 +1301,8 @@ def _postprocess_press_release(
     seen_subtitles: set[str] = set()
     for line in sections.subtitle_lines:
         item = clean_line(line).lstrip("- ").strip()
+        item = re.sub(r"^\-\s*(.*?)\s*\-$", r"\1", item)
+        item = re.sub(r"\s*-\s*$", "", item).strip()
         if not item:
             continue
         key = re.sub(r"\s+", "", item)
@@ -1178,13 +1310,16 @@ def _postprocess_press_release(
             continue
         seen_subtitles.add(key)
         subtitle_items.append(item)
-    use_quote_subtitles = any("실태점검" in item for item in subtitle_items)
 
     title = _join_title(sections.title_lines)
+    if _should_merge_first_subtitle_into_title(title, subtitle_items):
+        title = f"{title} {subtitle_items[0]}".strip()
+        subtitle_items = subtitle_items[1:]
     if title:
         blocks.append(f"# {title}")
 
-    metadata = _render_metadata(sections.metadata_lines)
+    label = "보도참고자료" if any("보도참고자료" in line for line in raw_text.splitlines()[:6]) else "보도자료"
+    metadata = _render_metadata(sections.metadata_lines, label=label)
     if metadata:
         blocks.append("\n".join(metadata))
 

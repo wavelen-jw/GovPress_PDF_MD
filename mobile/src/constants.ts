@@ -25,7 +25,7 @@ export function isHostedWeb(): boolean {
 export function defaultBaseUrl(): string {
   if (Platform.OS === "web" && typeof window !== "undefined") {
     if (isHostedWeb()) {
-      return "https://api2.govpress.cloud";
+      return SERVER_PRESETS.find((preset) => preset.key === "serverW")?.url || SERVER_PRESETS[0].url;
     }
     return `${window.location.protocol}//${window.location.hostname}:8013`;
   }

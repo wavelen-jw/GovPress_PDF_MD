@@ -28,7 +28,7 @@ export function SettingsModal({
   const [checkingStatus, setCheckingStatus] = useState(false);
 
   const selectedKey = useMemo<ServerKey>(() => {
-    return SERVER_PRESETS.find((preset) => preset.url === draft.baseUrl)?.key || "serverV";
+    return SERVER_PRESETS.find((preset) => preset.url === draft.baseUrl)?.key || "serverW";
   }, [draft.baseUrl]);
 
   useEffect(() => {
