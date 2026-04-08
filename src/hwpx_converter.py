@@ -640,7 +640,8 @@ def _render_single_row_title_table(table: Table) -> str | None:
     if len(texts) == 1:
         title = re.sub(r"\s+", " ", texts[0]).strip()
     elif len(texts) == 2 and re.fullmatch(r"\d+", texts[0].strip()):
-        title = f"{texts[0].strip()}. {re.sub(r'\s+', ' ', texts[1]).strip()}"
+        clean_text = re.sub(r"\s+", " ", texts[1]).strip()
+        title = f"{texts[0].strip()}. {clean_text}"
     else:
         return None
     if not title or len(title) > 80:
