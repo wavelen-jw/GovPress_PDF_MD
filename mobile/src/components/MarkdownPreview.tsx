@@ -315,6 +315,26 @@ function renderInlineMarkdown(text: string, textStyle: object, keyPrefix: string
   );
 }
 
+function renderHeadingMarkdown(
+  text: string,
+  level: number,
+  keyPrefix: string,
+  isDarkMode = false,
+) {
+  return renderInlineMarkdown(
+    text,
+    [
+      styles.markdownHeading,
+      isDarkMode && styles.markdownHeadingDark,
+      level === 1 && styles.markdownHeading1,
+      level === 2 && styles.markdownHeading2,
+      level >= 3 && styles.markdownHeading3,
+    ] as unknown as object,
+    keyPrefix,
+    isDarkMode,
+  );
+}
+
 function MarkdownImage({ alt, src, isDarkMode = false }: { alt: string; src: string; isDarkMode?: boolean }) {
   const [failed, setFailed] = useState(false);
 
@@ -833,29 +853,41 @@ export function MarkdownPreview({
                 blockHighlightStyle,
               ]}
               onLayout={(event) => handleBlockLayout(blockIndex, event)}
-            >
-              {block.paragraphs.map((paragraph, paragraphIndex) => (
-                <View
-                  key={`${key}-paragraph-${paragraphIndex}`}
-                  style={paragraphIndex > 0 ? styles.markdownQuoteParagraph : undefined}
-                >
-                  {paragraph.split("\n").map((quoteLine, quoteLineIndex) => (
-                    <View
-                      key={`${key}-paragraph-${paragraphIndex}-line-${quoteLineIndex}`}
-                      style={quoteLineIndex > 0 ? styles.markdownQuoteLine : undefined}
-                    >
-                      {renderInlineMarkdown(
-                        quoteLine,
-                        [styles.markdownQuoteText, isDarkMode && styles.markdownQuoteTextDark] as unknown as object,
-                        `${key}-${paragraphIndex}-${quoteLineIndex}`,
-                        isDarkMode,
-                      )}
-                    </View>
-                  ))}
-                </View>
-              ))}
-            </View>
-          );
+              >
+                {block.paragraphs.map((paragraph, paragraphIndex) => (
+                  <View
+                    key={`${key}-paragraph-${paragraphIndex}`}
+                    style={paragraphIndex > 0 ? styles.markdownQuoteParagraph : undefined}
+                  >
+                    {paragraph.split("\n").map((quoteLine, quoteLineIndex) => (
+                      <View
+                        key={`${key}-paragraph-${paragraphIndex}-line-${quoteLineIndex}`}
+                        style={quoteLineIndex > 0 ? styles.markdownQuoteLine : undefined}
+                      >
+                        {(() => {
+                          const headingMatch = quoteLine.trim().match(/^(#{1,6})\s+(.*)$/);
+                          if (headingMatch) {
+                            return renderHeadingMarkdown(
+                              headingMatch[2].trim(),
+                              headingMatch[1].length,
+                              `${key}-${paragraphIndex}-${quoteLineIndex}`,
+                              isDarkMode,
+                            );
+                          }
+
+                          return renderInlineMarkdown(
+                            quoteLine,
+                            [styles.markdownQuoteText, isDarkMode && styles.markdownQuoteTextDark] as unknown as object,
+                            `${key}-${paragraphIndex}-${quoteLineIndex}`,
+                            isDarkMode,
+                          );
+                        })()}
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            );
         }
 
         if (block.type === "list_item") {
