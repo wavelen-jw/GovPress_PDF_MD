@@ -19,6 +19,7 @@ services:
       - .env
     environment:
       GOVPRESS_STORAGE_ROOT: /data/storage
+      GOVPRESS_QC_EXPORT_ROOT: /app/exports/policy_briefing_qc
       GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-1}
     mem_limit: 256m
     volumes:
@@ -48,6 +49,7 @@ services:
       - .env
     environment:
       GOVPRESS_STORAGE_ROOT: /data/storage
+      GOVPRESS_QC_EXPORT_ROOT: /app/exports/policy_briefing_qc
       GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-1}
       # Java 힙 최대 256 MB로 제한하여 OOM 방지
       _JAVA_OPTIONS: "-Xms64m -Xmx256m"
