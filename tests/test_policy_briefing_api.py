@@ -102,9 +102,12 @@ class PolicyBriefingApiTests(unittest.TestCase):
         self.addCleanup(self.temp_dir.cleanup)
         self.previous_api_key = os.environ.get("GOVPRESS_API_KEY")
         self.previous_admin_api_key = os.environ.get("GOVPRESS_ADMIN_API_KEY")
+        self.previous_qc_export_root = os.environ.get("GOVPRESS_QC_EXPORT_ROOT")
         os.environ["GOVPRESS_API_KEY"] = "test-api-key"
         os.environ["GOVPRESS_ADMIN_API_KEY"] = "test-admin-key"
+        os.environ["GOVPRESS_QC_EXPORT_ROOT"] = str(Path(self.temp_dir.name) / "exports" / "policy_briefing_qc")
         self.addCleanup(self._restore_api_key)
+        self.addCleanup(self._restore_qc_export_root)
         self.client_stub = PolicyBriefingClientStub()
         self.app = create_app(Path(self.temp_dir.name), policy_briefing_client=self.client_stub)
         self.client = TestClient(self.app)
@@ -141,6 +144,12 @@ class PolicyBriefingApiTests(unittest.TestCase):
             os.environ.pop("GOVPRESS_ADMIN_API_KEY", None)
         else:
             os.environ["GOVPRESS_ADMIN_API_KEY"] = self.previous_admin_api_key
+
+    def _restore_qc_export_root(self) -> None:
+        if self.previous_qc_export_root is None:
+            os.environ.pop("GOVPRESS_QC_EXPORT_ROOT", None)
+        else:
+            os.environ["GOVPRESS_QC_EXPORT_ROOT"] = self.previous_qc_export_root
 
     def test_list_today_policy_briefings_returns_hwpx_items(self) -> None:
         response = self.client.get("/v1/policy-briefings/today?date=2026-04-09", headers=self.headers)
@@ -271,6 +280,35 @@ class PolicyBriefingApiTests(unittest.TestCase):
         self.assertFalse(cache_index.exists())
         cached_originals_dir = Path(self.temp_dir.name) / "policy_briefing_cache" / "originals"
         self.assertEqual(list(cached_originals_dir.glob("*")), [])
+
+    def test_get_policy_briefing_qc_dashboard_returns_html(self) -> None:
+        dashboard_dir = Path(self.temp_dir.name) / "exports" / "policy_briefing_qc" / "dashboard"
+        dashboard_dir.mkdir(parents=True, exist_ok=True)
+        (dashboard_dir / "index.html").write_text("<html><body>QC Dashboard</body></html>", encoding="utf-8")
+        (dashboard_dir / "dashboard.json").write_text("{\"run_count\":1}", encoding="utf-8")
+
+        response = self.client.get("/v1/policy-briefings/qc/dashboard")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("QC Dashboard", response.text)
+        self.assertIn("text/html", response.headers["content-type"])
+
+    def test_get_policy_briefing_qc_dashboard_json_returns_payload(self) -> None:
+        dashboard_dir = Path(self.temp_dir.name) / "exports" / "policy_briefing_qc" / "dashboard"
+        dashboard_dir.mkdir(parents=True, exist_ok=True)
+        (dashboard_dir / "index.html").write_text("<html><body>QC Dashboard</body></html>", encoding="utf-8")
+        (dashboard_dir / "dashboard.json").write_text("{\"run_count\":1}", encoding="utf-8")
+
+        response = self.client.get("/v1/policy-briefings/qc/dashboard.json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["run_count"], 1)
+
+    def test_get_policy_briefing_qc_dashboard_returns_404_when_missing(self) -> None:
+        response = self.client.get("/v1/policy-briefings/qc/dashboard")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("not available", response.json()["detail"])
 
     def test_inject_policy_briefing_department_prefixes_press_label(self) -> None:
         markdown = "# 제목\n\n보도자료\n보도시점: 2026. 4. 9.\n"

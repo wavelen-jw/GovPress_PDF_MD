@@ -37,6 +37,29 @@ class ConversionEngineTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "GovPress conversion engine is not configured"):
                 conversion_engine.convert_hwpx("/tmp/sample.hwpx")
 
+    def test_text_mode_supports_legacy_hwpx_signature_without_table_mode(self) -> None:
+        fake = types.SimpleNamespace(
+            convert_hwpx=lambda path: f"legacy:{path}",
+            convert_pdf=lambda path, timeout=300: f"pkgpdf:{path}:{timeout}",
+        )
+        with patch.dict(sys.modules, {"govpress_converter": fake}, clear=False):
+            conversion_engine.reset_backend_cache()
+            self.assertEqual(conversion_engine.convert_hwpx("/tmp/sample.hwpx"), "legacy:/tmp/sample.hwpx")
+            with self.assertRaisesRegex(RuntimeError, "does not support table_mode"):
+                conversion_engine.convert_hwpx("/tmp/sample.hwpx", table_mode="html")
+
+    def test_pdf_timeout_seconds_signature_is_supported(self) -> None:
+        fake = types.SimpleNamespace(
+            convert_hwpx=lambda path, table_mode="text": f"pkg:{path}:{table_mode}",
+            convert_pdf=lambda path, timeout_seconds=300: f"pkgpdf:{path}:{timeout_seconds}",
+        )
+        with patch.dict(sys.modules, {"govpress_converter": fake}, clear=False):
+            conversion_engine.reset_backend_cache()
+            self.assertEqual(
+                conversion_engine.convert_pdf("/tmp/sample.pdf", timeout=120),
+                "pkgpdf:/tmp/sample.pdf:120",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

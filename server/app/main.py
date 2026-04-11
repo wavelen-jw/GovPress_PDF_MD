@@ -10,6 +10,7 @@ from .api import jobs as jobs_api
 from .api import policy_briefings as policy_briefings_api
 from .api import results as results_api
 from .adapters.policy_briefing import PolicyBriefingCache, PolicyBriefingCatalog, PolicyBriefingClient
+from .adapters.policy_briefing_qc import resolve_qc_export_root
 from .core.config import load_settings
 from .core.security import verify_admin_api_key, verify_api_key
 from .repositories import SQLiteJobRepository
@@ -62,6 +63,12 @@ def create_app(
         client=policy_client,
         cache_dir=storage.root / "policy_briefing_cache",
     )
+    qc_export_root = Path(
+        os.environ.get(
+            "GOVPRESS_QC_EXPORT_ROOT",
+            str(resolve_qc_export_root(storage_root=resolved_storage_root)),
+        )
+    ).resolve()
     job_service.recover_incomplete_jobs()
     job_service.cleanup_jobs(older_than_hours=settings.job_ttl_hours, statuses=("completed", "failed"))
 
@@ -102,6 +109,7 @@ def create_app(
             policy_client,
             policy_catalog,
             policy_cache,
+            qc_export_root,
             auth_dependency,
             admin_auth_dependency,
         )
@@ -119,6 +127,7 @@ def create_app(
     app.state.policy_briefing_client = policy_client
     app.state.policy_briefing_catalog = policy_catalog
     app.state.policy_briefing_cache = policy_cache
+    app.state.qc_export_root = qc_export_root
     return app
 
 

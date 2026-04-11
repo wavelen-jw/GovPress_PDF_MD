@@ -80,6 +80,9 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "0"
   fi
+  if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
+    upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
+  fi
   if [ -x "$DEPLOY_DIR/deploy/wsl/bin/compose.sh" ]; then
     "$DEPLOY_DIR/deploy/wsl/bin/compose.sh" up -d --build
     "$DEPLOY_DIR/deploy/wsl/bin/compose.sh" ps
@@ -100,6 +103,9 @@ else
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "0"
   fi
+  if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
+    upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
+  fi
   if [ ! -x "$DEPLOY_DIR/.venv/bin/python" ]; then
     python3 -m venv "$DEPLOY_DIR/.venv"
   fi
@@ -108,6 +114,15 @@ else
   "$DEPLOY_DIR/.venv/bin/python" -m pip install -U opendataloader-pdf -q
   if [ -n "${CONVERTER_SPEC:-}" ]; then
     "$DEPLOY_DIR/.venv/bin/python" -m pip install "$CONVERTER_SPEC" -q
+  fi
+  if [ -n "${CONVERTER_SPEC:-}" ]; then
+    if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
+      "$DEPLOY_DIR/.venv/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" \
+        --require-private-engine \
+        --min-version "$CONVERTER_MIN_VERSION"
+    else
+      "$DEPLOY_DIR/.venv/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" --require-private-engine
+    fi
   fi
   systemctl --user restart "$SERVICE"
   sleep 3

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 
 from ..schemas.policy_briefings import (
     PolicyBriefingCacheResetResponse,
@@ -30,6 +31,7 @@ def build_router(
     policy_briefing_client,
     policy_briefing_catalog,
     policy_briefing_cache,
+    qc_export_root,
     verify_api_key,
     verify_admin_api_key,
 ) -> APIRouter:
@@ -134,5 +136,19 @@ def build_router(
             deleted_entries=deleted_entries,
             reset_at=datetime.now(UTC),
         )
+
+    @router.get("/qc/dashboard")
+    def get_policy_briefing_qc_dashboard() -> FileResponse:
+        html_path = qc_export_root / "dashboard" / "index.html"
+        if not html_path.exists():
+            raise HTTPException(status_code=404, detail="QC dashboard is not available yet.")
+        return FileResponse(html_path, media_type="text/html; charset=utf-8")
+
+    @router.get("/qc/dashboard.json")
+    def get_policy_briefing_qc_dashboard_json() -> FileResponse:
+        json_path = qc_export_root / "dashboard" / "dashboard.json"
+        if not json_path.exists():
+            raise HTTPException(status_code=404, detail="QC dashboard JSON is not available yet.")
+        return FileResponse(json_path, media_type="application/json; charset=utf-8")
 
     return router

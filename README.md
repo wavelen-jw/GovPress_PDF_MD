@@ -50,6 +50,107 @@
 4. 변환 결과를 확인하고 필요한 부분을 수정합니다.
 5. Markdown 파일로 저장하거나 복사합니다.
 
+## 운영 QC 내보내기
+
+오늘 작업 기준 운영 정리는 [docs/policy-briefing-qc-status-2026-04-12.md](/home/wavel/projects/GovPress_PDF_MD/docs/policy-briefing-qc-status-2026-04-12.md:1)에 따로 정리했습니다.
+
+운영 중 발견한 정책브리핑 원문을 `gov-md-converter` QC 코퍼스로 넘기려면 서비스 레포에서 원문을 export한 뒤 private 엔진 레포로 scaffold하면 됩니다.
+
+원문만 export:
+
+```bash
+python3 scripts/export_policy_briefings_for_qc.py \
+  --date 2026-04-09 \
+  --output-root exports/policy_briefing_qc \
+  --limit 5
+```
+
+export와 동시에 `gov-md-converter` scratch 샘플 생성:
+
+```bash
+python3 scripts/export_policy_briefings_for_qc.py \
+  --date 2026-04-09 \
+  --output-root exports/policy_briefing_qc \
+  --gov-md-converter-root ../gov-md-converter \
+  --qc-root tests/manual_samples/policy_briefings
+```
+
+이 스크립트는 각 기사별로 `source.hwpx`, `source.pdf`, `metadata.json`을 만들고, 필요하면 `gov-md-converter/scripts/run_hwpx_qc.py scaffold-local ...`까지 호출합니다.
+
+export부터 QC 분석 산출물까지 한 번에 돌리려면:
+
+```bash
+python3 scripts/run_policy_briefing_qc_pipeline.py \
+  --date 2026-04-09 \
+  --output-root exports/policy_briefing_qc \
+  --gov-md-converter-root ../gov-md-converter \
+  --qc-root tests/manual_samples/policy_briefings
+```
+
+이 명령은 export 후 `gov-md-converter`에서 `regression`, `triage`, `suggest-fix`, `patch-template`, `fix-plan`, `apply-fix-hint`, `auto-patch-draft`를 순서대로 실행하고 `gov_md_reports/` 아래에 결과를 모읍니다.
+
+CI나 cron에서 실패 여부만 판정하고 Markdown 요약을 남기려면:
+
+```bash
+python3 scripts/evaluate_policy_briefing_qc_report.py \
+  exports/policy_briefing_qc/2026-04-09/pipeline_report.json \
+  --summary-markdown exports/policy_briefing_qc/2026-04-09/qc_summary.md
+```
+
+기본값은 아래 조건에서 non-zero로 종료합니다.
+
+- `review_required_count > 0`
+- `regression` 결과에 실패 샘플이 있음
+- QC 하위 명령 중 하나라도 non-zero 반환
+
+GitHub Actions로 주기 실행하려면 `.github/workflows/policy-briefing-qc-monitor.yml`을 사용합니다.
+필요한 secret:
+
+- `GOVPRESS_POLICY_BRIEFING_SERVICE_KEY`
+- `GOV_MD_CONVERTER_REPO_TOKEN`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+
+이 워크플로는 private `gov-md-converter`를 checkout하고, 파이프라인 실행 뒤 `pipeline_report.json`, `qc_summary.md`, `gov_md_reports/`를 artifact로 업로드합니다.
+평가 결과가 실패이면 `issue_payload.json`도 만들고, 같은 날짜의 open QC issue를 갱신하거나 새로 생성합니다.
+생성된 issue에는 `gov-md-converter`의 `suggest-fix`와 `auto-patch-draft`를 바탕으로 수정 대상 파일, 첫 패치 방향, 회귀 테스트 명령까지 함께 적습니다.
+또한 `exports/policy_briefing_qc/dashboard/` 아래에 정적 HTML 대시보드와 집계 JSON을 생성하고, Telegram 알림이 설정되어 있으면 상위 샘플과 수정 대상 파일 요약을 전송합니다.
+
+대시보드를 수동으로 다시 만들려면:
+
+```bash
+python3 scripts/build_policy_briefing_qc_dashboard.py \
+  --root exports/policy_briefing_qc \
+  --output-html exports/policy_briefing_qc/dashboard/index.html \
+  --output-json exports/policy_briefing_qc/dashboard/dashboard.json
+```
+
+서버가 떠 있으면 브라우저에서 바로 아래 경로로 볼 수 있습니다.
+
+- HTML dashboard: `/v1/policy-briefings/qc/dashboard`
+- JSON dashboard: `/v1/policy-briefings/qc/dashboard.json`
+
+Telegram 메시지를 실제 전송 전에 확인하려면:
+
+```bash
+python3 scripts/send_policy_briefing_qc_telegram.py \
+  exports/policy_briefing_qc/2026-04-09/pipeline_report.json \
+  --print-only
+```
+
+서버 cron에서 직접 돌릴 때는 아래 스크립트를 사용하면 됩니다.
+
+```bash
+GOVPRESS_POLICY_BRIEFING_SERVICE_KEY=... \
+GOV_MD_CONVERTER_ROOT=../gov-md-converter \
+OUTPUT_ROOT=exports/policy_briefing_qc \
+QC_ROOT=tests/manual_samples/policy_briefings \
+bash scripts/run_policy_briefing_qc_monitor.sh 2026-04-09
+```
+
+인자를 생략하면 UTC 기준 오늘 날짜를 사용합니다.
+대시보드 산출물 기본 경로는 `exports/policy_briefing_qc/dashboard/index.html`과 `exports/policy_briefing_qc/dashboard/dashboard.json`입니다.
+
 ## 참고
 
 - 변환 결과는 초안입니다. 공개 전에는 제목, 표, 목록, 숫자, 링크를 한 번 더 확인하는 것이 좋습니다.

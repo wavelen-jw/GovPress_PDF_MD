@@ -3,6 +3,7 @@ FROM python:3.11-slim
 ARG GOVPRESS_CONVERTER_SPEC=""
 ARG GOVPRESS_CONVERTER_EXTRA_INDEX_URL=""
 ARG GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK="1"
+ARG GOVPRESS_CONVERTER_MIN_VERSION=""
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -22,6 +23,14 @@ RUN pip install -r /app/requirements.txt \
     && if [ -n "$GOVPRESS_CONVERTER_SPEC" ]; then pip install "$GOVPRESS_CONVERTER_SPEC"; fi
 
 COPY . /app
+
+RUN if [ -n "$GOVPRESS_CONVERTER_SPEC" ] || [ "$GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" = "0" ]; then \
+      if [ -n "$GOVPRESS_CONVERTER_MIN_VERSION" ]; then \
+        python /app/scripts/check_converter_runtime.py --require-private-engine --min-version "$GOVPRESS_CONVERTER_MIN_VERSION"; \
+      else \
+        python /app/scripts/check_converter_runtime.py --require-private-engine; \
+      fi; \
+    fi
 
 EXPOSE 8013
 

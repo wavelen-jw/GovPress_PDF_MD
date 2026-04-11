@@ -28,6 +28,8 @@ class ServerApiContractTests(unittest.TestCase):
         self.assertIn("/v1/jobs/{job_id}/result", schema["paths"])
         self.assertIn("/v1/policy-briefings/today", schema["paths"])
         self.assertIn("/v1/policy-briefings/import", schema["paths"])
+        self.assertIn("/v1/policy-briefings/qc/dashboard", schema["paths"])
+        self.assertIn("/v1/policy-briefings/qc/dashboard.json", schema["paths"])
 
     def test_openapi_contains_expected_job_operations(self) -> None:
         schema = self.app.openapi()

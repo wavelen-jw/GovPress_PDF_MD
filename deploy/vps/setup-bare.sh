@@ -13,6 +13,7 @@ ENV_FILE="$COMPOSE_DIR/.env"
 CONVERTER_SPEC="${GOVPRESS_CONVERTER_SPEC:-}"
 CONVERTER_EXTRA_INDEX_URL="${GOVPRESS_CONVERTER_EXTRA_INDEX_URL:-}"
 CONVERTER_ALLOW_LOCAL_FALLBACK="${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-1}"
+CONVERTER_MIN_VERSION="${GOVPRESS_CONVERTER_MIN_VERSION:-}"
 
 info()  { echo "[INFO]  $*"; }
 error() { echo "[ERROR] $*" >&2; exit 1; }
@@ -138,6 +139,15 @@ else
   fi
 fi
 info "Python 패키지 설치 완료"
+if [[ -n "$CONVERTER_SPEC" || "$CONVERTER_ALLOW_LOCAL_FALLBACK" = "0" ]]; then
+  if [[ -n "$CONVERTER_MIN_VERSION" ]]; then
+    sudo -u "$SERVICE_USER" "$VENV/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" \
+      --require-private-engine \
+      --min-version "$CONVERTER_MIN_VERSION"
+  else
+    sudo -u "$SERVICE_USER" "$VENV/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" --require-private-engine
+  fi
+fi
 
 # ── 6. 스토리지 디렉터리 ─────────────────────────────────────────────────────
 STORAGE_DIR="$DEPLOY_DIR/storage"

@@ -91,11 +91,14 @@ serverW로 연결되는 현재 공개 주소는 `https://api4.govpress.cloud`입
 비공개 `govpress-converter` 패키지를 쓰려면 `.env`에 아래 값을 추가합니다.
 
 - `GOVPRESS_CONVERTER_SPEC`
-  - 예: private git package spec 또는 private registry package spec
+  - 예: `git+https://<TOKEN>@github.com/wavelen-jw/gov-md-converter.git@v0.1.1`
+- `GOVPRESS_CONVERTER_MIN_VERSION`
+  - 예: `0.1.1`
 - `GOVPRESS_CONVERTER_EXTRA_INDEX_URL`
   - private registry를 쓸 때만 필요
 - `GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK`
   - 프로덕션/준프로덕션 권장값은 `0`
+  - private 엔진을 실제로 설치했다면 `scripts/check_converter_runtime.py`가 빌드 중에 버전과 시그니처를 검사합니다.
 - 값이 비어 있으면 기본 허용 origin이 없으므로 브라우저 접근이 막힙니다.
 - 로컬 웹 테스트 중이면 `http://172.25.164.35:8084` 같은 현재 웹 주소를 임시로 추가해야 합니다.
 - GitHub Pages를 쓸 경우 보통 `https://wavelen-jw.github.io/GovPress_PDF_MD` 형식입니다.
