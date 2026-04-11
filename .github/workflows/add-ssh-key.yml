@@ -1,0 +1,36 @@
+name: Add SSH Key to Server V (One-time)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  add-key:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Materialize deploy key
+        env:
+          VPS_KEY: ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          if printf '%s' "$VPS_KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+            printf '%s\n' "$VPS_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          else
+            printf '%s' "$VPS_KEY" | tr -d '\r\n ' | base64 -d > ~/.ssh/deploy_key
+          fi
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Add known_hosts
+        env:
+          HOST: ${{ secrets.GOVPRESS_VPS_HOST }}
+          PORT: ${{ vars.GOVPRESS_VPS_PORT }}
+        run: |
+          ssh-keyscan -p "${PORT:-22}" -H "$HOST" >> ~/.ssh/known_hosts
+
+      - name: Add GitHub SSH keys to authorized_keys
+        env:
+          HOST: ${{ secrets.GOVPRESS_VPS_HOST }}
+          USER: ${{ secrets.GOVPRESS_VPS_USER }}
+          PORT: ${{ vars.GOVPRESS_VPS_PORT }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p "${PORT:-22}" "$USER@$HOST" \
+            "curl -fsSL https://github.com/wavelen-jw.keys >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && echo OK"

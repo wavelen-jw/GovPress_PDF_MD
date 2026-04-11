@@ -1,0 +1,270 @@
+name: _Deploy Server via Cloudflare Tunnel (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      ssh_port:
+        type: string
+        default: "2222"
+      deploy_dir:
+        type: string
+        required: true
+      branch:
+        type: string
+        default: "web"
+      compose_file:
+        # docker-compose.yml 경로 (deploy_dir 기준 상대경로)
+        # 설정하면 systemctl 대신 docker compose up -d --build 사용
+        type: string
+        default: ""
+      service:
+        type: string
+        default: ""
+      healthcheck_url:
+        type: string
+        default: "http://127.0.0.1:8013/health"
+      ssh_host:
+        # e.g. ssh-h.govpress.cloud
+        type: string
+        required: true
+    secrets:
+      user:
+        required: true
+      ssh_key:
+        required: true
+      cf_client_id:
+        required: true
+      cf_client_secret:
+        required: true
+      converter_spec:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install cloudflared
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb \
+            -o cloudflared.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: Materialize deploy key
+        env:
+          VPS_KEY: ${{ secrets.ssh_key }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          KEY_FILE=~/.ssh/deploy_key
+
+          if printf '%s' "$VPS_KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+            printf '%s\n' "$VPS_KEY" | tr -d '\r' > "$KEY_FILE"
+          else
+            printf '%s' "$VPS_KEY" | tr -d '\r\n ' | base64 -d > "$KEY_FILE"
+          fi
+
+          chmod 600 "$KEY_FILE"
+          ssh-keygen -y -f "$KEY_FILE" > /dev/null
+          ssh-keygen -lf "$KEY_FILE" | tee ssh-key-fingerprint.log
+
+      - name: Configure SSH to use Cloudflare Tunnel
+        env:
+          SSH_HOST: ${{ inputs.ssh_host }}
+          CF_ID: ${{ secrets.cf_client_id }}
+          CF_SECRET: ${{ secrets.cf_client_secret }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          : > ~/cloudflared-proxy.log
+          # GitHub Actions 같은 자동화 환경에서는 service token + access ssh 조합을 사용한다.
+          cat >> ~/.ssh/config << EOF
+          Host ${SSH_HOST}
+            StrictHostKeyChecking accept-new
+            Port ${{ inputs.ssh_port }}
+            ProxyCommand /bin/sh -lc 'cloudflared access ssh --hostname %h --service-token-id ${CF_ID} --service-token-secret ${CF_SECRET} 2>>"$HOME"/cloudflared-proxy.log'
+          EOF
+
+      - name: Preflight SSH over Cloudflare Tunnel
+        env:
+          USER: ${{ secrets.user }}
+          SSH_HOST: ${{ inputs.ssh_host }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=~/.ssh/deploy_key
+          ssh -vv -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "exit 0" > ssh-preflight.log 2>&1 || true
+          tail -n 40 ssh-preflight.log || true
+
+      - name: Emit preflight diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          key_fp="$(cat ssh-key-fingerprint.log 2>/dev/null | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-300)"
+          preflight_tail="$(tail -n 40 ssh-preflight.log 2>/dev/null | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200)"
+          echo "::warning file=.github,title=cf ssh preflight::key=${key_fp:-unknown}; log=${preflight_tail:-missing}"
+
+      - name: Emit cloudflared proxy diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          proxy_tail="$(tail -n 40 ~/cloudflared-proxy.log 2>/dev/null | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200)"
+          echo "::warning file=.github,title=cloudflared proxy::log=${proxy_tail:-missing}"
+
+      - name: Deploy
+        env:
+          USER: ${{ secrets.user }}
+          SSH_HOST: ${{ inputs.ssh_host }}
+          DEPLOY_DIR: ${{ inputs.deploy_dir }}
+          BRANCH: ${{ inputs.branch }}
+          COMPOSE_FILE: ${{ inputs.compose_file }}
+          SERVICE: ${{ inputs.service }}
+          HEALTHCHECK_URL: ${{ inputs.healthcheck_url }}
+          CONVERTER_SPEC: ${{ secrets.converter_spec }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=~/.ssh/deploy_key
+          LOCAL_SCRIPT=deploy/common/remote-deploy-cf.sh
+          REMOTE_PATH="/tmp/govpress-remote-deploy-${GITHUB_RUN_ID:-manual}.sh"
+          REMOTE_CMD="$(printf "export DEPLOY_DIR=%q BRANCH=%q COMPOSE_FILE=%q SERVICE=%q HEALTHCHECK_URL=%q CONVERTER_SPEC=%q; cat > %q && chmod 700 %q && /bin/bash --noprofile --norc %q && rm -f %q" "$DEPLOY_DIR" "$BRANCH" "$COMPOSE_FILE" "$SERVICE" "$HEALTHCHECK_URL" "$CONVERTER_SPEC" "$REMOTE_PATH" "$REMOTE_PATH" "$REMOTE_PATH" "$REMOTE_PATH")"
+          : > remote-deploy.log
+          wc -c "$LOCAL_SCRIPT" | tee remote-deploy-script-size.log >> remote-deploy.log
+          set +e
+          ssh -vv -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "$REMOTE_CMD" > remote-deploy.log 2>&1 < "$LOCAL_SCRIPT"
+          ssh_exit=$?
+          set -e
+          printf 'ssh_exit_code=%s\n' "$ssh_exit" >> remote-deploy.log
+          cat remote-deploy.log
+          test "$ssh_exit" -eq 0
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "- Commit: https://github.com/${{ github.repository }}/commit/${{ github.sha }}"
+            echo "- Branch: \`${{ inputs.branch }}\`"
+            echo "- Service: \`${{ inputs.service }}\`"
+            echo "- Host: \`${{ inputs.ssh_host }}\`"
+            echo ""
+            echo '```text'
+            cat remote-deploy.log 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect remote diagnostics
+        if: always()
+        shell: bash
+        env:
+          DEPLOY_DIR: ${{ inputs.deploy_dir }}
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          set -euo pipefail
+          if [ ! -f remote-deploy.log ]; then
+            echo "remote-deploy.log missing" >&2
+            exit 0
+          fi
+
+          remote_host="$(sed -n 's/^remote_host=//p' remote-deploy.log | tail -n1)"
+          remote_user="$(sed -n 's/^remote_user=//p' remote-deploy.log | tail -n1)"
+          target_sha="$(sed -n 's/^target_sha=//p' remote-deploy.log | tail -n1)"
+          git_branch="$(sed -n 's/^git_branch=//p' remote-deploy.log | tail -n1)"
+          git_head="$(sed -n 's/^git_head=//p' remote-deploy.log | tail -n1)"
+          git_origin="$(sed -n 's/^git_origin=//p' remote-deploy.log | tail -n1)"
+          health_probe_code="$(sed -n 's/^health_probe_code=//p' remote-deploy.log | tail -n1)"
+          policy_probe_code="$(sed -n 's/^policy_probe_code=//p' remote-deploy.log | tail -n1)"
+          policy_probe_body="$(sed -n 's/^policy_probe_body=//p' remote-deploy.log | tail -n1)"
+
+          {
+            echo "remote_host=${remote_host}"
+            echo "remote_user=${remote_user}"
+            echo "deploy_dir=${DEPLOY_DIR}"
+            echo "target_branch=${BRANCH}"
+            echo "target_sha=${target_sha}"
+            echo "git_branch=${git_branch}"
+            echo "git_head=${git_head}"
+            echo "git_origin=${git_origin}"
+            echo "health_probe_code=${health_probe_code}"
+            echo "policy_probe_code=${policy_probe_code}"
+            echo "policy_probe_body=${policy_probe_body}"
+          } > remote-diagnostics.env
+
+      - name: Emit remote diagnostics annotation
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f remote-diagnostics.env ]; then
+            echo "::warning file=.github,title=remote diagnostics::remote-diagnostics.env missing"
+            exit 0
+          fi
+
+          remote_host="$(sed -n 's/^remote_host=//p' remote-diagnostics.env | tail -n1)"
+          deploy_dir="$(sed -n 's/^deploy_dir=//p' remote-diagnostics.env | tail -n1)"
+          git_branch="$(sed -n 's/^git_branch=//p' remote-diagnostics.env | tail -n1)"
+          target_sha="$(sed -n 's/^target_sha=//p' remote-diagnostics.env | tail -n1)"
+          git_head="$(sed -n 's/^git_head=//p' remote-diagnostics.env | tail -n1)"
+          policy_probe_code="$(sed -n 's/^policy_probe_code=//p' remote-diagnostics.env | tail -n1)"
+          policy_probe_body="$(sed -n 's/^policy_probe_body=//p' remote-diagnostics.env | tail -n1)"
+
+          message="remote_host=${remote_host:-unknown}; deploy_dir=${deploy_dir:-unknown}; git_branch=${git_branch:-unknown}; target_sha=${target_sha:-unknown}; git_head=${git_head:-unknown}; policy_probe_code=${policy_probe_code:-unknown}; policy_probe_body=${policy_probe_body:-unknown}"
+          echo "::warning file=.github,title=remote diagnostics::$message"
+
+      - name: Emit remote deploy log tail
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f remote-deploy.log ]; then
+            echo "::warning file=.github,title=remote deploy log::remote-deploy.log missing"
+            exit 0
+          fi
+
+          tail_text="$(tail -n 20 remote-deploy.log | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200)"
+          echo "::warning file=.github,title=remote deploy log::$tail_text"
+
+      - name: Emit SSH client diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f remote-deploy.log ]; then
+            echo "::warning file=.github,title=ssh client diagnostics::remote-deploy.log missing"
+            exit 0
+          fi
+
+          ssh_text="$(rg -n 'Offering public key|Authentications that can continue|Permission denied|Connection closed|kex_exchange_identification|ProxyCommand|cloudflared|Authenticated to|Entering interactive session|identity file|Will attempt key|sign_and_send_pubkey|no such identity|Unknown port|Connection timed out|Connection refused' remote-deploy.log | tail -n 20 | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200 || true)"
+          if [ -z "$ssh_text" ]; then
+            ssh_text="$(tail -n 20 remote-deploy.log | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200)"
+          fi
+          echo "::warning file=.github,title=ssh client diagnostics::$ssh_text"
+
+      - name: Verify remote deploy result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f remote-diagnostics.env ]; then
+            echo "remote-diagnostics.env missing" >&2
+            exit 1
+          fi
+
+          target_sha="$(sed -n 's/^target_sha=//p' remote-diagnostics.env | tail -n1)"
+          git_head="$(sed -n 's/^git_head=//p' remote-diagnostics.env | tail -n1)"
+          health_probe_code="$(sed -n 's/^health_probe_code=//p' remote-diagnostics.env | tail -n1)"
+
+          if [ -z "$target_sha" ]; then
+            echo "remote deploy revision missing" >&2
+            exit 1
+          fi
+          if [ -n "$health_probe_code" ] && [ "$health_probe_code" != "200" ]; then
+            echo "remote health probe failed: ${health_probe_code}" >&2
+            exit 1
+          fi

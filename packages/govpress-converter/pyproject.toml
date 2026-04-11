@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "govpress-converter"
+version = "0.1.0"
+description = "HWPX / PDF → Markdown conversion library for Korean government documents"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+keywords = ["hwpx", "hwp", "pdf", "markdown", "korean", "government", "document"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Text Processing :: Markup",
+    "Topic :: Office/Business",
+    "Natural Language :: Korean",
+]
+dependencies = []  # pure Python; PDF conversion additionally requires Java 11+
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "build", "twine"]
+
+[project.urls]
+Homepage = "https://github.com/wavelen-jw/GovPress_PDF_MD"
+Repository = "https://github.com/wavelen-jw/GovPress_PDF_MD"
+Issues = "https://github.com/wavelen-jw/GovPress_PDF_MD/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["govpress_converter*"]

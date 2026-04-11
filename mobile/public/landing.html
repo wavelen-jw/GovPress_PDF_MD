@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>읽힘 — 정부문서를 사람도 AI도 읽게 한다</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/aos@2.3.1/dist/aos.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Pretendard Variable', 'Pretendard', '-apple-system', 'BlinkMacSystemFont', 'sans-serif']
+          },
+          colors: {
+            ink:   '#0d0d0d',
+            paper: '#f8f8f5',
+            danger:'#ff3b3b',
+            ok:    '#22c55e'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { font-family: 'Pretendard Variable', Pretendard, -apple-system, sans-serif; }
+    html { scroll-behavior: smooth; }
+
+    /* Prism overrides */
+    pre[class*="language-"] {
+      margin: 0;
+      border-radius: 0;
+      font-size: 0.66rem;
+      line-height: 1.55;
+      max-height: 210px;
+      overflow: auto;
+      background: #1a1a1a !important;
+    }
+    code[class*="language-"] {
+      font-family: 'D2Coding', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.66rem;
+    }
+    pre[class*="language-"]::-webkit-scrollbar { height: 3px; }
+    pre[class*="language-"]::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+
+    /* Format flow */
+    .fmt-tag {
+      padding: 0.35rem 0.75rem;
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 5px;
+      font-size: 0.8rem;
+      letter-spacing: 0.04em;
+      color: rgba(255,255,255,0.55);
+      font-weight: 600;
+      animation: tagpulse 2.8s ease-in-out infinite;
+    }
+    .fmt-tag:nth-child(1) { animation-delay: 0s; }
+    .fmt-tag:nth-child(3) { animation-delay: 0.35s; }
+    .fmt-tag:nth-child(5) { animation-delay: 0.7s; }
+    @keyframes tagpulse {
+      0%,100% { opacity: 0.45; border-color: rgba(255,255,255,0.15); }
+      50%      { opacity: 1;    border-color: rgba(255,255,255,0.45); }
+    }
+    .fmt-result {
+      padding: 0.35rem 0.9rem;
+      background: #22c55e;
+      border-radius: 5px;
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: #0d0d0d;
+      letter-spacing: 0.04em;
+    }
+
+    /* Readability bar */
+    .rbar-bg  { height: 5px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+    .rbar-fill { height: 100%; border-radius: 3px; }
+    .fill-lo { background: #ff3b3b; }
+    .fill-md { background: #f59e0b; }
+    .fill-hi { background: #22c55e; }
+
+    /* Nav dots */
+    .ndot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.28);
+      cursor: pointer;
+      transition: background .2s, transform .2s;
+    }
+    .ndot.active { background: #fff; transform: scale(1.4); }
+
+    /* CTA hover */
+    .cta-btn { transition: transform .18s ease, box-shadow .18s ease; }
+    .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,0.28); }
+
+    /* Diff markers */
+    .diff-bad  { background: rgba(255,59,59,.14); border-left: 2px solid #ff3b3b; padding: 0 .3rem; color: #ff6b6b; border-radius: 2px; }
+    .diff-good { background: rgba(34,197,94,.14); border-left: 2px solid #22c55e; padding: 0 .3rem; color: #4ade80; border-radius: 2px; }
+
+    /* Stat */
+    .stat-n { font-size: clamp(2.2rem, 4vw, 3rem); font-weight: 900; line-height: 1; }
+
+    /* Section chip */
+    .chip { font-size: .65rem; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
+
+    @media (max-width: 640px) {
+      .fmt-flow { flex-wrap: wrap; gap: .5rem; }
+    }
+  </style>
+</head>
+<body class="bg-ink text-paper overflow-x-hidden">
+
+  <!-- ═══ SECTION 1: HERO ═══ -->
+  <section id="s-hero" class="min-h-screen flex flex-col justify-center items-center px-6 relative" style="background:#0d0d0d">
+
+    <!-- nav dots (desktop) -->
+    <nav class="hidden md:flex flex-col gap-3 fixed right-7 top-1/2 -translate-y-1/2 z-50" aria-label="섹션 이동">
+      <button class="ndot active" onclick="goTo('s-hero')"  aria-label="Hero"></button>
+      <button class="ndot"        onclick="goTo('s-prob')"  aria-label="민낯"></button>
+      <button class="ndot"        onclick="goTo('s-sol')"   aria-label="솔루션"></button>
+      <button class="ndot"        onclick="goTo('s-cta')"   aria-label="CTA"></button>
+    </nav>
+
+    <div class="max-w-3xl w-full mx-auto text-center">
+
+      <p class="chip text-white/30 mb-8" data-aos="fade-down" data-aos-duration="700">
+        Government Document Converter
+      </p>
+
+      <h1 class="font-black leading-[0.9] tracking-tight text-white mb-10"
+          style="font-size: clamp(80px, 14vw, 130px);"
+          data-aos="fade-up" data-aos-duration="750" data-aos-delay="80">
+        읽힘
+      </h1>
+
+      <p class="text-white/55 mb-14 leading-relaxed"
+         style="font-size: clamp(1.05rem, 2.2vw, 1.35rem);"
+         data-aos="fade-up" data-aos-duration="700" data-aos-delay="180">
+        정부문서가 막힌 곳에서,<br>
+        <span class="text-white font-semibold">사람과 AI 모두 통하게 한다.</span>
+      </p>
+
+      <!-- format flow -->
+      <div class="fmt-flow flex items-center justify-center gap-3 mb-14"
+           data-aos="fade-up" data-aos-delay="320">
+        <span class="fmt-tag">.hwpx</span>
+        <span class="text-white/25 text-lg font-thin">+</span>
+        <span class="fmt-tag">.pdf</span>
+        <span class="text-white/25 text-lg font-thin">+</span>
+        <span class="fmt-tag">HTML API</span>
+        <span class="text-white/50 text-xl font-light mx-1">→</span>
+        <span class="fmt-result">.md ✓</span>
+      </div>
+
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-3"
+           data-aos="fade-up" data-aos-delay="430">
+        <button type="button"
+           data-app-action="convert"
+           class="cta-btn inline-flex items-center gap-2.5 bg-white text-ink font-bold px-8 py-4 rounded-lg text-[0.95rem] hover:bg-paper">
+          지금 변환하기
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+            <path d="M2.5 7.5h10M8.5 3.5l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <a href="./app/?editor=1"
+           data-app-action="policy-briefings"
+           class="cta-btn inline-flex items-center gap-2 border border-white/22 text-white/70 hover:text-white hover:border-white/45 font-semibold px-6 py-4 rounded-lg text-[0.88rem]">
+          <span>📰</span> 정책브리핑 읽기
+        </a>
+      </div>
+    </div>
+
+    <div class="absolute bottom-9 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/25"
+         data-aos="fade-up" data-aos-delay="650">
+      <span class="chip" style="font-size:.6rem; letter-spacing:.22em;">scroll</span>
+      <div class="w-px h-7 bg-white/15 animate-pulse mt-1"></div>
+    </div>
+  </section>
+
+
+  <!-- ═══ SECTION 2: 민낯 ═══ -->
+  <section id="s-prob" class="py-28 px-6" style="background:#f8f8f5; color:#0d0d0d;">
+    <div class="max-w-6xl mx-auto">
+
+      <p class="chip mb-4 text-red-500" data-aos="fade-up">Problem</p>
+
+      <h2 class="font-black leading-tight mb-5"
+          style="font-size: clamp(2rem, 4.5vw, 3.2rem);"
+          data-aos="fade-up" data-aos-delay="80">
+        정부문서 포맷의 현실
+      </h2>
+      <p class="text-gray-400 mb-16 max-w-lg text-[1.05rem]"
+         data-aos="fade-up" data-aos-delay="130">
+        형식은 달라도 결과는 같다?<br>AI가 읽으면 맥락이 사라진다.
+      </p>
+
+      <!-- 3 cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+        <!-- ── Card 1: HWPX ── -->
+        <div class="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100/80"
+             data-aos="fade-up" data-aos-delay="80">
+          <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+            <div class="flex gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-green-400"></span>
+            </div>
+            <span class="text-[0.62rem] font-mono text-gray-700 font-semibold">HWPX 내부</span>
+          </div>
+          <pre class="language-xml" style="border-radius:0;"><code class="language-xml">&lt;HWPML Version="5.0.3.0" SubVersion="6"&gt;
+  &lt;HEAD&gt;
+    &lt;SECPR PageWidth="21000"
+      PageHeight="29700"
+      PaperDir="0" Apply="7"/&gt;
+  &lt;/HEAD&gt;
+  &lt;BODY&gt;&lt;SECTION ColCnt="1"&gt;
+    &lt;P ParaShape="8" Style="1"&gt;
+      &lt;T CharShape="3" Offset="0"&gt;
+□ 행정안전부는 「공공데이터의
+제공 및 이용 활성화에 관한
+법률」 제21조에 따라
+2025년도 공공데이터 제공
+운영실태 평가결과를
+공개합니다.
+      &lt;/T&gt;
+    &lt;/P&gt;
+    &lt;P ParaShape="12"&gt;
+      &lt;LINESEG ... /&gt;
+    &lt;/P&gt;
+  &lt;/SECTION&gt;&lt;/BODY&gt;
+&lt;/HWPML&gt;</code></pre>
+          <div class="px-4 py-4 border-t border-gray-100 space-y-2.5">
+            <p class="text-[0.65rem] font-semibold text-red-500 uppercase tracking-wider">
+              ● 구조 비노출 · AI 직접 처리 불가
+            </p>
+            <div>
+              <div class="flex justify-between text-[0.65rem] text-gray-400 mb-1">
+                <span>👤 사람 가독성</span><span class="text-red-500 font-semibold">낮음</span>
+              </div>
+              <div class="rbar-bg"><div class="rbar-fill fill-lo" style="width:18%"></div></div>
+            </div>
+            <div>
+              <div class="flex justify-between text-[0.65rem] text-gray-400 mb-1">
+                <span>🤖 AI 가독성</span><span class="text-red-500 font-semibold">낮음</span>
+              </div>
+              <div class="rbar-bg"><div class="rbar-fill fill-lo" style="width:15%"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Card 2: HTML API ── -->
+        <div class="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100/80"
+             data-aos="fade-up" data-aos-delay="160">
+          <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+            <div class="flex gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-green-400"></span>
+            </div>
+            <span class="text-[0.62rem] font-mono text-gray-700 font-semibold">문체부 보도자료 API 응답</span>
+          </div>
+          <pre class="language-html" style="border-radius:0;"><code class="language-html">&lt;div id="articleBody"
+  class="article_body"&gt;
+&lt;p class="line_height5"&gt;
+&lt;span style="font-size:10.0pt;
+  font-family:'맑은 고딕',
+  sans-serif;color:#000000;
+  background:white"&gt;
+&amp;nbsp;&amp;nbsp;□&amp;nbsp;행정안전부는&amp;nbsp;「공공
+데이터의&amp;nbsp;제공&amp;nbsp;및
+&amp;nbsp;및&amp;nbsp;이용&amp;nbsp;활성화에
+&lt;/span&gt;&lt;/p&gt;
+&lt;table class="editer_table"&gt;
+&lt;tbody&gt;&lt;tr style="height:25pt"&gt;
+&lt;td style="width:70.15pt;
+  border:solid windowtext 1pt;
+  padding:0 5.4pt"&gt;
+  &lt;p class="MsoNormal"&gt;
+  &lt;span ...&gt;평가기간&lt;/span&gt;
+  &lt;/p&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;/tbody&gt;&lt;/table&gt;</code></pre>
+          <div class="px-4 py-4 border-t border-gray-100 space-y-2.5">
+            <p class="text-[0.65rem] font-semibold text-yellow-500 uppercase tracking-wider">
+              ◐ 태그 노이즈 · &amp;nbsp; 범람
+            </p>
+            <div>
+              <div class="flex justify-between text-[0.65rem] text-gray-400 mb-1">
+                <span>👤 사람 가독성</span><span class="text-yellow-500 font-semibold">보통</span>
+              </div>
+              <div class="rbar-bg"><div class="rbar-fill fill-md" style="width:44%"></div></div>
+            </div>
+            <div>
+              <div class="flex justify-between text-[0.65rem] text-gray-400 mb-1">
+                <span>🤖 AI 가독성</span><span class="text-red-500 font-semibold">낮음 (토큰 낭비)</span>
+              </div>
+              <div class="rbar-bg"><div class="rbar-fill fill-lo" style="width:26%"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Card 3: 기존 변환기 ── -->
+        <div class="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100/80"
+             data-aos="fade-up" data-aos-delay="240">
+          <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+            <div class="flex gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-green-400"></span>
+            </div>
+            <span class="text-[0.62rem] font-mono text-gray-700 font-semibold">기존 PDF→MD 변환기 결과</span>
+          </div>
+          <pre class="language-markdown" style="border-radius:0;"><code class="language-markdown"># 2025년공공데이&#92;n터제공운영실태평&#92;n가결과공개
+
+□행정안전부는공공
+데이터의제공및이용활성화에관한
+
+# 1. 평 가  개  요
+|항목|내용
+|---|
+|평가기간|2025. 01~
+2025. 03|
+|평가대상|6 52개기관
+
+# 2. 평 가 결 과
+&lt;표 내용 전부 손실&gt;
+
+※ 각주·참고자료 누락
+&lt;이후 내용 전부 손실&gt;</code></pre>
+          <div class="px-4 py-4 border-t border-gray-100 space-y-2.5">
+            <p class="text-[0.65rem] font-semibold text-yellow-500 uppercase tracking-wider">
+              ◐ 표 손실 · 문단 절단 · 참고 누락
+            </p>
+            <div>
+              <div class="flex justify-between text-[0.65rem] text-gray-400 mb-1">
+                <span>👤 사람 가독성</span><span class="text-yellow-500 font-semibold">보통</span>
+              </div>
+              <div class="rbar-bg"><div class="rbar-fill fill-md" style="width:50%"></div></div>
+            </div>
+            <div>
+              <div class="flex justify-between text-[0.65rem] text-gray-400 mb-1">
+                <span>🤖 AI 가독성</span><span class="text-yellow-500 font-semibold">보통 (맥락 손실)</span>
+              </div>
+              <div class="rbar-bg"><div class="rbar-fill fill-md" style="width:46%"></div></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ═══ SECTION 3: 읽힘이면 다르다 ═══ -->
+  <section id="s-sol" class="py-28 px-6" style="background:#0d0d0d;">
+    <div class="max-w-6xl mx-auto">
+
+      <p class="chip mb-4 text-green-400" data-aos="fade-up">Solution</p>
+
+      <h2 class="font-black leading-tight mb-5 text-white"
+          style="font-size: clamp(2rem, 4.5vw, 3.2rem);"
+          data-aos="fade-up" data-aos-delay="80">
+        읽힘이면 다르다
+      </h2>
+      <p class="text-white/35 mb-16 max-w-lg text-[1.05rem]"
+         data-aos="fade-up" data-aos-delay="130">
+        같은 문서, 완전히 다른 결과.
+      </p>
+
+      <!-- Split comparison -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-20">
+
+        <!-- Left: 기존 도구 -->
+        <div data-aos="fade-right" data-aos-delay="150">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="w-2.5 h-2.5 rounded-full bg-red-500/70"></span>
+            <span class="text-xs font-semibold text-white/40">기존 PDF→MD 변환기</span>
+          </div>
+          <div class="rounded-xl overflow-hidden border border-white/8">
+            <div class="px-4 py-2.5 border-b border-white/8 text-[0.62rem] font-mono text-white/30"
+                 style="background:#111;">output_broken.md</div>
+            <div class="p-5 font-mono text-[0.7rem] leading-relaxed space-y-1.5"
+                 style="background:#111; min-height:260px; color:#ccc;">
+              <div><span class="text-white/60"># 2025년공공데이</span><span class="diff-bad">&#92;n</span><span class="text-white/60">터제공운영실태평</span><span class="diff-bad">&#92;n</span><span class="text-white/60">가결과공개</span></div>
+              <div class="mt-2 text-white/60">□행정안전부는공공</div>
+              <div class="text-white/60">데이터의제공및이용활성화에관한</div>
+              <div class="mt-2"><span class="text-white/60"># 1. 평 가&nbsp;&nbsp;개&nbsp;&nbsp;요</span></div>
+              <div class="text-white/60">|항목|내용</div>
+              <div><span class="diff-bad">|---|&nbsp;&nbsp;(열 불일치)</span></div>
+              <div class="text-white/60">|평가기간|2025. 01~</div>
+              <div class="text-white/60">2025. 03|</div>
+              <div class="mt-2"><span class="text-white/60"># 2. 평 가 결 과</span></div>
+              <div><span class="diff-bad">&lt;표 내용 전부 손실&gt;</span></div>
+              <div class="mt-2"><span class="diff-bad">※ 각주·참고자료 누락</span></div>
+              <div class="text-white/35"><span class="diff-bad">&lt;이후 내용 전부 손실&gt;</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: 읽힘 -->
+        <div data-aos="fade-left" data-aos-delay="230">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+            <span class="text-xs font-semibold text-white/40">읽힘 변환 결과</span>
+          </div>
+          <div class="rounded-xl overflow-hidden border border-green-500/20">
+            <!-- Tab bar -->
+            <div class="flex border-b border-green-500/15" style="background:#0a150f;">
+              <button id="tab-md" onclick="switchTab('md')"
+                class="px-4 py-2.5 text-[0.62rem] font-semibold text-green-400 border-b-2 border-green-400 transition-colors">
+                Markdown
+              </button>
+              <button id="tab-prev" onclick="switchTab('prev')"
+                class="px-4 py-2.5 text-[0.62rem] font-semibold text-white/30 border-b-2 border-transparent hover:text-white/60 transition-colors">
+                미리보기
+              </button>
+              <span class="ml-auto pr-4 self-center text-[0.62rem] font-mono text-green-400/50">output_clean.md</span>
+            </div>
+            <!-- MD view -->
+            <div id="view-md" class="p-5 font-mono text-[0.7rem] leading-relaxed space-y-1"
+                 style="background:#0a150f; min-height:260px;">
+              <div class="text-green-300 font-bold">## 2025년 공공데이터 제공 운영실태 평가결과</div>
+              <div class="text-green-100/55 mt-2">□ 행정안전부는 「공공데이터의 제공 및 이용</div>
+              <div class="text-green-100/55">활성화에 관한 법률」 제21조에 따라 결과를 공개합니다.</div>
+              <div class="text-green-300 font-bold mt-3">### 1. 평가 개요</div>
+              <div class="text-green-200/75 mt-1.5">| 항목 | 내용 |</div>
+              <div class="text-green-200/75">|------|------|</div>
+              <div class="text-green-200/75">| 평가기간 | 2025.01 ~ 2025.03 |</div>
+              <div class="text-green-200/75">| 평가대상 | 652개 기관 |</div>
+              <div class="text-green-200/75">| 중앙행정기관 | 45개 |</div>
+              <div class="text-green-200/75">| 지방자치단체 | 243개 |</div>
+              <div class="text-green-400 mt-3">&gt; **참고** 최근 3년간 우수 이상 등급 비중:</div>
+              <div class="text-green-400">&gt; 67.3% (23년) → 71.2% (24년) → 73.8% (25년)</div>
+            </div>
+            <!-- Preview view (hidden by default) -->
+            <div id="view-prev" class="hidden p-5 text-[0.78rem] leading-relaxed"
+                 style="background:#fff; min-height:260px; color:#1a1a1a; font-family: 'Pretendard Variable', sans-serif;">
+              <h2 style="font-size:1rem; font-weight:800; margin:0 0 10px; color:#0d0d0d; border-bottom:2px solid #e5e7eb; padding-bottom:6px;">
+                2025년 공공데이터 제공 운영실태 평가결과
+              </h2>
+              <p style="margin:0 0 12px; color:#374151; font-size:0.76rem;">
+                □ 행정안전부는 「공공데이터의 제공 및 이용 활성화에 관한 법률」 제21조에 따라 결과를 공개합니다.
+              </p>
+              <h3 style="font-size:0.85rem; font-weight:700; margin:0 0 8px; color:#0d0d0d;">1. 평가 개요</h3>
+              <table style="width:100%; border-collapse:collapse; font-size:0.72rem; margin-bottom:12px;">
+                <thead>
+                  <tr style="background:#f3f4f6;">
+                    <th style="border:1px solid #d1d5db; padding:4px 8px; text-align:left; font-weight:600;">항목</th>
+                    <th style="border:1px solid #d1d5db; padding:4px 8px; text-align:left; font-weight:600;">내용</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td style="border:1px solid #d1d5db; padding:4px 8px;">평가기간</td><td style="border:1px solid #d1d5db; padding:4px 8px;">2025.01 ~ 2025.03</td></tr>
+                  <tr><td style="border:1px solid #d1d5db; padding:4px 8px;">평가대상</td><td style="border:1px solid #d1d5db; padding:4px 8px;">652개 기관</td></tr>
+                  <tr><td style="border:1px solid #d1d5db; padding:4px 8px;">중앙행정기관</td><td style="border:1px solid #d1d5db; padding:4px 8px;">45개</td></tr>
+                  <tr><td style="border:1px solid #d1d5db; padding:4px 8px;">지방자치단체</td><td style="border:1px solid #d1d5db; padding:4px 8px;">243개</td></tr>
+                </tbody>
+              </table>
+              <blockquote style="margin:0; border-left:3px solid #22c55e; padding:6px 10px; background:#f0fdf4; color:#166534; font-size:0.72rem; border-radius:0 4px 4px 0;">
+                <strong>참고</strong> 최근 3년간 우수 이상 등급 비중:<br>
+                67.3% (23년) → 71.2% (24년) → 73.8% (25년)
+              </blockquote>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Stats -->
+      <div class="grid grid-cols-3 gap-6 border-t border-white/10 pt-14 max-w-2xl mx-auto">
+
+        <div class="text-center" data-aos="fade-up" data-aos-delay="80">
+          <div class="stat-n text-green-400">✓</div>
+          <div class="text-white/35 text-xs mt-2 font-medium tracking-wide">계층 구조 유지</div>
+        </div>
+
+        <!-- 미니 표 -->
+        <div class="text-center" data-aos="fade-up" data-aos-delay="160">
+          <div class="flex justify-center">
+            <table style="font-size:0.56rem; border-collapse:collapse; line-height:1.5;">
+              <thead>
+                <tr style="background:rgba(34,197,94,0.12);">
+                  <th style="border:1px solid rgba(34,197,94,0.35); padding:3px 9px; color:#4ade80; font-weight:700; letter-spacing:.02em;">항목</th>
+                  <th style="border:1px solid rgba(34,197,94,0.35); padding:3px 9px; color:#4ade80; font-weight:700; letter-spacing:.02em;">내용</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 9px; color:rgba(255,255,255,0.5);">평가기간</td>
+                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 9px; color:rgba(255,255,255,0.5);">2025.01~03</td>
+                </tr>
+                <tr>
+                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 9px; color:rgba(255,255,255,0.5);">평가기관</td>
+                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 9px; color:rgba(255,255,255,0.5);">652개</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="text-white/35 text-xs mt-3 font-medium tracking-wide">표 구조 복원</div>
+        </div>
+
+        <div class="text-center" data-aos="fade-up" data-aos-delay="240">
+          <div class="stat-n text-green-400">−96<span class="text-white/40 text-xl font-black">%</span></div>
+          <div class="text-white/35 text-xs mt-2 font-medium tracking-wide">AI 입력 토큰 절감</div>
+          <div class="text-white/25 text-[11px] mt-2 leading-relaxed">tiktoken 기준 HWPX/MD 비교</div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- ═══ SECTION 4: CTA ═══ -->
+  <section id="s-cta" class="py-36 px-6" style="background:#f8f8f5;">
+    <div class="max-w-xl mx-auto text-center">
+
+      <h2 class="font-black leading-tight mb-5 text-ink"
+          style="font-size: clamp(2rem, 4.5vw, 3.2rem);"
+          data-aos="fade-up">
+        지금 변환해보세요.
+      </h2>
+      <p class="text-gray-400 mb-12 text-[1.05rem] leading-relaxed"
+         data-aos="fade-up" data-aos-delay="100">
+        PDF, HWPX, 보도자료 HTML —<br>
+        어떤 형식이든 깔끔한 마크다운으로.
+      </p>
+
+      <!-- 정책브리핑 callout -->
+      <div class="inline-flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-5 py-3.5 mb-10 shadow-sm"
+           data-aos="fade-up" data-aos-delay="150">
+        <span class="text-lg">📰</span>
+        <div class="text-left">
+          <p class="text-xs font-bold text-ink">오늘의 정책브리핑 바로 읽기</p>
+          <p class="text-[0.68rem] text-gray-400 mt-0.5">정책브리핑 보도자료를 실시간으로 Markdown 변환해서 제공</p>
+        </div>
+        <a href="./app/?editor=1"
+           data-app-action="policy-briefings"
+           class="ml-2 text-[0.72rem] font-bold text-green-600 hover:text-green-700 whitespace-nowrap">앱에서 보기 →</a>
+      </div>
+
+      <div data-aos="fade-up" data-aos-delay="200">
+        <button type="button"
+           data-app-action="convert"
+           class="cta-btn inline-flex items-center gap-3 bg-ink text-white font-bold px-10 py-5 rounded-xl text-[1rem] mb-5">
+          변환 시작하기
+          <svg width="17" height="17" viewBox="0 0 17 17" fill="none">
+            <path d="M3 8.5h11M9.5 4l4.5 4.5L9.5 13" stroke="currentColor" stroke-width="1.9"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <p class="text-gray-400 text-xs tracking-wide">무료 · 회원가입 없음 · 정부문서 특화</p>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- ─── Footer ──────────────────────────────────── -->
+  <footer class="py-7 px-6 border-t border-white/8" style="background:#0d0d0d;">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
+      <span class="font-black text-xl text-white">읽힘</span>
+      <span class="text-white/25 text-xs">정부문서를 사람도 AI도 읽게 한다</span>
+      <a href="https://github.com/wavelen-jw/GovPress_PDF_MD"
+         class="text-white/25 text-xs hover:text-white/55 transition-colors">GitHub ↗</a>
+    </div>
+  </footer>
+
+
+  <!-- ─── Scripts ─────────────────────────────────── -->
+  <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markdown.min.js"></script>
+
+  <script>
+    // Init AOS
+    AOS.init({ duration: 680, once: true, offset: 70, easing: 'ease-out-cubic' });
+
+    // Smooth section scroll (custom name to avoid native conflict)
+    function goTo(id) {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Nav dot active state via IntersectionObserver
+    const sectionIds = ['s-hero', 's-prob', 's-sol', 's-cta'];
+    const dots = document.querySelectorAll('.ndot');
+
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const i = sectionIds.indexOf(e.target.id);
+          if (i >= 0) dots.forEach((d, j) => d.classList.toggle('active', i === j));
+        }
+      });
+    }, { threshold: 0.45 });
+
+    sectionIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) io.observe(el);
+    });
+
+    const APP_URL = new URL('./app/?editor=1', window.location.href).toString();
+    const LANDING_ACTION_STORAGE_KEY = 'govpress:landing-action';
+
+    function openLandingUploadDatabase() {
+      return new Promise((resolve, reject) => {
+        if (!window.indexedDB) {
+          reject(new Error('indexedDB unavailable'));
+          return;
+        }
+        const request = window.indexedDB.open('govpress-landing', 1);
+        request.onupgradeneeded = () => {
+          const database = request.result;
+          if (!database.objectStoreNames.contains('pending-uploads')) {
+            database.createObjectStore('pending-uploads');
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('indexedDB open failed'));
+      });
+    }
+
+    async function stagePendingFile(file) {
+      const database = await openLandingUploadDatabase();
+      try {
+        await new Promise((resolve, reject) => {
+          const transaction = database.transaction('pending-uploads', 'readwrite');
+          const store = transaction.objectStore('pending-uploads');
+          const request = store.put({
+            file,
+            name: file.name,
+            type: file.type,
+            lastModified: file.lastModified,
+          }, 'pending-file');
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error || new Error('indexedDB write failed'));
+        });
+      } finally {
+        database.close();
+      }
+    }
+
+    async function navigateToApp(action, file) {
+      sessionStorage.setItem(LANDING_ACTION_STORAGE_KEY, JSON.stringify({
+        type: action,
+        requestedAt: Date.now(),
+      }));
+      if (file) {
+        await stagePendingFile(file);
+      }
+      window.location.href = APP_URL;
+    }
+
+    const filePicker = document.createElement('input');
+    filePicker.type = 'file';
+    filePicker.accept = '.pdf,.hwpx,.md';
+    filePicker.style.display = 'none';
+    document.body.appendChild(filePicker);
+
+    filePicker.addEventListener('change', async () => {
+      const file = filePicker.files && filePicker.files[0];
+      filePicker.value = '';
+      if (!file) {
+        return;
+      }
+      try {
+        await navigateToApp('open-picker', file);
+      } catch (error) {
+        console.error(error);
+        window.location.href = APP_URL;
+      }
+    });
+
+    document.querySelectorAll('[data-app-action]').forEach((trigger) => {
+      trigger.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const action = trigger.getAttribute('data-app-action');
+        if (action === 'convert') {
+          filePicker.click();
+          return;
+        }
+        if (action === 'policy-briefings') {
+          try {
+            await navigateToApp('open-policy-briefings');
+          } catch (error) {
+            console.error(error);
+            window.location.href = APP_URL + '&intent=policy-briefings';
+          }
+        }
+      });
+    });
+
+    // MD / 미리보기 탭 전환
+    function switchTab(tab) {
+      const mdView   = document.getElementById('view-md');
+      const prevView = document.getElementById('view-prev');
+      const tabMd    = document.getElementById('tab-md');
+      const tabPrev  = document.getElementById('tab-prev');
+      if (tab === 'md') {
+        mdView.classList.remove('hidden');
+        prevView.classList.add('hidden');
+        tabMd.classList.add('text-green-400','border-green-400');
+        tabMd.classList.remove('text-white/30','border-transparent');
+        tabPrev.classList.add('text-white/30','border-transparent');
+        tabPrev.classList.remove('text-green-400','border-green-400');
+      } else {
+        prevView.classList.remove('hidden');
+        mdView.classList.add('hidden');
+        tabPrev.classList.add('text-green-400','border-green-400');
+        tabPrev.classList.remove('text-white/30','border-transparent');
+        tabMd.classList.add('text-white/30','border-transparent');
+        tabMd.classList.remove('text-green-400','border-green-400');
+      }
+    }
+  </script>
+</body>
+</html>

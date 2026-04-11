@@ -1,0 +1,81 @@
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/wsl/Dockerfile
+      args:
+        GOVPRESS_CONVERTER_SPEC: ${GOVPRESS_CONVERTER_SPEC:-}
+        GOVPRESS_CONVERTER_EXTRA_INDEX_URL: ${GOVPRESS_CONVERTER_EXTRA_INDEX_URL:-}
+        GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-1}
+    container_name: govpress-api
+    # 저성능 서버: uvicorn 단일 워커, keep-alive 타임아웃 축소
+    command: >
+      python -m uvicorn server.app.main:app
+      --host 0.0.0.0 --port 8013
+      --workers 1
+      --timeout-keep-alive 30
+    env_file:
+      - .env
+    environment:
+      GOVPRESS_STORAGE_ROOT: /data/storage
+      GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-1}
+    mem_limit: 256m
+    volumes:
+      - ../../:/app
+      - ./data/storage:/data/storage
+    expose:
+      - "8013"
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: deploy/wsl/Dockerfile
+      args:
+        GOVPRESS_CONVERTER_SPEC: ${GOVPRESS_CONVERTER_SPEC:-}
+        GOVPRESS_CONVERTER_EXTRA_INDEX_URL: ${GOVPRESS_CONVERTER_EXTRA_INDEX_URL:-}
+        GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-1}
+    container_name: govpress-worker
+    # 저성능 서버: 동시 변환 1개, 폴링 간격 3초로 CPU 부하 완화
+    command: >
+      python -m server.run_worker
+      --storage-root /data/storage
+      --poll-interval 3.0
+      --concurrency 1
+    env_file:
+      - .env
+    environment:
+      GOVPRESS_STORAGE_ROOT: /data/storage
+      GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-1}
+      # Java 힙 최대 256 MB로 제한하여 OOM 방지
+      _JAVA_OPTIONS: "-Xms64m -Xmx256m"
+    mem_limit: 512m
+    volumes:
+      - ../../:/app
+      - ./data/storage:/data/storage
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: govpress-caddy
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:8080:8080"
+    mem_limit: 64m
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy:/data
+      - ./config/caddy:/config
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: govpress-cloudflared
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - caddy
+    mem_limit: 64m
+    restart: unless-stopped

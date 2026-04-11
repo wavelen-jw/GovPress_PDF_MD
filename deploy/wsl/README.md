@@ -1,0 +1,336 @@
+# WSL Deployment
+
+이 디렉터리는 WSL Ubuntu를 1차 운영 환경으로 사용하는 배포 초안입니다.
+
+목표:
+
+- 지금은 Windows PC의 WSL2 Ubuntu에서 실행
+- 나중에는 같은 파일을 Linux VPS로 거의 그대로 복사
+
+구성:
+
+- `api`: FastAPI 서버
+- `worker`: SQLite polling worker
+- `caddy`: 로컬 reverse proxy
+- `cloudflared`: 외부 공개용 Tunnel
+
+## 권장 디렉터리
+
+WSL Linux 파일시스템 안에 프로젝트를 두는 편이 좋습니다.
+
+현재 작업 환경 예:
+
+```bash
+/home/wavel/GovPress_PDF_MD
+```
+
+배포 작업 디렉터리:
+
+```bash
+cd /home/wavel/GovPress_PDF_MD/deploy/wsl
+```
+
+## 준비
+
+1. WSL2 Ubuntu 설치
+2. Docker Desktop 설치 후 WSL integration 활성화
+3. Cloudflare에서 Tunnel 생성
+4. `api.govpress.cloud` 같은 공개 주소를 해당 Tunnel에 연결
+
+## 환경 변수
+
+`.env.example`을 복사해 `.env`를 만듭니다.
+
+```bash
+cp .env.example .env
+```
+
+수정할 값:
+
+- `GOVPRESS_API_KEY`
+- `GOVPRESS_CORS_ALLOW_ORIGINS`
+- `GOVPRESS_UPLOAD_RATE_LIMIT_COUNT`
+- `GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS`
+- `GOVPRESS_JOB_TTL_HOURS`
+- `GOVPRESS_TURNSTILE_SECRET_KEY`
+- `EXPO_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY`
+- `CLOUDFLARE_TUNNEL_TOKEN`
+
+예:
+
+```env
+GOVPRESS_API_KEY=super-secret-key
+GOVPRESS_CORS_ALLOW_ORIGINS=https://your-user.github.io,http://172.25.164.35:8084
+GOVPRESS_UPLOAD_RATE_LIMIT_COUNT=12
+GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+GOVPRESS_JOB_TTL_HOURS=72
+GOVPRESS_TURNSTILE_SECRET_KEY=0x4AAAA...
+GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=1
+GOVPRESS_CONVERTER_SPEC=
+GOVPRESS_CONVERTER_EXTRA_INDEX_URL=
+EXPO_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY=0x4AAAA...
+CLOUDFLARE_TUNNEL_TOKEN=eyJh...
+```
+
+현재 운영 중인 공개 API 예:
+
+```text
+https://api.govpress.cloud
+```
+
+이 문서는 Cloudflare Tunnel 기반 자동배포 점검 시에도 참고합니다.
+
+serverW로 연결되는 현재 공개 주소는 `https://api4.govpress.cloud`입니다.
+
+주의:
+
+- `GOVPRESS_CORS_ALLOW_ORIGINS`는 실제 프론트 주소로 바꿔야 합니다.
+
+### 비공개 변환 엔진 패키지
+
+비공개 `govpress-converter` 패키지를 쓰려면 `.env`에 아래 값을 추가합니다.
+
+- `GOVPRESS_CONVERTER_SPEC`
+  - 예: private git package spec 또는 private registry package spec
+- `GOVPRESS_CONVERTER_EXTRA_INDEX_URL`
+  - private registry를 쓸 때만 필요
+- `GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK`
+  - 프로덕션/준프로덕션 권장값은 `0`
+- 값이 비어 있으면 기본 허용 origin이 없으므로 브라우저 접근이 막힙니다.
+- 로컬 웹 테스트 중이면 `http://172.25.164.35:8084` 같은 현재 웹 주소를 임시로 추가해야 합니다.
+- GitHub Pages를 쓸 경우 보통 `https://wavelen-jw.github.io/GovPress_PDF_MD` 형식입니다.
+- 현재 웹 클라이언트는 GitHub Pages에서 기본 API를 `https://api.govpress.cloud`로 보도록 설정되어 있습니다.
+
+## 실행
+
+```bash
+docker compose up -d --build
+```
+
+상태 확인:
+
+```bash
+docker compose ps
+docker compose logs -f api
+docker compose logs -f worker
+docker compose logs -f cloudflared
+```
+
+로컬 헬스체크:
+
+```bash
+curl http://127.0.0.1:8080/health
+```
+
+외부 공개 주소 예:
+
+```text
+https://api.govpress.cloud/health
+```
+
+실제 배포 검증 예:
+
+```bash
+curl -i https://api.govpress.cloud/health
+```
+
+## 저장 위치
+
+배포 데이터는 이 디렉터리 아래에 남습니다.
+
+- `deploy/wsl/data/storage`
+- `deploy/wsl/data/caddy`
+- `deploy/wsl/config/caddy`
+
+GovPress 작업 파일:
+
+- 원본 PDF
+- 결과 Markdown
+- 수정본
+- `jobs.sqlite3`
+
+## 보안 원칙
+
+- FastAPI는 외부에 직접 포트 공개하지 않습니다.
+- 호스트 공개 포트는 `127.0.0.1:8080`만 사용합니다.
+- 외부 공개는 `cloudflared`만 담당합니다.
+- `GOVPRESS_API_KEY`를 설정합니다.
+- `GOVPRESS_CORS_ALLOW_ORIGINS`는 실제 프론트 도메인만 허용합니다.
+- 업로드 요청은 서버 보조 rate limit으로 제한됩니다.
+  - 기본값: `12 requests / 60 seconds`
+- 완료/실패 작업은 TTL이 지나면 자동 정리됩니다.
+  - 기본값: `72 hours`
+- 필요하면 `Turnstile`을 켜서 업로드 전에 사람 확인 절차를 추가합니다.
+- CORS는 예시값 그대로 두지 말고 실제 프론트 주소만 허용합니다.
+
+## 작업 접근 모델
+
+- 작업 생성 시 `job_id`와 `edit_token`이 함께 발급됩니다.
+- 상태 조회, 결과 조회, 수정 저장, 재시도는 `X-Edit-Token`이 있어야만 가능합니다.
+- 공개 최근 작업 목록은 제공하지 않습니다.
+
+## Cloudflare 권장 규칙
+
+업로드 엔드포인트만 보호하는 것이 좋습니다.
+
+- 대상: `POST /v1/jobs`
+- 표현식:
+
+```txt
+http.request.uri.path eq "/v1/jobs" and http.request.method eq "POST"
+```
+
+- 권장 시작값:
+  - Requests: `5`
+  - Period: `10 seconds`
+  - Action: `Block`
+  - Duration: `10 seconds`
+
+이 값은 현재 Cloudflare 화면 제약에 맞춘 최소 방어선입니다.
+
+## 현재 확인된 상태
+
+- `https://api.govpress.cloud/health` 외부 응답 정상
+- 공개 API로 PDF 업로드, 작업 완료, 결과 조회 정상
+- API 키가 설정되어 있으므로 프론트에서도 같은 키를 입력해야 합니다
+
+## 자동 시작
+
+현재 WSL은 `systemd=true` 상태라 systemd 서비스로 자동 기동할 수 있습니다.
+
+예시 파일:
+
+- [deploy/wsl/systemd/govpress-compose.service](/home/wavel/GovPress_PDF_MD/deploy/wsl/systemd/govpress-compose.service)
+- [deploy/wsl/systemd/README.md](/home/wavel/GovPress_PDF_MD/deploy/wsl/systemd/README.md)
+
+핵심 절차:
+
+```bash
+sudo cp deploy/wsl/systemd/govpress-compose.service /etc/systemd/system/govpress-compose.service
+sudo systemctl daemon-reload
+sudo systemctl enable govpress-compose.service
+sudo systemctl start govpress-compose.service
+```
+
+상태 확인:
+
+```bash
+sudo systemctl status govpress-compose.service
+```
+
+## 운영 체크리스트
+
+### 일상 점검
+
+```bash
+sudo systemctl status --no-pager govpress-compose.service
+docker-compose -f /home/wavel/GovPress_PDF_MD/deploy/wsl/docker-compose.yml ps
+curl http://127.0.0.1:8080/health
+curl -i -H 'X-API-Key: <API_KEY>' https://api.govpress.cloud/health
+```
+
+정상 기준:
+
+- systemd 서비스가 `active (exited)`
+- `govpress-api`, `govpress-worker`, `govpress-caddy`, `govpress-cloudflared`가 모두 실행 중
+- 로컬 `8080/health` 응답 정상
+- 외부 `api.govpress.cloud/health` 응답 정상
+
+### 로그 확인
+
+```bash
+docker-compose -f /home/wavel/GovPress_PDF_MD/deploy/wsl/docker-compose.yml logs --tail=100 api
+docker-compose -f /home/wavel/GovPress_PDF_MD/deploy/wsl/docker-compose.yml logs --tail=100 worker
+docker-compose -f /home/wavel/GovPress_PDF_MD/deploy/wsl/docker-compose.yml logs --tail=100 cloudflared
+```
+
+### 재시작
+
+```bash
+sudo systemctl restart govpress-compose.service
+sudo systemctl status --no-pager govpress-compose.service
+```
+
+또는 compose만 직접 재기동:
+
+```bash
+"/mnt/c/Program Files/Docker/Docker/resources/bin/docker-compose" -f /home/wavel/GovPress_PDF_MD/deploy/wsl/docker-compose.yml up -d
+```
+
+### API 키 교체
+
+1. `deploy/wsl/.env` 수정
+2. `GOVPRESS_API_KEY` 새 값 반영
+3. 스택 재기동
+
+```bash
+nano /home/wavel/GovPress_PDF_MD/deploy/wsl/.env
+sudo systemctl restart govpress-compose.service
+```
+
+4. 프론트에서도 같은 새 키 입력
+
+### CORS 변경
+
+프론트 주소가 바뀌면 아래 값을 같이 수정합니다.
+
+```env
+GOVPRESS_CORS_ALLOW_ORIGINS=https://wavelen-jw.github.io,http://172.25.164.35:8084
+```
+
+반영:
+
+```bash
+sudo systemctl restart govpress-compose.service
+```
+
+### 장애 복구 순서
+
+1. `sudo systemctl status --no-pager govpress-compose.service`
+2. `docker-compose ... ps`
+3. `curl http://127.0.0.1:8080/health`
+4. `curl -i -H 'X-API-Key: <API_KEY>' https://api.govpress.cloud/health`
+5. `docker-compose ... logs --tail=100 api worker cloudflared`
+
+### 업로드 제한 값 조정
+
+기본값:
+
+```env
+GOVPRESS_UPLOAD_RATE_LIMIT_COUNT=12
+GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+GOVPRESS_JOB_TTL_HOURS=72
+```
+
+더 보수적으로 운영하려면:
+
+```env
+GOVPRESS_UPLOAD_RATE_LIMIT_COUNT=6
+GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+GOVPRESS_JOB_TTL_HOURS=24
+```
+
+### 재부팅 후 확인
+
+Windows 재부팅 후 WSL에서 아래만 확인하면 됩니다.
+
+```bash
+sudo systemctl status --no-pager govpress-compose.service
+curl http://127.0.0.1:8080/health
+curl -i -H 'X-API-Key: <API_KEY>' https://api.govpress.cloud/health
+```
+
+## VPS 이전
+
+이 디렉터리 전체를 Linux VPS에 복사한 뒤 아래만 바꾸면 됩니다.
+
+- `.env`
+- 도메인
+- Cloudflare Tunnel token
+- 볼륨 경로
+
+그리고 동일하게 실행합니다.
+
+```bash
+docker compose up -d --build
+```

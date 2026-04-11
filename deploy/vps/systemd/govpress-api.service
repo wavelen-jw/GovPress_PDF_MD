@@ -1,0 +1,30 @@
+[Unit]
+Description=GovPress API + Worker (bare-metal)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=__SERVICE_USER__
+WorkingDirectory=__DEPLOY_DIR__
+EnvironmentFile=__ENV_FILE__
+Environment=GOVPRESS_STORAGE_ROOT=__STORAGE_DIR__
+Environment=GOVPRESS_RUN_WORKER=true
+# Java 힙 256 MB 상한 (PDF 변환 OOM 방지)
+Environment=_JAVA_OPTIONS=-Xms64m -Xmx256m
+
+ExecStart=__VENV__/bin/python -m uvicorn server.app.main:app \
+    --host 127.0.0.1 \
+    --port 8013 \
+    --workers 1 \
+    --timeout-keep-alive 30
+
+Restart=on-failure
+RestartSec=5
+# 프로세스 메모리 상한 700 MB (OS + Caddy + cloudflared 여유 확보)
+MemoryMax=700M
+# OOM 발생 시 이 서비스를 먼저 재시작 (OS 보호)
+OOMScoreAdjust=500
+
+[Install]
+WantedBy=multi-user.target

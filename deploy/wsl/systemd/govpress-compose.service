@@ -1,0 +1,16 @@
+[Unit]
+Description=GovPress Docker Compose Stack
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wavel/GovPress_PDF_MD/deploy/wsl
+RemainAfterExit=yes
+ExecStartPre=/bin/sleep 20
+ExecStart=/bin/bash --noprofile --norc -c "/home/wavel/GovPress_PDF_MD/deploy/wsl/bin/compose.sh up -d"
+ExecStop=/bin/bash --noprofile --norc -c "/home/wavel/GovPress_PDF_MD/deploy/wsl/bin/compose.sh down"
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,28 @@
+FROM python:3.11-slim
+
+ARG GOVPRESS_CONVERTER_SPEC=""
+ARG GOVPRESS_CONVERTER_EXTRA_INDEX_URL=""
+ARG GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK="1"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_EXTRA_INDEX_URL=${GOVPRESS_CONVERTER_EXTRA_INDEX_URL} \
+    GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK}
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends default-jre-headless curl git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt /app/requirements.txt
+RUN pip install -r /app/requirements.txt \
+    && pip install -U opendataloader-pdf \
+    && if [ -n "$GOVPRESS_CONVERTER_SPEC" ]; then pip install "$GOVPRESS_CONVERTER_SPEC"; fi
+
+COPY . /app
+
+EXPOSE 8013
+
+CMD ["python", "-m", "uvicorn", "server.app.main:app", "--host", "0.0.0.0", "--port", "8013"]
