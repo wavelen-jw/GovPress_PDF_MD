@@ -89,6 +89,20 @@ python3 scripts/run_policy_briefing_qc_pipeline.py \
 
 이 명령은 export 후 `gov-md-converter`에서 `regression`, `triage`, `suggest-fix`, `patch-template`, `fix-plan`, `apply-fix-hint`, `auto-patch-draft`를 순서대로 실행하고 `gov_md_reports/` 아래에 결과를 모읍니다.
 
+정책브리핑 API가 죽어 있을 때는 로컬 HWPX/PDF 코퍼스로 같은 형식의 `pipeline_report.json`을 만들 수 있습니다.
+
+```bash
+python3 scripts/run_local_hwpx_qc_pipeline.py \
+  --date 2026-04-12 \
+  --output-root exports/policy_briefing_qc \
+  --gov-md-converter-root ../gov-md-converter \
+  --qc-root ../gov-md-converter/tests/manual_samples/local_batch \
+  --source-root ../gov-md-converter/tests/problem \
+  --limit 5
+```
+
+이 명령은 `gov-md-converter`의 `batch-local`을 먼저 실행해 scratch 샘플을 만들고, 같은 QC 후속 단계들을 돌린 뒤 기존 dashboard/OpenClaw/issue가 그대로 읽을 수 있는 `pipeline_report.json`을 남깁니다.
+
 CI나 cron에서 실패 여부만 판정하고 Markdown 요약을 남기려면:
 
 ```bash
@@ -136,6 +150,51 @@ Telegram 메시지를 실제 전송 전에 확인하려면:
 python3 scripts/send_policy_briefing_qc_telegram.py \
   exports/policy_briefing_qc/2026-04-09/pipeline_report.json \
   --print-only
+```
+
+## OpenClaw 운영 콘솔
+
+OpenClaw를 함께 쓰고 있다면 Telegram DM에서 GovPress QC 운영 명령을 짧게 실행할 수 있습니다.
+실제 명령 실행기는 [scripts/openclaw_ops.py](/home/wavel/projects/GovPress_PDF_MD/scripts/openclaw_ops.py:1)이며, OpenClaw는 이 래퍼만 호출하도록 두는 것이 안전합니다.
+
+직접 실행 예시:
+
+```bash
+python3 scripts/openclaw_ops.py qc-status --date latest
+python3 scripts/openclaw_ops.py qc-failures --date latest
+python3 scripts/openclaw_ops.py server-status
+python3 scripts/openclaw_ops.py telegram-dispatch --chat-scope dm --message "/qc today"
+```
+
+Telegram DM 명령 계약:
+
+- `/qc today`
+- `/qc rerun 2026-04-12`
+- `/qc failures`
+- `/qc issue`
+- `/qc promote 2026-04-12 policy_briefing_2026_04_12_1234567890`
+- `/server status`
+- `/server failover-check`
+
+기본 정책:
+
+- 명령은 owner DM에서만 허용
+- `rerun`, `promote-sample`까지만 실행
+- 서버 관련 명령은 상태 점검만 수행
+
+OpenClaw cron digest를 등록하려면:
+
+```bash
+bash scripts/setup_openclaw_qc_ops.sh
+```
+
+이 스크립트는 dedicated agent `govpress_qc_ops`와 `govpress-qc-digest` cron job을 만들고, `/qc today`를 매일 한국 시간 `13:20`에 owner DM으로 요약 전송하도록 등록합니다.
+
+로컬에서 dedicated agent를 직접 테스트하려면:
+
+```bash
+openclaw agent --agent govpress_qc_ops --message "/server status" --json
+openclaw agent --agent govpress_qc_ops --message "/qc today" --json
 ```
 
 서버 cron에서 직접 돌릴 때는 아래 스크립트를 사용하면 됩니다.

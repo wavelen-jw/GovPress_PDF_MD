@@ -35,6 +35,9 @@ python3 scripts/run_policy_briefing_qc_pipeline.py ...
 
 이제 정책브리핑 API에서 가져온 HWPX/PDF를 기사별로 저장하고, 필요하면 곧바로 `gov-md-converter`의 scratch sample로 scaffold할 수 있습니다.
 
+정책브리핑 API가 일시적으로 죽어 있어도 완전히 멈추지는 않습니다.  
+로컬 코퍼스용 [run_local_hwpx_qc_pipeline.py](/home/wavel/projects/GovPress_PDF_MD/scripts/run_local_hwpx_qc_pipeline.py:1)를 쓰면 `../gov-md-converter/tests/problem` 같은 로컬 HWPX/PDF를 같은 `pipeline_report.json` 형식으로 감쌀 수 있습니다.
+
 ### 3. QC 파이프라인이 한 번에 이어진다
 
 `run_policy_briefing_qc_pipeline.py`는 아래를 순서대로 실행합니다.
@@ -154,6 +157,28 @@ python3 scripts/send_policy_briefing_qc_telegram.py ...
 
 이 신호는 issue, dashboard, Telegram 요약의 설명력을 높입니다.
 
+### 10. OpenClaw를 운영 콘솔로 붙일 수 있게 됐다
+
+추가된 주요 명령:
+
+```bash
+python3 scripts/openclaw_ops.py qc-status --date latest
+python3 scripts/openclaw_ops.py qc-failures --date latest
+python3 scripts/openclaw_ops.py server-status
+```
+
+Telegram DM에서 쓰는 명령 계약:
+
+- `/qc today`
+- `/qc rerun YYYY-MM-DD`
+- `/qc failures`
+- `/qc issue`
+- `/qc promote YYYY-MM-DD sample_id`
+- `/server status`
+- `/server failover-check`
+
+이제 OpenClaw를 이미 쓰고 있다면 QC 대시보드/실패 큐/서버 상태를 채팅에서 바로 조회하고, 필요하면 QC rerun이나 sample promotion까지 이어갈 수 있습니다.
+
 ## 당신 입장에서 지금 달라진 점
 
 이전에는:
@@ -175,6 +200,14 @@ python3 scripts/send_policy_briefing_qc_telegram.py ...
 즉, 당신이 직접 해야 하는 일은 “결과를 모두 수작업으로 정리하는 것”에서  
 “정말 수정 가치가 있는 결함을 보고 승인/수정 방향을 결정하는 것” 쪽으로 줄었습니다.
 
+추가로 OpenClaw까지 붙이면:
+
+- Telegram DM에서 `/qc today`로 오늘 상태 확인
+- `/qc failures`로 바로 수정 대상 샘플 확인
+- `/server status`로 현재 기본 서버와 fallback 상태 확인
+
+처럼 운영 확인 자체도 대시보드나 Actions를 열지 않고 먼저 좁혀볼 수 있습니다.
+
 ## 이미 끝난 설정
 
 오늘 기준으로 다음은 이미 반영됐습니다.
@@ -186,6 +219,8 @@ python3 scripts/send_policy_briefing_qc_telegram.py ...
 - Telegram 테스트 메시지 실제 전송 확인
 - GitHub Actions workflow 추가
 - dashboard / issue / Telegram / monitor shell script 연결
+- OpenClaw QC 래퍼 CLI 추가
+- OpenClaw cron 등록 스크립트 추가
 
 ## 이제 어떻게 쓰면 되는가
 
@@ -214,6 +249,39 @@ python3 scripts/build_policy_briefing_qc_dashboard.py \
   --root exports/policy_briefing_qc \
   --output-html exports/policy_briefing_qc/dashboard/index.html \
   --output-json exports/policy_briefing_qc/dashboard/dashboard.json
+```
+
+OpenClaw에서 같은 정보를 보려면:
+
+```bash
+python3 scripts/openclaw_ops.py qc-status --date latest
+python3 scripts/openclaw_ops.py qc-failures --date latest
+python3 scripts/openclaw_ops.py server-failover-check
+```
+
+OpenClaw cron digest를 등록하려면:
+
+```bash
+bash scripts/setup_openclaw_qc_ops.sh
+```
+
+정책브리핑 API가 죽어 있을 때 임시로 실데이터 대신 로컬 코퍼스로 artifact를 채우려면:
+
+```bash
+python3 scripts/run_local_hwpx_qc_pipeline.py \
+  --date 2026-04-12 \
+  --output-root exports/policy_briefing_qc \
+  --gov-md-converter-root ../gov-md-converter \
+  --qc-root ../gov-md-converter/tests/manual_samples/local_batch \
+  --source-root ../gov-md-converter/tests/problem \
+  --limit 5
+```
+
+설치가 끝나면 dedicated agent `govpress_qc_ops`가 생기고, 아래처럼 직접 점검할 수 있습니다.
+
+```bash
+openclaw agent --agent govpress_qc_ops --message "/server status" --json
+openclaw agent --agent govpress_qc_ops --message "/qc today" --json
 ```
 
 Telegram 메시지 미리보기:
