@@ -32,14 +32,16 @@ concurrency:
 #             CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET
 #   Variables: GOVPRESS_H_SSH_HOST (e.g. ssh-h.govpress.cloud),
 #              GOVPRESS_H_DEPLOY_DIR, GOVPRESS_H_SERVICE,
-#              GOVPRESS_H_HEALTHCHECK_URL, GOVPRESS_H_BRANCH
+#              GOVPRESS_H_HEALTHCHECK_URL, GOVPRESS_H_BRANCH,
+#              GOVPRESS_H_COMPOSE_FILE
 #
 # 서버W (api4.govpress.cloud) — WSL, Cloudflare Tunnel SSH
 #   Secrets : GOVPRESS_W_USER, GOVPRESS_W_SSH_KEY,
 #             CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET (공용)
 #   Variables: GOVPRESS_W_SSH_HOST (e.g. ssh-w.govpress.cloud),
 #              GOVPRESS_W_DEPLOY_DIR, GOVPRESS_W_SERVICE,
-#              GOVPRESS_W_HEALTHCHECK_URL, GOVPRESS_W_BRANCH
+#              GOVPRESS_W_HEALTHCHECK_URL, GOVPRESS_W_BRANCH,
+#              GOVPRESS_W_COMPOSE_FILE
 #
 # 서버H/W는 GOVPRESS_H_DEPLOY_DIR / GOVPRESS_W_DEPLOY_DIR 변수가
 # 설정되어 있을 때만 실행됩니다. 미설정 시 해당 잡은 건너뜁니다.
@@ -73,6 +75,7 @@ jobs:
       deploy_dir:      ${{ vars.GOVPRESS_H_DEPLOY_DIR }}
       branch:          ${{ vars.GOVPRESS_H_BRANCH || 'web' }}
       compose_file:    ${{ vars.GOVPRESS_H_COMPOSE_FILE || 'deploy/wsl/docker-compose.host-proxy.yml' }}
+      deploy_mode:     host_proxy
       healthcheck_url: ${{ vars.GOVPRESS_H_HEALTHCHECK_URL || 'http://127.0.0.1:8080/health' }}
     secrets:
       user:             ${{ secrets.GOVPRESS_H_USER }}
@@ -90,6 +93,7 @@ jobs:
       deploy_dir:      ${{ vars.GOVPRESS_W_DEPLOY_DIR }}
       branch:          ${{ vars.GOVPRESS_W_BRANCH || 'web' }}
       compose_file:    ${{ vars.GOVPRESS_W_COMPOSE_FILE || 'deploy/wsl/docker-compose.yml' }}
+      deploy_mode:     compose_proxy
       healthcheck_url: ${{ vars.GOVPRESS_W_HEALTHCHECK_URL || 'http://127.0.0.1:8080/health' }}
     secrets:
       user:             ${{ secrets.GOVPRESS_W_USER }}

@@ -6,6 +6,7 @@ echo "remote_host=$(hostname)"
 echo "remote_user=$(whoami)"
 echo "deploy_dir=${DEPLOY_DIR}"
 echo "target_branch=${BRANCH}"
+echo "deploy_mode=${DEPLOY_MODE:-compose_proxy}"
 
 git -C "$DEPLOY_DIR" fetch origin
 # Deploy targets are treated as disposable working trees.
@@ -53,25 +54,38 @@ env_path.write_text("\n".join(updated).rstrip() + "\n")
 PY
 }
 
-cleanup_wsl_compose_conflicts() {
-  local deploy_root="$1"
-
-  mkdir -p \
-    "$deploy_root/deploy/wsl/data/storage" \
-    "$deploy_root/deploy/wsl/data/caddy" \
-    "$deploy_root/deploy/wsl/config/caddy"
-
-  # WSL hosts sometimes keep an old host-level Caddy process or stale compose
-  # containers around. That leaves 127.0.0.1:8080 occupied and breaks the
-  # compose-managed Caddy/container tunnel path on the next deploy.
-  sudo -n systemctl stop caddy >/dev/null 2>&1 || true
-  sudo -n pkill -f '^caddy run --config /etc/caddy/Caddyfile' >/dev/null 2>&1 || true
-  sudo -n fuser -k 8080/tcp >/dev/null 2>&1 || true
-
-  docker rm -f govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
-
-  echo "wsl_cleanup=1"
+run_compose() {
+  if [ -x "$DEPLOY_DIR/deploy/wsl/bin/compose.sh" ]; then
+    COMPOSE_FILE_OVERRIDE="$COMPOSE_PATH" "$DEPLOY_DIR/deploy/wsl/bin/compose.sh" "$@"
+  elif command -v docker-compose >/dev/null 2>&1; then
+    docker-compose -f "$COMPOSE_PATH" "$@"
+  else
+    docker compose -f "$COMPOSE_PATH" "$@"
+  fi
 }
+
+cleanup_host_proxy_orphans() {
+  docker rm -f govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
+  echo "host_proxy_orphan_cleanup=1"
+}
+
+emit_compose_diagnostics() {
+  echo "=== compose diagnostics ==="
+  if [ -n "${COMPOSE_FILE:-}" ]; then
+    echo "compose_file=$COMPOSE_FILE"
+    echo "deploy_mode=${DEPLOY_MODE:-compose_proxy}"
+    run_compose ps || true
+    run_compose logs --tail=100 api worker caddy cloudflared || true
+  fi
+  echo "=== host port diagnostics ==="
+  ss -ltnp | grep ':8080' || true
+  echo "=== health probe diagnostics ==="
+  curl -i --max-time 10 "$HEALTHCHECK_URL" || true
+  echo "=== container diagnostics ==="
+  docker inspect --format 'name={{.Name}} state={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' govpress-api govpress-worker govpress-caddy govpress-cloudflared 2>/dev/null || true
+}
+
+trap 'emit_compose_diagnostics' ERR
 
 # Keep deploy-time cache eviction explicit so policy briefing fixes go live on
 # every server even when only cached converted output would differ.
@@ -103,19 +117,11 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
   if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
   fi
-  if [ "$COMPOSE_FILE" = "deploy/wsl/docker-compose.yml" ]; then
-    cleanup_wsl_compose_conflicts "$DEPLOY_DIR"
+  if [ "${DEPLOY_MODE:-compose_proxy}" = "host_proxy" ]; then
+    cleanup_host_proxy_orphans
   fi
-  if [ -x "$DEPLOY_DIR/deploy/wsl/bin/compose.sh" ]; then
-    COMPOSE_FILE_OVERRIDE="$COMPOSE_PATH" "$DEPLOY_DIR/deploy/wsl/bin/compose.sh" up -d --build --remove-orphans
-    COMPOSE_FILE_OVERRIDE="$COMPOSE_PATH" "$DEPLOY_DIR/deploy/wsl/bin/compose.sh" ps
-  elif command -v docker-compose >/dev/null 2>&1; then
-    docker-compose -f "$COMPOSE_PATH" up -d --build --remove-orphans
-    docker-compose -f "$COMPOSE_PATH" ps
-  else
-    docker compose -f "$COMPOSE_PATH" up -d --build --remove-orphans
-    docker compose -f "$COMPOSE_PATH" ps
-  fi
+  run_compose up -d --build --remove-orphans
+  run_compose ps
   sleep 3
 else
   export XDG_RUNTIME_DIR="/run/user/$(id -u)"

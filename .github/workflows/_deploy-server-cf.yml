@@ -17,6 +17,11 @@ on:
         # 설정하면 systemctl 대신 docker compose up -d --build 사용
         type: string
         default: ""
+      deploy_mode:
+        # compose_proxy: compose가 api/worker/caddy/cloudflared를 모두 관리
+        # host_proxy: host-level caddy/cloudflared를 유지하고 compose는 api/worker만 관리
+        type: string
+        default: "compose_proxy"
       service:
         type: string
         default: ""
@@ -126,6 +131,7 @@ jobs:
           DEPLOY_DIR: ${{ inputs.deploy_dir }}
           BRANCH: ${{ inputs.branch }}
           COMPOSE_FILE: ${{ inputs.compose_file }}
+          DEPLOY_MODE: ${{ inputs.deploy_mode }}
           SERVICE: ${{ inputs.service }}
           HEALTHCHECK_URL: ${{ inputs.healthcheck_url }}
           CONVERTER_SPEC: ${{ secrets.converter_spec }}
@@ -134,7 +140,7 @@ jobs:
           KEY_FILE=~/.ssh/deploy_key
           LOCAL_SCRIPT=deploy/common/remote-deploy-cf.sh
           REMOTE_PATH="/tmp/govpress-remote-deploy-${GITHUB_RUN_ID:-manual}.sh"
-          REMOTE_CMD="$(printf "export DEPLOY_DIR=%q BRANCH=%q COMPOSE_FILE=%q SERVICE=%q HEALTHCHECK_URL=%q CONVERTER_SPEC=%q; cat > %q && chmod 700 %q && /bin/bash --noprofile --norc %q && rm -f %q" "$DEPLOY_DIR" "$BRANCH" "$COMPOSE_FILE" "$SERVICE" "$HEALTHCHECK_URL" "$CONVERTER_SPEC" "$REMOTE_PATH" "$REMOTE_PATH" "$REMOTE_PATH" "$REMOTE_PATH")"
+          REMOTE_CMD="$(printf "export DEPLOY_DIR=%q BRANCH=%q COMPOSE_FILE=%q DEPLOY_MODE=%q SERVICE=%q HEALTHCHECK_URL=%q CONVERTER_SPEC=%q; cat > %q && chmod 700 %q && /bin/bash --noprofile --norc %q && rm -f %q" "$DEPLOY_DIR" "$BRANCH" "$COMPOSE_FILE" "$DEPLOY_MODE" "$SERVICE" "$HEALTHCHECK_URL" "$CONVERTER_SPEC" "$REMOTE_PATH" "$REMOTE_PATH" "$REMOTE_PATH" "$REMOTE_PATH")"
           : > remote-deploy.log
           wc -c "$LOCAL_SCRIPT" | tee remote-deploy-script-size.log >> remote-deploy.log
           set +e
@@ -153,6 +159,7 @@ jobs:
             echo "- Branch: \`${{ inputs.branch }}\`"
             echo "- Service: \`${{ inputs.service }}\`"
             echo "- Host: \`${{ inputs.ssh_host }}\`"
+            echo "- Deploy mode: \`${{ inputs.deploy_mode }}\`"
             echo ""
             echo '```text'
             cat remote-deploy.log 2>/dev/null || true
