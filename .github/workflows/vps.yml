@@ -86,7 +86,6 @@ jobs:
 
   deploy-w:
     name: "서버W (WSL, CF Tunnel)"
-    continue-on-error: true
     if: ${{ vars.GOVPRESS_W_DEPLOY_DIR != '' }}
     uses: ./.github/workflows/_deploy-server-cf.yml
     with:
