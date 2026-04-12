@@ -75,6 +75,10 @@ async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: num
   }
 }
 
+function isRetryableServerError(status: number): boolean {
+  return status >= 500 || status === 408 || status === 429;
+}
+
 function isRetryableUploadError(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false;
@@ -191,11 +195,38 @@ export async function fetchTodayPolicyBriefings(config: AppConfig, date?: string
 }
 
 export async function importPolicyBriefing(config: AppConfig, newsItemId: string): Promise<PolicyBriefingImportPayload> {
-  return fetchJson(config, "/v1/policy-briefings/import", {
-    method: "POST",
-    headers: buildHeaders(config, "application/json"),
-    body: JSON.stringify({ news_item_id: newsItemId }),
-  });
+  const attempts = getFallbackBaseUrls(config.baseUrl);
+  const failures: string[] = [];
+
+  for (const baseUrl of attempts) {
+    try {
+      const response = await fetchWithTimeout(
+        `${baseUrl}/v1/policy-briefings/import`,
+        {
+          method: "POST",
+          headers: buildHeaders(config, "application/json"),
+          body: JSON.stringify({ news_item_id: newsItemId }),
+        },
+        SERVER_FALLBACK_TIMEOUT_MS,
+      );
+      if (!response.ok) {
+        const detail = await response.text();
+        if (!isRetryableServerError(response.status)) {
+          throw new ApiError(response.status, detail || `Request failed: ${response.status}`);
+        }
+        throw new Error(detail || `Request failed: ${response.status}`);
+      }
+      return (await response.json()) as PolicyBriefingImportPayload;
+    } catch (error) {
+      const message = normalizePolicyBriefingFailure(error instanceof Error ? error.message : String(error));
+      failures.push(`${baseUrl}: ${message}`);
+      if (!isRetryableUploadError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error(`정책브리핑 불러오기에 실패했습니다. ${failures.join(" | ")}`);
 }
 
 export async function saveResult(config: AppConfig, jobId: string, markdown: string, editToken: string): Promise<void> {

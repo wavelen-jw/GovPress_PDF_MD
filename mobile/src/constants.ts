@@ -8,15 +8,21 @@ export const STORAGE_KEYS = {
   draftPrefix: "govpress.mobile.draft",
 } as const;
 
-export const BUILD_TAG = "mobile-web-2026-04-11-policy-briefing-timeout";
+export const BUILD_TAG = "mobile-web-2026-04-12-serverw-failover-fix";
 
 export const SERVER_FALLBACK_TIMEOUT_MS = 8000;
 
 export const SERVER_PRESETS = [
-  { key: "serverV", label: "서버V", shortLabel: "서버V", url: "https://api2.govpress.cloud" },
   { key: "serverW", label: "서버W", shortLabel: "서버W", url: "https://api4.govpress.cloud" },
   { key: "serverH", label: "서버H", shortLabel: "서버H", url: "https://api.govpress.cloud" },
+  { key: "serverV", label: "서버V", shortLabel: "서버V", url: "https://api2.govpress.cloud" },
 ] as const;
+
+export const PRIMARY_SERVER_KEY = "serverW" as const;
+
+export function primaryServerUrl(): string {
+  return SERVER_PRESETS.find((preset) => preset.key === PRIMARY_SERVER_KEY)?.url || SERVER_PRESETS[0].url;
+}
 
 export function isHostedWeb(): boolean {
   return Platform.OS === "web" && typeof window !== "undefined" && window.location.hostname.endsWith("github.io");
@@ -25,11 +31,11 @@ export function isHostedWeb(): boolean {
 export function defaultBaseUrl(): string {
   if (Platform.OS === "web" && typeof window !== "undefined") {
     if (isHostedWeb()) {
-      return SERVER_PRESETS.find((preset) => preset.key === "serverH")?.url || SERVER_PRESETS[0].url;
+      return primaryServerUrl();
     }
     return `${window.location.protocol}//${window.location.hostname}:8013`;
   }
-  return "http://127.0.0.1:8012";
+  return primaryServerUrl();
 }
 
 export function normalizeBaseUrl(baseUrl: string | null): string {
@@ -61,7 +67,13 @@ export function getServerLabel(baseUrl: string): string {
 
 export function getFallbackBaseUrls(baseUrl: string): string[] {
   const preferred = baseUrl.trim() || defaultBaseUrl();
-  if (!isHostedWeb()) {
+  if (
+    preferred.includes("127.0.0.1") ||
+    preferred.includes("localhost") ||
+    preferred.startsWith("http://10.") ||
+    preferred.startsWith("http://192.168.") ||
+    preferred.startsWith("http://172.")
+  ) {
     return [preferred];
   }
   const ordered = [preferred, ...SERVER_PRESETS.map((preset) => preset.url)];

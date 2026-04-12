@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, Text, View } from "react-native";
 
-import { SERVER_FALLBACK_TIMEOUT_MS, SERVER_PRESETS } from "../constants";
+import { PRIMARY_SERVER_KEY, SERVER_FALLBACK_TIMEOUT_MS, SERVER_PRESETS } from "../constants";
 import { styles } from "../styles";
 import type { AppConfig } from "../types";
 
@@ -28,7 +28,7 @@ export function SettingsModal({
   const [checkingStatus, setCheckingStatus] = useState(false);
 
   const selectedKey = useMemo<ServerKey>(() => {
-    return SERVER_PRESETS.find((preset) => preset.url === draft.baseUrl)?.key || "serverH";
+    return SERVER_PRESETS.find((preset) => preset.url === draft.baseUrl)?.key || PRIMARY_SERVER_KEY;
   }, [draft.baseUrl]);
 
   useEffect(() => {
