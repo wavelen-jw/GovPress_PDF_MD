@@ -68,6 +68,11 @@ export type PolicyBriefingImportPayload = JobCreatePayload & {
   original_url: string;
 };
 
+export type PolicyBriefingImportResult = {
+  payload: PolicyBriefingImportPayload;
+  resolvedBaseUrl: string;
+};
+
 export type UploadResult = {
   job: JobCreatePayload;
   resolvedBaseUrl: string;

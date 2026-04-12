@@ -6,6 +6,7 @@ import type {
   AppConfig,
   HwpxTableMode,
   Job,
+  PolicyBriefingImportResult,
   PolicyBriefingImportPayload,
   PolicyBriefingListPayload,
   ResultPayload,
@@ -114,12 +115,72 @@ function buildUploadBody(asset: DocumentPicker.DocumentPickerAsset, hwpxTableMod
   return form;
 }
 
+async function fetchJsonWithFallback<T>(
+  config: AppConfig,
+  path: string,
+  init: RequestInit | undefined,
+  timeoutMs: number,
+  editToken?: string | null,
+): Promise<{ payload: T; resolvedBaseUrl: string }> {
+  const attempts = getFallbackBaseUrls(config.baseUrl);
+  const failures: string[] = [];
+
+  for (const baseUrl of attempts) {
+    try {
+      const response = await fetchWithTimeout(
+        `${baseUrl}${path}`,
+        {
+          ...init,
+          headers: {
+            ...buildHeaders(config, undefined, editToken),
+            ...(init?.headers as Record<string, string> | undefined),
+          },
+        },
+        timeoutMs,
+      );
+      if (!response.ok) {
+        const detail = await response.text();
+        if (!isRetryableServerError(response.status)) {
+          throw new ApiError(response.status, detail || `Request failed: ${response.status}`);
+        }
+        throw new Error(detail || `Request failed: ${response.status}`);
+      }
+      return {
+        payload: (await response.json()) as T,
+        resolvedBaseUrl: baseUrl,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(`${baseUrl}: ${message}`);
+      if (!isRetryableUploadError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error(`모든 서버 요청에 실패했습니다. ${failures.join(" | ")}`);
+}
+
 export async function fetchJob(config: AppConfig, jobId: string, editToken: string): Promise<Job> {
-  return fetchJson(config, `/v1/jobs/${jobId}`, undefined, editToken);
+  const { payload } = await fetchJsonWithFallback<Job>(
+    config,
+    `/v1/jobs/${jobId}`,
+    undefined,
+    SERVER_FALLBACK_TIMEOUT_MS,
+    editToken,
+  );
+  return payload;
 }
 
 export async function fetchResult(config: AppConfig, jobId: string, editToken: string): Promise<ResultPayload> {
-  return fetchJson(config, `/v1/jobs/${jobId}/result`, undefined, editToken);
+  const { payload } = await fetchJsonWithFallback<ResultPayload>(
+    config,
+    `/v1/jobs/${jobId}/result`,
+    undefined,
+    SERVER_FALLBACK_TIMEOUT_MS,
+    editToken,
+  );
+  return payload;
 }
 
 export async function uploadPdf(
@@ -158,7 +219,14 @@ export async function uploadPdf(
 }
 
 export async function retryJob(config: AppConfig, jobId: string, editToken: string): Promise<Job> {
-  return fetchJson(config, `/v1/jobs/${jobId}/retry`, { method: "POST" }, editToken);
+  const { payload } = await fetchJsonWithFallback<Job>(
+    config,
+    `/v1/jobs/${jobId}/retry`,
+    { method: "POST" },
+    SERVER_FALLBACK_TIMEOUT_MS,
+    editToken,
+  );
+  return payload;
 }
 
 export async function fetchTodayPolicyBriefings(config: AppConfig, date?: string): Promise<PolicyBriefingListPayload> {
@@ -194,7 +262,7 @@ export async function fetchTodayPolicyBriefings(config: AppConfig, date?: string
   throw new Error(`정책브리핑 목록 요청에 실패했습니다. ${failures.join(" | ")}`);
 }
 
-export async function importPolicyBriefing(config: AppConfig, newsItemId: string): Promise<PolicyBriefingImportPayload> {
+export async function importPolicyBriefing(config: AppConfig, newsItemId: string): Promise<PolicyBriefingImportResult> {
   const attempts = getFallbackBaseUrls(config.baseUrl);
   const failures: string[] = [];
 
@@ -216,7 +284,10 @@ export async function importPolicyBriefing(config: AppConfig, newsItemId: string
         }
         throw new Error(detail || `Request failed: ${response.status}`);
       }
-      return (await response.json()) as PolicyBriefingImportPayload;
+      return {
+        payload: (await response.json()) as PolicyBriefingImportPayload,
+        resolvedBaseUrl: baseUrl,
+      };
     } catch (error) {
       const message = normalizePolicyBriefingFailure(error instanceof Error ? error.message : String(error));
       failures.push(`${baseUrl}: ${message}`);
@@ -230,9 +301,15 @@ export async function importPolicyBriefing(config: AppConfig, newsItemId: string
 }
 
 export async function saveResult(config: AppConfig, jobId: string, markdown: string, editToken: string): Promise<void> {
-  await fetchJson(config, `/v1/jobs/${jobId}/result`, {
-    method: "PATCH",
-    headers: buildHeaders(config, "application/json", editToken),
-    body: JSON.stringify({ markdown }),
-  }, editToken);
+  await fetchJsonWithFallback<void>(
+    config,
+    `/v1/jobs/${jobId}/result`,
+    {
+      method: "PATCH",
+      headers: buildHeaders(config, "application/json", editToken),
+      body: JSON.stringify({ markdown }),
+    },
+    SERVER_FALLBACK_TIMEOUT_MS,
+    editToken,
+  );
 }

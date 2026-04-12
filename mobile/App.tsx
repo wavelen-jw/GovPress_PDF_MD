@@ -862,12 +862,23 @@ export default function App(): React.JSX.Element {
     setBusy(true);
     setNotice("정책브리핑 HWPX를 가져오는 중...");
     try {
-      const imported = await importPolicyBriefing(config, item.news_item_id);
+      const { payload: imported, resolvedBaseUrl } = await importPolicyBriefing(config, item.news_item_id);
+      if (resolvedBaseUrl !== config.baseUrl) {
+        const nextConfig = { ...config, baseUrl: resolvedBaseUrl };
+        invalidateJobRefreshes();
+        await persistConfig(nextConfig);
+        startTransition(() => {
+          setConfig(nextConfig);
+          setConfigDraft(nextConfig);
+        });
+        setNotice(`${getServerLabel(resolvedBaseUrl)}로 자동 전환했습니다.`);
+      }
       startTransition(() => {
         setPolicyBriefingVisible(false);
         setSelectedJobId(imported.job_id);
         setCurrentEditToken(imported.edit_token);
         setSelectedJob(imported);
+        setSelectedJobBaseUrl(resolvedBaseUrl);
         setResult(null);
         setLoadedTableMode("text");
         setSelectedTableMode("text");
@@ -878,8 +889,8 @@ export default function App(): React.JSX.Element {
         setActiveTab("preview");
         setMobileShowList(false);
       });
-      addToRecentJobs(imported.job_id, imported.edit_token, imported.file_name, config.baseUrl);
-      await refreshSelectedJob(imported.job_id, imported.edit_token, false);
+      addToRecentJobs(imported.job_id, imported.edit_token, imported.file_name, resolvedBaseUrl);
+      await refreshSelectedJob(imported.job_id, imported.edit_token, false, false, resolvedBaseUrl);
     } catch (error) {
       showError("정책브리핑 보도자료를 가져오지 못했습니다.", error);
     } finally {
