@@ -292,53 +292,61 @@ function openExternalLink(url: string): void {
 
 function renderInlineMarkdown(text: string, textStyle: object, keyPrefix: string, isDarkMode = false) {
   const pattern = /(\*\*[^*]+\*\*|~~[^~]+~~|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
-  const matches = text.split(pattern).filter(Boolean);
+  const lineParts = text.split(/<br\s*\/?>/gi);
 
   return (
     <Text style={textStyle}>
-      {matches.map((part, index) => {
-        const key = `${keyPrefix}-${index}`;
-        if (/^\*\*[^*]+\*\*$/.test(part)) {
-          return (
-            <Text key={key} style={[styles.markdownStrong, isDarkMode && styles.markdownStrongDark]}>
-              {part.slice(2, -2)}
-            </Text>
-          );
-        }
-        if (/^\*[^*]+\*$/.test(part)) {
-          return (
-            <Text key={key} style={styles.markdownEmphasis}>
-              {part.slice(1, -1)}
-            </Text>
-          );
-        }
-        if (/^~~[^~]+~~$/.test(part)) {
-          return (
-            <Text key={key} style={[styles.markdownStrike, isDarkMode && styles.markdownStrikeDark]}>
-              {part.slice(2, -2)}
-            </Text>
-          );
-        }
-        if (/^`[^`]+`$/.test(part)) {
-          return (
-            <Text key={key} style={[styles.markdownInlineCode, isDarkMode && styles.markdownInlineCodeDark]}>
-              {part.slice(1, -1)}
-            </Text>
-          );
-        }
-        const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-        if (linkMatch) {
-          return (
-            <Text
-              key={key}
-              style={[styles.markdownLink, isDarkMode && styles.markdownLinkDark]}
-              onPress={() => openExternalLink(linkMatch[2])}
-            >
-              {linkMatch[1]}
-            </Text>
-          );
-        }
-        return <Text key={key}>{part}</Text>;
+      {lineParts.map((linePart, lineIndex) => {
+        const matches = linePart.split(pattern).filter(Boolean);
+        return (
+          <React.Fragment key={`${keyPrefix}-line-${lineIndex}`}>
+            {lineIndex > 0 ? "\n" : null}
+            {matches.map((part, index) => {
+              const key = `${keyPrefix}-${lineIndex}-${index}`;
+              if (/^\*\*[^*]+\*\*$/.test(part)) {
+                return (
+                  <Text key={key} style={[styles.markdownStrong, isDarkMode && styles.markdownStrongDark]}>
+                    {part.slice(2, -2)}
+                  </Text>
+                );
+              }
+              if (/^\*[^*]+\*$/.test(part)) {
+                return (
+                  <Text key={key} style={styles.markdownEmphasis}>
+                    {part.slice(1, -1)}
+                  </Text>
+                );
+              }
+              if (/^~~[^~]+~~$/.test(part)) {
+                return (
+                  <Text key={key} style={[styles.markdownStrike, isDarkMode && styles.markdownStrikeDark]}>
+                    {part.slice(2, -2)}
+                  </Text>
+                );
+              }
+              if (/^`[^`]+`$/.test(part)) {
+                return (
+                  <Text key={key} style={[styles.markdownInlineCode, isDarkMode && styles.markdownInlineCodeDark]}>
+                    {part.slice(1, -1)}
+                  </Text>
+                );
+              }
+              const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+              if (linkMatch) {
+                return (
+                  <Text
+                    key={key}
+                    style={[styles.markdownLink, isDarkMode && styles.markdownLinkDark]}
+                    onPress={() => openExternalLink(linkMatch[2])}
+                  >
+                    {linkMatch[1]}
+                  </Text>
+                );
+              }
+              return <Text key={key}>{part}</Text>;
+            })}
+          </React.Fragment>
+        );
       })}
     </Text>
   );

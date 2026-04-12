@@ -174,16 +174,27 @@ python3 scripts/send_policy_briefing_qc_telegram.py \
 
 ## OpenClaw 운영 콘솔
 
-OpenClaw를 함께 쓰고 있다면 Telegram DM에서 GovPress QC 운영 명령을 짧게 실행할 수 있습니다.
-실제 명령 실행기는 [scripts/openclaw_ops.py](/home/wavel/projects/GovPress_PDF_MD/scripts/openclaw_ops.py:1)이며, OpenClaw는 이 래퍼만 호출하도록 두는 것이 안전합니다.
+OpenClaw를 함께 쓰고 있다면 Telegram DM에서 GovPress QC 운영 명령과 원격 QC 검토 작업을 바로 수행할 수 있습니다.
+실제 명령 실행기는 [scripts/openclaw_ops.py](/home/wavel/projects/GovPress_PDF_MD/scripts/openclaw_ops.py:1)이며, `job 선택 → review/source/rendered 다운로드 → golden.md 업로드 → 통과/보류`까지 이 래퍼가 처리합니다.
+모델 역할은 분리합니다.
+
+- `govpress_qc_ops`: `gpt-5.4-mini` 라우터
+- `govpress_qc_worker`: `gpt-5.4` 내부 QC 작업
+
+즉 파일 전달과 상태 작업은 `mini`가 처리하고, `수정: ...` 같은 실제 QC 수정 지시는 wrapper가 로컬 `codex exec -m gpt-5.4` 작업기로 handoff합니다.
+QC 수정은 완전 장기세션이 아니라 `배치 단위 Codex 세션 + 파일 메모리`로 운영합니다.
+
+- 같은 QC 배치 안의 `수정:` 요청은 기존 Codex thread를 `resume`
+- 배치가 바뀌거나 turn/sample 수가 커지면 새 세션으로 리셋
+- 공식 기억은 `<gov-md-root>/tests/manual_samples/qc_memory` 아래 파일에 남깁니다.
 
 직접 실행 예시:
 
 ```bash
-python3 scripts/openclaw_ops.py qc-status --date latest
-python3 scripts/openclaw_ops.py qc-failures --date latest
-python3 scripts/openclaw_ops.py server-status
-python3 scripts/openclaw_ops.py telegram-dispatch --chat-scope dm --message "/qc today"
+python3 <repo-root>/scripts/openclaw_ops.py qc-status --date latest
+python3 <repo-root>/scripts/openclaw_ops.py qc-failures --date latest
+python3 <repo-root>/scripts/openclaw_ops.py server-status
+python3 <repo-root>/scripts/openclaw_ops.py telegram-dispatch --chat-scope dm --message "/qc today"
 ```
 
 Telegram DM 명령 계약:
@@ -196,10 +207,28 @@ Telegram DM 명령 계약:
 - `/server status`
 - `/server failover-check`
 
+원격 QC 작업 계약:
+
+- `job 목록 보여줘`
+- `review 필요한 job만 보여줘`
+- `<sample-id> 열어줘`
+- `다음 job 보여줘`
+- `source 보내줘`
+- `rendered 보내줘`
+- `review 보내줘`
+- `golden 보내줘`
+- `golden.md` 업로드
+- `통과`
+- `보류`
+- `수정: ...`
+
 기본 정책:
 
 - 명령은 owner DM에서만 허용
-- `rerun`, `promote-sample`까지만 실행
+- owner DM 식별은 `GOVPRESS_QC_DEFAULT_SENDER_ID` 또는 `TELEGRAM_CHAT_ID`로 설정
+- 슬래시 명령은 상태 조회/재실행/승격용
+- 원격 QC는 `storage_batch` 샘플을 기준으로 동작
+- `golden.md` 업로드는 현재 선택된 job에만 붙음
 - 서버 관련 명령은 상태 점검만 수행
 
 OpenClaw cron digest를 등록하려면:

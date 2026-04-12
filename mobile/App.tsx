@@ -455,35 +455,68 @@ export default function App(): React.JSX.Element {
       return name.endsWith(".pdf") || name.endsWith(".hwpx") || name.endsWith(".md");
     }
 
+    function hasFilePayload(event: DragEvent): boolean {
+      const transfer = event.dataTransfer;
+      if (!transfer) {
+        return false;
+      }
+      if (Array.from(transfer.files || []).length > 0) {
+        return true;
+      }
+      if (Array.from(transfer.items || []).some((item) => item.kind === "file")) {
+        return true;
+      }
+      if (Array.from(transfer.types || []).includes("Files")) {
+        return true;
+      }
+      return false;
+    }
+
     function hasSupportedFiles(event: DragEvent): boolean {
-      const files = Array.from(event.dataTransfer?.files || []);
-      return files.some((file) => isSupportedFile(file));
+      const transfer = event.dataTransfer;
+      if (!transfer) {
+        return false;
+      }
+      const files = Array.from(transfer.files || []);
+      if (files.some((file) => isSupportedFile(file))) {
+        return true;
+      }
+      return Array.from(transfer.items || []).some((item) => {
+        if (item.kind !== "file") {
+          return false;
+        }
+        const type = (item.type || "").toLowerCase();
+        return type === "application/pdf" || type.includes("hwpx") || type === "text/markdown" || type === "text/plain";
+      });
     }
 
     const handleDragEnter = (event: DragEvent) => {
-      if (!hasSupportedFiles(event)) {
+      if (!hasFilePayload(event)) {
         return;
       }
       event.preventDefault();
+      event.stopPropagation();
       dragDepth += 1;
-      setDragOverlayVisible(true);
+      setDragOverlayVisible(hasSupportedFiles(event));
     };
 
     const handleDragOver = (event: DragEvent) => {
-      if (!hasSupportedFiles(event)) {
+      if (!hasFilePayload(event)) {
         return;
       }
       event.preventDefault();
+      event.stopPropagation();
       if (event.dataTransfer) {
-        event.dataTransfer.dropEffect = "copy";
+        event.dataTransfer.dropEffect = hasSupportedFiles(event) ? "copy" : "none";
       }
     };
 
     const handleDragLeave = (event: DragEvent) => {
-      if (!hasSupportedFiles(event)) {
+      if (!hasFilePayload(event)) {
         return;
       }
       event.preventDefault();
+      event.stopPropagation();
       dragDepth = Math.max(0, dragDepth - 1);
       if (dragDepth === 0) {
         setDragOverlayVisible(false);
@@ -491,7 +524,7 @@ export default function App(): React.JSX.Element {
     };
 
     const handleDrop = (event: DragEvent) => {
-      if (!hasSupportedFiles(event)) {
+      if (!hasFilePayload(event)) {
         return;
       }
       event.preventDefault();
@@ -500,6 +533,7 @@ export default function App(): React.JSX.Element {
       setDragOverlayVisible(false);
       const file = Array.from(event.dataTransfer?.files || []).find((candidate) => isSupportedFile(candidate));
       if (!file) {
+        setNotice("PDF, HWPX, Markdown 파일만 업로드할 수 있습니다.");
         return;
       }
       const asset: WebDropAsset = {
@@ -1435,6 +1469,9 @@ export default function App(): React.JSX.Element {
             onShareMarkdown={() => void handleShareMarkdown()}
             onResizeDesktopSplit={setDesktopSplitRatio}
             onToggleEditing={() => setEditing((current) => !current)}
+            onHandleDroppedAsset={(asset) => {
+              void handleSelectedAsset(asset);
+            }}
           />
           ) : null}
         </View>
@@ -1506,6 +1543,9 @@ export default function App(): React.JSX.Element {
               onShareMarkdown={() => void handleShareMarkdown()}
               onResizeDesktopSplit={setDesktopSplitRatio}
               onToggleEditing={() => setEditing((current) => !current)}
+              onHandleDroppedAsset={(asset) => {
+                void handleSelectedAsset(asset);
+              }}
             />
           ) : null}
           {!isWideLayout && mobileShowList ? (

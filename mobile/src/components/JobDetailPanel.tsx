@@ -53,6 +53,14 @@ type Props = {
   onShareMarkdown: () => void;
   onResizeDesktopSplit: (ratio: number) => void;
   onToggleEditing: () => void;
+  onHandleDroppedAsset?: (asset: {
+    uri: string;
+    mimeType?: string;
+    name: string;
+    size?: number;
+    file?: File;
+    lastModified?: number;
+  }) => void;
 };
 
 export function JobDetailPanel({
@@ -88,6 +96,7 @@ export function JobDetailPanel({
   onShareMarkdown,
   onResizeDesktopSplit,
   onToggleEditing,
+  onHandleDroppedAsset,
 }: Props) {
   const editorRef = useRef<TextInput | null>(null);
   const splitLayoutRef = useRef<View | null>(null);
@@ -147,6 +156,90 @@ export function JobDetailPanel({
     previewBlockPositionsRef.current[blockIndex] = y;
   }
 
+  function isSupportedDropFile(file: File | null | undefined): boolean {
+    if (!file) {
+      return false;
+    }
+    const name = file.name.toLowerCase();
+    return name.endsWith(".pdf") || name.endsWith(".hwpx") || name.endsWith(".md");
+  }
+
+  const webPreviewDropProps = Platform.OS === "web" && onHandleDroppedAsset
+    ? {
+        onDragOver: (event: any) => {
+          const transfer = event?.nativeEvent?.dataTransfer || event?.dataTransfer;
+          const files = Array.from(transfer?.files || []);
+          if (!files.length) {
+            return;
+          }
+          event.preventDefault?.();
+          event.stopPropagation?.();
+          if (transfer) {
+            transfer.dropEffect = files.some((file) => isSupportedDropFile(file)) ? "copy" : "none";
+          }
+        },
+        onDrop: (event: any) => {
+          const transfer = event?.nativeEvent?.dataTransfer || event?.dataTransfer;
+          const files = Array.from(transfer?.files || []);
+          if (!files.length) {
+            return;
+          }
+          event.preventDefault?.();
+          event.stopPropagation?.();
+          const file = files.find((candidate) => isSupportedDropFile(candidate));
+          if (!file) {
+            return;
+          }
+          onHandleDroppedAsset({
+            uri: typeof window !== "undefined" ? window.URL.createObjectURL(file) : "",
+            mimeType: file.type || undefined,
+            name: file.name,
+            size: file.size,
+            file,
+            lastModified: file.lastModified,
+          });
+        },
+      }
+    : {};
+
+  const webPanelDropProps = Platform.OS === "web" && onHandleDroppedAsset
+    ? {
+        onDragOver: (event: any) => {
+          const transfer = event?.nativeEvent?.dataTransfer || event?.dataTransfer;
+          const files = Array.from(transfer?.files || []);
+          if (!files.length) {
+            return;
+          }
+          event.preventDefault?.();
+          event.stopPropagation?.();
+          if (transfer) {
+            transfer.dropEffect = files.some((file) => isSupportedDropFile(file)) ? "copy" : "none";
+          }
+        },
+        onDrop: (event: any) => {
+          const transfer = event?.nativeEvent?.dataTransfer || event?.dataTransfer;
+          const files = Array.from(transfer?.files || []);
+          if (!files.length) {
+            return;
+          }
+          event.preventDefault?.();
+          event.stopPropagation?.();
+          const file = files.find((candidate) => isSupportedDropFile(candidate));
+          if (!file) {
+            return;
+          }
+          onHandleDroppedAsset({
+            uri: typeof window !== "undefined" ? window.URL.createObjectURL(file) : "",
+            mimeType: file.type || undefined,
+            name: file.name,
+            size: file.size,
+            file,
+            lastModified: file.lastModified,
+          });
+        },
+      }
+    : {};
+
   function clampDesktopRatio(next: number): number {
     return Math.min(0.72, Math.max(0.28, next));
   }
@@ -165,7 +258,7 @@ export function JobDetailPanel({
   }
 
   return (
-    <View style={[styles.columnWide, isWideLayout && styles.detailColumnDesktop]}>
+    <View style={[styles.columnWide, isWideLayout && styles.detailColumnDesktop]} {...webPanelDropProps}>
       {showBackButton && !isCompactLayout ? (
         <View style={styles.sectionHeader}>
           <View style={styles.detailHeaderBar}>
@@ -359,6 +452,7 @@ export function JobDetailPanel({
                         isDarkMode && styles.previewPanelDark,
                         { flexBasis: `${(1 - desktopSplitRatio) * 100}%` },
                       ]}
+                      {...webPreviewDropProps}
                     >
                       {/* Preview tab bar */}
                       {isDarkMode ? (
@@ -487,6 +581,7 @@ export function JobDetailPanel({
                       </View>
                     ) : null}
                     <View style={[styles.previewPanel, styles.previewPanelTablet, isDarkMode && styles.previewPanelDark]}>
+                      <View style={{ flex: 1 }} {...webPreviewDropProps}>
                       {/* Preview tab bar */}
                       {isDarkMode ? (
                         <View style={[styles.panelTabBar, styles.panelTabBarDark]}>
@@ -527,6 +622,7 @@ export function JobDetailPanel({
                           />
                         )}
                       </ScrollView>
+                      </View>
                     </View>
                   </View>
                 ) : (
@@ -614,6 +710,7 @@ export function JobDetailPanel({
                       </View>
                     ) : (
                     <View style={[styles.previewPanel, styles.previewPanelMobile, isDarkMode && styles.previewPanelDark]}>
+                      <View style={{ flex: 1 }} {...webPreviewDropProps}>
                       {/* Preview tab bar */}
                       {isDarkMode ? (
                         <View style={[styles.panelTabBar, styles.panelTabBarDark]}>
@@ -654,6 +751,7 @@ export function JobDetailPanel({
                           />
                         )}
                       </ScrollView>
+                      </View>
                     </View>
                     )}
                   </>
