@@ -477,33 +477,51 @@
           <div class="text-white/35 text-xs mt-2 font-medium tracking-wide">계층 구조 유지</div>
         </div>
 
-        <!-- 미니 표 -->
+        <!-- 표 안의 표 -->
         <div class="text-center" data-aos="fade-up" data-aos-delay="160">
-          <div class="flex justify-center">
-            <table style="font-size:0.56rem; border-collapse:collapse; line-height:1.5;">
+          <div class="flex flex-col items-center gap-3">
+            <table style="font-size:0.54rem; border-collapse:collapse; line-height:1.45; min-width:220px;">
               <thead>
                 <tr style="background:rgba(34,197,94,0.12);">
-                  <th style="border:1px solid rgba(34,197,94,0.35); padding:3px 9px; color:#4ade80; font-weight:700; letter-spacing:.02em;">항목</th>
-                  <th style="border:1px solid rgba(34,197,94,0.35); padding:3px 9px; color:#4ade80; font-weight:700; letter-spacing:.02em;">내용</th>
+                  <th style="border:1px solid rgba(34,197,94,0.35); padding:3px 7px; color:#4ade80; font-weight:700;">유형</th>
+                  <th style="border:1px solid rgba(34,197,94,0.35); padding:3px 7px; color:#4ade80; font-weight:700;">항목</th>
+                  <th style="border:1px solid rgba(34,197,94,0.35); padding:3px 7px; color:#4ade80; font-weight:700;">표현</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 9px; color:rgba(255,255,255,0.5);">평가기간</td>
-                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 9px; color:rgba(255,255,255,0.5);">2025.01~03</td>
+                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 7px; color:rgba(255,255,255,0.5);">문자형</td>
+                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 7px; color:rgba(255,255,255,0.5);">단순 표</td>
+                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 7px; color:rgba(255,255,255,0.5);">내용 유지</td>
                 </tr>
                 <tr>
-                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 9px; color:rgba(255,255,255,0.5);">평가기관</td>
-                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 9px; color:rgba(255,255,255,0.5);">652개</td>
+                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 7px; color:rgba(255,255,255,0.5);">시각형</td>
+                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 7px; color:rgba(255,255,255,0.5);">표 안의 표</td>
+                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 7px; color:#86efac; font-weight:700;">별도표 A 참조</td>
                 </tr>
               </tbody>
             </table>
+            <div style="width:220px; border:1px solid rgba(34,197,94,0.28); border-radius:8px; padding:8px 10px; background:rgba(255,255,255,0.03); text-align:left;">
+              <div style="color:#86efac; font-size:0.58rem; font-weight:800; letter-spacing:.03em; margin-bottom:6px;">별도표 A. 표 안의 표</div>
+              <table style="width:100%; font-size:0.5rem; border-collapse:collapse; line-height:1.45;">
+                <tbody>
+                  <tr>
+                    <td style="border:1px solid rgba(255,255,255,0.08); padding:3px 6px; color:rgba(255,255,255,0.55); width:34%;">기존문서</td>
+                    <td style="border:1px solid rgba(255,255,255,0.08); padding:3px 6px; color:rgba(255,255,255,0.55);">AI 활용 흐름</td>
+                  </tr>
+                  <tr>
+                    <td style="border:1px solid rgba(255,255,255,0.08); padding:3px 6px; color:rgba(255,255,255,0.55);">앞으로</td>
+                    <td style="border:1px solid rgba(255,255,255,0.08); padding:3px 6px; color:rgba(255,255,255,0.55);">문서 작성·활용 체계</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div class="text-white/35 text-xs mt-3 font-medium tracking-wide">표 구조 복원</div>
+          <div class="text-white/35 text-xs mt-3 font-medium tracking-wide">표 안의 표 분해 복원</div>
         </div>
 
         <div class="text-center" data-aos="fade-up" data-aos-delay="240">
-          <div class="stat-n text-green-400">−96<span class="text-white/40 text-xl font-black">%</span></div>
+          <div class="stat-n text-green-400">−91<span class="text-white/40 text-xl font-black">%</span></div>
           <div class="text-white/35 text-xs mt-2 font-medium tracking-wide">AI 입력 토큰 절감</div>
           <div class="text-white/25 text-[11px] mt-2 leading-relaxed">tiktoken 기준 HWPX/MD 비교</div>
         </div>
