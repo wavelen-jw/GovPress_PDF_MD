@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 import json
 from pathlib import Path
+import re
+import shutil
+import sqlite3
 import subprocess
 import sys
 from typing import Callable
@@ -34,6 +37,30 @@ class ExportedPolicyBriefingArtifact:
             "hwpx_path": self.hwpx_path,
             "pdf_path": self.pdf_path,
             "metadata_path": self.metadata_path,
+            "scaffold_sample_dir": self.scaffold_sample_dir,
+        }
+
+
+@dataclass(frozen=True)
+class StorageQcArtifact:
+    job_id: str
+    title: str
+    export_dir: str
+    hwpx_path: str
+    pdf_path: str | None
+    result_md_path: str | None
+    golden_md_path: str | None
+    scaffold_sample_dir: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "news_item_id": self.job_id,
+            "title": self.title,
+            "export_dir": self.export_dir,
+            "hwpx_path": self.hwpx_path,
+            "pdf_path": self.pdf_path,
+            "result_md_path": self.result_md_path,
+            "golden_md_path": self.golden_md_path,
             "scaffold_sample_dir": self.scaffold_sample_dir,
         }
 
@@ -351,6 +378,304 @@ def export_policy_briefings_for_qc(
         "exported_count": len(exported),
         "scaffolded_count": sum(1 for item in exported if item.scaffold_sample_dir),
         "items": [item.to_dict() for item in exported],
+    }
+
+
+def _storage_title_from_original(path: Path) -> str:
+    stem = path.stem
+    if stem.startswith("job_"):
+        parts = stem.split("-", 1)
+        if len(parts) == 2:
+            stem = parts[1]
+    return stem.strip()
+
+
+def _normalize_storage_key(text: str) -> str:
+    normalized = re.sub(r":zone.identifier$", "", text, flags=re.IGNORECASE)
+    normalized = normalized.strip().lower()
+    normalized = normalized.replace("_", " ")
+    normalized = re.sub(r"\s+", " ", normalized)
+    normalized = re.sub(r"[^\w\s()-]", "", normalized)
+    return normalized.strip()
+
+
+def _load_storage_job_metadata(storage_root: Path) -> dict[str, dict[str, str | None]]:
+    db_path = storage_root / "jobs.sqlite3"
+    if not db_path.exists():
+        return {}
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT job_id, file_name, title, final_markdown_path, original_pdf_path
+            FROM jobs
+            """
+        )
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    payload: dict[str, dict[str, str | None]] = {}
+    for row in rows:
+        payload[str(row["job_id"])] = {
+            "file_name": row["file_name"],
+            "title": row["title"],
+            "final_markdown_path": row["final_markdown_path"],
+            "original_pdf_path": row["original_pdf_path"],
+        }
+    return payload
+
+
+def _discover_storage_qc_artifacts(
+    *,
+    storage_root: str | Path,
+    limit: int | None = None,
+) -> list[StorageQcArtifact]:
+    root = Path(storage_root).resolve()
+    originals_dir = root / "originals"
+    results_dir = root / "results"
+    golden_dir = root / "golden"
+    job_metadata = _load_storage_job_metadata(root)
+
+    result_by_job_id: dict[str, Path] = {}
+    for result_path in sorted(results_dir.glob("job_*.md")):
+        result_by_job_id[result_path.stem] = result_path
+
+    golden_by_key: dict[str, Path] = {}
+    golden_by_job_preview: dict[str, Path] = {}
+    for golden_path in sorted(golden_dir.glob("*.md")):
+        golden_by_key[_normalize_storage_key(golden_path.stem)] = golden_path
+        preview_match = re.match(r"^(job_[a-z0-9]+)\.preview$", golden_path.stem, flags=re.IGNORECASE)
+        if preview_match:
+            golden_by_job_preview[preview_match.group(1)] = golden_path
+
+    grouped: dict[str, dict[str, Path | str | None]] = {}
+    for source_path in sorted(originals_dir.iterdir()):
+        if not source_path.is_file():
+            continue
+        suffix = source_path.suffix.lower()
+        if suffix not in {".hwpx", ".pdf"}:
+            continue
+        stem = source_path.stem
+        if not stem.startswith("job_"):
+            continue
+        job_id = stem.split("-", 1)[0]
+        metadata = job_metadata.get(job_id, {})
+        title = str(metadata.get("title") or _storage_title_from_original(source_path))
+        record = grouped.setdefault(
+            job_id,
+            {
+                "job_id": job_id,
+                "title": title,
+                "hwpx_path": None,
+                "pdf_path": None,
+                "file_name": metadata.get("file_name"),
+            },
+        )
+        if suffix == ".hwpx" and record.get("hwpx_path") is None:
+            record["hwpx_path"] = source_path
+        elif suffix == ".pdf" and record.get("pdf_path") is None:
+            record["pdf_path"] = source_path
+
+    artifacts: list[StorageQcArtifact] = []
+    for job_id, record in sorted(grouped.items()):
+        hwpx_path = record.get("hwpx_path")
+        if not isinstance(hwpx_path, Path):
+            continue
+        title = str(record.get("title") or hwpx_path.stem)
+        file_name = str(record.get("file_name") or hwpx_path.name)
+        golden_match = (
+            golden_by_job_preview.get(job_id)
+            or golden_by_key.get(_normalize_storage_key(title))
+            or golden_by_key.get(_normalize_storage_key(Path(file_name).stem))
+        )
+        result_match = result_by_job_id.get(job_id)
+        if result_match is None:
+            db_result = metadata.get("final_markdown_path")
+            if db_result:
+                candidate = results_dir / Path(str(db_result)).name
+                if candidate.exists():
+                    result_match = candidate
+        artifacts.append(
+            StorageQcArtifact(
+                job_id=job_id,
+                title=title,
+                export_dir=str(hwpx_path.parent),
+                hwpx_path=str(hwpx_path),
+                pdf_path=str(record["pdf_path"]) if isinstance(record.get("pdf_path"), Path) else None,
+                result_md_path=str(result_match) if result_match is not None else None,
+                golden_md_path=str(golden_match) if golden_match is not None else None,
+            )
+        )
+        if limit is not None and len(artifacts) >= limit:
+            break
+    return artifacts
+
+
+def _attach_storage_sidecars(
+    *,
+    sample_dir: str | Path,
+    result_md_path: str | Path | None,
+    golden_md_path: str | Path | None,
+    artifact: StorageQcArtifact,
+) -> None:
+    resolved_sample_dir = Path(sample_dir).resolve()
+    bridge_payload = {
+        "job_id": artifact.job_id,
+        "title": artifact.title,
+        "hwpx_path": artifact.hwpx_path,
+        "pdf_path": artifact.pdf_path,
+        "result_md_path": artifact.result_md_path,
+        "golden_md_path": artifact.golden_md_path,
+    }
+    if result_md_path is not None:
+        shutil.copy2(Path(result_md_path).resolve(), resolved_sample_dir / "storage_rendered.md")
+    if golden_md_path is not None:
+        shutil.copy2(Path(golden_md_path).resolve(), resolved_sample_dir / "golden.md")
+    (resolved_sample_dir / "storage_bridge.json").write_text(
+        json.dumps(bridge_payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    meta_path = resolved_sample_dir / "meta.json"
+    if meta_path.exists():
+        meta_payload = json.loads(meta_path.read_text(encoding="utf-8"))
+        meta_payload["source"] = "govpress-storage"
+        meta_payload["storage_job_id"] = artifact.job_id
+        meta_payload["storage_title"] = artifact.title
+        if artifact.result_md_path is not None:
+            meta_payload["storage_result_md"] = Path(artifact.result_md_path).name
+        if artifact.golden_md_path is not None:
+            meta_payload["storage_golden_md"] = Path(artifact.golden_md_path).name
+        meta_path.write_text(json.dumps(meta_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def run_storage_backed_qc_pipeline(
+    *,
+    target_date: date,
+    output_root: str | Path,
+    gov_md_converter_root: str | Path,
+    qc_root: str | Path,
+    storage_root: str | Path,
+    limit: int | None = None,
+    autofill: bool = True,
+    force: bool = False,
+    scaffold_runner: ScaffoldRunner = run_gov_md_scaffold,
+    command_runner: GovMdCommandRunner = run_gov_md_qc_command,
+) -> dict[str, object]:
+    resolved_output_root = Path(output_root).resolve()
+    dated_root = resolved_output_root / target_date.isoformat()
+    dated_root.mkdir(parents=True, exist_ok=True)
+
+    discovered = _discover_storage_qc_artifacts(storage_root=storage_root, limit=limit)
+    exported_items: list[dict[str, object]] = []
+    for artifact in discovered:
+        sample_dir = scaffold_runner(
+            gov_md_converter_root=gov_md_converter_root,
+            source_path=artifact.hwpx_path,
+            pdf_path=artifact.pdf_path,
+            qc_root=qc_root,
+            sample_id=f"storage_{artifact.job_id}",
+            autofill=autofill,
+            force=force,
+            sample_status="scratch",
+        )
+        _attach_storage_sidecars(
+            sample_dir=sample_dir,
+            result_md_path=artifact.result_md_path,
+            golden_md_path=artifact.golden_md_path,
+            artifact=artifact,
+        )
+        item_payload = artifact.to_dict()
+        item_payload["scaffold_sample_dir"] = sample_dir
+        exported_items.append(item_payload)
+
+    export_report = {
+        "date": target_date.isoformat(),
+        "output_root": str(dated_root),
+        "storage_root": str(Path(storage_root).resolve()),
+        "ensure_fresh": False,
+        "served_stale": False,
+        "stale_reason": "storage_corpus",
+        "requested_news_item_ids": [],
+        "missing_news_item_ids": [],
+        "selected_count": len(exported_items),
+        "exported_count": len(exported_items),
+        "scaffolded_count": len(exported_items),
+        "items": exported_items,
+        "source_kind": "storage_backed_corpus",
+    }
+
+    reports_dir = dated_root / "gov_md_reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    qc_steps: list[tuple[str, Path | None]] = [
+        ("regression", reports_dir / "regression.json"),
+        ("triage", reports_dir / "triage_report.json"),
+        ("suggest-fix", reports_dir / "suggest_fix.json"),
+        ("patch-template", reports_dir / "patch_templates.json"),
+        ("fix-plan", reports_dir / "fix_plan.json"),
+        ("apply-fix-hint", reports_dir / "apply_fix_hint.json"),
+        ("auto-patch-draft", reports_dir / "auto_patch_draft.json"),
+    ]
+    qc_results: list[dict[str, object]] = []
+    for command, output_path in qc_steps:
+        result = command_runner(
+            gov_md_converter_root=gov_md_converter_root,
+            command=command,
+            qc_root=qc_root,
+            output_path=None if command == "regression" else output_path,
+        )
+        if command == "regression" and result.get("payload") is not None:
+            (reports_dir / "regression.json").write_text(
+                json.dumps(result["payload"], ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            result["output_path"] = str((reports_dir / "regression.json").resolve())
+        qc_results.append(result)
+
+    triage_payload = next(
+        (entry.get("payload") for entry in qc_results if entry["command"] == "triage" and isinstance(entry.get("payload"), dict)),
+        None,
+    )
+    suggest_payload = next(
+        (entry.get("payload") for entry in qc_results if entry["command"] == "suggest-fix" and isinstance(entry.get("payload"), dict)),
+        None,
+    )
+    auto_patch_payload = next(
+        (
+            entry.get("payload")
+            for entry in qc_results
+            if entry["command"] == "auto-patch-draft" and isinstance(entry.get("payload"), dict)
+        ),
+        None,
+    )
+
+    return {
+        "date": target_date.isoformat(),
+        "export": export_report,
+        "reports_dir": str(reports_dir),
+        "qc_commands": qc_results,
+        "summary": {
+            "exported_count": export_report["exported_count"],
+            "scaffolded_count": export_report["scaffolded_count"],
+            "review_required_count": (
+                triage_payload.get("summary", {}).get("review_required_count")
+                if isinstance(triage_payload, dict)
+                else None
+            ),
+            "proposal_count": (
+                suggest_payload.get("proposal_count")
+                if isinstance(suggest_payload, dict)
+                else None
+            ),
+            "draft_count": (
+                auto_patch_payload.get("draft_count")
+                if isinstance(auto_patch_payload, dict)
+                else None
+            ),
+        },
     }
 
 

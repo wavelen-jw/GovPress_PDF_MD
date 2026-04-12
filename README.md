@@ -103,6 +103,26 @@ python3 scripts/run_local_hwpx_qc_pipeline.py \
 
 이 명령은 `gov-md-converter`의 `batch-local`을 먼저 실행해 scratch 샘플을 만들고, 같은 QC 후속 단계들을 돌린 뒤 기존 dashboard/OpenClaw/issue가 그대로 읽을 수 있는 `pipeline_report.json`을 남깁니다.
 
+운영 storage의 `originals/results/golden`을 직접 QC 코퍼스로 쓰려면:
+
+```bash
+python3 scripts/run_storage_qc_pipeline.py \
+  --date 2026-04-12 \
+  --output-root exports/policy_briefing_qc \
+  --gov-md-converter-root ../gov-md-converter \
+  --qc-root ../gov-md-converter/tests/manual_samples/storage_batch \
+  --storage-root deploy/wsl/data/storage \
+  --limit 10
+```
+
+이 명령은 `deploy/wsl/data/storage/originals`에서 원문을 찾아 scratch sample을 만들고, 같은 sample 디렉터리에 아래 sidecar 자산도 함께 붙입니다.
+
+- `storage_rendered.md` from `storage/results`
+- `golden.md` from `storage/golden`
+- `storage_bridge.json` with original/result/golden mapping
+
+즉 자동 QC는 현재 변환기 기준으로 계속 돌리고, 사람이 보는 운영 결과와 수동 golden은 같은 sample 디렉터리에서 바로 대조할 수 있습니다.
+
 CI나 cron에서 실패 여부만 판정하고 Markdown 요약을 남기려면:
 
 ```bash
