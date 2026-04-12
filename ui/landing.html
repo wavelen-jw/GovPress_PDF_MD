@@ -407,62 +407,63 @@
             <span class="text-xs font-semibold text-white/40">읽힘 변환 결과</span>
           </div>
           <div class="rounded-xl overflow-hidden border border-green-500/20">
-            <!-- Tab bar -->
-            <div class="flex border-b border-green-500/15" style="background:#0a150f;">
-              <button id="tab-md" onclick="switchTab('md')"
-                class="px-4 py-2.5 text-[0.62rem] font-semibold text-green-400 border-b-2 border-green-400 transition-colors">
-                Markdown
-              </button>
-              <button id="tab-prev" onclick="switchTab('prev')"
-                class="px-4 py-2.5 text-[0.62rem] font-semibold text-white/30 border-b-2 border-transparent hover:text-white/60 transition-colors">
-                미리보기
-              </button>
-              <span class="ml-auto pr-4 self-center text-[0.62rem] font-mono text-green-400/50">output_clean.md</span>
+            <div class="px-4 py-2.5 border-b border-green-500/15 flex items-center justify-between" style="background:#0a150f;">
+              <span class="text-[0.62rem] font-semibold text-green-400">Markdown + Preview 동시 확인</span>
+              <span class="text-[0.62rem] font-mono text-green-400/50">output_clean.md</span>
             </div>
-            <!-- MD view -->
-            <div id="view-md" class="p-5 font-mono text-[0.7rem] leading-relaxed space-y-1"
-                 style="background:#0a150f; min-height:260px;">
-              <div class="text-green-300 font-bold">## 2025년 공공데이터 제공 운영실태 평가결과</div>
-              <div class="text-green-100/55 mt-2">□ 행정안전부는 「공공데이터의 제공 및 이용</div>
-              <div class="text-green-100/55">활성화에 관한 법률」 제21조에 따라 결과를 공개합니다.</div>
-              <div class="text-green-300 font-bold mt-3">### 1. 평가 개요</div>
-              <div class="text-green-200/75 mt-1.5">| 항목 | 내용 |</div>
-              <div class="text-green-200/75">|------|------|</div>
-              <div class="text-green-200/75">| 평가기간 | 2025.01 ~ 2025.03 |</div>
-              <div class="text-green-200/75">| 평가대상 | 652개 기관 |</div>
-              <div class="text-green-200/75">| 중앙행정기관 | 45개 |</div>
-              <div class="text-green-200/75">| 지방자치단체 | 243개 |</div>
-              <div class="text-green-400 mt-3">&gt; **참고** 최근 3년간 우수 이상 등급 비중:</div>
-              <div class="text-green-400">&gt; 67.3% (23년) → 71.2% (24년) → 73.8% (25년)</div>
+            <div class="grid grid-cols-1 md:grid-cols-[1fr_20px_1fr]">
+              <div class="p-5 font-mono text-[0.68rem] leading-relaxed space-y-1 border-b md:border-b-0 md:border-r border-green-500/10"
+                   style="background:#0a150f; min-height:260px;">
+                <div class="text-[0.62rem] font-semibold text-green-400/75 mb-3">Markdown</div>
+                <div class="text-green-300 font-bold">## 2025년 공공데이터 제공 운영실태 평가결과</div>
+                <div class="text-green-100/55 mt-2">□ 행정안전부는 「공공데이터의 제공 및 이용</div>
+                <div class="text-green-100/55">활성화에 관한 법률」 제21조에 따라 결과를 공개합니다.</div>
+                <div class="text-green-300 font-bold mt-3">### 1. 평가 개요</div>
+                <div class="text-green-200/75 mt-1.5">| 항목 | 내용 |</div>
+                <div class="text-green-200/75">|------|------|</div>
+                <div class="text-green-200/75"><span class="diff-good">| 평가기간 | 2025.01 ~ 2025.03 |</span></div>
+                <div class="text-green-200/75">| 평가대상 | 652개 기관 |</div>
+                <div class="text-green-200/75">| 중앙행정기관 | 45개 |</div>
+                <div class="text-green-200/75">| 지방자치단체 | 243개 |</div>
+                <div class="text-green-400 mt-3">&gt; **참고** 최근 3년간 우수 이상 등급 비중:</div>
+                <div class="text-green-400">&gt; 67.3% (23년) → 71.2% (24년) → 73.8% (25년)</div>
+              </div>
+              <div class="hidden md:flex items-center justify-center border-r border-green-500/10" style="background:linear-gradient(180deg, rgba(34,197,94,0.08), rgba(34,197,94,0.02));">
+                <div class="text-green-400/45 text-xs font-semibold tracking-[0.18em] rotate-90 whitespace-nowrap">SYNC</div>
+              </div>
+              <div class="p-5 text-[0.78rem] leading-relaxed"
+                   style="background:#fff; min-height:260px; color:#1a1a1a; font-family: 'Pretendard Variable', sans-serif;">
+                <div class="text-[0.62rem] font-semibold text-gray-500 mb-3">Rendered Preview</div>
+                <h2 style="font-size:1rem; font-weight:800; margin:0 0 10px; color:#0d0d0d; border-bottom:2px solid #e5e7eb; padding-bottom:6px;">
+                  2025년 공공데이터 제공 운영실태 평가결과
+                </h2>
+                <p style="margin:0 0 12px; color:#374151; font-size:0.76rem;">
+                  □ 행정안전부는 「공공데이터의 제공 및 이용 활성화에 관한 법률」 제21조에 따라 결과를 공개합니다.
+                </p>
+                <h3 style="font-size:0.85rem; font-weight:700; margin:0 0 8px; color:#0d0d0d;">1. 평가 개요</h3>
+                <table style="width:100%; border-collapse:collapse; font-size:0.72rem; margin-bottom:12px;">
+                  <thead>
+                    <tr style="background:#f3f4f6;">
+                      <th style="border:1px solid #d1d5db; padding:4px 8px; text-align:left; font-weight:600;">항목</th>
+                      <th style="border:1px solid #d1d5db; padding:4px 8px; text-align:left; font-weight:600;">내용</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td style="border:1px solid #d1d5db; padding:4px 8px;">평가기간</td><td style="border:1px solid #d1d5db; padding:4px 8px; background:#f0fdf4;">2025.01 ~ 2025.03</td></tr>
+                    <tr><td style="border:1px solid #d1d5db; padding:4px 8px;">평가대상</td><td style="border:1px solid #d1d5db; padding:4px 8px;">652개 기관</td></tr>
+                    <tr><td style="border:1px solid #d1d5db; padding:4px 8px;">중앙행정기관</td><td style="border:1px solid #d1d5db; padding:4px 8px;">45개</td></tr>
+                    <tr><td style="border:1px solid #d1d5db; padding:4px 8px;">지방자치단체</td><td style="border:1px solid #d1d5db; padding:4px 8px;">243개</td></tr>
+                  </tbody>
+                </table>
+                <blockquote style="margin:0; border-left:3px solid #22c55e; padding:6px 10px; background:#f0fdf4; color:#166534; font-size:0.72rem; border-radius:0 4px 4px 0;">
+                  <strong>참고</strong> 최근 3년간 우수 이상 등급 비중:<br>
+                  67.3% (23년) → 71.2% (24년) → 73.8% (25년)
+                </blockquote>
+              </div>
             </div>
-            <!-- Preview view (hidden by default) -->
-            <div id="view-prev" class="hidden p-5 text-[0.78rem] leading-relaxed"
-                 style="background:#fff; min-height:260px; color:#1a1a1a; font-family: 'Pretendard Variable', sans-serif;">
-              <h2 style="font-size:1rem; font-weight:800; margin:0 0 10px; color:#0d0d0d; border-bottom:2px solid #e5e7eb; padding-bottom:6px;">
-                2025년 공공데이터 제공 운영실태 평가결과
-              </h2>
-              <p style="margin:0 0 12px; color:#374151; font-size:0.76rem;">
-                □ 행정안전부는 「공공데이터의 제공 및 이용 활성화에 관한 법률」 제21조에 따라 결과를 공개합니다.
-              </p>
-              <h3 style="font-size:0.85rem; font-weight:700; margin:0 0 8px; color:#0d0d0d;">1. 평가 개요</h3>
-              <table style="width:100%; border-collapse:collapse; font-size:0.72rem; margin-bottom:12px;">
-                <thead>
-                  <tr style="background:#f3f4f6;">
-                    <th style="border:1px solid #d1d5db; padding:4px 8px; text-align:left; font-weight:600;">항목</th>
-                    <th style="border:1px solid #d1d5db; padding:4px 8px; text-align:left; font-weight:600;">내용</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr><td style="border:1px solid #d1d5db; padding:4px 8px;">평가기간</td><td style="border:1px solid #d1d5db; padding:4px 8px;">2025.01 ~ 2025.03</td></tr>
-                  <tr><td style="border:1px solid #d1d5db; padding:4px 8px;">평가대상</td><td style="border:1px solid #d1d5db; padding:4px 8px;">652개 기관</td></tr>
-                  <tr><td style="border:1px solid #d1d5db; padding:4px 8px;">중앙행정기관</td><td style="border:1px solid #d1d5db; padding:4px 8px;">45개</td></tr>
-                  <tr><td style="border:1px solid #d1d5db; padding:4px 8px;">지방자치단체</td><td style="border:1px solid #d1d5db; padding:4px 8px;">243개</td></tr>
-                </tbody>
-              </table>
-              <blockquote style="margin:0; border-left:3px solid #22c55e; padding:6px 10px; background:#f0fdf4; color:#166534; font-size:0.72rem; border-radius:0 4px 4px 0;">
-                <strong>참고</strong> 최근 3년간 우수 이상 등급 비중:<br>
-                67.3% (23년) → 71.2% (24년) → 73.8% (25년)
-              </blockquote>
+            <div class="px-4 py-2.5 border-t border-green-500/10 text-[0.66rem] text-white/35 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5" style="background:#0a150f;">
+              <span>수정은 <span class="text-green-400 font-semibold">Markdown</span>에서</span>
+              <span>확인은 <span class="text-green-400 font-semibold">Preview</span>에서</span>
             </div>
           </div>
         </div>
