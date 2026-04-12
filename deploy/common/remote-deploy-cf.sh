@@ -53,6 +53,26 @@ env_path.write_text("\n".join(updated).rstrip() + "\n")
 PY
 }
 
+cleanup_wsl_compose_conflicts() {
+  local deploy_root="$1"
+
+  mkdir -p \
+    "$deploy_root/deploy/wsl/data/storage" \
+    "$deploy_root/deploy/wsl/data/caddy" \
+    "$deploy_root/deploy/wsl/config/caddy"
+
+  # WSL hosts sometimes keep an old host-level Caddy process or stale compose
+  # containers around. That leaves 127.0.0.1:8080 occupied and breaks the
+  # compose-managed Caddy/container tunnel path on the next deploy.
+  sudo -n systemctl stop caddy >/dev/null 2>&1 || true
+  sudo -n pkill -f '^caddy run --config /etc/caddy/Caddyfile' >/dev/null 2>&1 || true
+  sudo -n fuser -k 8080/tcp >/dev/null 2>&1 || true
+
+  docker rm -f govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
+
+  echo "wsl_cleanup=1"
+}
+
 # Keep deploy-time cache eviction explicit so policy briefing fixes go live on
 # every server even when only cached converted output would differ.
 rm -f \
@@ -83,14 +103,17 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
   if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
   fi
+  if [ "$COMPOSE_FILE" = "deploy/wsl/docker-compose.yml" ]; then
+    cleanup_wsl_compose_conflicts "$DEPLOY_DIR"
+  fi
   if [ -x "$DEPLOY_DIR/deploy/wsl/bin/compose.sh" ]; then
-    "$DEPLOY_DIR/deploy/wsl/bin/compose.sh" up -d --build
-    "$DEPLOY_DIR/deploy/wsl/bin/compose.sh" ps
+    COMPOSE_FILE_OVERRIDE="$COMPOSE_PATH" "$DEPLOY_DIR/deploy/wsl/bin/compose.sh" up -d --build --remove-orphans
+    COMPOSE_FILE_OVERRIDE="$COMPOSE_PATH" "$DEPLOY_DIR/deploy/wsl/bin/compose.sh" ps
   elif command -v docker-compose >/dev/null 2>&1; then
-    docker-compose -f "$COMPOSE_PATH" up -d --build
+    docker-compose -f "$COMPOSE_PATH" up -d --build --remove-orphans
     docker-compose -f "$COMPOSE_PATH" ps
   else
-    docker compose -f "$COMPOSE_PATH" up -d --build
+    docker compose -f "$COMPOSE_PATH" up -d --build --remove-orphans
     docker compose -f "$COMPOSE_PATH" ps
   fi
   sleep 3

@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 DEPLOY_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
-COMPOSE_FILE="$DEPLOY_DIR/docker-compose.yml"
+COMPOSE_FILE="${COMPOSE_FILE_OVERRIDE:-$DEPLOY_DIR/docker-compose.yml}"
 
 # Docker Desktop contexts can drift to the Windows npipe endpoint inside WSL.
 # Force the local Linux daemon socket unless the caller explicitly overrides it.
