@@ -75,6 +75,12 @@ jobs:
           cp ui/benchmark-policy-briefing.html mobile/dist/benchmark-policy-briefing/index.html
           cp ui/benchmark-policy-briefing-data.js mobile/dist/benchmark-policy-briefing/benchmark-policy-briefing-data.js
 
+      - name: Install comparison page (고유가 피해지원금)
+        run: |
+          mkdir -p mobile/dist/comparison-goilyuga
+          cp ui/comparison-goilyuga.html mobile/dist/comparison-goilyuga/index.html
+          cp ui/comparison-goilyuga-data.js mobile/dist/comparison-goilyuga/comparison-goilyuga-data.js
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 

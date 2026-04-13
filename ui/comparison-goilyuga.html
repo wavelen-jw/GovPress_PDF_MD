@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>변환 결과 비교 — 고유가 피해지원금 4월 27일 지급 시작</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root {
+      --bg: #f6f1e8;
+      --panel: rgba(255,255,255,0.85);
+      --line: rgba(22,19,16,0.1);
+      --text: #161311;
+      --muted: #6d665f;
+      --accent: #0d6a57;
+      --accent-soft: rgba(13,106,87,0.1);
+      --accent-2: #aa4c24;
+      --shadow: 0 18px 40px rgba(33,24,18,0.08);
+    }
+    * { box-sizing: border-box; margin: 0; }
+    body {
+      color: var(--text);
+      font-family: "Pretendard Variable", Pretendard, sans-serif;
+      background:
+        radial-gradient(circle at 0% 0%, rgba(249,212,164,0.33), transparent 26%),
+        radial-gradient(circle at 100% 0%, rgba(191,222,214,0.38), transparent 24%),
+        linear-gradient(180deg, #fbf8f3 0%, #f2ebe0 56%, #e9dfd2 100%);
+    }
+    a { color: inherit; }
+    .shell {
+      width: min(1100px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 30px 0 72px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 30px;
+      margin-bottom: 18px;
+    }
+    .breadcrumb {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-decoration: none;
+      margin-bottom: 16px;
+    }
+    .breadcrumb:hover { color: var(--accent); }
+    .hero h1 {
+      font-size: clamp(24px, 4vw, 38px);
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 10px;
+    }
+    .hero-meta {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 18px;
+    }
+    .hero-meta a { text-decoration: underline; text-underline-offset: 3px; }
+
+    /* ── Score bar ── */
+    .score-bar {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .score-card {
+      padding: 18px;
+    }
+    .score-card .label {
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .score-card .value {
+      margin-top: 10px;
+      font-size: clamp(24px, 3.5vw, 36px);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+    }
+    .score-card .value.accent { color: var(--accent); }
+    .score-card .note {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ── Tabs ── */
+    .tab-section {
+      padding: 28px;
+      margin-bottom: 18px;
+    }
+    .tab-section h2 {
+      font-size: clamp(20px, 3vw, 28px);
+      letter-spacing: -0.03em;
+      margin-bottom: 6px;
+    }
+    .tab-section .subtitle {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 18px;
+      max-width: 800px;
+    }
+    .tab-nav {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .tab-btn {
+      border: 1px solid var(--line);
+      background: rgba(22,19,16,0.04);
+      border-radius: 999px;
+      padding: 10px 18px;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      color: var(--muted);
+      transition: all .15s;
+    }
+    .tab-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .tab-btn .badge {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      background: rgba(255,255,255,0.2);
+    }
+    .tab-btn.active .badge { background: rgba(255,255,255,0.3); }
+
+    /* ── Preview ── */
+    .preview-wrap {
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(246,241,232,0.5);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .toggle-raw {
+      border: 1px solid var(--line);
+      background: rgba(22,19,16,0.05);
+      border-radius: 8px;
+      padding: 5px 10px;
+      font: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      color: var(--muted);
+    }
+    .toggle-raw.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .preview-body {
+      padding: 24px;
+      line-height: 1.75;
+      font-size: 15px;
+      max-height: 600px;
+      overflow: auto;
+    }
+    .preview-body h1, .preview-body h2, .preview-body h3,
+    .preview-body h4, .preview-body h5, .preview-body h6 {
+      margin: 1.2em 0 0.5em;
+      line-height: 1.25;
+    }
+    .preview-body h1 { font-size: 1.4em; }
+    .preview-body h2 { font-size: 1.2em; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+    .preview-body h3 { font-size: 1.05em; }
+    .preview-body p { margin: 0.6em 0; }
+    .preview-body ul, .preview-body ol { padding-left: 1.5em; }
+    .preview-body blockquote {
+      margin: 0.8em 0;
+      padding: 8px 14px;
+      border-left: 3px solid var(--accent);
+      background: rgba(13,106,87,0.04);
+      border-radius: 0 8px 8px 0;
+      font-size: 14px;
+      color: #3a4a46;
+    }
+    .preview-body table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin: 0.8em 0;
+      display: block;
+      overflow-x: auto;
+    }
+    .preview-body th, .preview-body td {
+      border: 1px solid #ddd;
+      padding: 6px 10px;
+      text-align: left;
+    }
+    .preview-body th {
+      background: rgba(22,19,16,0.04);
+      font-weight: 700;
+    }
+    .preview-body hr { border: none; border-top: 1px solid var(--line); margin: 1.5em 0; }
+    .raw-code {
+      display: none;
+      padding: 18px;
+      background: #171412;
+      color: #efe7dd;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      max-height: 600px;
+      overflow: auto;
+    }
+    .raw-code.visible { display: block; }
+
+    /* ── Detail scores ── */
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .detail-card {
+      padding: 20px;
+    }
+    .detail-card h3 {
+      font-size: 16px;
+      letter-spacing: -0.02em;
+      margin-bottom: 14px;
+    }
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .bar-label {
+      width: 100px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .bar-track {
+      flex: 1;
+      height: 10px;
+      background: rgba(22,19,16,0.06);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 5px;
+      transition: width .5s ease;
+    }
+    .bar-fill.readhim { background: var(--accent); }
+    .bar-fill.odl { background: var(--accent-2); }
+    .bar-value {
+      width: 55px;
+      text-align: right;
+      font-size: 14px;
+      font-weight: 800;
+      font-feature-settings: "tnum" 1;
+    }
+
+    /* ── Footer link ── */
+    .footer-link {
+      text-align: center;
+      padding: 40px 0 0;
+    }
+    .footer-link a {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .footer-link a:hover { text-decoration: underline; }
+
+    @media (max-width: 900px) {
+      .score-bar { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .detail-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+      .shell { width: min(100vw - 20px, 1100px); }
+      .score-bar { grid-template-columns: 1fr; }
+      .hero, .tab-section { padding: 20px; border-radius: 22px; }
+    }
+  </style>
+</head>
+<body>
+
+<main class="shell">
+
+  <!-- ── Hero ── -->
+  <section class="hero panel">
+    <a href="../benchmark-policy-briefing/" class="breadcrumb">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 11L5 7l4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      정책브리핑 벤치마크로 돌아가기
+    </a>
+    <h1>고유가 피해지원금 4월 27일 지급 시작</h1>
+    <div class="hero-meta">
+      행정안전부 · 2026. 4. 12. 09:00 게시 · 문서 ID 156754095<br>
+      <a href="https://www.korea.kr/briefing/pressReleaseView.do?newsId=156754095&call_from=openData" target="_blank" rel="noreferrer">정책브리핑 원문 보기</a>
+      · 첨부파일: 260411 (11시) 고유가 피해지원금 4월 27일 지급 시작(재정정책과).hwpx / .pdf
+    </div>
+  </section>
+
+  <!-- ── Score cards ── -->
+  <div class="score-bar">
+    <article class="score-card panel">
+      <div class="label">읽힘 종합 점수</div>
+      <div class="value accent">49.7점</div>
+      <div class="note">HWPX → Markdown</div>
+    </article>
+    <article class="score-card panel">
+      <div class="label">OpenDataLoader 종합 점수</div>
+      <div class="value">36.3점</div>
+      <div class="note">PDF → Markdown</div>
+    </article>
+    <article class="score-card panel">
+      <div class="label">읽힘 우세</div>
+      <div class="value accent">+36.9%</div>
+      <div class="note">종합 점수 기준 차이</div>
+    </article>
+    <article class="score-card panel">
+      <div class="label">Ground Truth</div>
+      <div class="value">정책브리핑</div>
+      <div class="note">docViewer HTML → MD 정규화</div>
+    </article>
+  </div>
+
+  <!-- ── Detail scores ── -->
+  <div class="detail-grid">
+    <article class="detail-card panel">
+      <h3>읽힘 세부 점수</h3>
+      <div class="bar-row">
+        <div class="bar-label">종합</div>
+        <div class="bar-track"><div class="bar-fill readhim" style="width:49.7%"></div></div>
+        <div class="bar-value" style="color:var(--accent)">49.7</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">텍스트(NID)</div>
+        <div class="bar-track"><div class="bar-fill readhim" style="width:83.3%"></div></div>
+        <div class="bar-value" style="color:var(--accent)">83.3</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">표(TEDS)</div>
+        <div class="bar-track"><div class="bar-fill readhim" style="width:34.8%"></div></div>
+        <div class="bar-value" style="color:var(--accent)">34.8</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">구조(MHS)</div>
+        <div class="bar-track"><div class="bar-fill readhim" style="width:31.0%"></div></div>
+        <div class="bar-value" style="color:var(--accent)">31.0</div>
+      </div>
+    </article>
+    <article class="detail-card panel">
+      <h3>OpenDataLoader 세부 점수</h3>
+      <div class="bar-row">
+        <div class="bar-label">종합</div>
+        <div class="bar-track"><div class="bar-fill odl" style="width:36.3%"></div></div>
+        <div class="bar-value" style="color:var(--accent-2)">36.3</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">텍스트(NID)</div>
+        <div class="bar-track"><div class="bar-fill odl" style="width:76.9%"></div></div>
+        <div class="bar-value" style="color:var(--accent-2)">76.9</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">표(TEDS)</div>
+        <div class="bar-track"><div class="bar-fill odl" style="width:15.9%"></div></div>
+        <div class="bar-value" style="color:var(--accent-2)">15.9</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">구조(MHS)</div>
+        <div class="bar-track"><div class="bar-fill odl" style="width:16.2%"></div></div>
+        <div class="bar-value" style="color:var(--accent-2)">16.2</div>
+      </div>
+    </article>
+  </div>
+
+  <!-- ── Comparison tabs ── -->
+  <section class="tab-section panel">
+    <h2>변환 결과 비교</h2>
+    <p class="subtitle">
+      같은 보도자료를 읽힘과 OpenDataLoader로 각각 변환한 결과입니다. 탭을 전환해서 비교해보세요.
+      Ground Truth는 정책브리핑 docViewer HTML을 정규화한 기준 문서입니다.
+    </p>
+
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="readhim">
+        읽힘
+        <span class="badge">49.7점</span>
+      </button>
+      <button class="tab-btn" data-tab="odl">
+        OpenDataLoader
+        <span class="badge">36.3점</span>
+      </button>
+      <button class="tab-btn" data-tab="gt">
+        Ground Truth
+        <span class="badge">기준</span>
+      </button>
+    </div>
+
+    <div class="preview-wrap">
+      <div class="preview-header">
+        <span id="preview-label">읽힘 변환 결과 (HWPX → Markdown)</span>
+        <button class="toggle-raw" id="toggle-raw-btn">Markdown 소스 보기</button>
+      </div>
+      <div class="preview-body" id="preview-body"></div>
+      <pre class="raw-code" id="raw-code"></pre>
+    </div>
+  </section>
+
+  <!-- ── Footer ── -->
+  <div class="footer-link">
+    <a href="../benchmark-policy-briefing/">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 11L5 7l4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      정책브리핑 99건 전체 벤치마크 보기
+    </a>
+  </div>
+
+</main>
+
+<script src="./comparison-goilyuga-data.js"></script>
+<script>
+  const D = window.COMPARISON_DATA;
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => document.querySelectorAll(sel);
+
+  const labels = {
+    readhim: '읽힘 변환 결과 (HWPX → Markdown)',
+    odl: 'OpenDataLoader 변환 결과 (PDF → Markdown)',
+    gt: 'Ground Truth (정책브리핑 docViewer → Markdown 정규화)'
+  };
+  const sources = {
+    readhim: D.readhim,
+    odl: D.opendataloader,
+    gt: D.ground_truth
+  };
+
+  let currentTab = 'readhim';
+  let showRaw = false;
+
+  function render() {
+    const md = sources[currentTab] || '';
+    $('#preview-label').textContent = labels[currentTab];
+    $('#preview-body').innerHTML = marked.parse(md);
+    $('#raw-code').textContent = md;
+    $('#preview-body').style.display = showRaw ? 'none' : 'block';
+    $('#raw-code').className = showRaw ? 'raw-code visible' : 'raw-code';
+    $('#toggle-raw-btn').className = showRaw ? 'toggle-raw active' : 'toggle-raw';
+    $('#toggle-raw-btn').textContent = showRaw ? '렌더링 보기' : 'Markdown 소스 보기';
+  }
+
+  $$('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      $$('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentTab = btn.dataset.tab;
+      render();
+    });
+  });
+
+  $('#toggle-raw-btn').addEventListener('click', () => {
+    showRaw = !showRaw;
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>

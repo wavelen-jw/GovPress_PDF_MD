@@ -121,6 +121,7 @@
       <button class="ndot active" onclick="goTo('s-hero')"  aria-label="Hero"></button>
       <button class="ndot"        onclick="goTo('s-prob')"  aria-label="민낯"></button>
       <button class="ndot"        onclick="goTo('s-sol')"   aria-label="솔루션"></button>
+      <button class="ndot"        onclick="goTo('s-bench')" aria-label="벤치마크"></button>
       <button class="ndot"        onclick="goTo('s-cta')"   aria-label="CTA"></button>
     </nav>
 
@@ -533,6 +534,81 @@
   </section>
 
 
+  <!-- ═══ SECTION 3.5: BENCHMARK ═══ -->
+  <section id="s-bench" class="py-28 px-6" style="background:#f8f8f5; color:#0d0d0d;">
+    <div class="max-w-6xl mx-auto">
+
+      <p class="chip mb-4 text-green-600" data-aos="fade-up">Benchmark</p>
+
+      <h2 class="font-black leading-tight mb-5 text-ink"
+          style="font-size: clamp(2rem, 4.5vw, 3.2rem);"
+          data-aos="fade-up" data-aos-delay="80">
+        검증된 결과
+      </h2>
+      <p class="text-gray-400 mb-14 max-w-lg text-[1.05rem]"
+         data-aos="fade-up" data-aos-delay="130">
+        정책브리핑 보도자료 99건으로 직접 측정한 비교 수치
+      </p>
+
+      <!-- 4 metric cards -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-5 mb-12">
+
+        <div class="bg-white rounded-xl border border-gray-100 p-6 shadow-sm"
+             data-aos="fade-up" data-aos-delay="80">
+          <div class="text-[0.62rem] font-bold text-gray-400 uppercase tracking-wider mb-3">읽힘 종합 점수</div>
+          <div class="leading-none mb-2">
+            <span class="text-3xl font-black text-green-600">47.4</span>
+            <span class="text-base font-bold text-green-400">점</span>
+          </div>
+          <div class="text-[0.65rem] text-gray-400">100점 만점 기준</div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-100 p-6 shadow-sm"
+             data-aos="fade-up" data-aos-delay="140">
+          <div class="text-[0.62rem] font-bold text-gray-400 uppercase tracking-wider mb-3">OpenDataLoader</div>
+          <div class="leading-none mb-2">
+            <span class="text-3xl font-black text-ink">36.3</span>
+            <span class="text-base font-bold text-gray-400">점</span>
+          </div>
+          <div class="text-[0.65rem] text-gray-400">PDF 변환 종합 점수</div>
+        </div>
+
+        <div class="bg-green-50 rounded-xl border border-green-100 p-6 shadow-sm"
+             data-aos="fade-up" data-aos-delay="200">
+          <div class="text-[0.62rem] font-bold text-green-600 uppercase tracking-wider mb-3">읽힘 우세</div>
+          <div class="leading-none mb-2">
+            <span class="text-3xl font-black text-green-700">+30.6</span>
+            <span class="text-base font-bold text-green-500">%</span>
+          </div>
+          <div class="text-[0.65rem] text-green-600">종합 점수 기준</div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-100 p-6 shadow-sm"
+             data-aos="fade-up" data-aos-delay="260">
+          <div class="text-[0.62rem] font-bold text-gray-400 uppercase tracking-wider mb-3">처리 속도</div>
+          <div class="leading-none mb-2">
+            <span class="text-3xl font-black text-ink">10</span>
+            <span class="text-base font-bold text-gray-400">×</span>
+          </div>
+          <div class="text-[0.65rem] text-gray-400">0.046s vs 0.484s / 문서</div>
+        </div>
+
+      </div>
+
+      <div class="flex justify-center" data-aos="fade-up" data-aos-delay="300">
+        <a href="./benchmark-policy-briefing/"
+           class="inline-flex items-center gap-2 border border-ink/20 text-ink/60 hover:text-ink hover:border-ink/50 font-semibold px-6 py-3 rounded-lg text-sm transition-all">
+          전체 벤치마크 보기
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+
   <!-- ═══ SECTION 4: CTA ═══ -->
   <section id="s-cta" class="py-36 px-6" style="background:#f8f8f5;">
     <div class="max-w-xl mx-auto text-center">
@@ -606,7 +682,7 @@
     }
 
     // Nav dot active state via IntersectionObserver
-    const sectionIds = ['s-hero', 's-prob', 's-sol', 's-cta'];
+    const sectionIds = ['s-hero', 's-prob', 's-sol', 's-bench', 's-cta'];
     const dots = document.querySelectorAll('.ndot');
 
     const io = new IntersectionObserver((entries) => {

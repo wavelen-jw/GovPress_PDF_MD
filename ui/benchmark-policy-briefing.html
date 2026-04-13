@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>정책브리핑 99건 벤치마크</title>
+  <title>정책브리핑 변환 품질 비교 — 읽힘 vs OpenDataLoader</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -47,7 +47,7 @@
     .hero {
       padding: 30px;
       display: grid;
-      grid-template-columns: 1.15fr 0.85fr;
+      grid-template-columns: 1.2fr 0.8fr;
       gap: 18px;
       margin-bottom: 18px;
     }
@@ -57,42 +57,98 @@
       gap: 8px;
       padding: 7px 11px;
       border-radius: 999px;
-      background: rgba(22, 19, 16, 0.06);
-      color: var(--muted);
+      background: rgba(13,106,87,0.1);
+      color: var(--accent);
       font-size: 12px;
       font-weight: 800;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
     h1 {
-      margin: 16px 0 12px;
-      font-size: clamp(34px, 5vw, 62px);
-      line-height: 0.96;
-      letter-spacing: -0.05em;
+      margin: 14px 0 10px;
+      font-size: clamp(28px, 4vw, 50px);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
     }
-    .hero p {
-      margin: 0;
-      color: #413932;
-      font-size: 16px;
-      line-height: 1.7;
+    .conclusion-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 14px 0 0;
+      padding: 14px 18px;
+      border-radius: 16px;
+      background: rgba(13,106,87,0.08);
+      border: 1px solid rgba(13,106,87,0.18);
     }
-    .source-box {
+    .conclusion-bar .big-num {
+      font-size: 28px;
+      font-weight: 900;
+      color: var(--accent);
+      letter-spacing: -0.04em;
+      white-space: nowrap;
+    }
+    .conclusion-bar .desc {
+      font-size: 14px;
+      line-height: 1.55;
+      color: #283f3a;
+    }
+    .info-box {
       padding: 18px;
       border-radius: 22px;
       background: rgba(22, 19, 16, 0.04);
       border: 1px solid var(--line);
       display: grid;
-      gap: 12px;
+      gap: 14px;
     }
-    .source-box strong { font-size: 13px; }
-    .source-box span {
+    .info-box strong { font-size: 13px; display: block; margin-bottom: 4px; }
+    .info-box span {
       display: block;
-      margin-top: 5px;
       color: var(--muted);
       font-size: 13px;
       line-height: 1.6;
       word-break: break-word;
     }
+    .caveat {
+      margin-top: 14px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: rgba(122, 48, 40, 0.06);
+      border: 1px solid rgba(122, 48, 40, 0.12);
+      color: #8a4038;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    /* Metric explanation strip */
+    .explainer {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .explainer-item {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 16px 18px;
+      box-shadow: var(--shadow);
+    }
+    .explainer-item .ex-label {
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+    }
+    .explainer-item .ex-name {
+      font-size: 14px;
+      font-weight: 700;
+      margin: 5px 0 3px;
+    }
+    .explainer-item .ex-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    /* Metric cards */
     .metric-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -113,6 +169,7 @@
       font-weight: 900;
       letter-spacing: -0.05em;
     }
+    .metric-value.accent { color: var(--accent); }
     .metric-note {
       margin-top: 10px;
       color: var(--muted);
@@ -125,7 +182,7 @@
     }
     .section h2 {
       margin: 0 0 8px;
-      font-size: clamp(25px, 3vw, 34px);
+      font-size: clamp(22px, 3vw, 30px);
       letter-spacing: -0.04em;
     }
     .section-copy {
@@ -134,16 +191,6 @@
       font-size: 15px;
       line-height: 1.68;
       max-width: 920px;
-    }
-    .warn {
-      margin-top: 14px;
-      padding: 14px 16px;
-      border-radius: 18px;
-      background: rgba(122, 48, 40, 0.08);
-      border: 1px solid rgba(122, 48, 40, 0.14);
-      color: #6f2f27;
-      font-size: 14px;
-      line-height: 1.6;
     }
     .leaderboard-wrap {
       overflow: auto;
@@ -172,7 +219,7 @@
       background: rgba(246,241,232,0.96);
       backdrop-filter: blur(8px);
     }
-    .highlight { background: rgba(13,106,87,0.08); }
+    .highlight { background: rgba(13,106,87,0.06); }
     .score { font-feature-settings: "tnum" 1, "lnum" 1; font-weight: 800; }
     .delta-up { color: var(--accent); }
     .delta-down { color: var(--accent-2); }
@@ -212,6 +259,7 @@
       font: inherit;
       cursor: pointer;
       color: var(--muted);
+      font-size: 13px;
     }
     .example-button.active {
       background: var(--accent);
@@ -299,6 +347,7 @@
     @media (max-width: 1120px) {
       .hero, .compare-grid, .source-grid { grid-template-columns: 1fr; }
       .metric-grid, .example-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .explainer { grid-template-columns: 1fr; }
     }
     @media (max-width: 720px) {
       .shell { width: min(100vw - 20px, 1380px); }
@@ -309,73 +358,104 @@
 </head>
 <body>
   <main class="shell">
+
+    <!-- ── Hero ── -->
     <section class="hero">
       <div>
-        <div class="eyebrow">Policy Briefing Benchmark</div>
-        <h1 id="page-title">정책브리핑 99건 벤치마크</h1>
-        <p id="page-subtitle"></p>
-        <div class="warn">
-          이번 비교는 <strong>공식 OpenDataLoader 벤치 코퍼스가 아니라</strong>, 정책브리핑 보도자료 99건에 대해 별도 ground truth를 생성해 수행한 내부 벤치입니다.
-          지표 정의는 <code>opendataloader-bench</code>를 따르지만, 절대 점수는 공식 리더보드와 직접 비교하면 안 됩니다.
+        <div class="eyebrow">정책브리핑 변환 품질 비교</div>
+        <h1>읽힘 vs OpenDataLoader</h1>
+        <p style="margin:0 0 14px;color:#413932;font-size:15px;line-height:1.7;" id="page-subtitle"></p>
+
+        <div class="conclusion-bar">
+          <div class="big-num" id="improvement-pct">—</div>
+          <div class="desc">
+            정책브리핑 보도자료 <strong>99건</strong> 기준,<br>
+            읽힘이 OpenDataLoader보다 <strong>더 정확하게 변환</strong>합니다.
+          </div>
         </div>
       </div>
-      <div class="source-box">
+
+      <div class="info-box">
         <div>
-          <strong>코퍼스 기준</strong>
-          <span id="corpus-note"></span>
+          <strong>무엇을 비교했나요?</strong>
+          <span>정책브리핑 최신 보도자료 99건을 각각 두 도구로 변환한 뒤, 같은 기준(ground truth)으로 정확도를 측정했습니다.</span>
         </div>
         <div>
-          <strong>비교 대상</strong>
-          <span id="engine-note"></span>
+          <strong>입력 형식</strong>
+          <span>읽힘: HWPX 파일 → Markdown<br>OpenDataLoader: PDF 파일 → Markdown</span>
         </div>
         <div>
-          <strong>출처와 구현</strong>
-          <span id="source-note"></span>
+          <strong>평가 기준</strong>
+          <span>텍스트 유사도(NID), 표 정확도(TEDS), 구조 보존도(MHS) 세 가지를 종합한 점수</span>
+        </div>
+        <div class="caveat">
+          ※ 이번 비교는 <strong>공식 OpenDataLoader 벤치 코퍼스가 아닌</strong> 별도 구성한 정책브리핑 corpus입니다. 공식 리더보드와 수치를 직접 비교하면 안 됩니다.
         </div>
       </div>
     </section>
 
+    <!-- ── 지표 설명 ── -->
+    <div class="explainer">
+      <div class="explainer-item">
+        <div class="ex-label">NID</div>
+        <div class="ex-name">텍스트 유사도</div>
+        <div class="ex-desc">변환된 텍스트가 원문과 얼마나 가까운지 측정합니다. 단어·문장의 보존 정도를 반영합니다.</div>
+      </div>
+      <div class="explainer-item">
+        <div class="ex-label">TEDS</div>
+        <div class="ex-name">표 정확도</div>
+        <div class="ex-desc">문서 안의 표(table)를 얼마나 정확하게 변환했는지 측정합니다. 행·열 구조 보존이 핵심입니다.</div>
+      </div>
+      <div class="explainer-item">
+        <div class="ex-label">MHS</div>
+        <div class="ex-name">구조 보존도</div>
+        <div class="ex-desc">제목·단락·목록 등 문서의 계층 구조를 얼마나 충실히 옮겼는지 측정합니다.</div>
+      </div>
+    </div>
+
+    <!-- ── 핵심 지표 카드 ── -->
     <div class="metric-grid">
       <article class="card">
-        <div class="metric-label">읽힘 Overall</div>
-        <div class="metric-value" id="readhim-overall">-</div>
-        <div class="metric-note">정책브리핑 99건 기준 종합 평균 점수</div>
+        <div class="metric-label">읽힘 종합 점수</div>
+        <div class="metric-value accent" id="readhim-overall">-</div>
+        <div class="metric-note">정책브리핑 99건 기준<br>텍스트·표·구조를 종합한 정확도</div>
       </article>
       <article class="card">
-        <div class="metric-label">OpenDataLoader Overall</div>
+        <div class="metric-label">OpenDataLoader 종합 점수</div>
         <div class="metric-value" id="odl-overall">-</div>
-        <div class="metric-note">같은 ground truth 위에서 계산한 PDF 변환 평균 점수</div>
+        <div class="metric-note">같은 ground truth로 측정한<br>PDF 변환 종합 정확도</div>
       </article>
       <article class="card">
-        <div class="metric-label">Overall Gap</div>
-        <div class="metric-value" id="overall-gap">-</div>
-        <div class="metric-note">읽힘 - OpenDataLoader</div>
+        <div class="metric-label">읽힘 우세 (종합 점수 차)</div>
+        <div class="metric-value accent" id="overall-gap">-</div>
+        <div class="metric-note" id="gap-note">읽힘 점수 − OpenDataLoader 점수</div>
       </article>
       <article class="card">
-        <div class="metric-label">Ground Truth</div>
+        <div class="metric-label">검증 문서 수</div>
         <div class="metric-value" id="gt-count">-</div>
-        <div class="metric-note">생성 성공 문서 수</div>
+        <div class="metric-note">정책브리핑 최신 보도자료에서<br>ground truth 생성에 성공한 문서</div>
       </article>
     </div>
 
+    <!-- ── 전체 점수 비교표 ── -->
     <section class="section">
       <h2>전체 점수 비교</h2>
       <p class="section-copy">
-        같은 정책브리핑 ground truth 위에서 두 엔진을 비교한 평균 점수입니다.
+        각 지표별로 두 도구의 평균 점수를 비교합니다. 점수가 높을수록 원문에 가깝게 변환됐다는 의미입니다.
         <strong>읽힘</strong>은 HWPX를, <strong>OpenDataLoader</strong>는 PDF를 입력으로 사용했습니다.
       </p>
       <div class="leaderboard-wrap">
         <table>
           <thead>
             <tr>
-              <th>엔진</th>
-              <th>Overall</th>
-              <th>NID</th>
-              <th>TEDS</th>
-              <th>MHS</th>
-              <th>예측 누락</th>
-              <th>표 timeout</th>
-              <th>문서당 시간(s)</th>
+              <th>도구</th>
+              <th>종합 점수</th>
+              <th>텍스트 유사도 (NID)</th>
+              <th>표 정확도 (TEDS)</th>
+              <th>구조 보존도 (MHS)</th>
+              <th>누락 문서</th>
+              <th>표 평가 불가</th>
+              <th>문서당 처리 시간</th>
             </tr>
           </thead>
           <tbody id="summary-body"></tbody>
@@ -383,21 +463,23 @@
       </div>
     </section>
 
+    <!-- ── 문서별 점수표 ── -->
     <section class="section">
-      <h2>문서별 점수표</h2>
+      <h2>문서별 점수</h2>
       <p class="section-copy">
-        문서별 Overall 차이를 함께 보여줍니다. 양수는 읽힘이 높고, 음수는 OpenDataLoader가 높다는 뜻입니다.
+        99건 각각에 대한 두 도구의 점수입니다. 차이 컬럼이 양수(↑)이면 읽힘이 앞섰고, 음수(↓)이면 OpenDataLoader가 앞섰다는 의미입니다.
+        기본 정렬은 점수 차이가 큰 순서입니다.
       </p>
       <div class="leaderboard-wrap">
         <table>
           <thead>
             <tr>
               <th>문서</th>
-              <th>읽힘 Overall</th>
-              <th>OpenDataLoader Overall</th>
+              <th>읽힘</th>
+              <th>OpenDataLoader</th>
               <th>차이</th>
-              <th>읽힘 NID/TEDS/MHS</th>
-              <th>ODL NID/TEDS/MHS</th>
+              <th>읽힘 세부 (텍스트/표/구조)</th>
+              <th>ODL 세부 (텍스트/표/구조)</th>
             </tr>
           </thead>
           <tbody id="documents-body"></tbody>
@@ -405,19 +487,21 @@
       </div>
     </section>
 
+    <!-- ── 비교 예시 ── -->
     <section class="section">
-      <h2>비교 예시</h2>
+      <h2>실제 변환 결과 비교</h2>
       <p class="section-copy">
-        아래 예시는 ground truth와 두 엔진 출력을 나란히 보여줍니다. 문서 버튼은 점수 차이가 큰 순서와 상위 점수 문서를 섞어서 골랐습니다.
+        같은 문서를 두 도구로 변환한 결과와 ground truth를 나란히 볼 수 있습니다.
+        아래 버튼으로 문서를 선택하세요. 점수 차이가 크거나 특징적인 문서를 선별했습니다.
       </p>
       <div class="example-nav" id="example-nav"></div>
       <div class="example-metrics">
         <article class="card">
-          <div class="metric-label">읽힘</div>
+          <div class="metric-label">읽힘 점수</div>
           <div class="metric-note" id="readhim-score-box"></div>
         </article>
         <article class="card">
-          <div class="metric-label">OpenDataLoader</div>
+          <div class="metric-label">OpenDataLoader 점수</div>
           <div class="metric-note" id="odl-score-box"></div>
         </article>
       </div>
@@ -449,74 +533,67 @@
       </div>
     </section>
 
+    <!-- ── 방법과 출처 ── -->
     <section class="section">
-      <h2>방법과 출처</h2>
+      <h2>측정 방법과 출처</h2>
       <p class="section-copy">
         지표 정의는 <code>opendataloader-bench</code>를 따랐고, 정책브리핑 ground truth는 이 저장소에서 별도로 생성했습니다.
-        출처 표시는 공식 지표 문서, 공식 evaluator 구현, 이번 실행 리포지토리로 나눠 적었습니다.
       </p>
       <div class="source-grid" id="source-grid"></div>
     </section>
 
+    <!-- ── 지표 상세 정의 ── -->
     <section class="section">
-      <h2>지표 해설</h2>
+      <h2>지표 상세 정의</h2>
       <p class="section-copy">
-        자세한 정의와 근거는 OpenDataLoader 공식 벤치 문서를 보시면 됩니다. 여기서는 이 페이지를 읽는 데 필요한 수준만 간단히 요약합니다.
+        아래는 각 지표의 공식 정의 및 참고 자료입니다.
       </p>
       <div class="source-grid" id="metric-grid"></div>
     </section>
+
   </main>
 
   <script src="./benchmark-policy-briefing-data.js"></script>
   <script>
     const data = window.BENCHMARK_POLICY_BRIEFING_DATA;
     const $ = (id) => document.getElementById(id);
-    const formatScore = (value) => value == null ? "n/a" : value.toFixed(3);
-    const formatDelta = (value) => value == null ? "n/a" : `${value > 0 ? "+" : ""}${value.toFixed(3)}`;
+    const fmtPct = (v) => v == null ? "n/a" : (v * 100).toFixed(1) + "점";
+    const fmtRaw = (v) => v == null ? "n/a" : v.toFixed(3);
     const renderMarkdown = (text) => marked.parse(text || "");
 
     function fillHeader() {
-      $("page-title").textContent = data.title;
       $("page-subtitle").textContent = data.subtitle;
-      $("corpus-note").textContent = `${data.corpus.ground_truth_count}건의 ground truth를 생성했고, ${data.corpus.failure_count}건은 제외됐습니다. ${data.corpus.note}`;
-      $("engine-note").innerHTML = `읽힘: <code>HWPX -&gt; Markdown</code><br>OpenDataLoader: <code>PDF -&gt; Markdown</code><br>평가 지표: <code>NID / TEDS / MHS</code>`;
-      $("source-note").innerHTML = `지표 정의와 구현 출처는 <a href="https://opendataloader.org/docs/benchmark" target="_blank" rel="noreferrer">OpenDataLoader Benchmark</a> 및 <a href="https://github.com/opendataloader-project/opendataloader-bench" target="_blank" rel="noreferrer">opendataloader-bench</a>입니다.`;
     }
 
     function fillTopMetrics() {
       const r = data.metrics.readhim.score;
       const o = data.metrics.opendataloader.score;
-      $("readhim-overall").textContent = formatScore(r.overall_mean);
-      $("odl-overall").textContent = formatScore(o.overall_mean);
-      $("overall-gap").textContent = formatDelta(r.overall_mean - o.overall_mean);
+      $("readhim-overall").textContent = fmtPct(r.overall_mean);
+      $("odl-overall").textContent = fmtPct(o.overall_mean);
+
+      const pctImprovement = ((r.overall_mean - o.overall_mean) / o.overall_mean * 100).toFixed(1);
+      $("overall-gap").textContent = "+" + pctImprovement + "%";
+      $("gap-note").textContent = `읽힘이 OpenDataLoader보다 ${pctImprovement}% 더 정확하게 변환`;
+
+      $("improvement-pct").textContent = "+" + pctImprovement + "% 앞섬";
       $("gt-count").textContent = `${data.corpus.ground_truth_count}건`;
     }
 
     function fillSummaryTable() {
       const rows = [
-        {
-          label: "읽힘",
-          metrics: data.metrics.readhim,
-          summary: data.summary.readhim,
-          highlight: true
-        },
-        {
-          label: "OpenDataLoader",
-          metrics: data.metrics.opendataloader,
-          summary: data.summary.opendataloader,
-          highlight: false
-        }
+        { label: "읽힘", metrics: data.metrics.readhim, summary: data.summary.readhim, highlight: true },
+        { label: "OpenDataLoader", metrics: data.metrics.opendataloader, summary: data.summary.opendataloader, highlight: false }
       ];
       $("summary-body").innerHTML = rows.map((row) => `
         <tr class="${row.highlight ? "highlight" : ""}">
           <td class="doc-title">${row.label}</td>
-          <td class="score">${formatScore(row.metrics.score.overall_mean)}</td>
-          <td class="score">${formatScore(row.metrics.score.nid_mean)}</td>
-          <td class="score">${formatScore(row.metrics.score.teds_mean)}</td>
-          <td class="score">${formatScore(row.metrics.score.mhs_mean)}</td>
-          <td class="score">${row.metrics.missing_predictions ?? 0}</td>
-          <td class="score">${row.metrics.table_timeouts ?? 0}</td>
-          <td class="score">${row.summary.elapsed_per_doc == null ? "n/a" : row.summary.elapsed_per_doc.toFixed(3)}</td>
+          <td class="score">${fmtPct(row.metrics.score.overall_mean)}</td>
+          <td class="score">${fmtPct(row.metrics.score.nid_mean)}</td>
+          <td class="score">${fmtPct(row.metrics.score.teds_mean)}</td>
+          <td class="score">${fmtPct(row.metrics.score.mhs_mean)}</td>
+          <td class="score">${row.metrics.missing_predictions ?? 0}건</td>
+          <td class="score">${row.metrics.table_timeouts ?? 0}건</td>
+          <td class="score">${row.summary.elapsed_per_doc == null ? "n/a" : row.summary.elapsed_per_doc.toFixed(3) + "초"}</td>
         </tr>
       `).join("");
     }
@@ -527,6 +604,13 @@
       if (!row.opendataloader.prediction_available) tags.push('<span class="tag">ODL 누락</span>');
       if (row.readhim.table_timed_out) tags.push('<span class="tag">읽힘 표 timeout</span>');
       return tags.join("");
+    }
+
+    function deltaLabel(delta) {
+      if (delta == null) return '<span style="color:var(--muted)">n/a</span>';
+      const pts = (Math.abs(delta) * 100).toFixed(1);
+      if (delta >= 0) return `<span class="delta-up">읽힘 ↑${pts}점</span>`;
+      return `<span class="delta-down">ODL ↑${pts}점</span>`;
     }
 
     function fillDocumentsTable() {
@@ -542,26 +626,26 @@
             <div class="doc-meta">${row.document_id} · ${row.department} · ${row.approve_date}</div>
             ${rowTags(row)}
           </td>
-          <td class="score">${formatScore(row.readhim.overall)}</td>
-          <td class="score">${formatScore(row.opendataloader.overall)}</td>
-          <td class="score ${row.delta_overall == null ? "" : row.delta_overall >= 0 ? "delta-up" : "delta-down"}">${formatDelta(row.delta_overall)}</td>
-          <td class="score">${formatScore(row.readhim.nid)} / ${formatScore(row.readhim.teds)} / ${formatScore(row.readhim.mhs)}</td>
-          <td class="score">${formatScore(row.opendataloader.nid)} / ${formatScore(row.opendataloader.teds)} / ${formatScore(row.opendataloader.mhs)}</td>
+          <td class="score">${fmtPct(row.readhim.overall)}</td>
+          <td class="score">${fmtPct(row.opendataloader.overall)}</td>
+          <td>${deltaLabel(row.delta_overall)}</td>
+          <td class="score" style="font-size:13px;">${fmtRaw(row.readhim.nid)} / ${fmtRaw(row.readhim.teds)} / ${fmtRaw(row.readhim.mhs)}</td>
+          <td class="score" style="font-size:13px;">${fmtRaw(row.opendataloader.nid)} / ${fmtRaw(row.opendataloader.teds)} / ${fmtRaw(row.opendataloader.mhs)}</td>
         </tr>
       `).join("");
     }
 
     function scoreBlock(label, scores) {
       const flags = [];
-      if (scores.prediction_available === false) flags.push("예측 누락");
-      if (scores.table_timed_out) flags.push("표 timeout");
+      if (scores.prediction_available === false) flags.push("변환 결과 없음");
+      if (scores.table_timed_out) flags.push("표 평가 불가");
       return [
-        label,
-        `Overall ${formatScore(scores.overall)}`,
-        `NID ${formatScore(scores.nid)}`,
-        `TEDS ${formatScore(scores.teds)}`,
-        `MHS ${formatScore(scores.mhs)}`,
-        flags.length ? `상태 ${flags.join(", ")}` : null
+        `<strong>${label}</strong>`,
+        `종합 ${fmtPct(scores.overall)}`,
+        `텍스트(NID) ${fmtRaw(scores.nid)}`,
+        `표(TEDS) ${fmtRaw(scores.teds)}`,
+        `구조(MHS) ${fmtRaw(scores.mhs)}`,
+        flags.length ? `⚠ ${flags.join(", ")}` : null
       ].filter(Boolean).join("<br>");
     }
 
@@ -569,11 +653,11 @@
       $("readhim-score-box").innerHTML = scoreBlock("읽힘", example.readhim);
       $("odl-score-box").innerHTML = scoreBlock("OpenDataLoader", example.opendataloader);
       $("gt-meta").textContent = `${example.document_id} · ${example.department} · ${example.approve_date}`;
-      $("readhim-meta").textContent = `Overall ${formatScore(example.readhim.overall)} · NID ${formatScore(example.readhim.nid)} · TEDS ${formatScore(example.readhim.teds)} · MHS ${formatScore(example.readhim.mhs)}`;
-      $("odl-meta").textContent = `Overall ${formatScore(example.opendataloader.overall)} · NID ${formatScore(example.opendataloader.nid)} · TEDS ${formatScore(example.opendataloader.teds)} · MHS ${formatScore(example.opendataloader.mhs)}`;
+      $("readhim-meta").textContent = `종합 ${fmtPct(example.readhim.overall)} · 텍스트 ${fmtRaw(example.readhim.nid)} · 표 ${fmtRaw(example.readhim.teds)} · 구조 ${fmtRaw(example.readhim.mhs)}`;
+      $("odl-meta").textContent = `종합 ${fmtPct(example.opendataloader.overall)} · 텍스트 ${fmtRaw(example.opendataloader.nid)} · 표 ${fmtRaw(example.opendataloader.teds)} · 구조 ${fmtRaw(example.opendataloader.mhs)}`;
       $("gt-preview").innerHTML = renderMarkdown(example.ground_truth_markdown);
-      $("readhim-preview").innerHTML = renderMarkdown(example.readhim_markdown || "_예측 없음_");
-      $("odl-preview").innerHTML = renderMarkdown(example.opendataloader_markdown || "_예측 없음_");
+      $("readhim-preview").innerHTML = renderMarkdown(example.readhim_markdown || "_변환 결과 없음_");
+      $("odl-preview").innerHTML = renderMarkdown(example.opendataloader_markdown || "_변환 결과 없음_");
       $("gt-code").textContent = example.ground_truth_markdown;
       $("readhim-code").textContent = example.readhim_markdown || "";
       $("odl-code").textContent = example.opendataloader_markdown || "";
@@ -585,7 +669,8 @@
         const button = document.createElement("button");
         button.type = "button";
         button.className = "example-button" + (index === 0 ? " active" : "");
-        button.textContent = `${example.document_id} · ${example.title}`;
+        button.textContent = `${example.department} · ${example.title.slice(0, 20)}${example.title.length > 20 ? "…" : ""}`;
+        button.title = example.title;
         button.addEventListener("click", () => {
           document.querySelectorAll(".example-button").forEach((item) => item.classList.remove("active"));
           button.classList.add("active");
