@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--results-root",
         type=Path,
-        default=Path("artifacts/opendataloader_curated_bench/results"),
+        default=Path("/mnt/c/FTC_downloads/opendataloader_curated_bench_results"),
         help="Result folder containing evaluation-curated-final.json and prediction_markdown/.",
     )
     parser.add_argument(
@@ -121,11 +121,11 @@ def build_payload(samples_root: Path, results_root: Path) -> dict:
     excluded = ["storage_job_23c81b8c21fd"]
 
     return {
-        "title": "OpenDataLoader 정적 비교 리포트",
-        "subtitle": "PDF를 Markdown으로 변환한 결과를 curated golden Markdown과 비교",
+        "title": "읽힘 vs OpenDataLoader 비교 리포트",
+        "subtitle": "같은 문서를 읽힘 결과와 OpenDataLoader 결과로 비교",
         "engine": "opendataloader",
         "input_root": str(samples_root),
-        "golden_source": "rendered.md",
+        "golden_source": "읽힘 rendered.md",
         "excluded_documents": excluded,
         "document_count": len(documents),
         "aggregate_metrics": {
@@ -142,22 +142,22 @@ def build_payload(samples_root: Path, results_root: Path) -> dict:
             {
                 "name": "overall",
                 "label": "Overall 점수",
-                "description": "읽기 순서, 표 구조, 제목 계층을 합쳐 본 최종 지표입니다.",
+                "description": "읽힘 결과와 OpenDataLoader 결과 사이의 읽기 순서, 표 구조, 제목 계층 차이를 합쳐 본 최종 지표입니다.",
             },
             {
                 "name": "nid",
                 "label": "읽기 순서 (NID)",
-                "description": "본문 텍스트가 올바른 순서로 추출됐는지 봅니다. 높을수록 문맥 손상이 적습니다.",
+                "description": "OpenDataLoader 본문 텍스트가 읽힘 결과의 순서와 얼마나 비슷한지 봅니다. 높을수록 문맥 손상이 적습니다.",
             },
             {
                 "name": "teds",
                 "label": "표 구조 (TEDS)",
-                "description": "표의 행·열·병합 구조가 golden과 얼마나 비슷한지 봅니다.",
+                "description": "표의 행·열·병합 구조가 읽힘 결과와 얼마나 비슷한지 봅니다.",
             },
             {
                 "name": "mhs",
                 "label": "제목 계층 (MHS)",
-                "description": "제목 레벨과 문서 계층이 golden Markdown과 얼마나 일치하는지 봅니다.",
+                "description": "제목 레벨과 문서 계층이 읽힘 결과와 얼마나 일치하는지 봅니다.",
             },
         ],
         "top_documents": top_documents,
