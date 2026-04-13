@@ -9,13 +9,11 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     :root {
-      --bg: #f6f1e8;
       --panel: rgba(255,255,255,0.85);
       --line: rgba(22,19,16,0.1);
       --text: #161311;
       --muted: #6d665f;
       --accent: #0d6a57;
-      --accent-soft: rgba(13,106,87,0.1);
       --accent-2: #aa4c24;
       --shadow: 0 18px 40px rgba(33,24,18,0.08);
     }
@@ -30,7 +28,7 @@
     }
     a { color: inherit; }
     .shell {
-      width: min(1100px, calc(100vw - 32px));
+      width: min(1360px, calc(100vw - 32px));
       margin: 0 auto;
       padding: 30px 0 72px;
     }
@@ -41,464 +39,337 @@
       box-shadow: var(--shadow);
       backdrop-filter: blur(10px);
     }
-
-    /* ── Hero ── */
-    .hero {
+    .hero, .section {
       padding: 30px;
       margin-bottom: 18px;
     }
-    .breadcrumb {
+    .eyebrow {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
+      padding: 7px 11px;
+      border-radius: 999px;
+      background: rgba(13,106,87,0.1);
+      color: var(--accent);
       font-size: 12px;
-      font-weight: 700;
-      color: var(--muted);
-      text-decoration: none;
-      margin-bottom: 16px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
     }
-    .breadcrumb:hover { color: var(--accent); }
-    .hero h1 {
-      font-size: clamp(24px, 4vw, 38px);
-      line-height: 1.15;
-      letter-spacing: -0.03em;
-      margin-bottom: 10px;
+    h1 {
+      margin: 14px 0 10px;
+      font-size: clamp(28px, 4vw, 46px);
+      line-height: 1.06;
+      letter-spacing: -0.04em;
+    }
+    .hero-copy {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 18px;
+      margin-top: 20px;
     }
     .hero-meta {
       color: var(--muted);
       font-size: 14px;
-      line-height: 1.6;
-      margin-bottom: 18px;
+      line-height: 1.7;
     }
     .hero-meta a { text-decoration: underline; text-underline-offset: 3px; }
-
-    /* ── Score bar ── */
-    .score-bar {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap: 14px;
-      margin-bottom: 18px;
-    }
-    .score-card {
+    .summary-box {
       padding: 18px;
-    }
-    .score-card .label {
-      font-size: 12px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--muted);
-    }
-    .score-card .value {
-      margin-top: 10px;
-      font-size: clamp(24px, 3.5vw, 36px);
-      font-weight: 900;
-      letter-spacing: -0.04em;
-    }
-    .score-card .value.accent { color: var(--accent); }
-    .score-card .note {
-      margin-top: 8px;
-      font-size: 12px;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-
-    /* ── Tabs ── */
-    .tab-section {
-      padding: 28px;
-      margin-bottom: 18px;
-    }
-    .tab-section h2 {
-      font-size: clamp(20px, 3vw, 28px);
-      letter-spacing: -0.03em;
-      margin-bottom: 6px;
-    }
-    .tab-section .subtitle {
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.6;
-      margin-bottom: 18px;
-      max-width: 800px;
-    }
-    .tab-nav {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-    .tab-btn {
-      border: 1px solid var(--line);
-      background: rgba(22,19,16,0.04);
-      border-radius: 999px;
-      padding: 10px 18px;
-      font: inherit;
-      font-size: 14px;
-      font-weight: 700;
-      cursor: pointer;
-      color: var(--muted);
-      transition: all .15s;
-    }
-    .tab-btn.active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
-    }
-    .tab-btn .badge {
-      display: inline-block;
-      margin-left: 6px;
-      padding: 2px 7px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 800;
-      background: rgba(255,255,255,0.2);
-    }
-    .tab-btn.active .badge { background: rgba(255,255,255,0.3); }
-
-    /* ── Preview ── */
-    .preview-wrap {
-      border: 1px solid var(--line);
       border-radius: 22px;
-      overflow: hidden;
-      background: #fff;
+      background: rgba(22,19,16,0.04);
+      border: 1px solid var(--line);
     }
-    .preview-header {
+    .summary-box strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    .summary-box p {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+    .section h2 {
+      margin-bottom: 8px;
+      font-size: clamp(22px, 3vw, 30px);
+      letter-spacing: -0.03em;
+    }
+    .section-copy {
+      max-width: 900px;
+      margin-bottom: 18px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+    .compare-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+    .compare-card {
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.72);
+    }
+    .compare-card.readhim { border-color: rgba(13,106,87,0.22); }
+    .compare-card.odl { border-color: rgba(170,76,36,0.18); }
+    .compare-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 18px;
+      gap: 12px;
+      padding: 14px 18px;
       border-bottom: 1px solid var(--line);
-      background: rgba(246,241,232,0.5);
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--muted);
+      background: rgba(255,255,255,0.44);
     }
-    .toggle-raw {
-      border: 1px solid var(--line);
-      background: rgba(22,19,16,0.05);
-      border-radius: 8px;
-      padding: 5px 10px;
-      font: inherit;
-      font-size: 11px;
-      font-weight: 700;
-      cursor: pointer;
-      color: var(--muted);
-    }
-    .toggle-raw.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .preview-body {
-      padding: 24px;
-      line-height: 1.75;
+    .compare-label {
       font-size: 15px;
-      max-height: 600px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .compare-note {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .compare-card.readhim .compare-label { color: var(--accent); }
+    .compare-card.odl .compare-label { color: var(--accent-2); }
+    .dual-view {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 560px;
+    }
+    .md-pane {
+      padding: 18px;
+      background: #171412;
+      color: #efe7dd;
+      border-right: 1px solid rgba(255,255,255,0.08);
       overflow: auto;
     }
-    .preview-body h1, .preview-body h2, .preview-body h3,
-    .preview-body h4, .preview-body h5, .preview-body h6 {
-      margin: 1.2em 0 0.5em;
-      line-height: 1.25;
+    .md-pane .pane-eyebrow,
+    .preview-pane .pane-eyebrow {
+      display: inline-block;
+      margin-bottom: 12px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
     }
-    .preview-body h1 { font-size: 1.4em; }
-    .preview-body h2 { font-size: 1.2em; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
-    .preview-body h3 { font-size: 1.05em; }
-    .preview-body p { margin: 0.6em 0; }
-    .preview-body ul, .preview-body ol { padding-left: 1.5em; }
-    .preview-body blockquote {
+    .md-pane .pane-eyebrow { color: rgba(255,255,255,0.45); }
+    .md-pane pre {
+      margin: 0;
+      white-space: pre-wrap;
+      font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .preview-pane {
+      padding: 18px;
+      background: #fff;
+      overflow: auto;
+    }
+    .preview-pane .pane-eyebrow { color: var(--muted); }
+    .preview-pane .rendered {
+      line-height: 1.72;
+      font-size: 14px;
+      color: #2b2622;
+    }
+    .rendered h1, .rendered h2, .rendered h3, .rendered h4, .rendered h5, .rendered h6 {
+      margin: 1.15em 0 0.45em;
+      line-height: 1.22;
+    }
+    .rendered h1 { font-size: 1.45em; }
+    .rendered h2 {
+      font-size: 1.16em;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 6px;
+    }
+    .rendered h3 { font-size: 1.04em; }
+    .rendered p { margin: 0.65em 0; }
+    .rendered ul, .rendered ol { padding-left: 1.5em; }
+    .rendered blockquote {
       margin: 0.8em 0;
       padding: 8px 14px;
       border-left: 3px solid var(--accent);
       background: rgba(13,106,87,0.04);
       border-radius: 0 8px 8px 0;
-      font-size: 14px;
       color: #3a4a46;
     }
-    .preview-body table {
+    .rendered table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 13px;
       margin: 0.8em 0;
       display: block;
       overflow-x: auto;
+      font-size: 12px;
     }
-    .preview-body th, .preview-body td {
+    .rendered th, .rendered td {
       border: 1px solid #ddd;
       padding: 6px 10px;
       text-align: left;
+      vertical-align: top;
     }
-    .preview-body th {
+    .rendered th {
       background: rgba(22,19,16,0.04);
       font-weight: 700;
     }
-    .preview-body hr { border: none; border-top: 1px solid var(--line); margin: 1.5em 0; }
-    .raw-code {
-      display: none;
-      padding: 18px;
-      background: #171412;
-      color: #efe7dd;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 12px;
-      line-height: 1.6;
-      white-space: pre-wrap;
-      max-height: 600px;
-      overflow: auto;
-    }
-    .raw-code.visible { display: block; }
-
-    /* ── Detail scores ── */
-    .detail-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0,1fr));
-      gap: 14px;
-      margin-bottom: 18px;
-    }
-    .detail-card {
-      padding: 20px;
-    }
-    .detail-card h3 {
-      font-size: 16px;
-      letter-spacing: -0.02em;
-      margin-bottom: 14px;
-    }
-    .bar-row {
+    .compare-footer {
       display: flex;
-      align-items: center;
+      justify-content: space-between;
       gap: 10px;
-      margin-bottom: 10px;
-    }
-    .bar-label {
-      width: 100px;
-      font-size: 13px;
-      font-weight: 700;
+      padding: 12px 18px;
+      border-top: 1px solid var(--line);
+      background: rgba(255,255,255,0.42);
+      font-size: 12px;
       color: var(--muted);
-      flex-shrink: 0;
     }
-    .bar-track {
-      flex: 1;
-      height: 10px;
-      background: rgba(22,19,16,0.06);
-      border-radius: 5px;
-      overflow: hidden;
+    .adv-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
     }
-    .bar-fill {
-      height: 100%;
-      border-radius: 5px;
-      transition: width .5s ease;
+    .adv-card {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: rgba(255,255,255,0.6);
     }
-    .bar-fill.readhim { background: var(--accent); }
-    .bar-fill.odl { background: var(--accent-2); }
-    .bar-value {
-      width: 55px;
-      text-align: right;
-      font-size: 14px;
-      font-weight: 800;
-      font-feature-settings: "tnum" 1;
-    }
-
-    /* ── Footer link ── */
-    .footer-link {
-      text-align: center;
-      padding: 40px 0 0;
-    }
-    .footer-link a {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 14px;
-      font-weight: 700;
+    .adv-index {
       color: var(--accent);
-      text-decoration: none;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
     }
-    .footer-link a:hover { text-decoration: underline; }
-
-    @media (max-width: 900px) {
-      .score-bar { grid-template-columns: repeat(2, minmax(0,1fr)); }
-      .detail-grid { grid-template-columns: 1fr; }
+    .adv-card h3 {
+      margin-bottom: 8px;
+      font-size: 18px;
+      letter-spacing: -0.02em;
     }
-    @media (max-width: 600px) {
-      .shell { width: min(100vw - 20px, 1100px); }
-      .score-bar { grid-template-columns: 1fr; }
-      .hero, .tab-section { padding: 20px; border-radius: 22px; }
+    .adv-card p {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.68;
+    }
+    @media (max-width: 1080px) {
+      .hero-copy, .compare-grid, .adv-grid, .dual-view {
+        grid-template-columns: 1fr;
+      }
+      .md-pane {
+        border-right: 0;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+      }
+    }
+    @media (max-width: 720px) {
+      .shell { width: min(100vw - 20px, 1360px); }
+      .hero, .section { padding: 22px; border-radius: 22px; }
     }
   </style>
 </head>
 <body>
-
 <main class="shell">
 
-  <!-- ── Hero ── -->
   <section class="hero panel">
-    <a href="../benchmark-policy-briefing/" class="breadcrumb">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 11L5 7l4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      정책브리핑 벤치마크로 돌아가기
-    </a>
+    <div class="eyebrow">정책브리핑 실제 비교</div>
     <h1>고유가 피해지원금 4월 27일 지급 시작</h1>
-    <div class="hero-meta">
-      행정안전부 · 2026. 4. 12. 09:00 게시 · 문서 ID 156754095<br>
-      <a href="https://www.korea.kr/briefing/pressReleaseView.do?newsId=156754095&call_from=openData" target="_blank" rel="noreferrer">정책브리핑 원문 보기</a>
-      · 첨부파일: 260411 (11시) 고유가 피해지원금 4월 27일 지급 시작(재정정책과).hwpx / .pdf
+    <div class="hero-copy">
+      <div class="hero-meta">
+        행정안전부 · 2026. 4. 12. 09:00 게시 · 문서 ID 156754095<br>
+        <a href="https://www.korea.kr/briefing/pressReleaseView.do?newsId=156754095&call_from=openData" target="_blank" rel="noreferrer">정책브리핑 원문 보기</a><br>
+        첨부파일: 260411 (11시) 고유가 피해지원금 4월 27일 지급 시작(재정정책과).hwpx / .pdf
+      </div>
+      <div class="summary-box">
+        <strong>같은 문서를 서로 다른 입력으로 변환했습니다.</strong>
+        <p>읽힘은 HWPX를, OpenDataLoader는 PDF를 Markdown으로 바꿨습니다. 아래에서는 두 결과를 모두 Markdown과 Preview로 동시에 확인할 수 있어, 어떤 쪽이 실제 검토와 재사용에 더 적합한지 바로 드러납니다.</p>
+      </div>
     </div>
   </section>
 
-  <!-- ── Score cards ── -->
-  <div class="score-bar">
-    <article class="score-card panel">
-      <div class="label">읽힘 종합 점수</div>
-      <div class="value accent">49.7점</div>
-      <div class="note">HWPX → Markdown</div>
-    </article>
-    <article class="score-card panel">
-      <div class="label">OpenDataLoader 종합 점수</div>
-      <div class="value">36.3점</div>
-      <div class="note">PDF → Markdown</div>
-    </article>
-    <article class="score-card panel">
-      <div class="label">읽힘 우세</div>
-      <div class="value accent">+36.9%</div>
-      <div class="note">종합 점수 기준 차이</div>
-    </article>
-    <article class="score-card panel">
-      <div class="label">Ground Truth</div>
-      <div class="value">정책브리핑</div>
-      <div class="note">docViewer HTML → MD 정규화</div>
-    </article>
-  </div>
+  <section class="section panel">
+    <h2>Markdown + Preview 동시 비교</h2>
+    <p class="section-copy">상단 문서 정보는 같고, 차이는 결과 구조입니다. 읽힘은 본문, 신청 절차, 사용처 표, 붙임과 Q&amp;A까지 계층을 유지한 채 이어지고, OpenDataLoader는 표 내부 구조와 일부 계층이 한 덩어리로 무너집니다.</p>
+    <div class="compare-grid">
+      <article class="compare-card readhim">
+        <div class="compare-head">
+          <div>
+            <div class="compare-label">읽힘 변환 결과</div>
+            <div class="compare-note">HWPX → Markdown</div>
+          </div>
+        </div>
+        <div class="dual-view">
+          <div class="md-pane">
+            <span class="pane-eyebrow">Markdown</span>
+            <pre id="readhim-md"></pre>
+          </div>
+          <div class="preview-pane">
+            <span class="pane-eyebrow">Rendered Preview</span>
+            <div class="rendered" id="readhim-preview"></div>
+          </div>
+        </div>
+        <div class="compare-footer">
+          <span>제목, 본문, 표, 붙임이 같은 흐름으로 이어집니다.</span>
+          <span>수정은 Markdown에서, 검토는 Preview에서</span>
+        </div>
+      </article>
 
-  <!-- ── Detail scores ── -->
-  <div class="detail-grid">
-    <article class="detail-card panel">
-      <h3>읽힘 세부 점수</h3>
-      <div class="bar-row">
-        <div class="bar-label">종합</div>
-        <div class="bar-track"><div class="bar-fill readhim" style="width:49.7%"></div></div>
-        <div class="bar-value" style="color:var(--accent)">49.7</div>
-      </div>
-      <div class="bar-row">
-        <div class="bar-label">텍스트(NID)</div>
-        <div class="bar-track"><div class="bar-fill readhim" style="width:83.3%"></div></div>
-        <div class="bar-value" style="color:var(--accent)">83.3</div>
-      </div>
-      <div class="bar-row">
-        <div class="bar-label">표(TEDS)</div>
-        <div class="bar-track"><div class="bar-fill readhim" style="width:34.8%"></div></div>
-        <div class="bar-value" style="color:var(--accent)">34.8</div>
-      </div>
-      <div class="bar-row">
-        <div class="bar-label">구조(MHS)</div>
-        <div class="bar-track"><div class="bar-fill readhim" style="width:31.0%"></div></div>
-        <div class="bar-value" style="color:var(--accent)">31.0</div>
-      </div>
-    </article>
-    <article class="detail-card panel">
-      <h3>OpenDataLoader 세부 점수</h3>
-      <div class="bar-row">
-        <div class="bar-label">종합</div>
-        <div class="bar-track"><div class="bar-fill odl" style="width:36.3%"></div></div>
-        <div class="bar-value" style="color:var(--accent-2)">36.3</div>
-      </div>
-      <div class="bar-row">
-        <div class="bar-label">텍스트(NID)</div>
-        <div class="bar-track"><div class="bar-fill odl" style="width:76.9%"></div></div>
-        <div class="bar-value" style="color:var(--accent-2)">76.9</div>
-      </div>
-      <div class="bar-row">
-        <div class="bar-label">표(TEDS)</div>
-        <div class="bar-track"><div class="bar-fill odl" style="width:15.9%"></div></div>
-        <div class="bar-value" style="color:var(--accent-2)">15.9</div>
-      </div>
-      <div class="bar-row">
-        <div class="bar-label">구조(MHS)</div>
-        <div class="bar-track"><div class="bar-fill odl" style="width:16.2%"></div></div>
-        <div class="bar-value" style="color:var(--accent-2)">16.2</div>
-      </div>
-    </article>
-  </div>
-
-  <!-- ── Comparison tabs ── -->
-  <section class="tab-section panel">
-    <h2>변환 결과 비교</h2>
-    <p class="subtitle">
-      같은 보도자료를 읽힘과 OpenDataLoader로 각각 변환한 결과입니다. 탭을 전환해서 비교해보세요.
-      Ground Truth는 정책브리핑 docViewer HTML을 정규화한 기준 문서입니다.
-    </p>
-
-    <div class="tab-nav">
-      <button class="tab-btn active" data-tab="readhim">
-        읽힘
-        <span class="badge">49.7점</span>
-      </button>
-      <button class="tab-btn" data-tab="odl">
-        OpenDataLoader
-        <span class="badge">36.3점</span>
-      </button>
-      <button class="tab-btn" data-tab="gt">
-        Ground Truth
-        <span class="badge">기준</span>
-      </button>
-    </div>
-
-    <div class="preview-wrap">
-      <div class="preview-header">
-        <span id="preview-label">읽힘 변환 결과 (HWPX → Markdown)</span>
-        <button class="toggle-raw" id="toggle-raw-btn">Markdown 소스 보기</button>
-      </div>
-      <div class="preview-body" id="preview-body"></div>
-      <pre class="raw-code" id="raw-code"></pre>
+      <article class="compare-card odl">
+        <div class="compare-head">
+          <div>
+            <div class="compare-label">OpenDataLoader 변환 결과</div>
+            <div class="compare-note">PDF → Markdown</div>
+          </div>
+        </div>
+        <div class="dual-view">
+          <div class="md-pane">
+            <span class="pane-eyebrow">Markdown</span>
+            <pre id="odl-md"></pre>
+          </div>
+          <div class="preview-pane">
+            <span class="pane-eyebrow">Rendered Preview</span>
+            <div class="rendered" id="odl-preview"></div>
+          </div>
+        </div>
+        <div class="compare-footer">
+          <span>표 안의 표와 줄바꿈이 섞이면서 일부 내용이 끊깁니다.</span>
+          <span>실제 문서 검토 시 후처리 부담이 남습니다.</span>
+        </div>
+      </article>
     </div>
   </section>
 
-  <!-- ── Footer ── -->
-  <div class="footer-link">
-    <a href="../benchmark-policy-briefing/">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 11L5 7l4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      정책브리핑 99건 전체 벤치마크 보기
-    </a>
-  </div>
+  <section class="section panel">
+    <h2>고유가 비교에서 드러난 장점</h2>
+    <p class="section-copy">이번 문서에서는 본문보다 표와 부록에서 차이가 더 크게 보입니다. 읽힘의 장점은 점수보다 결과 구조에서 먼저 드러납니다.</p>
+    <div class="adv-grid">
+      <article class="adv-card">
+        <div class="adv-index">01</div>
+        <h3>계층구조 유지</h3>
+        <p>고유가 문서의 본문, 신청 절차, 사용처 안내, 이의신청, 붙임, Q&amp;A가 제목 단계에 맞춰 이어집니다. 그래서 중간부터 읽어도 현재 위치를 바로 파악할 수 있습니다.</p>
+      </article>
+      <article class="adv-card">
+        <div class="adv-index">02</div>
+        <h3>표 안의 표 분해 복원</h3>
+        <p>사용 가능 업종과 제한 업종처럼 셀 안에 다시 표와 목록이 들어간 부분을 별도 구조로 풀어냅니다. 고유가 비교에서는 이 차이가 가장 직접적으로 보입니다.</p>
+      </article>
+      <article class="adv-card">
+        <div class="adv-index">03</div>
+        <h3>Markdown과 Preview를 함께 검토</h3>
+        <p>원문 확인과 후편집을 같은 화면에서 처리할 수 있어, 구조가 잘 살아있는지와 실제로 읽히는지 두 관점으로 바로 검토할 수 있습니다.</p>
+      </article>
+    </div>
+  </section>
 
 </main>
 
 <script src="./comparison-goilyuga-data.js"></script>
 <script>
-  const D = window.COMPARISON_DATA;
-  const $ = (sel) => document.querySelector(sel);
-  const $$ = (sel) => document.querySelectorAll(sel);
+  const D = window.COMPARISON_DATA || {};
 
-  const labels = {
-    readhim: '읽힘 변환 결과 (HWPX → Markdown)',
-    odl: 'OpenDataLoader 변환 결과 (PDF → Markdown)',
-    gt: 'Ground Truth (정책브리핑 docViewer → Markdown 정규화)'
-  };
-  const sources = {
-    readhim: D.readhim,
-    odl: D.opendataloader,
-    gt: D.ground_truth
-  };
-
-  let currentTab = 'readhim';
-  let showRaw = false;
-
-  function render() {
-    const md = sources[currentTab] || '';
-    $('#preview-label').textContent = labels[currentTab];
-    $('#preview-body').innerHTML = marked.parse(md);
-    $('#raw-code').textContent = md;
-    $('#preview-body').style.display = showRaw ? 'none' : 'block';
-    $('#raw-code').className = showRaw ? 'raw-code visible' : 'raw-code';
-    $('#toggle-raw-btn').className = showRaw ? 'toggle-raw active' : 'toggle-raw';
-    $('#toggle-raw-btn').textContent = showRaw ? '렌더링 보기' : 'Markdown 소스 보기';
+  function renderPane(markdown, codeTarget, previewTarget) {
+    document.getElementById(codeTarget).textContent = markdown || '';
+    document.getElementById(previewTarget).innerHTML = marked.parse(markdown || '');
   }
 
-  $$('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      $$('.tab-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentTab = btn.dataset.tab;
-      render();
-    });
-  });
-
-  $('#toggle-raw-btn').addEventListener('click', () => {
-    showRaw = !showRaw;
-    render();
-  });
-
-  render();
+  renderPane(D.readhim, 'readhim-md', 'readhim-preview');
+  renderPane(D.opendataloader, 'odl-md', 'odl-preview');
 </script>
 </body>
 </html>
