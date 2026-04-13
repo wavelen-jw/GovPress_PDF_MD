@@ -69,6 +69,33 @@ cleanup_host_proxy_orphans() {
   echo "host_proxy_orphan_cleanup=1"
 }
 
+cleanup_split_edge_orphans() {
+  docker rm -f govpress-cloudflared >/dev/null 2>&1 || true
+  echo "split_edge_orphan_cleanup=1"
+}
+
+require_passwordless_sudo() {
+  sudo -n true >/dev/null 2>&1 || {
+    echo "passwordless sudo is required for ${DEPLOY_MODE}" >&2
+    exit 1
+  }
+}
+
+install_split_edge_services() {
+  require_passwordless_sudo
+  sudo cp "$DEPLOY_DIR/deploy/wsl/systemd/govpress-compose.service" /etc/systemd/system/govpress-compose.service
+  sudo cp "$DEPLOY_DIR/deploy/wsl/systemd/govpress-cloudflared.service" /etc/systemd/system/govpress-cloudflared.service
+  sudo systemctl daemon-reload
+}
+
+restart_split_edge_tunnel() {
+  require_passwordless_sudo
+  sudo systemctl enable govpress-cloudflared.service
+  sudo systemctl restart govpress-cloudflared.service
+  sudo systemctl status --no-pager govpress-cloudflared.service || true
+  sudo journalctl -u govpress-cloudflared.service -n 30 --no-pager || true
+}
+
 emit_compose_diagnostics() {
   echo "=== compose diagnostics ==="
   if [ -n "${COMPOSE_FILE:-}" ]; then
@@ -79,6 +106,8 @@ emit_compose_diagnostics() {
   fi
   echo "=== host port diagnostics ==="
   ss -ltnp | grep ':8080' || true
+  echo "=== systemd diagnostics ==="
+  sudo systemctl status --no-pager govpress-compose.service govpress-cloudflared.service 2>/dev/null || true
   echo "=== health probe diagnostics ==="
   curl -i --max-time 10 "$HEALTHCHECK_URL" || true
   echo "=== container diagnostics ==="
@@ -100,6 +129,7 @@ echo "policy_cache_reset=1"
 if [ -n "${COMPOSE_FILE:-}" ]; then
   COMPOSE_PATH="$DEPLOY_DIR/$COMPOSE_FILE"
   ENV_PATH="$(dirname "$COMPOSE_PATH")/.env"
+  restart_tunnel_after_compose=0
   if [ ! -f "$ENV_PATH" ]; then
     if docker inspect govpress-api >/dev/null 2>&1; then
       mkdir -p "$(dirname "$ENV_PATH")"
@@ -118,9 +148,24 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
   fi
   if [ "${DEPLOY_MODE:-compose_proxy}" = "host_proxy" ]; then
+    upsert_env_value "$ENV_PATH" "GOVPRESS_DEPLOY_MODE" "host_proxy"
     cleanup_host_proxy_orphans
+  elif [ "${DEPLOY_MODE:-compose_proxy}" = "split_edge" ]; then
+    upsert_env_value "$ENV_PATH" "GOVPRESS_DEPLOY_MODE" "split_edge"
+    install_split_edge_services
+    cleanup_split_edge_orphans
+    restart_tunnel_after_compose=1
+    echo "split_edge_tunnel_origin=http://127.0.0.1:8080"
+    echo "split_edge_public_hostname=api4.govpress.cloud"
+    echo "split_edge_tunnel_id=4390f5bd-3dbe-49f5-ab52-382de7670294"
+    echo "split_edge_cloudflared_unit=govpress-cloudflared.service"
+    run_compose up -d --build --remove-orphans api worker caddy
+  else
+    run_compose up -d --build --remove-orphans
   fi
-  run_compose up -d --build --remove-orphans
+  if [ "$restart_tunnel_after_compose" = "1" ]; then
+    restart_split_edge_tunnel
+  fi
   run_compose ps
   sleep 3
 else

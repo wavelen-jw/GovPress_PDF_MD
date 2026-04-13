@@ -19,6 +19,7 @@ on:
         default: ""
       deploy_mode:
         # compose_proxy: compose가 api/worker/caddy/cloudflared를 모두 관리
+        # split_edge: compose가 api/worker/caddy를 관리하고 cloudflared는 host-level systemd로 관리
         # host_proxy: host-level caddy/cloudflared를 유지하고 compose는 api/worker만 관리
         type: string
         default: "compose_proxy"

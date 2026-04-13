@@ -93,7 +93,7 @@ jobs:
       deploy_dir:      ${{ vars.GOVPRESS_W_DEPLOY_DIR }}
       branch:          ${{ vars.GOVPRESS_W_BRANCH || 'web' }}
       compose_file:    ${{ vars.GOVPRESS_W_COMPOSE_FILE || 'deploy/wsl/docker-compose.yml' }}
-      deploy_mode:     compose_proxy
+      deploy_mode:     split_edge
       healthcheck_url: ${{ vars.GOVPRESS_W_HEALTHCHECK_URL || 'http://127.0.0.1:8080/health' }}
     secrets:
       user:             ${{ secrets.GOVPRESS_W_USER }}

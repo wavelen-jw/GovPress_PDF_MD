@@ -1,0 +1,16 @@
+[Unit]
+Description=GovPress Cloudflared Tunnel
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+Environment=HOME=/home/wavel
+Environment=PATH=/home/wavel/.local/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/home/wavel/GovPress_PDF_MD/deploy/wsl/.env
+ExecStart=/bin/bash --noprofile --norc -lc 'exec cloudflared tunnel --no-autoupdate --protocol quic run --token "$CLOUDFLARE_TUNNEL_TOKEN"'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
