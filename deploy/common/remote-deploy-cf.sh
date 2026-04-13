@@ -73,7 +73,7 @@ cleanup_host_proxy_orphans() {
 cleanup_host_proxy_port_conflicts() {
   local pids
   pids="$(
-    sudo ss -ltnp 'sport = :8080' 2>/dev/null \
+    (sudo ss -ltnp 'sport = :8080' 2>/dev/null || true) \
       | sed -n 's/.*users:(("docker-proxy",pid=\([0-9]\+\).*/\1/p' \
       | sort -u
   )"
