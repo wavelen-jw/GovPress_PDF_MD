@@ -259,6 +259,8 @@ for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
 done
 echo "health_probe_code=$health_code"
 test "$health_code" = "200"
-echo "policy_probe_code=$(curl -sS -o /tmp/govpress-policy.txt -w '%{http_code}' 'http://127.0.0.1:8080/v1/policy-briefings/today?date=2026-04-08' || true)"
-echo "policy_probe_body=$(head -c 200 /tmp/govpress-policy.txt | tr '\n' ' ' || true)"
+if [ "${RUN_POLICY_PROBE:-1}" = "1" ]; then
+  echo "policy_probe_code=$(curl -sS -o /tmp/govpress-policy.txt -w '%{http_code}' 'http://127.0.0.1:8080/v1/policy-briefings/today?date=2026-04-08' || true)"
+  echo "policy_probe_body=$(head -c 200 /tmp/govpress-policy.txt | tr '\n' ' ' || true)"
+fi
 echo "deploy-complete"

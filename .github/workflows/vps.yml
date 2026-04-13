@@ -77,6 +77,8 @@ jobs:
       compose_file:    ${{ vars.GOVPRESS_H_COMPOSE_FILE || 'deploy/wsl/docker-compose.host-proxy.yml' }}
       deploy_mode:     host_proxy
       healthcheck_url: ${{ vars.GOVPRESS_H_HEALTHCHECK_URL || 'http://127.0.0.1:8080/health' }}
+      emit_failure_diagnostics_only: "true"
+      run_policy_probe: "false"
     secrets:
       user:             ${{ secrets.GOVPRESS_H_USER }}
       ssh_key:          ${{ secrets.GOVPRESS_H_SSH_KEY }}

@@ -35,6 +35,12 @@ on:
       deploy_poll_interval_seconds:
         type: string
         default: "5"
+      emit_failure_diagnostics_only:
+        type: string
+        default: "false"
+      run_policy_probe:
+        type: string
+        default: "true"
       ssh_host:
         # e.g. ssh-h.govpress.cloud
         type: string
@@ -156,7 +162,7 @@ jobs:
           fi
 
       - name: Emit preflight diagnostics
-        if: always()
+        if: ${{ always() && (inputs.emit_failure_diagnostics_only != 'true' || failure()) }}
         shell: bash
         run: |
           set -euo pipefail
@@ -165,7 +171,7 @@ jobs:
           echo "::warning file=.github,title=cf ssh preflight::key=${key_fp:-unknown}; log=${preflight_tail:-missing}"
 
       - name: Emit cloudflared proxy diagnostics
-        if: always()
+        if: ${{ always() && (inputs.emit_failure_diagnostics_only != 'true' || failure()) }}
         shell: bash
         run: |
           set -euo pipefail
@@ -184,6 +190,7 @@ jobs:
           HEALTHCHECK_URL: ${{ inputs.healthcheck_url }}
           DEPLOY_POLL_ATTEMPTS: ${{ inputs.deploy_poll_attempts }}
           DEPLOY_POLL_INTERVAL_SECONDS: ${{ inputs.deploy_poll_interval_seconds }}
+          RUN_POLICY_PROBE: ${{ inputs.run_policy_probe }}
           CONVERTER_SPEC: ${{ secrets.converter_spec }}
         run: |
           set -euo pipefail
@@ -318,7 +325,7 @@ jobs:
           } > remote-diagnostics.env
 
       - name: Emit remote diagnostics annotation
-        if: always()
+        if: ${{ always() && (inputs.emit_failure_diagnostics_only != 'true' || failure()) }}
         shell: bash
         run: |
           set -euo pipefail
@@ -339,7 +346,7 @@ jobs:
           echo "::warning file=.github,title=remote diagnostics::$message"
 
       - name: Emit remote deploy log tail
-        if: always()
+        if: ${{ always() && (inputs.emit_failure_diagnostics_only != 'true' || failure()) }}
         shell: bash
         run: |
           set -euo pipefail
@@ -352,7 +359,7 @@ jobs:
           echo "::warning file=.github,title=remote deploy log::$tail_text"
 
       - name: Emit SSH client diagnostics
-        if: always()
+        if: ${{ always() && (inputs.emit_failure_diagnostics_only != 'true' || failure()) }}
         shell: bash
         run: |
           set -euo pipefail
