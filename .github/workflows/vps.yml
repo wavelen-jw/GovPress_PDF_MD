@@ -98,6 +98,6 @@ jobs:
     secrets:
       user:             ${{ secrets.GOVPRESS_W_USER }}
       ssh_key:          ${{ secrets.GOVPRESS_W_SSH_KEY }}
-      cf_client_id:     ${{ secrets.CLIENT_ID }}
-      cf_client_secret: ${{ secrets.CLIENT_SECRET }}
+      cf_client_id:     ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      cf_client_secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
       converter_spec:   ${{ secrets.GOVPRESS_CONVERTER_SPEC }}
