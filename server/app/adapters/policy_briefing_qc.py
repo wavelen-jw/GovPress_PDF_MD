@@ -401,6 +401,10 @@ def _normalize_storage_key(text: str) -> str:
     return normalized.strip()
 
 
+def normalize_storage_title_key(text: str) -> str:
+    return _normalize_storage_key(text)
+
+
 def _load_storage_job_metadata(storage_root: Path) -> dict[str, dict[str, str | None]]:
     db_path = storage_root / "jobs.sqlite3"
     if not db_path.exists():
@@ -430,6 +434,33 @@ def _load_storage_job_metadata(storage_root: Path) -> dict[str, dict[str, str | 
             "original_pdf_path": row["original_pdf_path"],
         }
     return payload
+
+
+def find_storage_job_by_title(*, storage_root: str | Path, query: str) -> StorageQcArtifact | None:
+    normalized_query = _normalize_storage_key(query)
+    if not normalized_query:
+        return None
+
+    artifacts = _discover_storage_qc_artifacts(
+        storage_root=storage_root,
+        limit=None,
+        order_by_recent=True,
+    )
+    exact_matches: list[StorageQcArtifact] = []
+    partial_matches: list[StorageQcArtifact] = []
+    for artifact in artifacts:
+        normalized_title = _normalize_storage_key(artifact.title)
+        if not normalized_title:
+            continue
+        if normalized_title == normalized_query:
+            exact_matches.append(artifact)
+        elif normalized_query in normalized_title:
+            partial_matches.append(artifact)
+    if exact_matches:
+        return exact_matches[0]
+    if partial_matches:
+        return partial_matches[0]
+    return None
 
 
 def _discover_storage_qc_artifacts(
@@ -543,6 +574,7 @@ def scaffold_storage_qc_jobs(
     qc_root: str | Path,
     storage_root: str | Path,
     limit: int = 10,
+    job_ids: list[str] | None = None,
     autofill: bool = True,
     force: bool = False,
     order_by_recent: bool = True,
@@ -550,7 +582,8 @@ def scaffold_storage_qc_jobs(
 ) -> dict[str, object]:
     discovered = _discover_storage_qc_artifacts(
         storage_root=storage_root,
-        limit=limit,
+        limit=limit if job_ids is None else max(limit, len(job_ids)),
+        job_ids=job_ids,
         order_by_recent=order_by_recent,
     )
     exported_items: list[dict[str, object]] = []
@@ -582,6 +615,7 @@ def scaffold_storage_qc_jobs(
 
     return {
         "limit": limit,
+        "job_ids": list(job_ids or []),
         "order_by_recent": order_by_recent,
         "storage_root": str(Path(storage_root).resolve()),
         "qc_root": str(Path(qc_root).resolve()),

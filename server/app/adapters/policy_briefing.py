@@ -6,6 +6,7 @@ from html import unescape
 import json
 from pathlib import Path
 import re
+import subprocess
 import tempfile
 import urllib.parse
 import urllib.request
@@ -192,11 +193,36 @@ class PolicyBriefingClient:
             attachment.file_url,
             headers={"User-Agent": "GovPress/1.0"},
         )
-        with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
-            content = response.read()
+        try:
+            with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
+                content = response.read()
+        except Exception:
+            content = self._download_attachment_with_curl(attachment.file_url)
         if not content:
             raise ValueError("첨부파일 다운로드 결과가 비어 있습니다.")
         return DownloadedPolicyBriefingFile(item=item, attachment=attachment, content=content)
+
+    def _download_attachment_with_curl(self, file_url: str) -> bytes:
+        result = subprocess.run(
+            [
+                "curl",
+                "-L",
+                "--fail",
+                "--silent",
+                "--show-error",
+                "--max-time",
+                str(self._timeout_seconds),
+                "-A",
+                "GovPress/1.0",
+                file_url,
+            ],
+            check=False,
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            stderr = result.stderr.decode("utf-8", errors="replace").strip()
+            raise RuntimeError(stderr or f"첨부파일 다운로드 실패: curl exit {result.returncode}")
+        return result.stdout
 
 
 
@@ -256,6 +282,16 @@ class PolicyBriefingCatalog:
 
     def refresh_today(self, target_date: date) -> list[PolicyBriefingItem]:
         return self.list_cached_items(target_date=target_date, ensure_fresh=True)
+
+    def iter_cached_items(self) -> list[PolicyBriefingItem]:
+        self._migrate_legacy_store_if_needed()
+        items: list[PolicyBriefingItem] = []
+        for path in sorted(self._cache_dir.glob("*.json"), reverse=True):
+            store = self._load_store_file(path)
+            for payload in store["items"].values():
+                if isinstance(payload, dict):
+                    items.append(_deserialize_item(payload))
+        return items
 
     def _day_store_path(self, target_date: date) -> Path:
         return self._cache_dir / f"{target_date.isoformat()}.json"
@@ -468,6 +504,36 @@ def _serialize_item(item: PolicyBriefingItem) -> dict[str, object]:
             for attachment in item.attachments
         ],
     }
+
+
+def normalize_policy_briefing_title_key(text: str) -> str:
+    normalized = text.strip().lower()
+    normalized = normalized.replace("_", " ")
+    normalized = re.sub(r"\s+", " ", normalized)
+    normalized = re.sub(r"[^\w\s()-]", "", normalized)
+    return normalized.strip()
+
+
+def find_cached_policy_briefing_by_title(catalog: PolicyBriefingCatalog, query: str) -> PolicyBriefingItem | None:
+    normalized_query = normalize_policy_briefing_title_key(query)
+    if not normalized_query:
+        return None
+
+    exact_matches: list[PolicyBriefingItem] = []
+    partial_matches: list[PolicyBriefingItem] = []
+    for item in catalog.iter_cached_items():
+        normalized_title = normalize_policy_briefing_title_key(item.title)
+        if not normalized_title:
+            continue
+        if normalized_title == normalized_query:
+            exact_matches.append(item)
+        elif normalized_query in normalized_title:
+            partial_matches.append(item)
+    if exact_matches:
+        return exact_matches[0]
+    if partial_matches:
+        return partial_matches[0]
+    return None
 
 
 def _inject_policy_briefing_department(markdown: str, department: str | None) -> str:
