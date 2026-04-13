@@ -203,6 +203,7 @@ export default function App(): React.JSX.Element {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [infoVisible, setInfoVisible] = useState(false);
   const [policyBriefingVisible, setPolicyBriefingVisible] = useState(false);
+  const [policyBriefingStatusVisible, setPolicyBriefingStatusVisible] = useState(false);
   const [hwpxTableMode, setHwpxTableMode] = useState<HwpxTableMode>("text");
   const [selectedTableMode, setSelectedTableMode] = useState<HwpxTableMode>("text");
   const [loadedTableMode, setLoadedTableMode] = useState<HwpxTableMode>("text");
@@ -253,6 +254,30 @@ export default function App(): React.JSX.Element {
     return selectedResultText;
   }, [editing, hasUnsavedChanges, editorText, selectedResultText]);
   const hasAsyncTableVariants = !!result?.table_variants;
+  const policyBriefingStatusSummary = useMemo(() => {
+    if (policyBriefingLoading) {
+      return "정책브리핑 API 상태를 확인 중입니다.";
+    }
+    if (policyBriefingError) {
+      return policyBriefingError;
+    }
+    if (policyBriefingAnyFetchFailure) {
+      return "최근 5일 조회 중 일부 날짜 요청이 실패했습니다.";
+    }
+    if (policyBriefingServedStale) {
+      return "캐시된 정책브리핑 목록이 제공되었습니다.";
+    }
+    if (policyBriefingWarning) {
+      return policyBriefingWarning;
+    }
+    return "정책브리핑 API 상태가 정상입니다.";
+  }, [
+    policyBriefingAnyFetchFailure,
+    policyBriefingError,
+    policyBriefingLoading,
+    policyBriefingServedStale,
+    policyBriefingWarning,
+  ]);
   const htmlVariantState: "ready" | "pending" | "unavailable" = useMemo(() => {
     if (!selectedJob || !selectedJob.file_name.toLowerCase().endsWith(".hwpx")) {
       return "unavailable";
@@ -1693,7 +1718,10 @@ export default function App(): React.JSX.Element {
           <View style={styles.modalCard}>
             <View style={styles.policyBriefingHeader}>
               <Text style={styles.modalTitle}>정책브리핑 보도자료</Text>
-              <View style={styles.policyBriefingStatusInlineRow}>
+              <Pressable
+                onPress={() => setPolicyBriefingStatusVisible(true)}
+                style={styles.policyBriefingStatusInlineRow}
+              >
                 <Text style={styles.policyBriefingMetaText}>{policyBriefings.length}건 · 최근 5일</Text>
                 <Text style={styles.policyBriefingMetaText}>|</Text>
                 <Text style={styles.policyBriefingMetaText}>문체부 API</Text>
@@ -1707,7 +1735,7 @@ export default function App(): React.JSX.Element {
                         : styles.policyBriefingStatusDotHealthy,
                   ]}
                 />
-              </View>
+              </Pressable>
             </View>
             {/* Search bar */}
             <View style={styles.policyBriefingSearchRow}>
@@ -1781,6 +1809,57 @@ export default function App(): React.JSX.Element {
             <View style={styles.modalActions}>
               <Pressable onPress={() => setPolicyBriefingVisible(false)} style={styles.secondaryButton}>
                 <Text style={styles.secondaryButtonLabel}>닫기</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={policyBriefingStatusVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setPolicyBriefingStatusVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>정책브리핑 API 상태</Text>
+            <Text style={styles.modalHint}>
+              이 정보는 정책브리핑 목록 조회 품질을 설명합니다. 기본 화면에는 숨기고, 클릭 시에만 보여줍니다.
+            </Text>
+            <View style={styles.resultMetaCard}>
+              <Text style={styles.resultMetaEyebrow}>현재 상태</Text>
+              <Text style={styles.resultMetaBody}>{policyBriefingStatusSummary}</Text>
+            </View>
+            <View style={styles.resultMetaCard}>
+              <Text style={styles.resultMetaEyebrow}>최근 5일 조회</Text>
+              <Text style={styles.resultMetaBody}>
+                {policyBriefingAnyFetchFailure ? "일부 날짜 요청 실패" : "실패 없음"}
+              </Text>
+              <Text style={styles.resultMetaBody}>
+                {policyBriefingServedStale ? "캐시 제공됨" : "실시간 응답"}
+              </Text>
+              <Text style={styles.resultMetaBody}>
+                {policyBriefingLastRefreshedAt
+                  ? `마지막 갱신: ${policyBriefingLastRefreshedAt}`
+                  : "마지막 갱신 시각 없음"}
+              </Text>
+            </View>
+            {policyBriefingWarning ? (
+              <View style={styles.resultMetaCard}>
+                <Text style={styles.resultMetaEyebrow}>경고</Text>
+                <Text style={styles.resultMetaBody}>{policyBriefingWarning}</Text>
+              </View>
+            ) : null}
+            {policyBriefingError ? (
+              <View style={styles.resultMetaCard}>
+                <Text style={styles.resultMetaEyebrow}>오류</Text>
+                <Text style={styles.resultMetaBody}>{policyBriefingError}</Text>
+              </View>
+            ) : null}
+            <View style={styles.modalActions}>
+              <Pressable onPress={() => setPolicyBriefingStatusVisible(false)} style={styles.primaryButton}>
+                <Text style={styles.primaryButtonLabel}>닫기</Text>
               </Pressable>
             </View>
           </View>

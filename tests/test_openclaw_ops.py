@@ -128,21 +128,21 @@ class OpenClawOpsTests(unittest.TestCase):
 
     def test_parse_server_presets_reads_mobile_constants(self) -> None:
         presets, primary_key = parse_server_presets(self.repo_root / "mobile" / "src" / "constants.ts")
-        self.assertEqual(primary_key, "serverW")
-        self.assertEqual(presets[0].key, "serverW")
-        self.assertEqual(presets[0].url, "https://api4.govpress.cloud")
+        self.assertEqual(primary_key, "serverH")
+        self.assertEqual(presets[0].key, "serverH")
+        self.assertEqual(presets[0].url, "https://api.govpress.cloud")
 
     def test_build_server_status_reports_failover_candidate(self) -> None:
         with mock.patch("scripts.openclaw_ops._fetch_health") as mocked_fetch:
             mocked_fetch.side_effect = [
-                {"ok": False, "status": 502, "endpoint": "https://api4.govpress.cloud/health", "error": "bad gateway"},
                 {"ok": True, "status": 200, "endpoint": "https://api.govpress.cloud/health", "body": "ok"},
+                {"ok": False, "status": 502, "endpoint": "https://api4.govpress.cloud/health", "error": "bad gateway"},
                 {"ok": True, "status": 200, "endpoint": "https://api2.govpress.cloud/health", "body": "ok"},
             ]
             payload = build_server_status()
-        self.assertEqual(payload["primary_key"], "serverW")
-        self.assertFalse(payload["primary_healthy"])
-        self.assertTrue(payload["mismatch"])
+        self.assertEqual(payload["primary_key"], "serverH")
+        self.assertTrue(payload["primary_healthy"])
+        self.assertFalse(payload["mismatch"])
         self.assertEqual(payload["recommended_url"], "https://api.govpress.cloud")
 
     def test_cli_telegram_dispatch_prints_summary(self) -> None:
