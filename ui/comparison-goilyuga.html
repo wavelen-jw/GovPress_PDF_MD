@@ -285,7 +285,7 @@
 
   <section class="section panel">
     <h2>Markdown + Preview 동시 비교</h2>
-    <p class="section-copy">상단 문서 정보는 같고, 차이는 결과 구조입니다. 읽힘은 본문, 신청 절차, 사용처 표, 붙임과 Q&amp;A까지 계층을 유지한 채 이어지고, OpenDataLoader는 표 내부 구조와 일부 계층이 한 덩어리로 무너집니다.</p>
+    <p class="section-copy">상단 문서 정보는 같고, 차이는 결과 구조입니다. 읽힘은 본문, 신청 절차, 사용처 표, 붙임과 Q&amp;A까지 계층을 유지한 채 이어지고, OpenDataLoader는 보도자료 헤드라인과 붙임 블록이 불필요한 표 모양으로 남고, 문장 관계가 약해지며, <code>- 1 -</code> 같은 페이지 잔여물도 함께 남습니다.</p>
     <div class="compare-grid">
       <article class="compare-card readhim">
         <div class="compare-head">
@@ -328,8 +328,8 @@
           </div>
         </div>
         <div class="compare-footer">
-          <span>표 안의 표와 줄바꿈이 섞이면서 일부 내용이 끊깁니다.</span>
-          <span>실제 문서 검토 시 후처리 부담이 남습니다.</span>
+          <span>보도자료 헤드라인과 붙임4 같은 블록이 불필요한 표 모양으로 유지됩니다.</span>
+          <span>문장 관계가 약해지고 <code>- 1 -</code> 같은 페이지 잔여물도 남아 후편집이 필요합니다.</span>
         </div>
       </article>
     </div>
@@ -337,22 +337,22 @@
 
   <section class="section panel">
     <h2>고유가 비교에서 드러난 장점</h2>
-    <p class="section-copy">이번 문서에서는 본문보다 표와 부록에서 차이가 더 크게 보입니다. 읽힘의 장점은 점수보다 결과 구조에서 먼저 드러납니다.</p>
+    <p class="section-copy">이번 문서에서는 본문보다 헤드라인, 부록, 붙임, 페이지 표식에서 차이가 더 크게 보입니다. 읽힘의 장점은 점수보다 결과 구조에서 먼저 드러납니다.</p>
     <div class="adv-grid">
       <article class="adv-card">
         <div class="adv-index">01</div>
         <h3>계층구조 유지</h3>
-        <p>고유가 문서의 본문, 신청 절차, 사용처 안내, 이의신청, 붙임, Q&amp;A가 제목 단계에 맞춰 이어집니다. 그래서 중간부터 읽어도 현재 위치를 바로 파악할 수 있습니다.</p>
+        <p>고유가 문서의 본문, 신청 절차, 사용처 안내, 이의신청, 붙임, Q&amp;A가 제목 단계에 맞춰 이어집니다. 그래서 보도자료 헤드라인 표나 페이지 번호 없이도 현재 위치를 바로 파악할 수 있습니다.</p>
       </article>
       <article class="adv-card">
         <div class="adv-index">02</div>
         <h3>표 안의 표 분해 복원</h3>
-        <p>사용 가능 업종과 제한 업종처럼 셀 안에 다시 표와 목록이 들어간 부분을 별도 구조로 풀어냅니다. 고유가 비교에서는 이 차이가 가장 직접적으로 보입니다.</p>
+        <p>사용 가능 업종과 제한 업종처럼 셀 안에 다시 표와 목록이 들어간 부분을 별도 구조로 풀어냅니다. 반대로 ODL은 보도자료 헤드라인이나 붙임4까지 표 모양으로 남겨 문서 목적과 다른 구조를 유지합니다.</p>
       </article>
       <article class="adv-card">
         <div class="adv-index">03</div>
         <h3>Markdown과 Preview를 함께 검토</h3>
-        <p>원문 확인과 후편집을 같은 화면에서 처리할 수 있어, 구조가 잘 살아있는지와 실제로 읽히는지 두 관점으로 바로 검토할 수 있습니다.</p>
+        <p>원문 확인과 후편집을 같은 화면에서 처리할 수 있어, 구조가 잘 살아있는지와 실제로 읽히는지 두 관점으로 바로 검토할 수 있습니다. 그래서 문장 관계 삭제나 <code>- 1 -</code> 같은 잔여물도 즉시 확인할 수 있습니다.</p>
       </article>
     </div>
   </section>
