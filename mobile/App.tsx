@@ -21,11 +21,12 @@ import * as Sharing from "expo-sharing";
 import { JobDetailPanel } from "./src/components/JobDetailPanel";
 import { SettingsModal } from "./src/components/SettingsModal";
 import { WorkspaceToolbar } from "./src/components/WorkspaceToolbar";
-import { DEFAULT_CONFIG, getServerLabel, isHostedWeb } from "./src/constants";
+import { DEFAULT_CONFIG, getServerLabel, isHostedWeb, SERVER_PRESETS } from "./src/constants";
 import {
   ApiError,
   fetchJob,
   fetchResult,
+  fetchTodayPolicyBriefingsDirect,
   fetchTodayPolicyBriefings,
   importPolicyBriefing,
   retryJob,
@@ -60,6 +61,17 @@ type WebDropAsset = DocumentPicker.DocumentPickerAsset & { file?: File };
 type PendingLandingAction = {
   type: "open-picker" | "open-policy-briefings";
   requestedAt: number;
+};
+
+type PolicyBriefingServerStatus = {
+  key: string;
+  label: string;
+  url: string;
+  anyFetchFailure: boolean;
+  servedStale: boolean;
+  warning: string | null;
+  error: string | null;
+  lastRefreshedAt: string | null;
 };
 
 const LANDING_ACTION_STORAGE_KEY = "govpress:landing-action";
@@ -235,6 +247,7 @@ export default function App(): React.JSX.Element {
   const [policyBriefingLastRefreshedAt, setPolicyBriefingLastRefreshedAt] = useState<string | null>(null);
   const [policyBriefingServedStale, setPolicyBriefingServedStale] = useState(false);
   const [policyBriefingAnyFetchFailure, setPolicyBriefingAnyFetchFailure] = useState(false);
+  const [policyBriefingServerStatuses, setPolicyBriefingServerStatuses] = useState<PolicyBriefingServerStatus[]>([]);
   const [policyBriefingQuery, setPolicyBriefingQuery] = useState("");
   const [importingNewsItemId, setImportingNewsItemId] = useState<string | null>(null);
   const [desktopSplitRatio, setDesktopSplitRatio] = useState(0.5);
@@ -870,6 +883,7 @@ export default function App(): React.JSX.Element {
     setPolicyBriefingLastRefreshedAt(null);
     setPolicyBriefingServedStale(false);
     setPolicyBriefingAnyFetchFailure(false);
+    setPolicyBriefingServerStatuses([]);
     setPolicyBriefingQuery("");
     try {
       const today = new Date();
@@ -878,6 +892,48 @@ export default function App(): React.JSX.Element {
         d.setDate(d.getDate() - i);
         return d.toISOString().slice(0, 10); // YYYY-MM-DD
       });
+      const directStatusResults = await Promise.all(
+        SERVER_PRESETS.map(async (preset) => {
+          const results = await Promise.allSettled(
+            dates.map((date) => fetchTodayPolicyBriefingsDirect({ ...config, baseUrl: preset.url }, preset.url, date)),
+          );
+          const failures: string[] = [];
+          const warnings: string[] = [];
+          const refreshTimes: string[] = [];
+          let servedStale = false;
+          for (const r of results) {
+            if (r.status === "fulfilled") {
+              if (r.value.served_stale) {
+                servedStale = true;
+              }
+              if (r.value.warning) {
+                warnings.push(normalizePolicyBriefingStatusMessage(r.value.warning));
+              }
+              if (r.value.last_refreshed_at) {
+                refreshTimes.push(r.value.last_refreshed_at);
+              }
+            } else {
+              failures.push(
+                normalizePolicyBriefingStatusMessage(r.reason instanceof Error ? r.reason.message : String(r.reason)),
+              );
+            }
+          }
+          const freshest = refreshTimes.sort().at(-1) || null;
+          const error = failures[0] || null;
+          const warning = warnings[0] || null;
+          return {
+            key: preset.key,
+            label: preset.label,
+            url: preset.url,
+            anyFetchFailure: failures.length > 0,
+            servedStale,
+            warning,
+            error,
+            lastRefreshedAt: freshest,
+          } satisfies PolicyBriefingServerStatus;
+        }),
+      );
+      setPolicyBriefingServerStatuses(directStatusResults);
       const results = await Promise.allSettled(
         dates.map((date) => fetchTodayPolicyBriefings(config, date)),
       );
@@ -1866,6 +1922,35 @@ export default function App(): React.JSX.Element {
                   : "마지막 갱신 시각 없음"}
               </Text>
             </View>
+            {policyBriefingServerStatuses.length > 0 ? (
+              <View style={styles.resultMetaCard}>
+                <Text style={styles.resultMetaEyebrow}>서버별 정책브리핑 상태</Text>
+                {policyBriefingServerStatuses.map((status) => {
+                  const healthy = !status.error && !status.anyFetchFailure && !status.servedStale && !status.warning;
+                  return (
+                    <View key={status.key} style={styles.resultMetaRow}>
+                      <Text style={styles.resultMetaEyebrow}>
+                        {status.label} · {healthy ? "정상" : "문제"}
+                      </Text>
+                      <Text style={styles.resultMetaBody}>
+                        {status.error
+                          ? status.error
+                          : status.anyFetchFailure
+                            ? "최근 5일 조회 중 일부 날짜 요청 실패"
+                            : status.servedStale
+                              ? "캐시 제공됨"
+                              : status.warning || "정상"}
+                      </Text>
+                      <Text style={styles.resultMetaBody}>
+                        {status.lastRefreshedAt
+                          ? `마지막 갱신: ${status.lastRefreshedAt}`
+                          : "마지막 갱신 시각 없음"}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
             {policyBriefingWarning ? (
               <View style={styles.resultMetaCard}>
                 <Text style={styles.resultMetaEyebrow}>경고</Text>

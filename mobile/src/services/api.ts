@@ -287,6 +287,27 @@ export async function fetchTodayPolicyBriefings(config: AppConfig, date?: string
   throw new Error(buildPolicyBriefingUnavailableMessage("목록", failures));
 }
 
+export async function fetchTodayPolicyBriefingsDirect(
+  config: AppConfig,
+  baseUrl: string,
+  date?: string,
+): Promise<PolicyBriefingListPayload> {
+  const path = date ? `/v1/policy-briefings/today?date=${date}` : "/v1/policy-briefings/today";
+  const response = await fetchWithTimeout(
+    `${baseUrl}${path}`,
+    {
+      method: "GET",
+      headers: buildHeaders(config),
+    },
+    SERVER_FALLBACK_TIMEOUT_MS,
+  );
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new ApiError(response.status, normalizePolicyBriefingFailure(detail || `Request failed: ${response.status}`));
+  }
+  return (await response.json()) as PolicyBriefingListPayload;
+}
+
 export async function importPolicyBriefing(config: AppConfig, newsItemId: string): Promise<PolicyBriefingImportResult> {
   const attempts = getFallbackBaseUrls(config.baseUrl);
   const failures: string[] = [];
