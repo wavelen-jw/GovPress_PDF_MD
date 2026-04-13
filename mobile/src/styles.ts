@@ -1245,6 +1245,12 @@ export const styles = StyleSheet.create({
   resultMetaTitleDark: { color: "#f2e2d0", fontSize: 18, fontWeight: "700" },
   resultMetaBody: { color: "#705a45", lineHeight: 20 },
   resultMetaBodyDark: { color: "#d7c2ab", lineHeight: 20 },
+  resultMetaRow: {
+    gap: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(138, 118, 97, 0.18)",
+  },
   detailActionsHeader: {
     gap: 4,
   },
