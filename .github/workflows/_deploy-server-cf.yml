@@ -91,9 +91,24 @@ jobs:
           mkdir -p ~/.ssh
           mkdir -p ~/.ssh/cm
           : > ~/cloudflared-proxy.log
-          # GitHub Actions 같은 자동화 환경에서는 service token + access ssh 조합을 사용한다.
+          cloudflared access tcp \
+            --hostname "$SSH_HOST" \
+            --url "127.0.0.1:${{ inputs.ssh_port }}" \
+            --service-token-id "$CF_ID" \
+            --service-token-secret "$CF_SECRET" \
+            --logfile "$HOME/cloudflared-proxy.log" \
+            >/tmp/cloudflared-access-tcp.stdout 2>&1 &
+          echo $! > ~/cloudflared-access-tcp.pid
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            if ss -ltn | grep -q "127.0.0.1:${{ inputs.ssh_port }}"; then
+              break
+            fi
+            sleep 1
+          done
+          # GitHub Actions 같은 자동화 환경에서는 service token + access tcp 조합을 사용한다.
           cat >> ~/.ssh/config << EOF
           Host ${SSH_HOST}
+            HostName 127.0.0.1
             StrictHostKeyChecking accept-new
             Port ${{ inputs.ssh_port }}
             ControlMaster auto
@@ -103,7 +118,6 @@ jobs:
             ServerAliveCountMax 6
             TCPKeepAlive yes
             ConnectTimeout 30
-            ProxyCommand /bin/sh -lc 'cloudflared access ssh --hostname %h --service-token-id ${CF_ID} --service-token-secret ${CF_SECRET} 2>>"$HOME"/cloudflared-proxy.log'
           EOF
 
       - name: Preflight SSH over Cloudflare Tunnel
@@ -169,6 +183,7 @@ jobs:
           REMOTE_STATUS="${REMOTE_DIR}/status.env"
           LAUNCH_CMD="$(printf "export DEPLOY_DIR=%q BRANCH=%q COMPOSE_FILE=%q DEPLOY_MODE=%q SERVICE=%q HEALTHCHECK_URL=%q CONVERTER_SPEC=%q; remote_dir=%q; remote_path=%q; remote_log=%q; remote_status=%q; mkdir -p \"\$remote_dir\"; rm -f \"\$remote_status\"; cat > \"\$remote_path\" && chmod 700 \"\$remote_path\" && { ( /bin/bash --noprofile --norc \"\$remote_path\" > \"\$remote_log\" 2>&1; rc=\$?; printf 'exit_code=%%s\\n' \"\$rc\" > \"\$remote_status\"; rm -f \"\$remote_path\" ) </dev/null >/dev/null 2>&1 & printf 'launch_pid=%%s\\n' \"\$!\"; }; printf 'remote_log=%%s\\n' \"\$remote_log\"; printf 'remote_status=%%s\\n' \"\$remote_status\"" "$DEPLOY_DIR" "$BRANCH" "$COMPOSE_FILE" "$DEPLOY_MODE" "$SERVICE" "$HEALTHCHECK_URL" "$CONVERTER_SPEC" "$REMOTE_DIR" "$REMOTE_PATH" "$REMOTE_LOG" "$REMOTE_STATUS")"
           POLL_CMD="$(printf "if [ -f %q ]; then cat %q; fi; printf '__REMOTE_LOG__\\n'; if [ -f %q ]; then tail -n 200 %q; fi" "$REMOTE_STATUS" "$REMOTE_STATUS" "$REMOTE_LOG" "$REMOTE_LOG")"
+          FETCH_CMD="$(printf "if [ -f %q ]; then cat %q; fi" "$REMOTE_LOG" "$REMOTE_LOG")"
           launch_exit=1
           for attempt in 1 2 3 4; do
             : > remote-launch.log
@@ -214,6 +229,22 @@ jobs:
             fi
             sleep 5
           done
+          if [ "$launch_exit" -eq 0 ]; then
+            for attempt in 1 2 3 4; do
+              set +e
+              ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "$FETCH_CMD" > remote-deploy.log 2>&1
+              fetch_exit=$?
+              set -e
+              printf 'ssh_fetch_exit=%s\n' "$fetch_exit" >> remote-deploy.log
+              if [ "$fetch_exit" -eq 0 ] && [ -s remote-deploy.log ]; then
+                break
+              fi
+              if ! grep -Eqi 'websocket: bad handshake|proxy command failed|connection reset|connection closed|kex_exchange_identification|timed out|broken pipe|banner exchange' remote-deploy.log; then
+                break
+              fi
+              sleep $((attempt * 5))
+            done
+          fi
           test "$deploy_exit" -eq 0
 
       - name: Summary
@@ -328,6 +359,9 @@ jobs:
           set -euo pipefail
           KEY_FILE=~/.ssh/deploy_key
           ssh -O exit -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" >/dev/null 2>&1 || true
+          if [ -f "$HOME/cloudflared-access-tcp.pid" ]; then
+            kill "$(cat "$HOME/cloudflared-access-tcp.pid")" >/dev/null 2>&1 || true
+          fi
 
       - name: Verify remote deploy result
         if: always()
