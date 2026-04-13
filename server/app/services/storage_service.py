@@ -25,10 +25,13 @@ class StorageService:
         for directory in (self.originals_dir, self.results_dir, self.edits_dir):
             directory.mkdir(parents=True, exist_ok=True)
 
-    def save_original_pdf(self, job_id: str, file_name: str, content: bytes) -> Path:
+    def save_original_file(self, job_id: str, file_name: str, content: bytes) -> Path:
         path = self.originals_dir / f"{job_id}-{_safe_filename(file_name)}"
         path.write_bytes(content)
         return path
+
+    def save_original_pdf(self, job_id: str, file_name: str, content: bytes) -> Path:
+        return self.save_original_file(job_id, file_name, content)
 
     async def save_original_pdf_stream(
         self,
@@ -74,8 +77,9 @@ class StorageService:
             self.results_dir / f"{job_id}.md",
             self.edits_dir / f"{job_id}.md",
         ]
-        if file_name:
-            candidates.append(self.originals_dir / f"{job_id}-{_safe_filename(file_name)}")
         for path in candidates:
             if path.exists():
+                path.unlink()
+        for path in self.originals_dir.glob(f"{job_id}-*"):
+            if path.is_file():
                 path.unlink()

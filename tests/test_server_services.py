@@ -221,6 +221,7 @@ class ServerServiceTests(unittest.TestCase):
     def test_cleanup_jobs_removes_expired_completed_job(self) -> None:
         with patch.object(self.worker, "enqueue"):
             record = self.job_service.create_job(file_name="sample.pdf", content=b"%PDF-1.4")
+        self.storage.save_original_file(record.job_id, "sample.hwpx", b"PK\x03\x04")
         self.repository.save_result(
             record.job_id,
             markdown="# 원본",
@@ -239,3 +240,4 @@ class ServerServiceTests(unittest.TestCase):
         self.assertEqual([item.job_id for item in removed], [record.job_id])
         self.assertIsNone(self.repository.get(record.job_id))
         self.assertFalse((self.storage.results_dir / f"{record.job_id}.md").exists())
+        self.assertEqual(list(self.storage.originals_dir.glob(f"{record.job_id}-*")), [])

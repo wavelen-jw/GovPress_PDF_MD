@@ -40,6 +40,10 @@ class PolicyBriefingClientStub:
                         file_url="https://example.test/files/today-briefing.hwpx",
                     ),
                     PolicyBriefingAttachment(
+                        file_name="today-briefing.pdf",
+                        file_url="https://example.test/files/today-briefing.pdf",
+                    ),
+                    PolicyBriefingAttachment(
                         file_name="[별첨] today-appendix.hwpx",
                         file_url="https://example.test/files/today-appendix.hwpx",
                     ),
@@ -93,6 +97,15 @@ class PolicyBriefingClientStub:
             attachment=attachment,
             content=self.fixture_hwpx,
         )
+
+    def download_attachment(
+        self,
+        item: PolicyBriefingItem,
+        attachment: PolicyBriefingAttachment,
+    ) -> DownloadedPolicyBriefingFile:
+        self.download_calls.append(f"{item.news_item_id}:{attachment.file_name}")
+        content = b"%PDF-1.7 stub" if attachment.is_pdf else self.fixture_hwpx
+        return DownloadedPolicyBriefingFile(item=item, attachment=attachment, content=content)
 
 
 
@@ -225,6 +238,8 @@ class PolicyBriefingApiTests(unittest.TestCase):
         self.assertTrue(cache_index.exists())
         original_path = next((Path(self.temp_dir.name) / "originals").glob(f"{payload['job_id']}-*.hwpx"))
         self.assertGreater(original_path.stat().st_size, 0)
+        pdf_path = next((Path(self.temp_dir.name) / "originals").glob(f"{payload['job_id']}-*.pdf"))
+        self.assertGreater(pdf_path.stat().st_size, 0)
 
     def test_import_policy_briefing_recovers_missing_cached_original(self) -> None:
         first = self.client.post(

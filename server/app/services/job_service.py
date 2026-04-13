@@ -98,6 +98,15 @@ class JobService:
         assert completed is not None
         return completed
 
+    def attach_original_artifact(
+        self,
+        *,
+        job_id: str,
+        file_name: str,
+        content: bytes,
+    ) -> Path:
+        return self._storage.save_original_file(job_id, file_name, content)
+
     async def create_job_from_upload(
         self,
         *,

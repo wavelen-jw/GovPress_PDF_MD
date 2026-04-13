@@ -119,6 +119,18 @@ def build_router(
             original_content=cached.original_content,
             source="policy-briefing-cache",
         )
+        pdf_attachment = item.primary_pdf
+        if pdf_attachment is not None:
+            try:
+                downloaded_pdf = policy_briefing_client.download_attachment(item, pdf_attachment)
+            except Exception:
+                downloaded_pdf = None
+            if downloaded_pdf is not None:
+                job_service.attach_original_artifact(
+                    job_id=record.job_id,
+                    file_name=pdf_attachment.file_name,
+                    content=downloaded_pdf.content,
+                )
         return PolicyBriefingImportResponse(
             job_id=record.job_id,
             edit_token=record.edit_token,
