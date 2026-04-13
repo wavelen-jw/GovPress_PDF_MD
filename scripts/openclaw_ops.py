@@ -935,7 +935,7 @@ def _build_recent_storage_jobs_payload(
         storage_root=storage_root,
         limit=limit,
         autofill=True,
-        force=False,
+        force=True,
         order_by_recent=True,
     )
     return {
@@ -1693,6 +1693,7 @@ def format_human(payload: dict[str, Any]) -> str:
         lines = [
             f"[QC Jobs Generated] recent={payload.get('limit')}",
             f"scaffolded={payload.get('scaffolded_count', 0)}",
+            "source=국정브리핑 storage recent corpus (fresh scaffold)",
         ]
         for item in payload.get("items", [])[:10]:
             sample_dir = str(item.get("scaffold_sample_dir") or "")

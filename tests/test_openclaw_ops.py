@@ -314,6 +314,7 @@ class OpenClawOpsTests(unittest.TestCase):
             self.assertEqual(payload["command"], "remote-qc-generate-recent-jobs")
             self.assertEqual(payload["scaffolded_count"], 2)
             mocked_scaffold.assert_called_once()
+            self.assertTrue(mocked_scaffold.call_args.kwargs["force"])
             self.assertIn("recent=10", format_human(payload))
 
     def test_remote_qc_falls_back_to_default_sender_when_metadata_is_missing(self) -> None:
