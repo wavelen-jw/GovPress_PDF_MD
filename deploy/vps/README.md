@@ -134,6 +134,6 @@ export GOVPRESS_CONVERTER_SPEC="git+https://<TOKEN>@github.com/wavelen-jw/gov-md
 export GOVPRESS_CONVERTER_MIN_VERSION="0.1.1"
 export GOVPRESS_CONVERTER_EXTRA_INDEX_URL=""
 export GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=0
-sudo bash deploy/vps/setup-bare.sh /home/wavel/GovPress_PDF_MD
+sudo bash deploy/vps/setup-bare.sh /home/wavel/projects/GovPress_PDF_MD
 ```
 변환 대상 파일 크기를 줄이는 것이 좋습니다.

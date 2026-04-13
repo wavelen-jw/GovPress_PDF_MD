@@ -21,7 +21,7 @@ sudo cp deploy/wsl/systemd/govpress-compose.service /etc/systemd/system/govpress
 현재 기본값:
 
 ```text
-/home/wavel/GovPress_PDF_MD/deploy/wsl
+/home/wavel/projects/GovPress_PDF_MD/deploy/wsl
 ```
 
 이 서비스는 `deploy/wsl/bin/compose.sh`를 통해 Compose 실행 파일을 찾습니다.
@@ -35,7 +35,7 @@ sudo cp deploy/wsl/systemd/govpress-compose.service /etc/systemd/system/govpress
 이미지 재빌드가 필요할 때는 별도로 수동 실행합니다.
 
 ```bash
-/home/wavel/GovPress_PDF_MD/deploy/wsl/bin/compose.sh up -d --build
+/home/wavel/projects/GovPress_PDF_MD/deploy/wsl/bin/compose.sh up -d --build
 ```
 
 ## 활성화
@@ -50,7 +50,7 @@ sudo systemctl start govpress-compose.service
 
 ```bash
 sudo systemctl status govpress-compose.service
-/home/wavel/GovPress_PDF_MD/deploy/wsl/bin/compose.sh ps
+/home/wavel/projects/GovPress_PDF_MD/deploy/wsl/bin/compose.sh ps
 ```
 
 ## 중지

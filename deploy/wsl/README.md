@@ -32,13 +32,13 @@ WSL Linux 파일시스템 안에 프로젝트를 두는 편이 좋습니다.
 현재 작업 환경 예:
 
 ```bash
-/home/wavel/GovPress_PDF_MD
+/home/wavel/projects/GovPress_PDF_MD
 ```
 
 배포 작업 디렉터리:
 
 ```bash
-cd /home/wavel/GovPress_PDF_MD/deploy/wsl
+cd /home/wavel/projects/GovPress_PDF_MD/deploy/wsl
 ```
 
 ## 준비
@@ -214,8 +214,8 @@ http.request.uri.path eq "/v1/jobs" and http.request.method eq "POST"
 
 예시 파일:
 
-- [deploy/wsl/systemd/govpress-compose.service](/home/wavel/GovPress_PDF_MD/deploy/wsl/systemd/govpress-compose.service)
-- [deploy/wsl/systemd/README.md](/home/wavel/GovPress_PDF_MD/deploy/wsl/systemd/README.md)
+- [deploy/wsl/systemd/govpress-compose.service](/home/wavel/projects/GovPress_PDF_MD/deploy/wsl/systemd/govpress-compose.service)
+- [deploy/wsl/systemd/README.md](/home/wavel/projects/GovPress_PDF_MD/deploy/wsl/systemd/README.md)
 
 핵심 절차:
 
@@ -238,7 +238,7 @@ sudo systemctl status govpress-compose.service
 
 ```bash
 sudo systemctl status --no-pager govpress-compose.service
-docker-compose -f /home/wavel/GovPress_PDF_MD/deploy/wsl/docker-compose.yml ps
+docker-compose -f /home/wavel/projects/GovPress_PDF_MD/deploy/wsl/docker-compose.yml ps
 curl http://127.0.0.1:8080/health
 curl -i -H 'X-API-Key: <API_KEY>' https://api.govpress.cloud/health
 ```
@@ -253,9 +253,9 @@ curl -i -H 'X-API-Key: <API_KEY>' https://api.govpress.cloud/health
 ### 로그 확인
 
 ```bash
-docker-compose -f /home/wavel/GovPress_PDF_MD/deploy/wsl/docker-compose.yml logs --tail=100 api
-docker-compose -f /home/wavel/GovPress_PDF_MD/deploy/wsl/docker-compose.yml logs --tail=100 worker
-docker-compose -f /home/wavel/GovPress_PDF_MD/deploy/wsl/docker-compose.yml logs --tail=100 cloudflared
+docker-compose -f /home/wavel/projects/GovPress_PDF_MD/deploy/wsl/docker-compose.yml logs --tail=100 api
+docker-compose -f /home/wavel/projects/GovPress_PDF_MD/deploy/wsl/docker-compose.yml logs --tail=100 worker
+docker-compose -f /home/wavel/projects/GovPress_PDF_MD/deploy/wsl/docker-compose.yml logs --tail=100 cloudflared
 ```
 
 ### 재시작
@@ -268,7 +268,7 @@ sudo systemctl status --no-pager govpress-compose.service
 또는 compose만 직접 재기동:
 
 ```bash
-"/mnt/c/Program Files/Docker/Docker/resources/bin/docker-compose" -f /home/wavel/GovPress_PDF_MD/deploy/wsl/docker-compose.yml up -d
+"/mnt/c/Program Files/Docker/Docker/resources/bin/docker-compose" -f /home/wavel/projects/GovPress_PDF_MD/deploy/wsl/docker-compose.yml up -d
 ```
 
 ### API 키 교체
@@ -278,7 +278,7 @@ sudo systemctl status --no-pager govpress-compose.service
 3. 스택 재기동
 
 ```bash
-nano /home/wavel/GovPress_PDF_MD/deploy/wsl/.env
+nano /home/wavel/projects/GovPress_PDF_MD/deploy/wsl/.env
 sudo systemctl restart govpress-compose.service
 ```
 
