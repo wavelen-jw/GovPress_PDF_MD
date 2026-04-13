@@ -28,6 +28,7 @@ echo "git_branch=$(git -C "$DEPLOY_DIR" branch --show-current)"
 echo "git_head=$(git -C "$DEPLOY_DIR" rev-parse HEAD)"
 echo "target_sha=$(git -C "$DEPLOY_DIR" rev-parse HEAD)"
 echo "git_origin=$(git -C "$DEPLOY_DIR" remote get-url origin)"
+HOME_DIR="${HOME:-$(getent passwd $(id -u) | cut -d: -f6)}"
 
 upsert_env_value() {
   local env_file="$1"
@@ -83,16 +84,29 @@ require_passwordless_sudo() {
 
 install_split_edge_services() {
   require_passwordless_sudo
-  sudo cp "$DEPLOY_DIR/deploy/wsl/systemd/govpress-compose.service" /etc/systemd/system/govpress-compose.service
-  sudo cp "$DEPLOY_DIR/deploy/wsl/systemd/govpress-cloudflared.service" /etc/systemd/system/govpress-cloudflared.service
+  render_systemd_unit "$DEPLOY_DIR/deploy/wsl/systemd/govpress-compose.service" /etc/systemd/system/govpress-compose.service
+  render_systemd_unit "$DEPLOY_DIR/deploy/wsl/systemd/govpress-cloudflared.service" /etc/systemd/system/govpress-cloudflared.service
   sudo systemctl daemon-reload
+}
+
+render_systemd_unit() {
+  local source_path="$1"
+  local dest_path="$2"
+  local tmp_file
+  tmp_file="$(mktemp)"
+  sed \
+    -e "s|__DEPLOY_DIR__|$DEPLOY_DIR|g" \
+    -e "s|__HOME_DIR__|$HOME_DIR|g" \
+    "$source_path" > "$tmp_file"
+  sudo cp "$tmp_file" "$dest_path"
+  rm -f "$tmp_file"
 }
 
 install_host_proxy_services() {
   require_passwordless_sudo
-  sudo cp "$DEPLOY_DIR/deploy/wsl/systemd/govpress-compose.service" /etc/systemd/system/govpress-compose.service
-  sudo cp "$DEPLOY_DIR/deploy/wsl/systemd/govpress-caddy.service" /etc/systemd/system/govpress-caddy.service
-  sudo cp "$DEPLOY_DIR/deploy/wsl/systemd/govpress-cloudflared.service" /etc/systemd/system/govpress-cloudflared.service
+  render_systemd_unit "$DEPLOY_DIR/deploy/wsl/systemd/govpress-compose.service" /etc/systemd/system/govpress-compose.service
+  render_systemd_unit "$DEPLOY_DIR/deploy/wsl/systemd/govpress-caddy.service" /etc/systemd/system/govpress-caddy.service
+  render_systemd_unit "$DEPLOY_DIR/deploy/wsl/systemd/govpress-cloudflared.service" /etc/systemd/system/govpress-cloudflared.service
   sudo systemctl daemon-reload
 }
 

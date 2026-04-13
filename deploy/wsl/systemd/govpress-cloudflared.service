@@ -5,10 +5,10 @@ After=network-online.target govpress-caddy.service
 
 [Service]
 Type=simple
-Environment=HOME=/home/wavel
-Environment=PATH=/home/wavel/.local/bin:/usr/local/bin:/usr/bin:/bin
-WorkingDirectory=/home/wavel/projects/GovPress_PDF_MD/deploy/wsl
-EnvironmentFile=/home/wavel/projects/GovPress_PDF_MD/deploy/wsl/.env
+Environment=HOME=__HOME_DIR__
+Environment=PATH=__HOME_DIR__/.local/bin:/usr/local/bin:/usr/bin:/bin
+WorkingDirectory=__DEPLOY_DIR__/deploy/wsl
+EnvironmentFile=__DEPLOY_DIR__/deploy/wsl/.env
 ExecStartPre=/bin/bash -lc 'test -n "$CLOUDFLARE_TUNNEL_TOKEN"'
 ExecStart=/bin/bash -lc 'exec cloudflared tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:8080 run --token "$CLOUDFLARE_TUNNEL_TOKEN"'
 Restart=always

@@ -5,12 +5,12 @@ After=network-online.target docker.service docker.socket
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/wavel/projects/GovPress_PDF_MD/deploy/wsl
-Environment=HOME=/home/wavel
+WorkingDirectory=__DEPLOY_DIR__/deploy/wsl
+Environment=HOME=__HOME_DIR__
 RemainAfterExit=yes
 ExecStartPre=/bin/bash -lc "for i in $(seq 1 20); do docker info >/dev/null 2>&1 && exit 0; sleep 3; done; exit 1"
-ExecStart=/bin/bash --noprofile --norc -c "/home/wavel/projects/GovPress_PDF_MD/deploy/wsl/bin/compose.sh up -d"
-ExecStop=/bin/bash --noprofile --norc -c "/home/wavel/projects/GovPress_PDF_MD/deploy/wsl/bin/compose.sh down"
+ExecStart=/bin/bash --noprofile --norc -c "__DEPLOY_DIR__/deploy/wsl/bin/compose.sh up -d"
+ExecStop=/bin/bash --noprofile --norc -c "__DEPLOY_DIR__/deploy/wsl/bin/compose.sh down"
 TimeoutStartSec=0
 
 [Install]

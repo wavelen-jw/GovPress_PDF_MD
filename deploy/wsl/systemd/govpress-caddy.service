@@ -5,10 +5,10 @@ After=network-online.target govpress-compose.service
 
 [Service]
 Type=simple
-WorkingDirectory=/home/wavel/projects/GovPress_PDF_MD/deploy/wsl
-Environment=HOME=/home/wavel
+WorkingDirectory=__DEPLOY_DIR__/deploy/wsl
+Environment=HOME=__HOME_DIR__
 ExecStartPre=/bin/bash -lc "for i in $(seq 1 20); do curl -sf http://127.0.0.1:8013/health >/dev/null 2>&1 && exit 0; sleep 3; done; exit 1"
-ExecStart=/bin/bash --noprofile --norc -lc 'exec python3 /home/wavel/projects/GovPress_PDF_MD/deploy/wsl/bin/host_proxy.py'
+ExecStart=/bin/bash --noprofile --norc -lc 'exec python3 __DEPLOY_DIR__/deploy/wsl/bin/host_proxy.py'
 Restart=always
 RestartSec=5
 

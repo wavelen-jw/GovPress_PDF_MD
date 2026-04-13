@@ -13,9 +13,14 @@
 서비스 파일 복사:
 
 ```bash
-sudo cp deploy/wsl/systemd/govpress-compose.service /etc/systemd/system/govpress-compose.service
-sudo cp deploy/wsl/systemd/govpress-caddy.service /etc/systemd/system/govpress-caddy.service
-sudo cp deploy/wsl/systemd/govpress-cloudflared.service /etc/systemd/system/govpress-cloudflared.service
+DEPLOY_DIR=/home/wavel/projects/GovPress_PDF_MD
+HOME_DIR="${HOME:-$(getent passwd "$(id -u)" | cut -d: -f6)}"
+sed -e "s|__DEPLOY_DIR__|$DEPLOY_DIR|g" -e "s|__HOME_DIR__|$HOME_DIR|g" \
+  deploy/wsl/systemd/govpress-compose.service | sudo tee /etc/systemd/system/govpress-compose.service >/dev/null
+sed -e "s|__DEPLOY_DIR__|$DEPLOY_DIR|g" -e "s|__HOME_DIR__|$HOME_DIR|g" \
+  deploy/wsl/systemd/govpress-caddy.service | sudo tee /etc/systemd/system/govpress-caddy.service >/dev/null
+sed -e "s|__DEPLOY_DIR__|$DEPLOY_DIR|g" -e "s|__HOME_DIR__|$HOME_DIR|g" \
+  deploy/wsl/systemd/govpress-cloudflared.service | sudo tee /etc/systemd/system/govpress-cloudflared.service >/dev/null
 ```
 
 필요하면 `WorkingDirectory`를 현재 경로에 맞게 수정합니다.
