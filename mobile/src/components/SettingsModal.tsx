@@ -6,6 +6,10 @@ import { styles } from "../styles";
 import type { AppConfig } from "../types";
 
 type ServerKey = (typeof SERVER_PRESETS)[number]["key"];
+type ServerProbeResult = {
+  ok: boolean;
+  detail: string;
+};
 
 export function SettingsModal({
   visible,
@@ -25,13 +29,18 @@ export function SettingsModal({
     serverW: null,
     serverH: null,
   });
+  const [serverDetails, setServerDetails] = useState<Record<ServerKey, string>>({
+    serverV: "",
+    serverW: "",
+    serverH: "",
+  });
   const [checkingStatus, setCheckingStatus] = useState(false);
 
   const selectedKey = useMemo<ServerKey>(() => {
     return SERVER_PRESETS.find((preset) => preset.url === draft.baseUrl)?.key || PRIMARY_SERVER_KEY;
   }, [draft.baseUrl]);
 
-  async function probeServerHealth(url: string, timeoutMs: number): Promise<boolean> {
+  async function probeServerHealth(url: string, timeoutMs: number): Promise<ServerProbeResult> {
     const attempts = 2;
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       const controller = new AbortController();
@@ -42,15 +51,20 @@ export function SettingsModal({
           cache: "no-store",
         });
         if (response.ok) {
-          return true;
+          return { ok: true, detail: `HTTP ${response.status}` };
+        }
+        if (attempt === attempts - 1) {
+          return { ok: false, detail: `HTTP ${response.status}` };
         }
       } catch {
-        // Retry once before treating the server as down in the UI.
+        if (attempt === attempts - 1) {
+          return { ok: false, detail: "fetch failed" };
+        }
       } finally {
         clearTimeout(timeout);
       }
     }
-    return false;
+    return { ok: false, detail: "unknown" };
   }
 
   useEffect(() => {
@@ -65,13 +79,16 @@ export function SettingsModal({
       serverW: null,
       serverH: null,
     });
-
-    const probeAt = Date.now();
+    setServerDetails({
+      serverV: "",
+      serverW: "",
+      serverH: "",
+    });
 
     void Promise.all(
       SERVER_PRESETS.map(async (preset) => {
-        const ok = await probeServerHealth(preset.url, SERVER_FALLBACK_TIMEOUT_MS);
-        return { key: preset.key, ok };
+        const result = await probeServerHealth(preset.url, SERVER_FALLBACK_TIMEOUT_MS);
+        return { key: preset.key, ...result };
       }),
     ).then((results) => {
       if (cancelled) {
@@ -81,6 +98,11 @@ export function SettingsModal({
         serverV: results.find((item) => item.key === "serverV")?.ok ?? null,
         serverW: results.find((item) => item.key === "serverW")?.ok ?? null,
         serverH: results.find((item) => item.key === "serverH")?.ok ?? null,
+      });
+      setServerDetails({
+        serverV: results.find((item) => item.key === "serverV")?.detail ?? "",
+        serverW: results.find((item) => item.key === "serverW")?.detail ?? "",
+        serverH: results.find((item) => item.key === "serverH")?.detail ?? "",
       });
       setCheckingStatus(false);
     });
@@ -124,6 +146,13 @@ export function SettingsModal({
                       </Text>
                     </View>
                     <Text style={[styles.settingsPresetUrl, active && styles.settingsPresetUrlActive]}>{preset.url}</Text>
+                    <Text style={styles.settingsStatusText}>
+                      {serverStatus[preset.key] === true
+                        ? `정상 · ${serverDetails[preset.key]}`
+                        : serverStatus[preset.key] === false
+                          ? `실패 · ${serverDetails[preset.key]}`
+                          : "확인 중"}
+                    </Text>
                   </View>
                 </Pressable>
               );
