@@ -120,6 +120,9 @@ export function SettingsModal({
           <Text style={styles.modalHint}>
             선택한 서버가 기본 서버가 되며, 다른 서버는 대체 서버로 사용합니다.
           </Text>
+          <Text style={styles.modalHint}>
+            여기 표시되는 색상은 서버의 기본 `/health` 응답 기준이며, 정책브리핑 제공기관 상태와는 별도입니다.
+          </Text>
           <View style={styles.settingsPresetGroup}>
             {SERVER_PRESETS.map((preset) => {
               const active = selectedKey === preset.key;

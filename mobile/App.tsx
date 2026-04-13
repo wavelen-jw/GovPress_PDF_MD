@@ -21,7 +21,13 @@ import * as Sharing from "expo-sharing";
 import { JobDetailPanel } from "./src/components/JobDetailPanel";
 import { SettingsModal } from "./src/components/SettingsModal";
 import { WorkspaceToolbar } from "./src/components/WorkspaceToolbar";
-import { DEFAULT_CONFIG, getServerLabel, isHostedWeb, SERVER_PRESETS } from "./src/constants";
+import {
+  DEFAULT_CONFIG,
+  getServerLabel,
+  isHostedWeb,
+  SERVER_FALLBACK_TIMEOUT_MS,
+  SERVER_PRESETS,
+} from "./src/constants";
 import {
   ApiError,
   fetchJob,
@@ -74,6 +80,14 @@ type PolicyBriefingServerStatus = {
   lastRefreshedAt: string | null;
 };
 
+type PolicyBriefingServerHealthStatus = {
+  key: string;
+  label: string;
+  url: string;
+  ok: boolean;
+  detail: string;
+};
+
 const LANDING_ACTION_STORAGE_KEY = "govpress:landing-action";
 const LANDING_UPLOAD_DB = "govpress-landing";
 const LANDING_UPLOAD_STORE = "pending-uploads";
@@ -96,6 +110,33 @@ function normalizePolicyBriefingStatusMessage(message: string): string {
     return POLICY_BRIEFING_UPSTREAM_FAILURE_MESSAGE;
   }
   return message;
+}
+
+async function probeServerHealthStatus(url: string, timeoutMs: number): Promise<{ ok: boolean; detail: string }> {
+  const attempts = 2;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(`${url}/health?_t=${Date.now()}_${attempt}`, {
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      if (response.ok) {
+        return { ok: true, detail: `HTTP ${response.status}` };
+      }
+      if (attempt === attempts - 1) {
+        return { ok: false, detail: `HTTP ${response.status}` };
+      }
+    } catch {
+      if (attempt === attempts - 1) {
+        return { ok: false, detail: "fetch failed" };
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  return { ok: false, detail: "unknown" };
 }
 
 function consumeLandingAction(): PendingLandingAction | null {
@@ -248,6 +289,9 @@ export default function App(): React.JSX.Element {
   const [policyBriefingServedStale, setPolicyBriefingServedStale] = useState(false);
   const [policyBriefingAnyFetchFailure, setPolicyBriefingAnyFetchFailure] = useState(false);
   const [policyBriefingServerStatuses, setPolicyBriefingServerStatuses] = useState<PolicyBriefingServerStatus[]>([]);
+  const [policyBriefingServerHealthStatuses, setPolicyBriefingServerHealthStatuses] = useState<
+    PolicyBriefingServerHealthStatus[]
+  >([]);
   const [policyBriefingQuery, setPolicyBriefingQuery] = useState("");
   const [importingNewsItemId, setImportingNewsItemId] = useState<string | null>(null);
   const [desktopSplitRatio, setDesktopSplitRatio] = useState(0.5);
@@ -889,6 +933,7 @@ export default function App(): React.JSX.Element {
     setPolicyBriefingServedStale(false);
     setPolicyBriefingAnyFetchFailure(false);
     setPolicyBriefingServerStatuses([]);
+    setPolicyBriefingServerHealthStatuses([]);
     setPolicyBriefingQuery("");
     try {
       const today = new Date();
@@ -897,47 +942,62 @@ export default function App(): React.JSX.Element {
         d.setDate(d.getDate() - i);
         return d.toISOString().slice(0, 10); // YYYY-MM-DD
       });
-      const directStatusResults = await Promise.all(
-        SERVER_PRESETS.map(async (preset) => {
-          const results = await Promise.allSettled(
-            dates.map((date) => fetchTodayPolicyBriefingsDirect({ ...config, baseUrl: preset.url }, preset.url, date)),
-          );
-          const failures: string[] = [];
-          const warnings: string[] = [];
-          const refreshTimes: string[] = [];
-          let servedStale = false;
-          for (const r of results) {
-            if (r.status === "fulfilled") {
-              if (r.value.served_stale) {
-                servedStale = true;
+      const [healthStatusResults, directStatusResults] = await Promise.all([
+        Promise.all(
+          SERVER_PRESETS.map(async (preset) => {
+            const result = await probeServerHealthStatus(preset.url, SERVER_FALLBACK_TIMEOUT_MS);
+            return {
+              key: preset.key,
+              label: preset.label,
+              url: preset.url,
+              ok: result.ok,
+              detail: result.detail,
+            } satisfies PolicyBriefingServerHealthStatus;
+          }),
+        ),
+        Promise.all(
+          SERVER_PRESETS.map(async (preset) => {
+            const results = await Promise.allSettled(
+              dates.map((date) => fetchTodayPolicyBriefingsDirect({ ...config, baseUrl: preset.url }, preset.url, date)),
+            );
+            const failures: string[] = [];
+            const warnings: string[] = [];
+            const refreshTimes: string[] = [];
+            let servedStale = false;
+            for (const r of results) {
+              if (r.status === "fulfilled") {
+                if (r.value.served_stale) {
+                  servedStale = true;
+                }
+                if (r.value.warning) {
+                  warnings.push(normalizePolicyBriefingStatusMessage(r.value.warning));
+                }
+                if (r.value.last_refreshed_at) {
+                  refreshTimes.push(r.value.last_refreshed_at);
+                }
+              } else {
+                failures.push(
+                  normalizePolicyBriefingStatusMessage(r.reason instanceof Error ? r.reason.message : String(r.reason)),
+                );
               }
-              if (r.value.warning) {
-                warnings.push(normalizePolicyBriefingStatusMessage(r.value.warning));
-              }
-              if (r.value.last_refreshed_at) {
-                refreshTimes.push(r.value.last_refreshed_at);
-              }
-            } else {
-              failures.push(
-                normalizePolicyBriefingStatusMessage(r.reason instanceof Error ? r.reason.message : String(r.reason)),
-              );
             }
-          }
-          const freshest = refreshTimes.sort().at(-1) || null;
-          const error = failures[0] || null;
-          const warning = warnings[0] || null;
-          return {
-            key: preset.key,
-            label: preset.label,
-            url: preset.url,
-            anyFetchFailure: failures.length > 0,
-            servedStale,
-            warning,
-            error,
-            lastRefreshedAt: freshest,
-          } satisfies PolicyBriefingServerStatus;
-        }),
-      );
+            const freshest = refreshTimes.sort().at(-1) || null;
+            const error = failures[0] || null;
+            const warning = warnings[0] || null;
+            return {
+              key: preset.key,
+              label: preset.label,
+              url: preset.url,
+              anyFetchFailure: failures.length > 0,
+              servedStale,
+              warning,
+              error,
+              lastRefreshedAt: freshest,
+            } satisfies PolicyBriefingServerStatus;
+          }),
+        ),
+      ]);
+      setPolicyBriefingServerHealthStatuses(healthStatusResults);
       setPolicyBriefingServerStatuses(directStatusResults);
       const results = await Promise.allSettled(
         dates.map((date) => fetchTodayPolicyBriefings(config, date)),
@@ -1907,10 +1967,10 @@ export default function App(): React.JSX.Element {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>정책브리핑 API 상태</Text>
             <Text style={styles.modalHint}>
-              이 정보는 정책브리핑 목록 조회 품질을 설명합니다. 기본 화면에는 숨기고, 클릭 시에만 보여줍니다.
+              서버 연결 상태와 정책브리핑 제공기관 조회 상태를 구분해서 보여줍니다.
             </Text>
             <View style={styles.resultMetaCard}>
-              <Text style={styles.resultMetaEyebrow}>현재 상태</Text>
+              <Text style={styles.resultMetaEyebrow}>정책브리핑 현재 상태</Text>
               <Text style={styles.resultMetaBody}>{policyBriefingStatusSummary}</Text>
             </View>
             <View style={styles.resultMetaCard}>
@@ -1927,15 +1987,37 @@ export default function App(): React.JSX.Element {
                   : "마지막 갱신 시각 없음"}
               </Text>
             </View>
+            {policyBriefingServerHealthStatuses.length > 0 ? (
+              <View style={styles.resultMetaCard}>
+                <Text style={styles.resultMetaEyebrow}>서버 연결 상태 (/health)</Text>
+                <Text style={styles.resultMetaBody}>
+                  이 표시는 각 서버의 기본 API 연결 상태만 나타냅니다.
+                </Text>
+                {policyBriefingServerHealthStatuses.map((status) => (
+                  <View key={status.key} style={styles.resultMetaRow}>
+                    <Text style={styles.resultMetaEyebrow}>
+                      {status.label} · {status.ok ? "정상" : "실패"}
+                    </Text>
+                    <Text style={styles.resultMetaBody}>{status.ok ? `서버 응답 정상 · ${status.detail}` : status.detail}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
             {policyBriefingServerStatuses.length > 0 ? (
               <View style={styles.resultMetaCard}>
-                <Text style={styles.resultMetaEyebrow}>서버별 정책브리핑 상태</Text>
+                <Text style={styles.resultMetaEyebrow}>서버별 정책브리핑 조회 상태</Text>
                 {policyBriefingServerStatuses.map((status) => {
-                  const healthy = !status.error && !status.anyFetchFailure && !status.servedStale && !status.warning;
+                  const statusLabel = status.error
+                    ? "실패"
+                    : status.anyFetchFailure
+                      ? "부분 실패"
+                      : status.servedStale || status.warning
+                        ? "주의"
+                        : "정상";
                   return (
                     <View key={status.key} style={styles.resultMetaRow}>
                       <Text style={styles.resultMetaEyebrow}>
-                        {status.label} · {healthy ? "정상" : "문제"}
+                        {status.label} · {statusLabel}
                       </Text>
                       <Text style={styles.resultMetaBody}>
                         {status.error
