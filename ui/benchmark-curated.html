@@ -120,6 +120,21 @@
       gap: 10px;
     }
 
+    .warning-box {
+      margin-top: 18px;
+      padding: 16px 18px;
+      border-radius: 18px;
+      background: rgba(191, 67, 56, 0.08);
+      border: 1px solid rgba(191, 67, 56, 0.16);
+      color: #6d302b;
+      line-height: 1.65;
+      font-size: 14px;
+    }
+
+    .warning-box strong {
+      color: #54211d;
+    }
+
     .source-link {
       display: block;
       padding: 12px 14px;
@@ -537,6 +552,12 @@
           <strong>요약 지표</strong>, <strong>지표 해설</strong>,
           <strong>실제 예시 비교</strong>를 한 곳에서 볼 수 있게 정리했습니다.
         </p>
+        <div class="warning-box">
+          <strong>직접 비교 주의</strong><br>
+          이 페이지의 점수는 공식 웹 리더보드와 직접 비교하면 안 됩니다.
+          공식 벤치는 벤치 저장소의 <code>ground-truth/</code> 정답 코퍼스를 기준으로 여러 엔진을 비교하고,
+          이 페이지는 사용자가 만든 <code>rendered.md</code>를 golden으로 두고 OpenDataLoader 한 엔진만 비교합니다.
+        </div>
       </article>
 
       <aside class="hero-card hero-side">
@@ -599,6 +620,44 @@
         </p>
       </div>
       <div class="help-grid" id="metric-help"></div>
+    </section>
+
+    <section class="panel section">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Ground Truth</div>
+          <h2 class="section-heading">이번 비교와 공식 웹 벤치의 기준 차이</h2>
+        </div>
+        <p class="section-copy">
+          같은 NID, TEDS, MHS를 써도 점수의 기준 문서가 다르면 결과 해석도 달라집니다.
+          아래 설명은 공식 OpenDataLoader 벤치 문서와 <code>opendataloader-bench</code> README를 바탕으로 정리했습니다.
+        </p>
+      </div>
+      <div class="callout-grid">
+        <article class="callout">
+          <h3>공식 웹 벤치의 ground truth</h3>
+          <p>
+            공식 벤치는 <code>opendataloader-bench</code> 저장소의 <code>ground-truth/</code>를 기준으로 합니다.
+            README에는 이를 <strong>reference annotations and structured ground truth</strong>라고 설명하고,
+            같은 저장소의 <code>pdfs/</code> 200개 샘플 PDF와 1:1로 비교합니다.
+          </p>
+        </article>
+        <article class="callout">
+          <h3>이번 비교의 ground truth</h3>
+          <p>
+            이번 비교에서는 사용자가 직접 만든 <code>rendered.md</code>를 golden으로 사용했습니다.
+            즉 OpenDataLoader가 만든 Markdown이 <strong>당신이 정답으로 확정한 Markdown</strong>에 얼마나 가까운지를 본 것입니다.
+          </p>
+        </article>
+        <article class="callout">
+          <h3>해석 차이</h3>
+          <p>
+            그래서 공식 웹의 점수는 <strong>공용 벤치 코퍼스 기준의 리더보드 점수</strong>이고,
+            이 페이지의 점수는 <strong>당신의 curated 문서 기준의 내부 비교 점수</strong>입니다.
+            지표는 같지만 절대값은 직접 비교할 수 없습니다.
+          </p>
+        </article>
+      </div>
     </section>
 
     <section class="panel section">
