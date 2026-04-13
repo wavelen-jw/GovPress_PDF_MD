@@ -89,12 +89,20 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh
+          mkdir -p ~/.ssh/cm
           : > ~/cloudflared-proxy.log
           # GitHub Actions 같은 자동화 환경에서는 service token + access ssh 조합을 사용한다.
           cat >> ~/.ssh/config << EOF
           Host ${SSH_HOST}
             StrictHostKeyChecking accept-new
             Port ${{ inputs.ssh_port }}
+            ControlMaster auto
+            ControlPersist 10m
+            ControlPath ~/.ssh/cm/%C
+            ServerAliveInterval 15
+            ServerAliveCountMax 6
+            TCPKeepAlive yes
+            ConnectTimeout 30
             ProxyCommand /bin/sh -lc 'cloudflared access ssh --hostname %h --service-token-id ${CF_ID} --service-token-secret ${CF_SECRET} 2>>"$HOME"/cloudflared-proxy.log'
           EOF
 
@@ -112,6 +120,7 @@ jobs:
             preflight_exit=$?
             set -e
             if [ "$preflight_exit" -eq 0 ]; then
+              ssh -O check -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" >> ssh-preflight.log 2>&1 || true
               break
             fi
             if ! grep -Eqi 'websocket: bad handshake|proxy command failed|connection reset|connection closed|kex_exchange_identification|timed out|broken pipe' ssh-preflight.log; then
@@ -161,7 +170,7 @@ jobs:
             : > remote-deploy.log
             wc -c "$LOCAL_SCRIPT" | tee remote-deploy-script-size.log >> remote-deploy.log
             set +e
-            ssh -vv -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "$REMOTE_CMD" > remote-deploy.log 2>&1 < "$LOCAL_SCRIPT"
+            ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "$REMOTE_CMD" > remote-deploy.log 2>&1 < "$LOCAL_SCRIPT"
             deploy_exit=$?
             set -e
             printf 'ssh_exit_code=%s\n' "$deploy_exit" >> remote-deploy.log
@@ -272,11 +281,22 @@ jobs:
             exit 0
           fi
 
-          ssh_text="$(rg -n 'Offering public key|Authentications that can continue|Permission denied|Connection closed|kex_exchange_identification|ProxyCommand|cloudflared|Authenticated to|Entering interactive session|identity file|Will attempt key|sign_and_send_pubkey|no such identity|Unknown port|Connection timed out|Connection refused' remote-deploy.log | tail -n 20 | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200 || true)"
+          ssh_text="$(grep -En 'Offering public key|Authentications that can continue|Permission denied|Connection closed|kex_exchange_identification|ProxyCommand|cloudflared|Authenticated to|Entering interactive session|identity file|Will attempt key|sign_and_send_pubkey|no such identity|Unknown port|Connection timed out|Connection refused' remote-deploy.log | tail -n 20 | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200 || true)"
           if [ -z "$ssh_text" ]; then
             ssh_text="$(tail -n 20 remote-deploy.log | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200)"
           fi
           echo "::warning file=.github,title=ssh client diagnostics::$ssh_text"
+
+      - name: Close SSH control socket
+        if: always()
+        shell: bash
+        env:
+          USER: ${{ secrets.user }}
+          SSH_HOST: ${{ inputs.ssh_host }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=~/.ssh/deploy_key
+          ssh -O exit -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" >/dev/null 2>&1 || true
 
       - name: Verify remote deploy result
         if: always()

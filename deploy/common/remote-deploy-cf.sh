@@ -242,8 +242,9 @@ fi
 
 # WSL rebuilds can take noticeably longer than VPS restarts.
 health_code=""
-for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
   health_code="$(curl -sS -o /tmp/govpress-health.txt -w '%{http_code}' "$HEALTHCHECK_URL" || true)"
+  echo "health_probe_attempt=${attempt} code=${health_code:-curl_failed}"
   if [ "$health_code" = "200" ]; then
     break
   fi
