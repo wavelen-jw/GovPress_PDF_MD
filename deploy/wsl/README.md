@@ -49,6 +49,12 @@ cd /home/wavel/projects/GovPress_PDF_MD/deploy/wsl
 bash deploy/wsl/apply-host-proxy.sh
 ```
 
+GitHub Actions 원격배포까지 계속 쓰려면, 서버에서 한 번만 아래를 실행해 제한된 passwordless sudo를 허용합니다.
+
+```bash
+bash deploy/wsl/install-remote-deploy-sudoers.sh
+```
+
 ## 준비
 
 1. WSL2 Ubuntu 설치

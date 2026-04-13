@@ -76,7 +76,7 @@ cleanup_split_edge_orphans() {
 }
 
 require_passwordless_sudo() {
-  sudo -n true >/dev/null 2>&1 || {
+  sudo -n /usr/bin/systemctl daemon-reload >/dev/null 2>&1 || {
     echo "passwordless sudo is required for ${DEPLOY_MODE}" >&2
     exit 1
   }
@@ -92,14 +92,10 @@ install_split_edge_services() {
 render_systemd_unit() {
   local source_path="$1"
   local dest_path="$2"
-  local tmp_file
-  tmp_file="$(mktemp)"
   sed \
     -e "s|__DEPLOY_DIR__|$DEPLOY_DIR|g" \
     -e "s|__HOME_DIR__|$HOME_DIR|g" \
-    "$source_path" > "$tmp_file"
-  sudo cp "$tmp_file" "$dest_path"
-  rm -f "$tmp_file"
+    "$source_path" | sudo tee "$dest_path" >/dev/null
 }
 
 install_host_proxy_services() {
@@ -112,11 +108,14 @@ install_host_proxy_services() {
 
 restart_host_proxy_edge() {
   require_passwordless_sudo
-  sudo systemctl enable govpress-caddy.service govpress-cloudflared.service
+  sudo systemctl enable govpress-caddy.service
+  sudo systemctl enable govpress-cloudflared.service
   sudo systemctl restart govpress-caddy.service
   sudo systemctl restart govpress-cloudflared.service
-  sudo systemctl status --no-pager govpress-caddy.service govpress-cloudflared.service || true
-  sudo journalctl -u govpress-caddy.service -u govpress-cloudflared.service -n 30 --no-pager || true
+  sudo systemctl status --no-pager govpress-caddy.service || true
+  sudo systemctl status --no-pager govpress-cloudflared.service || true
+  sudo journalctl -u govpress-caddy.service -n 30 --no-pager || true
+  sudo journalctl -u govpress-cloudflared.service -n 30 --no-pager || true
 }
 
 restart_split_edge_tunnel() {
@@ -138,7 +137,9 @@ emit_compose_diagnostics() {
   echo "=== host port diagnostics ==="
   ss -ltnp | grep ':8080' || true
   echo "=== systemd diagnostics ==="
-  sudo systemctl status --no-pager govpress-compose.service govpress-caddy.service govpress-cloudflared.service 2>/dev/null || true
+  sudo systemctl status --no-pager govpress-compose.service 2>/dev/null || true
+  sudo systemctl status --no-pager govpress-caddy.service 2>/dev/null || true
+  sudo systemctl status --no-pager govpress-cloudflared.service 2>/dev/null || true
   echo "=== health probe diagnostics ==="
   curl -i --max-time 10 "$HEALTHCHECK_URL" || true
   echo "=== container diagnostics ==="

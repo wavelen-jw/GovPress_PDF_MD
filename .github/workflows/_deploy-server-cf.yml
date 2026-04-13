@@ -105,7 +105,21 @@ jobs:
         run: |
           set -euo pipefail
           KEY_FILE=~/.ssh/deploy_key
-          ssh -vv -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "exit 0" > ssh-preflight.log 2>&1 || true
+          preflight_exit=1
+          for attempt in 1 2 3 4; do
+            set +e
+            ssh -vv -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "exit 0" > ssh-preflight.log 2>&1
+            preflight_exit=$?
+            set -e
+            if [ "$preflight_exit" -eq 0 ]; then
+              break
+            fi
+            if ! grep -Eqi 'websocket: bad handshake|proxy command failed|connection reset|connection closed|kex_exchange_identification|timed out|broken pipe' ssh-preflight.log; then
+              break
+            fi
+            sleep $((attempt * 5))
+          done
+          printf 'preflight_exit_code=%s\n' "$preflight_exit" >> ssh-preflight.log
           tail -n 40 ssh-preflight.log || true
 
       - name: Emit preflight diagnostics
@@ -142,15 +156,25 @@ jobs:
           LOCAL_SCRIPT=deploy/common/remote-deploy-cf.sh
           REMOTE_PATH="/tmp/govpress-remote-deploy-${GITHUB_RUN_ID:-manual}.sh"
           REMOTE_CMD="$(printf "export DEPLOY_DIR=%q BRANCH=%q COMPOSE_FILE=%q DEPLOY_MODE=%q SERVICE=%q HEALTHCHECK_URL=%q CONVERTER_SPEC=%q; cat > %q && chmod 700 %q && /bin/bash --noprofile --norc %q && rm -f %q" "$DEPLOY_DIR" "$BRANCH" "$COMPOSE_FILE" "$DEPLOY_MODE" "$SERVICE" "$HEALTHCHECK_URL" "$CONVERTER_SPEC" "$REMOTE_PATH" "$REMOTE_PATH" "$REMOTE_PATH" "$REMOTE_PATH")"
-          : > remote-deploy.log
-          wc -c "$LOCAL_SCRIPT" | tee remote-deploy-script-size.log >> remote-deploy.log
-          set +e
-          ssh -vv -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "$REMOTE_CMD" > remote-deploy.log 2>&1 < "$LOCAL_SCRIPT"
-          ssh_exit=$?
-          set -e
-          printf 'ssh_exit_code=%s\n' "$ssh_exit" >> remote-deploy.log
-          cat remote-deploy.log
-          test "$ssh_exit" -eq 0
+          deploy_exit=1
+          for attempt in 1 2 3 4; do
+            : > remote-deploy.log
+            wc -c "$LOCAL_SCRIPT" | tee remote-deploy-script-size.log >> remote-deploy.log
+            set +e
+            ssh -vv -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "$REMOTE_CMD" > remote-deploy.log 2>&1 < "$LOCAL_SCRIPT"
+            deploy_exit=$?
+            set -e
+            printf 'ssh_exit_code=%s\n' "$deploy_exit" >> remote-deploy.log
+            cat remote-deploy.log
+            if [ "$deploy_exit" -eq 0 ]; then
+              break
+            fi
+            if ! grep -Eqi 'websocket: bad handshake|proxy command failed|connection reset|connection closed|kex_exchange_identification|timed out|broken pipe' remote-deploy.log; then
+              break
+            fi
+            sleep $((attempt * 5))
+          done
+          test "$deploy_exit" -eq 0
 
       - name: Summary
         if: always()
