@@ -538,7 +538,12 @@ export default function App(): React.JSX.Element {
       if (files.some((file) => isSupportedFile(file))) {
         return true;
       }
-      return Array.from(transfer.items || []).some((item) => {
+      const items = Array.from(transfer.items || []);
+      const hasUnknownFilePayload = items.some((item) => item.kind === "file" && !(item.type || "").trim());
+      if (hasUnknownFilePayload || Array.from(transfer.types || []).includes("Files")) {
+        return true;
+      }
+      return items.some((item) => {
         if (item.kind !== "file") {
           return false;
         }

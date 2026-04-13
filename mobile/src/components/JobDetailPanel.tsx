@@ -161,18 +161,41 @@ export function JobDetailPanel({
     return name.endsWith(".pdf") || name.endsWith(".hwpx") || name.endsWith(".md");
   }
 
+  function hasFileDropPayload(transfer: DataTransfer | null | undefined): boolean {
+    if (!transfer) {
+      return false;
+    }
+    if (Array.from(transfer.files || []).length > 0) {
+      return true;
+    }
+    if (Array.from(transfer.items || []).some((item) => item.kind === "file")) {
+      return true;
+    }
+    return Array.from(transfer.types || []).includes("Files");
+  }
+
+  function canAcceptDroppedFiles(transfer: DataTransfer | null | undefined): boolean {
+    if (!transfer || !hasFileDropPayload(transfer)) {
+      return false;
+    }
+    const files = Array.from(transfer.files || []) as File[];
+    if (files.length === 0) {
+      return true;
+    }
+    return files.some((file) => isSupportedDropFile(file));
+  }
+
   const webPreviewDropProps = Platform.OS === "web" && onHandleDroppedAsset
     ? {
         onDragOver: (event: any) => {
           const transfer = event?.nativeEvent?.dataTransfer || event?.dataTransfer;
-          const files = Array.from(transfer?.files || []) as File[];
-          if (!files.length) {
+          if (!hasFileDropPayload(transfer)) {
             return;
           }
           event.preventDefault?.();
           event.stopPropagation?.();
           if (transfer) {
-            transfer.dropEffect = files.some((file) => isSupportedDropFile(file)) ? "copy" : "none";
+            transfer.dropEffect = canAcceptDroppedFiles(transfer) ? "copy" : "none";
           }
         },
         onDrop: (event: any) => {
@@ -203,14 +226,13 @@ export function JobDetailPanel({
     ? {
         onDragOver: (event: any) => {
           const transfer = event?.nativeEvent?.dataTransfer || event?.dataTransfer;
-          const files = Array.from(transfer?.files || []) as File[];
-          if (!files.length) {
+          if (!hasFileDropPayload(transfer)) {
             return;
           }
           event.preventDefault?.();
           event.stopPropagation?.();
           if (transfer) {
-            transfer.dropEffect = files.some((file) => isSupportedDropFile(file)) ? "copy" : "none";
+            transfer.dropEffect = canAcceptDroppedFiles(transfer) ? "copy" : "none";
           }
         },
         onDrop: (event: any) => {
@@ -241,14 +263,13 @@ export function JobDetailPanel({
     ? {
         onDragOver: (event: any) => {
           const transfer = event?.nativeEvent?.dataTransfer || event?.dataTransfer;
-          const files = Array.from(transfer?.files || []) as File[];
-          if (!files.length) {
+          if (!hasFileDropPayload(transfer)) {
             return;
           }
           event.preventDefault?.();
           event.stopPropagation?.();
           if (transfer) {
-            transfer.dropEffect = files.some((file) => isSupportedDropFile(file)) ? "copy" : "none";
+            transfer.dropEffect = canAcceptDroppedFiles(transfer) ? "copy" : "none";
           }
         },
         onDrop: (event: any) => {

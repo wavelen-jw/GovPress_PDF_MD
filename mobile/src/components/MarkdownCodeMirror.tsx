@@ -87,6 +87,30 @@ function isSupportedDropFile(file: File | null | undefined): boolean {
   return name.endsWith(".pdf") || name.endsWith(".hwpx") || name.endsWith(".md");
 }
 
+function hasFileDropPayload(transfer: DataTransfer | null | undefined): boolean {
+  if (!transfer) {
+    return false;
+  }
+  if (Array.from(transfer.files || []).length > 0) {
+    return true;
+  }
+  if (Array.from(transfer.items || []).some((item) => item.kind === "file")) {
+    return true;
+  }
+  return Array.from(transfer.types || []).includes("Files");
+}
+
+function canAcceptDroppedFiles(transfer: DataTransfer | null | undefined): boolean {
+  if (!transfer || !hasFileDropPayload(transfer)) {
+    return false;
+  }
+  const files = Array.from(transfer.files || []);
+  if (files.length === 0) {
+    return true;
+  }
+  return files.some((file) => isSupportedDropFile(file));
+}
+
 export function MarkdownCodeMirror({
   value,
   onChange,
@@ -140,13 +164,12 @@ export function MarkdownCodeMirror({
 
   const fileDropHandler = EditorView.domEventHandlers({
     dragover: (event) => {
-      const files = Array.from(event.dataTransfer?.files || []);
-      if (!files.length) {
+      if (!hasFileDropPayload(event.dataTransfer)) {
         return false;
       }
       event.preventDefault();
       if (event.dataTransfer) {
-        event.dataTransfer.dropEffect = files.some((file) => isSupportedDropFile(file)) ? "copy" : "none";
+        event.dataTransfer.dropEffect = canAcceptDroppedFiles(event.dataTransfer) ? "copy" : "none";
       }
       return true;
     },
