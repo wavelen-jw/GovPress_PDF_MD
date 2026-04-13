@@ -28,11 +28,32 @@ function normalizePolicyBriefingFailure(message: string): string {
   if (
     lowered.includes("timed out") ||
     lowered.includes("timeout") ||
-    lowered.includes("bad gateway")
+    lowered.includes("bad gateway") ||
+    lowered.includes("signal is aborted") ||
+    lowered.includes("aborterror") ||
+    lowered.includes("failed to fetch") ||
+    lowered.includes("network")
   ) {
     return "정책브리핑 제공기관 API 응답이 지연되거나 장애 상태입니다. 잠시 후 다시 시도해 주세요.";
   }
   return message;
+}
+
+function buildPolicyBriefingUnavailableMessage(action: "목록" | "불러오기", failures: string[]): string {
+  const providerIssue = failures.some(
+    (message) =>
+      message.includes("정책브리핑 제공기관 API 응답이 지연되거나 장애 상태입니다."),
+  );
+
+  if (providerIssue) {
+    return action === "목록"
+      ? "정책브리핑 API 또는 연동 서버가 지연되거나 장애 상태여서 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
+      : "정책브리핑 API 또는 연동 서버가 지연되거나 장애 상태여서 보도자료를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+
+  return action === "목록"
+    ? "정책브리핑 API 연동에 실패해 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
+    : "정책브리핑 API 연동에 실패해 보도자료를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
 }
 
 function buildHeaders(config: AppConfig, contentType?: string, editToken?: string | null): Record<string, string> {
@@ -262,7 +283,7 @@ export async function fetchTodayPolicyBriefings(config: AppConfig, date?: string
     }
   }
 
-  throw new Error(`정책브리핑 목록 요청에 실패했습니다. ${failures.join(" | ")}`);
+  throw new Error(buildPolicyBriefingUnavailableMessage("목록", failures));
 }
 
 export async function importPolicyBriefing(config: AppConfig, newsItemId: string): Promise<PolicyBriefingImportResult> {
@@ -300,7 +321,7 @@ export async function importPolicyBriefing(config: AppConfig, newsItemId: string
     }
   }
 
-  throw new Error(`정책브리핑 불러오기에 실패했습니다. ${failures.join(" | ")}`);
+  throw new Error(buildPolicyBriefingUnavailableMessage("불러오기", failures));
 }
 
 export async function saveResult(config: AppConfig, jobId: string, markdown: string, editToken: string): Promise<void> {
