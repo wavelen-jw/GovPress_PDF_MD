@@ -66,6 +66,25 @@ const LANDING_ACTION_STORAGE_KEY = "govpress:landing-action";
 const LANDING_UPLOAD_DB = "govpress-landing";
 const LANDING_UPLOAD_STORE = "pending-uploads";
 const LANDING_UPLOAD_KEY = "pending-file";
+const POLICY_BRIEFING_UPSTREAM_FAILURE_MESSAGE =
+  "정책브리핑 제공기관 API 응답이 지연되거나 장애 상태입니다. 잠시 후 다시 시도해 주세요.";
+
+function normalizePolicyBriefingStatusMessage(message: string): string {
+  const lowered = message.toLowerCase();
+  if (
+    lowered.includes("load failed") ||
+    lowered.includes("failed to fetch") ||
+    lowered.includes("signal is aborted") ||
+    lowered.includes("aborterror") ||
+    lowered.includes("bad gateway") ||
+    lowered.includes("timed out") ||
+    lowered.includes("timeout") ||
+    lowered.includes("network")
+  ) {
+    return POLICY_BRIEFING_UPSTREAM_FAILURE_MESSAGE;
+  }
+  return message;
+}
 
 function consumeLandingAction(): PendingLandingAction | null {
   if (Platform.OS !== "web" || typeof window === "undefined") {
@@ -874,13 +893,15 @@ export default function App(): React.JSX.Element {
             servedStale = true;
           }
           if (r.value.warning) {
-            warnings.push(r.value.warning);
+            warnings.push(normalizePolicyBriefingStatusMessage(r.value.warning));
           }
           if (r.value.last_refreshed_at) {
             refreshTimes.push(r.value.last_refreshed_at);
           }
         } else {
-          failures.push(r.reason instanceof Error ? r.reason.message : String(r.reason));
+          failures.push(
+            normalizePolicyBriefingStatusMessage(r.reason instanceof Error ? r.reason.message : String(r.reason)),
+          );
         }
       }
       const dedupedItems = dedupePolicyBriefings(allItems);

@@ -21,7 +21,15 @@ _UPSTREAM_POLICY_BRIEFING_TIMEOUT_DETAIL = (
 def _describe_policy_briefing_error(exc: Exception) -> str:
     message = str(exc).strip() or exc.__class__.__name__
     lowered = message.lower()
-    if "timed out" in lowered or "timeout" in lowered:
+    if (
+        "timed out" in lowered
+        or "timeout" in lowered
+        or "load failed" in lowered
+        or "failed to fetch" in lowered
+        or "bad gateway" in lowered
+        or "network" in lowered
+        or "signal is aborted" in lowered
+    ):
         return _UPSTREAM_POLICY_BRIEFING_TIMEOUT_DETAIL
     return message
 
