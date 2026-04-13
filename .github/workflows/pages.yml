@@ -69,6 +69,12 @@ jobs:
           cp ui/benchmark-official.html mobile/dist/benchmark-official/index.html
           cp ui/benchmark-official-data.js mobile/dist/benchmark-official/benchmark-official-data.js
 
+      - name: Install policy briefing benchmark page
+        run: |
+          mkdir -p mobile/dist/benchmark-policy-briefing
+          cp ui/benchmark-policy-briefing.html mobile/dist/benchmark-policy-briefing/index.html
+          cp ui/benchmark-policy-briefing-data.js mobile/dist/benchmark-policy-briefing/benchmark-policy-briefing-data.js
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
