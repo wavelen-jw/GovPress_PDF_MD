@@ -13,12 +13,12 @@ export const BUILD_TAG = "mobile-web-2026-04-12-serverw-failover-fix";
 export const SERVER_FALLBACK_TIMEOUT_MS = 8000;
 
 export const SERVER_PRESETS = [
-  { key: "serverW", label: "서버W", shortLabel: "서버W", url: "https://api4.govpress.cloud" },
   { key: "serverH", label: "서버H", shortLabel: "서버H", url: "https://api.govpress.cloud" },
+  { key: "serverW", label: "서버W", shortLabel: "서버W", url: "https://api4.govpress.cloud" },
   { key: "serverV", label: "서버V", shortLabel: "서버V", url: "https://api2.govpress.cloud" },
 ] as const;
 
-export const PRIMARY_SERVER_KEY = "serverW" as const;
+export const PRIMARY_SERVER_KEY = "serverH" as const;
 
 export function primaryServerUrl(): string {
   return SERVER_PRESETS.find((preset) => preset.key === PRIMARY_SERVER_KEY)?.url || SERVER_PRESETS[0].url;

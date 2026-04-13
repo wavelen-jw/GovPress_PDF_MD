@@ -81,6 +81,9 @@ function isRetryableServerError(status: number): boolean {
 }
 
 function isRetryableUploadError(error: unknown): boolean {
+  if (error instanceof ApiError) {
+    return isRetryableServerError(error.status);
+  }
   if (!(error instanceof Error)) {
     return false;
   }
@@ -143,7 +146,7 @@ async function fetchJsonWithFallback<T>(
         if (!isRetryableServerError(response.status)) {
           throw new ApiError(response.status, detail || `Request failed: ${response.status}`);
         }
-        throw new Error(detail || `Request failed: ${response.status}`);
+        throw new ApiError(response.status, detail || `Request failed: ${response.status}`);
       }
       return {
         payload: (await response.json()) as T,
@@ -200,7 +203,7 @@ export async function uploadPdf(
       }, SERVER_FALLBACK_TIMEOUT_MS);
       if (!response.ok) {
         const detail = await response.text();
-        throw new Error(detail || `Upload failed: ${response.status}`);
+        throw new ApiError(response.status, detail || `Upload failed: ${response.status}`);
       }
       return {
         job: (await response.json()) as UploadResult["job"],
@@ -246,7 +249,7 @@ export async function fetchTodayPolicyBriefings(config: AppConfig, date?: string
       );
       if (!response.ok) {
         const detail = await response.text();
-        throw new Error(normalizePolicyBriefingFailure(detail || `Request failed: ${response.status}`));
+        throw new ApiError(response.status, normalizePolicyBriefingFailure(detail || `Request failed: ${response.status}`));
       }
       return (await response.json()) as PolicyBriefingListPayload;
     } catch (error) {
@@ -282,7 +285,7 @@ export async function importPolicyBriefing(config: AppConfig, newsItemId: string
         if (!isRetryableServerError(response.status)) {
           throw new ApiError(response.status, detail || `Request failed: ${response.status}`);
         }
-        throw new Error(detail || `Request failed: ${response.status}`);
+        throw new ApiError(response.status, detail || `Request failed: ${response.status}`);
       }
       return {
         payload: (await response.json()) as PolicyBriefingImportPayload,
