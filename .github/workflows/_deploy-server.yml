@@ -91,12 +91,14 @@ jobs:
           echo "target_sha=\$(git -C "$DEPLOY_DIR" rev-parse HEAD)"
           echo "git_origin=\$(git -C "$DEPLOY_DIR" remote get-url origin)"
           rm -f \
+            "$DEPLOY_DIR"/storage/results/*.md \
+            "$DEPLOY_DIR/deploy/vps/data/storage/results/"*.md \
             "$DEPLOY_DIR/storage/policy_briefing_cache/index.json" \
-            "$DEPLOY_DIR"/storage/policy_briefing_catalog/*.json \
+            "$DEPLOY_DIR"/storage/policy_briefing_cache/originals/* \
             "$DEPLOY_DIR/deploy/vps/data/storage/policy_briefing_cache/index.json" \
-            "$DEPLOY_DIR"/deploy/vps/data/storage/policy_briefing_catalog/*.json \
+            "$DEPLOY_DIR"/deploy/vps/data/storage/policy_briefing_cache/originals/* \
             2>/dev/null || true
-          echo "policy_cache_reset=1"
+          echo "converter_cache_reset=results_and_policy_briefing_cache"
           ENV_FILE="$DEPLOY_DIR/deploy/vps/.env"
           touch "\$ENV_FILE"
           if [ -n "${CONVERTER_SPEC}" ]; then

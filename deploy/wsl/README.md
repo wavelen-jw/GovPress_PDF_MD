@@ -124,6 +124,7 @@ serverW로 연결되는 현재 공개 주소는 `https://api4.govpress.cloud`입
 - `GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK`
   - 프로덕션/준프로덕션 권장값은 `0`
   - private 엔진을 실제로 설치했다면 `scripts/check_converter_runtime.py`가 빌드 중에 버전과 시그니처를 검사합니다.
+- converter 버전을 올려 배포할 때는 배포 스크립트가 기존 `storage/results/*.md`와 `storage/policy_briefing_cache/*`를 먼저 비워서 이전 엔진 결과가 재사용되지 않게 합니다.
 - 값이 비어 있으면 기본 허용 origin이 없으므로 브라우저 접근이 막힙니다.
 - 로컬 웹 테스트 중이면 `http://172.25.164.35:8084` 같은 현재 웹 주소를 임시로 추가해야 합니다.
 - GitHub Pages를 쓸 경우 보통 `https://wavelen-jw.github.io/GovPress_PDF_MD` 형식입니다.
