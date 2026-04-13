@@ -57,6 +57,12 @@ jobs:
       - name: Install landing page as root index
         run: cp ui/landing.html mobile/dist/index.html
 
+      - name: Install curated benchmark page
+        run: |
+          mkdir -p mobile/dist/benchmark-curated
+          cp ui/benchmark-curated.html mobile/dist/benchmark-curated/index.html
+          cp ui/benchmark-curated-data.js mobile/dist/benchmark-curated/benchmark-curated-data.js
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 

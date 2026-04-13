@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenDataLoader 정적 비교 리포트</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <style>
+    :root {
+      --bg: #f3efe6;
+      --panel: #fffdf9;
+      --ink: #181513;
+      --muted: #74685c;
+      --line: rgba(24, 21, 19, 0.12);
+      --accent: #17624f;
+      --accent-soft: rgba(23, 98, 79, 0.12);
+      --warm: #b66a2b;
+      --danger: #bf4338;
+      --good: #1b7f5e;
+      --code: #12100f;
+      --shadow: 0 18px 40px rgba(28, 18, 11, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(228, 204, 171, 0.45), transparent 28%),
+        radial-gradient(circle at top right, rgba(168, 211, 201, 0.34), transparent 25%),
+        linear-gradient(180deg, #f7f2ea 0%, var(--bg) 55%, #ebe5da 100%);
+    }
+
+    a { color: inherit; }
+    .shell {
+      width: min(1220px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 40px 0 72px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.3fr 0.9fr;
+      gap: 24px;
+      align-items: stretch;
+      margin-bottom: 28px;
+    }
+
+    .hero-card,
+    .panel {
+      background: rgba(255, 253, 249, 0.88);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(24, 21, 19, 0.08);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero-card {
+      padding: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-card::after {
+      content: "";
+      position: absolute;
+      inset: auto -80px -80px auto;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(23, 98, 79, 0.16), rgba(23, 98, 79, 0));
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(24, 21, 19, 0.05);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 18px 0 12px;
+      font-size: clamp(36px, 5vw, 64px);
+      line-height: 0.96;
+      letter-spacing: -0.04em;
+    }
+
+    .hero-copy {
+      max-width: 720px;
+      color: #40372f;
+      font-size: 17px;
+      line-height: 1.72;
+    }
+
+    .hero-copy strong {
+      color: var(--ink);
+      font-weight: 800;
+    }
+
+    .hero-side {
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .source-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .source-link {
+      display: block;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(24, 21, 19, 0.04);
+      border: 1px solid rgba(24, 21, 19, 0.08);
+      text-decoration: none;
+      transition: transform 0.18s ease, border-color 0.18s ease;
+    }
+
+    .source-link:hover {
+      transform: translateY(-1px);
+      border-color: rgba(23, 98, 79, 0.26);
+    }
+
+    .source-link strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 4px;
+      color: var(--ink);
+    }
+
+    .source-link span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+      word-break: break-all;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .metric-card {
+      padding: 18px;
+      border-radius: 22px;
+      background: rgba(255, 253, 249, 0.84);
+      border: 1px solid rgba(24, 21, 19, 0.08);
+      box-shadow: var(--shadow);
+    }
+
+    .metric-card h2,
+    .section-title {
+      margin: 0;
+      font-size: 14px;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .metric-value {
+      margin-top: 14px;
+      font-size: clamp(30px, 4vw, 44px);
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: -0.05em;
+    }
+
+    .metric-note {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .section {
+      margin-top: 28px;
+      padding: 28px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .section-heading {
+      margin: 6px 0 0;
+      font-size: clamp(24px, 3vw, 34px);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+    }
+
+    .section-copy {
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 15px;
+      max-width: 760px;
+    }
+
+    .help-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .help-card {
+      padding: 18px;
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.82), rgba(248,243,235,0.92));
+      border: 1px solid rgba(24, 21, 19, 0.08);
+    }
+
+    .help-card h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      letter-spacing: -0.02em;
+    }
+
+    .help-card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 14px;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.72);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+    }
+
+    th,
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      font-size: 14px;
+      vertical-align: top;
+    }
+
+    th {
+      background: rgba(24, 21, 19, 0.04);
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    tbody tr:hover {
+      background: rgba(23, 98, 79, 0.05);
+    }
+
+    .doc-title {
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .doc-id {
+      color: var(--muted);
+      font-size: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .score {
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .band-strong { color: var(--good); }
+    .band-mixed { color: var(--warm); }
+    .band-weak { color: var(--danger); }
+
+    .score-bar {
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(24, 21, 19, 0.08);
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .score-bar > span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #d97f2c 0%, #2f8e6c 100%);
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 18px;
+    }
+
+    .picker {
+      display: grid;
+      gap: 10px;
+      max-height: 760px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .picker button {
+      appearance: none;
+      width: 100%;
+      text-align: left;
+      border: 1px solid rgba(24, 21, 19, 0.08);
+      background: rgba(255,255,255,0.72);
+      border-radius: 18px;
+      padding: 14px 16px;
+      color: var(--ink);
+      cursor: pointer;
+      transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+    }
+
+    .picker button:hover,
+    .picker button[aria-pressed="true"] {
+      transform: translateY(-1px);
+      border-color: rgba(23, 98, 79, 0.28);
+      background: rgba(23, 98, 79, 0.08);
+    }
+
+    .picker-title {
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+
+    .picker-meta {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .viewer {
+      padding: 22px;
+      border-radius: 24px;
+      background: rgba(255,255,255,0.76);
+      border: 1px solid rgba(24, 21, 19, 0.08);
+    }
+
+    .viewer-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .viewer-title {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1.08;
+      letter-spacing: -0.04em;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(24, 21, 19, 0.06);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .viewer-copy {
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 14px;
+      margin-bottom: 18px;
+    }
+
+    .commentary-list {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .commentary-item {
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(23, 98, 79, 0.08);
+      color: #295346;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .code-card {
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid rgba(24, 21, 19, 0.08);
+      background: rgba(18, 16, 15, 0.96);
+      color: #f4efe8;
+    }
+
+    .code-card header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      font-size: 12px;
+      color: rgba(244,239,232,0.72);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    pre {
+      margin: 0;
+      padding: 16px;
+      overflow: auto;
+      max-height: 560px;
+      font-size: 12px;
+      line-height: 1.65;
+      font-family: "D2Coding", "Fira Code", Consolas, monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .callout-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .callout {
+      padding: 18px;
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.82), rgba(244,239,232,0.92));
+      border: 1px solid rgba(24, 21, 19, 0.08);
+    }
+
+    .callout h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      letter-spacing: -0.02em;
+    }
+
+    .callout p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    @media (max-width: 980px) {
+      .hero,
+      .two-col,
+      .compare-grid,
+      .help-grid,
+      .metric-grid,
+      .callout-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .shell {
+        width: min(100vw - 24px, 1220px);
+        padding-top: 20px;
+      }
+
+      .section,
+      .hero-card,
+      .hero-side {
+        padding: 22px;
+      }
+
+      .viewer-title {
+        font-size: 22px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <article class="hero-card">
+        <span class="eyebrow">비교 리포트</span>
+        <h1>OpenDataLoader 정적 비교 리포트</h1>
+        <p class="hero-copy">
+          이 페이지는 <strong>PDF를 Markdown으로 변환한 결과</strong>를 사용자가 직접 다듬어 만든
+          <strong>curated golden Markdown</strong>과 비교한 결과를 보여줍니다.
+          <a href="https://opendataloader.org/docs/benchmark" target="_blank" rel="noreferrer">OpenDataLoader 공식 벤치 문서</a>의 흐름을 참고해,
+          <strong>요약 지표</strong>, <strong>지표 해설</strong>,
+          <strong>실제 예시 비교</strong>를 한 곳에서 볼 수 있게 정리했습니다.
+        </p>
+      </article>
+
+      <aside class="hero-card hero-side">
+        <span class="eyebrow">방법과 출처</span>
+        <div>
+          <div class="section-title">입력 코퍼스</div>
+          <p class="section-copy" id="input-root"></p>
+        </div>
+        <div>
+          <div class="section-title">비교 기준</div>
+          <p class="section-copy" id="golden-source"></p>
+        </div>
+        <div>
+          <div class="section-title">제외 문서</div>
+          <p class="section-copy" id="excluded-docs"></p>
+        </div>
+        <div>
+          <div class="section-title">사용한 도구</div>
+          <p class="section-copy">
+            PDF → Markdown 변환은 <strong>OpenDataLoader PDF</strong>,
+            평가는 <strong>opendataloader-bench</strong>로 수행했습니다.
+          </p>
+        </div>
+        <div class="source-list">
+          <a class="source-link" href="https://opendataloader.org/docs/benchmark" target="_blank" rel="noreferrer">
+            <strong>출처 1 · Benchmark Overview</strong>
+            <span>https://opendataloader.org/docs/benchmark</span>
+          </a>
+          <a class="source-link" href="https://opendataloader.org/docs/benchmark" target="_blank" rel="noreferrer">
+            <strong>출처 2 · Reading Order (NID)</strong>
+            <span>https://opendataloader.org/docs/benchmark</span>
+          </a>
+          <a class="source-link" href="https://opendataloader.org/docs/benchmark" target="_blank" rel="noreferrer">
+            <strong>출처 3 · Table Structure (TEDS)</strong>
+            <span>https://opendataloader.org/docs/benchmark</span>
+          </a>
+          <a class="source-link" href="https://opendataloader.org/docs/benchmark" target="_blank" rel="noreferrer">
+            <strong>출처 4 · Heading Levels (MHS)</strong>
+            <span>https://opendataloader.org/docs/benchmark</span>
+          </a>
+          <a class="source-link" href="https://github.com/opendataloader-project/opendataloader-bench" target="_blank" rel="noreferrer">
+            <strong>출처 5 · opendataloader-bench 저장소</strong>
+            <span>https://github.com/opendataloader-project/opendataloader-bench</span>
+          </a>
+        </div>
+      </aside>
+    </section>
+
+    <section class="metric-grid" id="aggregate-cards"></section>
+
+    <section class="panel section">
+      <div class="section-header">
+        <div>
+          <div class="section-title">지표 해설</div>
+          <h2 class="section-heading">점수를 읽는 방법</h2>
+        </div>
+        <p class="section-copy">
+          OpenDataLoader 공식 문서에서 정의한 지표를 그대로 참고했습니다.
+          점수는 모두 <strong>0에서 1 사이</strong>이며, 높을수록 golden Markdown와 더 가깝습니다.
+        </p>
+      </div>
+      <div class="help-grid" id="metric-help"></div>
+    </section>
+
+    <section class="panel section">
+      <div class="section-header">
+        <div>
+          <div class="section-title">빠른 비교</div>
+          <h2 class="section-heading">문서별 점수 표</h2>
+        </div>
+        <p class="section-copy">
+          같은 엔진이라도 문서 유형과 레이아웃에 따라 점수 편차가 큽니다.
+          아래 표는 우리가 <strong>OpenDataLoader + opendataloader-bench</strong>로 계산한 결과입니다.
+        </p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Overall</th>
+              <th>NID</th>
+              <th>TEDS</th>
+              <th>MHS</th>
+            </tr>
+          </thead>
+          <tbody id="doc-table"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel section">
+      <div class="section-header">
+        <div>
+          <div class="section-title">비교 예시</div>
+          <h2 class="section-heading">Golden vs Prediction</h2>
+        </div>
+        <p class="section-copy">
+          문서별 점수만으로는 왜 차이가 났는지 보이지 않습니다.
+          왼쪽에서 문서를 고르면, 오른쪽에서 <strong>rendered.md</strong>와
+          <strong>OpenDataLoader가 생성한 prediction Markdown</strong> 일부를 나란히 확인할 수 있습니다.
+        </p>
+      </div>
+
+      <div class="two-col">
+        <div class="picker" id="doc-picker"></div>
+        <div class="viewer">
+          <div class="viewer-head">
+            <div>
+              <p class="doc-id" id="viewer-id"></p>
+              <h3 class="viewer-title" id="viewer-title"></h3>
+            </div>
+            <div class="pill-row" id="viewer-scores"></div>
+          </div>
+
+          <p class="viewer-copy" id="viewer-copy"></p>
+          <div class="commentary-list" id="viewer-commentary"></div>
+
+          <div class="compare-grid">
+            <article class="code-card">
+              <header>
+                <span>Golden Markdown</span>
+                <span id="golden-length"></span>
+              </header>
+              <pre id="golden-preview"></pre>
+            </article>
+
+            <article class="code-card">
+              <header>
+                <span>Prediction Markdown</span>
+                <span id="prediction-length"></span>
+              </header>
+              <pre id="prediction-preview"></pre>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel section">
+      <div class="section-header">
+        <div>
+          <div class="section-title">요약 해석</div>
+          <h2 class="section-heading">이 비교가 말해주는 것</h2>
+        </div>
+      </div>
+      <div class="callout-grid">
+        <article class="callout">
+          <h3>강점은 읽기 순서</h3>
+          <p>
+            NID 평균이 가장 높습니다. 즉 본문 내용을 순서대로 읽어오는 능력은 전반적으로 안정적입니다.
+          </p>
+        </article>
+        <article class="callout">
+          <h3>표 구조는 편차가 큼</h3>
+          <p>
+            TEDS는 문서별 편차가 큽니다. 표가 많은 문서는 자동 채택보다 수동 검토 대상으로 보는 편이 안전합니다.
+          </p>
+        </article>
+        <article class="callout">
+          <h3>제목 계층은 아직 약함</h3>
+          <p>
+            MHS는 가장 낮습니다. 내용은 맞아도 제목 레벨과 섹션 구조는 golden을 그대로 따라가지 못하는 경우가 많습니다.
+          </p>
+        </article>
+      </div>
+
+      <p class="footer-note" id="footer-note"></p>
+    </section>
+  </main>
+
+  <script src="./benchmark-curated-data.js"></script>
+  <script>
+    const data = window.BENCHMARK_CURATED_DATA;
+
+    function formatScore(value) {
+      if (value === null || value === undefined) {
+        return "n/a";
+      }
+      return Number(value).toFixed(4);
+    }
+
+    function formatLength(value) {
+      return `${value.toLocaleString("ko-KR")} chars`;
+    }
+
+    function formatBand(band) {
+      if (band === "strong") return "강한 문서";
+      if (band === "mixed") return "혼합 문서";
+      return "취약 문서";
+    }
+
+    function buildAggregateCards() {
+      const metrics = data.aggregate_metrics;
+      const cards = [
+        {
+          title: "Overall 평균",
+          value: metrics.overall_mean,
+          note: "10건 기준 전체 품질 요약입니다.",
+        },
+        {
+          title: "읽기 순서",
+          value: metrics.nid_mean,
+          note: "본문 읽기 순서 보존 정도를 보여줍니다.",
+        },
+        {
+          title: "표 구조",
+          value: metrics.teds_mean,
+          note: "표가 많은 문서에서 품질 편차가 크게 납니다.",
+        },
+        {
+          title: "제목 계층",
+          value: metrics.mhs_mean,
+          note: "제목 레벨과 섹션 구조는 가장 약한 영역입니다.",
+        },
+      ];
+
+      const root = document.getElementById("aggregate-cards");
+      root.innerHTML = cards.map((card) => `
+        <article class="metric-card">
+          <h2>${card.title}</h2>
+          <div class="metric-value">${Number(card.value).toFixed(4)}</div>
+          <div class="metric-note">${card.note}</div>
+        </article>
+      `).join("");
+    }
+
+    function buildMetricHelp() {
+      const root = document.getElementById("metric-help");
+      root.innerHTML = data.metric_help.map((item) => `
+        <article class="help-card">
+          <h3>${item.label}</h3>
+          <p>${item.description}</p>
+        </article>
+      `).join("");
+    }
+
+    function buildTable() {
+      const tbody = document.getElementById("doc-table");
+      tbody.innerHTML = data.documents.map((doc) => `
+        <tr>
+          <td>
+            <div class="doc-title">${doc.title}</div>
+            <div class="doc-id">${doc.document_id}</div>
+          </td>
+          <td>
+            <div class="score band-${doc.band}">${formatScore(doc.scores.overall)}</div>
+            <div class="score-bar"><span style="width:${Math.max(0, Math.min(100, doc.scores.overall * 100))}%"></span></div>
+          </td>
+          <td>${formatScore(doc.scores.nid)}</td>
+          <td>${formatScore(doc.scores.teds)}</td>
+          <td>${formatScore(doc.scores.mhs)}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderViewer(doc) {
+      document.getElementById("viewer-id").textContent = doc.document_id;
+      document.getElementById("viewer-title").textContent = doc.title;
+      document.getElementById("viewer-copy").textContent =
+        `${formatBand(doc.band)}입니다. Overall ${formatScore(doc.scores.overall)} 기준으로 선택됐고, 아래에서 golden과 prediction 일부를 바로 비교할 수 있습니다.`;
+      document.getElementById("golden-preview").textContent = doc.golden_preview;
+      document.getElementById("prediction-preview").textContent = doc.prediction_preview;
+      document.getElementById("golden-length").textContent = formatLength(doc.golden_length);
+      document.getElementById("prediction-length").textContent = formatLength(doc.prediction_length);
+
+      document.getElementById("viewer-scores").innerHTML = [
+        ["Overall", doc.scores.overall],
+        ["NID", doc.scores.nid],
+        ["TEDS", doc.scores.teds],
+        ["MHS", doc.scores.mhs],
+      ].map(([label, value]) => `<span class="pill">${label} ${formatScore(value)}</span>`).join("");
+
+      document.getElementById("viewer-commentary").innerHTML = doc.commentary
+        .map((line) => `<div class="commentary-item">${line}</div>`)
+        .join("");
+    }
+
+    function buildPicker() {
+      const root = document.getElementById("doc-picker");
+      root.innerHTML = data.documents.map((doc, index) => `
+        <button type="button" data-doc-id="${doc.document_id}" aria-pressed="${index === 0 ? "true" : "false"}">
+          <div class="picker-title">${doc.title}</div>
+          <div class="picker-meta">
+            <span>${doc.document_id}</span>
+            <span class="band-${doc.band}">${formatScore(doc.scores.overall)}</span>
+          </div>
+        </button>
+      `).join("");
+
+      root.querySelectorAll("button").forEach((button) => {
+        button.addEventListener("click", () => {
+          root.querySelectorAll("button").forEach((item) => item.setAttribute("aria-pressed", "false"));
+          button.setAttribute("aria-pressed", "true");
+          const doc = data.documents.find((entry) => entry.document_id === button.dataset.docId);
+          if (doc) {
+            renderViewer(doc);
+          }
+        });
+      });
+    }
+
+    function bindStaticContent() {
+      document.getElementById("input-root").textContent = data.input_root;
+      document.getElementById("golden-source").textContent =
+        `${data.golden_source}를 golden으로 두고, ${data.engine} 결과와 비교했습니다.`;
+      document.getElementById("excluded-docs").textContent = data.excluded_documents.join(", ");
+      document.getElementById("footer-note").textContent =
+        `출처 표시는 OpenDataLoader 공식 벤치 문서와 opendataloader-bench 저장소를 기준으로 정리했습니다. 제외 문서는 ${data.excluded_documents.join(", ")}이며, 남은 ${data.document_count}건은 모두 prediction Markdown를 생성했습니다.`;
+    }
+
+    bindStaticContent();
+    buildAggregateCards();
+    buildMetricHelp();
+    buildTable();
+    buildPicker();
+    renderViewer(data.documents[0]);
+  </script>
+</body>
+</html>
