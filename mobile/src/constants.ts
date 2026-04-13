@@ -18,7 +18,7 @@ export const SERVER_PRESETS = [
   { key: "serverV", label: "서버V", shortLabel: "서버V", url: "https://api2.govpress.cloud" },
 ] as const;
 
-export const PRIMARY_SERVER_KEY = "serverH" as const;
+export const PRIMARY_SERVER_KEY = "serverW" as const;
 
 export function primaryServerUrl(): string {
   return SERVER_PRESETS.find((preset) => preset.key === PRIMARY_SERVER_KEY)?.url || SERVER_PRESETS[0].url;
