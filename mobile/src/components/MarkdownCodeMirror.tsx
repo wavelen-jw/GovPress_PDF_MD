@@ -7,6 +7,9 @@ import { markdown } from "@codemirror/lang-markdown";
 import { EditorView, type ViewUpdate } from "@codemirror/view";
 import { dracula } from "@uiw/codemirror-theme-dracula";
 import { tags as t } from "@lezer/highlight";
+import type { DocumentPickerAsset } from "expo-document-picker";
+
+type WebDropAsset = DocumentPickerAsset & { file?: File };
 
 type Props = {
   value: string;
@@ -15,6 +18,7 @@ type Props = {
   selection?: { start: number; end: number };
   focusToken?: number;
   height?: string;
+  onHandleDroppedAsset?: (asset: WebDropAsset) => void;
 };
 
 const appTheme = EditorView.theme({
@@ -75,22 +79,13 @@ const markdownHighlightStyle = HighlightStyle.define([
   { tag: [t.comment], color: "#6272a4", fontStyle: "italic" },
 ]);
 
-const fileDropBlocker = EditorView.domEventHandlers({
-  dragover: (event) => {
-    if (!event.dataTransfer?.files?.length) {
-      return false;
-    }
-    event.preventDefault();
-    return true;
-  },
-  drop: (event) => {
-    if (!event.dataTransfer?.files?.length) {
-      return false;
-    }
-    event.preventDefault();
-    return true;
-  },
-});
+function isSupportedDropFile(file: File | null | undefined): boolean {
+  if (!file) {
+    return false;
+  }
+  const name = file.name.toLowerCase();
+  return name.endsWith(".pdf") || name.endsWith(".hwpx") || name.endsWith(".md");
+}
 
 export function MarkdownCodeMirror({
   value,
@@ -99,8 +94,14 @@ export function MarkdownCodeMirror({
   selection,
   focusToken,
   height = "100%",
+  onHandleDroppedAsset,
 }: Props) {
   const viewRef = useRef<EditorView | null>(null);
+  const onHandleDroppedAssetRef = useRef(onHandleDroppedAsset);
+
+  useEffect(() => {
+    onHandleDroppedAssetRef.current = onHandleDroppedAsset;
+  }, [onHandleDroppedAsset]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -137,12 +138,46 @@ export function MarkdownCodeMirror({
     onSelectionChange({ start: main.from, end: main.to });
   }
 
+  const fileDropHandler = EditorView.domEventHandlers({
+    dragover: (event) => {
+      const files = Array.from(event.dataTransfer?.files || []);
+      if (!files.length) {
+        return false;
+      }
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = files.some((file) => isSupportedDropFile(file)) ? "copy" : "none";
+      }
+      return true;
+    },
+    drop: (event) => {
+      const files = Array.from(event.dataTransfer?.files || []);
+      if (!files.length) {
+        return false;
+      }
+      event.preventDefault();
+      const file = files.find((candidate) => isSupportedDropFile(candidate));
+      if (!file || !onHandleDroppedAssetRef.current || typeof window === "undefined") {
+        return true;
+      }
+      onHandleDroppedAssetRef.current({
+        uri: window.URL.createObjectURL(file),
+        mimeType: file.type || "",
+        name: file.name,
+        size: file.size,
+        file,
+        lastModified: file.lastModified,
+      } as WebDropAsset);
+      return true;
+    },
+  });
+
   return (
     <CodeMirror
       value={value}
       height={height}
       theme={dracula}
-      extensions={[markdown(), syntaxHighlighting(markdownHighlightStyle), EditorView.lineWrapping, appTheme, fileDropBlocker]}
+      extensions={[markdown(), syntaxHighlighting(markdownHighlightStyle), EditorView.lineWrapping, appTheme, fileDropHandler]}
       onChange={onChange}
       onUpdate={handleUpdate}
       onCreateEditor={(view) => {

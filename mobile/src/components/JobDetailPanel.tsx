@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import type { DocumentPickerAsset } from "expo-document-picker";
 
 import { styles } from "../styles";
 import type { Job, ResultPayload } from "../types";
 import { EmptyDetailState } from "./EmptyDetailState";
 import { MarkdownPreview, parseMarkdownBlockRanges } from "./MarkdownPreview";
+
+type WebDropAsset = DocumentPickerAsset & { file?: File };
 
 let MarkdownCodeMirror: React.ComponentType<{
   value: string;
@@ -13,6 +16,7 @@ let MarkdownCodeMirror: React.ComponentType<{
   selection?: { start: number; end: number };
   focusToken?: number;
   height?: string;
+  onHandleDroppedAsset?: (asset: WebDropAsset) => void;
 }> | null = null;
 
 if (Platform.OS === "web") {
@@ -53,14 +57,7 @@ type Props = {
   onShareMarkdown: () => void;
   onResizeDesktopSplit: (ratio: number) => void;
   onToggleEditing: () => void;
-  onHandleDroppedAsset?: (asset: {
-    uri: string;
-    mimeType?: string;
-    name: string;
-    size?: number;
-    file?: File;
-    lastModified?: number;
-  }) => void;
+  onHandleDroppedAsset?: (asset: WebDropAsset) => void;
 };
 
 export function JobDetailPanel({
@@ -168,7 +165,7 @@ export function JobDetailPanel({
     ? {
         onDragOver: (event: any) => {
           const transfer = event?.nativeEvent?.dataTransfer || event?.dataTransfer;
-          const files = Array.from(transfer?.files || []);
+          const files = Array.from(transfer?.files || []) as File[];
           if (!files.length) {
             return;
           }
@@ -180,7 +177,7 @@ export function JobDetailPanel({
         },
         onDrop: (event: any) => {
           const transfer = event?.nativeEvent?.dataTransfer || event?.dataTransfer;
-          const files = Array.from(transfer?.files || []);
+          const files = Array.from(transfer?.files || []) as File[];
           if (!files.length) {
             return;
           }
@@ -192,12 +189,50 @@ export function JobDetailPanel({
           }
           onHandleDroppedAsset({
             uri: typeof window !== "undefined" ? window.URL.createObjectURL(file) : "",
-            mimeType: file.type || undefined,
+            mimeType: file.type || "",
             name: file.name,
             size: file.size,
             file,
             lastModified: file.lastModified,
-          });
+          } as WebDropAsset);
+        },
+      }
+    : {};
+
+  const webEditorDropProps = Platform.OS === "web" && onHandleDroppedAsset
+    ? {
+        onDragOver: (event: any) => {
+          const transfer = event?.nativeEvent?.dataTransfer || event?.dataTransfer;
+          const files = Array.from(transfer?.files || []) as File[];
+          if (!files.length) {
+            return;
+          }
+          event.preventDefault?.();
+          event.stopPropagation?.();
+          if (transfer) {
+            transfer.dropEffect = files.some((file) => isSupportedDropFile(file)) ? "copy" : "none";
+          }
+        },
+        onDrop: (event: any) => {
+          const transfer = event?.nativeEvent?.dataTransfer || event?.dataTransfer;
+          const files = Array.from(transfer?.files || []) as File[];
+          if (!files.length) {
+            return;
+          }
+          event.preventDefault?.();
+          event.stopPropagation?.();
+          const file = files.find((candidate) => isSupportedDropFile(candidate));
+          if (!file) {
+            return;
+          }
+          onHandleDroppedAsset({
+            uri: typeof window !== "undefined" ? window.URL.createObjectURL(file) : "",
+            mimeType: file.type || "",
+            name: file.name,
+            size: file.size,
+            file,
+            lastModified: file.lastModified,
+          } as WebDropAsset);
         },
       }
     : {};
@@ -206,7 +241,7 @@ export function JobDetailPanel({
     ? {
         onDragOver: (event: any) => {
           const transfer = event?.nativeEvent?.dataTransfer || event?.dataTransfer;
-          const files = Array.from(transfer?.files || []);
+          const files = Array.from(transfer?.files || []) as File[];
           if (!files.length) {
             return;
           }
@@ -218,7 +253,7 @@ export function JobDetailPanel({
         },
         onDrop: (event: any) => {
           const transfer = event?.nativeEvent?.dataTransfer || event?.dataTransfer;
-          const files = Array.from(transfer?.files || []);
+          const files = Array.from(transfer?.files || []) as File[];
           if (!files.length) {
             return;
           }
@@ -230,12 +265,12 @@ export function JobDetailPanel({
           }
           onHandleDroppedAsset({
             uri: typeof window !== "undefined" ? window.URL.createObjectURL(file) : "",
-            mimeType: file.type || undefined,
+            mimeType: file.type || "",
             name: file.name,
             size: file.size,
             file,
             lastModified: file.lastModified,
-          });
+          } as WebDropAsset);
         },
       }
     : {};
@@ -373,7 +408,7 @@ export function JobDetailPanel({
                       )}
                       {/* Editor with line numbers */}
                       {isDarkMode && Platform.OS === "web" && MarkdownCodeMirror ? (
-                        <View style={{ flex: 1, minHeight: 0 }}>
+                        <View style={{ flex: 1, minHeight: 0 }} {...webEditorDropProps}>
                           <MarkdownCodeMirror
                             value={editorText}
                             onChange={onChangeEditorText}
@@ -381,6 +416,7 @@ export function JobDetailPanel({
                             selection={editorSelection}
                             focusToken={editorFocusToken}
                             height="100%"
+                            onHandleDroppedAsset={onHandleDroppedAsset}
                           />
                         </View>
                       ) : isDarkMode ? (
@@ -517,7 +553,7 @@ export function JobDetailPanel({
                         )}
                         {/* Editor with line numbers */}
                         {isDarkMode && Platform.OS === "web" && MarkdownCodeMirror ? (
-                          <View style={{ flex: 1, minHeight: 0 }}>
+                          <View style={{ flex: 1, minHeight: 0 }} {...webEditorDropProps}>
                             <MarkdownCodeMirror
                               value={editorText}
                               onChange={onChangeEditorText}
@@ -525,6 +561,7 @@ export function JobDetailPanel({
                               selection={editorSelection}
                               focusToken={editorFocusToken}
                               height="100%"
+                              onHandleDroppedAsset={onHandleDroppedAsset}
                             />
                           </View>
                         ) : isDarkMode ? (
