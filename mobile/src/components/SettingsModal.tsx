@@ -31,6 +31,28 @@ export function SettingsModal({
     return SERVER_PRESETS.find((preset) => preset.url === draft.baseUrl)?.key || PRIMARY_SERVER_KEY;
   }, [draft.baseUrl]);
 
+  async function probeServerHealth(url: string, timeoutMs: number): Promise<boolean> {
+    const attempts = 2;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(`${url}/health?_t=${Date.now()}_${attempt}`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        if (response.ok) {
+          return true;
+        }
+      } catch {
+        // Retry once before treating the server as down in the UI.
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+    return false;
+  }
+
   useEffect(() => {
     if (!visible) {
       return;
@@ -48,19 +70,8 @@ export function SettingsModal({
 
     void Promise.all(
       SERVER_PRESETS.map(async (preset) => {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), SERVER_FALLBACK_TIMEOUT_MS);
-        try {
-          const response = await fetch(`${preset.url}/health?_t=${probeAt}`, {
-            signal: controller.signal,
-            cache: "no-store",
-          });
-          return { key: preset.key, ok: response.ok };
-        } catch {
-          return { key: preset.key, ok: false };
-        } finally {
-          clearTimeout(timeout);
-        }
+        const ok = await probeServerHealth(preset.url, SERVER_FALLBACK_TIMEOUT_MS);
+        return { key: preset.key, ok };
       }),
     ).then((results) => {
       if (cancelled) {
