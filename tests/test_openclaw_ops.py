@@ -274,6 +274,368 @@ class OpenClawOpsTests(unittest.TestCase):
             state = _load_session_state(state_root, "6475698942")
             self.assertEqual(state["selected_sample_id"], "storage_job_abc123")
 
+    def test_remote_qc_open_auto_scaffolds_missing_storage_sample(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "storage_batch"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            (gov_md_root / "scripts").mkdir(parents=True, exist_ok=True)
+            sample_dir = remote_root / "storage_job_abc123"
+
+            def fake_scaffold(**kwargs: object) -> dict[str, object]:
+                self.assertEqual(kwargs["job_ids"], ["job_abc123"])
+                sample_dir.mkdir(parents=True, exist_ok=True)
+                (sample_dir / "source.hwpx").write_bytes(b"hwpx")
+                (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
+                (sample_dir / "review.md").write_text("review", encoding="utf-8")
+                (sample_dir / "meta.json").write_text(
+                    json.dumps({"sample_status": "scratch", "source_hwpx": "job_abc123.hwpx"}, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                return {
+                    "limit": 1,
+                    "job_ids": ["job_abc123"],
+                    "selected_count": 1,
+                    "scaffolded_count": 1,
+                    "items": [{"news_item_id": "job_abc123", "scaffold_sample_dir": str(sample_dir)}],
+                }
+
+            def fake_run(command, *, cwd):
+                if command[:3] == ["openclaw", "message", "send"]:
+                    return {
+                        "returncode": 0,
+                        "stdout": '{"payload":{"ok":true,"messageId":"m1"}}',
+                        "stderr": "",
+                        "command": command,
+                    }
+                return {
+                    "returncode": 0,
+                    "stdout": str(sample_dir),
+                    "stderr": "",
+                    "command": command,
+                }
+
+            with mock.patch("scripts.openclaw_ops.scaffold_storage_qc_jobs", side_effect=fake_scaffold) as mocked_scaffold, \
+                 mock.patch("scripts.openclaw_ops._run_subprocess", side_effect=fake_run):
+                opened = dispatch_telegram_message(
+                    'Conversation info (untrusted metadata): {"message_id":"12","sender_id":"6475698942"}\nstorage_job_abc123 열어줘',
+                    chat_scope="dm",
+                    export_root=Path(tmpdir),
+                    gov_md_root=gov_md_root,
+                    qc_root=Path(tmpdir),
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
+            self.assertEqual(opened["command"], "remote-qc-open")
+            self.assertEqual(opened["sample_id"], "storage_job_abc123")
+            self.assertEqual(len(opened["results"]), 3)
+            mocked_scaffold.assert_called_once()
+
+    def test_remote_qc_open_by_policy_briefing_title(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "storage_batch"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            (gov_md_root / "scripts").mkdir(parents=True, exist_ok=True)
+            sample_dir = remote_root / "storage_job_a19baebca8c1"
+
+            def fake_find_storage_job_by_title(*, storage_root, query):
+                self.assertIn("주민이 직접 가꾸는", query)
+                return mock.Mock(job_id="job_a19baebca8c1")
+
+            def fake_scaffold(**kwargs: object) -> dict[str, object]:
+                self.assertEqual(kwargs["job_ids"], ["job_a19baebca8c1"])
+                sample_dir.mkdir(parents=True, exist_ok=True)
+                (sample_dir / "source.hwpx").write_bytes(b"hwpx")
+                (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
+                (sample_dir / "review.md").write_text("review", encoding="utf-8")
+                (sample_dir / "meta.json").write_text(
+                    json.dumps({"sample_status": "scratch", "source_hwpx": "job_a19baebca8c1.hwpx"}, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                return {
+                    "limit": 1,
+                    "job_ids": ["job_a19baebca8c1"],
+                    "selected_count": 1,
+                    "scaffolded_count": 1,
+                    "items": [{"news_item_id": "job_a19baebca8c1", "scaffold_sample_dir": str(sample_dir)}],
+                }
+
+            def fake_run(command, *, cwd):
+                if command[:3] == ["openclaw", "message", "send"]:
+                    return {
+                        "returncode": 0,
+                        "stdout": '{"payload":{"ok":true,"messageId":"m1"}}',
+                        "stderr": "",
+                        "command": command,
+                    }
+                return {
+                    "returncode": 0,
+                    "stdout": str(sample_dir),
+                    "stderr": "",
+                    "command": command,
+                }
+
+            with mock.patch("scripts.openclaw_ops.find_storage_job_by_title", side_effect=fake_find_storage_job_by_title), \
+                 mock.patch("scripts.openclaw_ops.scaffold_storage_qc_jobs", side_effect=fake_scaffold) as mocked_scaffold, \
+                 mock.patch("scripts.openclaw_ops._run_subprocess", side_effect=fake_run):
+                opened = dispatch_telegram_message(
+                    'Conversation info (untrusted metadata): {"message_id":"12","sender_id":"6475698942"}\n국정브리핑 보도자료 \'주민이 직접 가꾸는 \'살고 싶은 농촌\' 농식품부, \'클린농촌 만들기\' 본격 가동\' 를 job으로 열어줘',
+                    chat_scope="dm",
+                    export_root=Path(tmpdir),
+                    gov_md_root=gov_md_root,
+                    qc_root=Path(tmpdir),
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
+            self.assertEqual(opened["command"], "remote-qc-open")
+            self.assertEqual(opened["sample_id"], "storage_job_a19baebca8c1")
+            mocked_scaffold.assert_called_once()
+
+    def test_remote_qc_open_by_policy_briefing_title_exports_when_storage_misses(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "storage_batch"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            export_root = Path(tmpdir) / "exports"
+            (gov_md_root / "scripts").mkdir(parents=True, exist_ok=True)
+            sample_dir = remote_root / "policy_briefing_2026_04_13_156700001"
+
+            fake_item = mock.Mock(news_item_id="156700001", approve_date="04/13/2026 09:00:00")
+
+            def fake_export(**kwargs: object) -> dict[str, object]:
+                self.assertEqual(kwargs["news_item_ids"], ["156700001"])
+                sample_dir.mkdir(parents=True, exist_ok=True)
+                (sample_dir / "source.hwpx").write_bytes(b"hwpx")
+                (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
+                (sample_dir / "review.md").write_text("review", encoding="utf-8")
+                (sample_dir / "meta.json").write_text(
+                    json.dumps({"sample_status": "scratch", "source_hwpx": "policy.hwpx"}, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                return {
+                    "scaffolded_count": 1,
+                    "items": [{"news_item_id": "156700001", "scaffold_sample_dir": str(sample_dir)}],
+                }
+
+            def fake_run(command, *, cwd):
+                if command[:3] == ["openclaw", "message", "send"]:
+                    return {
+                        "returncode": 0,
+                        "stdout": '{"payload":{"ok":true,"messageId":"m1"}}',
+                        "stderr": "",
+                        "command": command,
+                    }
+                return {
+                    "returncode": 0,
+                    "stdout": str(sample_dir),
+                    "stderr": "",
+                    "command": command,
+                }
+
+            with mock.patch("scripts.openclaw_ops.find_storage_job_by_title", return_value=None), \
+                 mock.patch("scripts.openclaw_ops.find_cached_policy_briefing_by_title", return_value=fake_item), \
+                 mock.patch("scripts.openclaw_ops.export_policy_briefings_for_qc", side_effect=fake_export), \
+                 mock.patch("scripts.openclaw_ops._run_subprocess", side_effect=fake_run):
+                opened = dispatch_telegram_message(
+                    'Conversation info (untrusted metadata): {"message_id":"12","sender_id":"6475698942"}\n국정브리핑 보도자료 \'없는 storage 제목\' 를 job으로 열어줘',
+                    chat_scope="dm",
+                    export_root=export_root,
+                    gov_md_root=gov_md_root,
+                    qc_root=Path(tmpdir),
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
+            self.assertEqual(opened["command"], "remote-qc-open")
+            self.assertEqual(opened["sample_id"], "policy_briefing_2026_04_13_156700001")
+
+    def test_remote_qc_open_by_bare_policy_briefing_title(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "storage_batch"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            export_root = Path(tmpdir) / "exports"
+            (gov_md_root / "scripts").mkdir(parents=True, exist_ok=True)
+            sample_dir = remote_root / "policy_briefing_2026_04_12_156754095"
+
+            fake_item = mock.Mock(news_item_id="156754095", approve_date="04/12/2026 09:00:00")
+
+            def fake_export(**kwargs: object) -> dict[str, object]:
+                self.assertEqual(kwargs["news_item_ids"], ["156754095"])
+                sample_dir.mkdir(parents=True, exist_ok=True)
+                (sample_dir / "source.hwpx").write_bytes(b"hwpx")
+                (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
+                (sample_dir / "review.md").write_text("review", encoding="utf-8")
+                (sample_dir / "meta.json").write_text(
+                    json.dumps({"sample_status": "scratch", "source_hwpx": "policy.hwpx"}, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                return {
+                    "scaffolded_count": 1,
+                    "items": [{"news_item_id": "156754095", "scaffold_sample_dir": str(sample_dir)}],
+                }
+
+            def fake_run(command, *, cwd):
+                if command[:3] == ["openclaw", "message", "send"]:
+                    return {
+                        "returncode": 0,
+                        "stdout": '{"payload":{"ok":true,"messageId":"m1"}}',
+                        "stderr": "",
+                        "command": command,
+                    }
+                return {
+                    "returncode": 0,
+                    "stdout": str(sample_dir),
+                    "stderr": "",
+                    "command": command,
+                }
+
+            with mock.patch("scripts.openclaw_ops.find_storage_job_by_title", return_value=None), \
+                 mock.patch("scripts.openclaw_ops.find_cached_policy_briefing_by_title", return_value=fake_item), \
+                 mock.patch("scripts.openclaw_ops.export_policy_briefings_for_qc", side_effect=fake_export), \
+                 mock.patch("scripts.openclaw_ops._run_subprocess", side_effect=fake_run):
+                opened = dispatch_telegram_message(
+                    'Conversation info (untrusted metadata): {"message_id":"12","sender_id":"6475698942"}\n고유가 피해지원금 4월 27일 지급 시작',
+                    chat_scope="dm",
+                    export_root=export_root,
+                    gov_md_root=gov_md_root,
+                    qc_root=Path(tmpdir),
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
+            self.assertEqual(opened["command"], "remote-qc-open")
+            self.assertEqual(opened["sample_id"], "policy_briefing_2026_04_12_156754095")
+
+    def test_remote_qc_open_existing_policy_briefing_title_reuses_existing_sample(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "storage_batch"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            export_root = Path(tmpdir) / "exports"
+            sample_dir = remote_root / "policy_briefing_2026_04_12_156754095"
+            sample_dir.mkdir(parents=True)
+            (sample_dir / "source.hwpx").write_bytes(b"PK\x03\x04fake")
+            (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
+            (sample_dir / "review.md").write_text("review", encoding="utf-8")
+            (sample_dir / "meta.json").write_text(
+                json.dumps({"sample_status": "scratch", "source_hwpx": "source.hwpx"}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            fake_item = mock.Mock(news_item_id="156754095", approve_date="04/12/2026 09:00:00")
+
+            def fake_run(command, *, cwd):
+                if command[:3] == ["openclaw", "message", "send"]:
+                    return {
+                        "returncode": 0,
+                        "stdout": '{"payload":{"ok":true,"messageId":"m1"}}',
+                        "stderr": "",
+                        "command": command,
+                    }
+                raise AssertionError("existing policy briefing sample should not re-run scaffold")
+
+            with mock.patch("scripts.openclaw_ops.find_storage_job_by_title", return_value=None), \
+                 mock.patch("scripts.openclaw_ops.find_cached_policy_briefing_by_title", return_value=fake_item), \
+                 mock.patch("scripts.openclaw_ops.export_policy_briefings_for_qc") as mocked_export, \
+                 mock.patch("scripts.openclaw_ops._run_subprocess", side_effect=fake_run):
+                opened = dispatch_telegram_message(
+                    'Conversation info (untrusted metadata): {"message_id":"12","sender_id":"6475698942"}\n국정브리핑 보도자료 \'고유가 피해지원금 4월 27일 지급 시작\' 를 job으로 열어줘',
+                    chat_scope="dm",
+                    export_root=export_root,
+                    gov_md_root=gov_md_root,
+                    qc_root=Path(tmpdir),
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
+            self.assertEqual(opened["command"], "remote-qc-open")
+            self.assertEqual(opened["sample_id"], "policy_briefing_2026_04_12_156754095")
+            self.assertEqual(opened["refresh"]["command"][0], "skip-policy-briefing-refresh")
+            mocked_export.assert_not_called()
+
+    def test_remote_qc_reopen_policy_briefing_sample_skips_refresh(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "storage_batch"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            sample_dir = remote_root / "policy_briefing_2026_04_13_156754285"
+            sample_dir.mkdir(parents=True)
+            (sample_dir / "source.hwpx").write_bytes(b"PK\x03\x04fake")
+            (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
+            (sample_dir / "review.md").write_text("review", encoding="utf-8")
+            (sample_dir / "meta.json").write_text(
+                json.dumps({"sample_status": "scratch", "source_hwpx": "policy.hwpx"}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            def fake_run(command, *, cwd):
+                if command[:3] == ["openclaw", "message", "send"]:
+                    return {
+                        "returncode": 0,
+                        "stdout": '{"payload":{"ok":true,"messageId":"m1"}}',
+                        "stderr": "",
+                        "command": command,
+                    }
+                raise AssertionError("policy_briefing reopen should not invoke scaffold subprocess")
+
+            with mock.patch("scripts.openclaw_ops._run_subprocess", side_effect=fake_run):
+                opened = dispatch_telegram_message(
+                    'Conversation info (untrusted metadata): {"message_id":"12","sender_id":"6475698942"}\npolicy_briefing_2026_04_13_156754285 열어줘',
+                    chat_scope="dm",
+                    export_root=Path(tmpdir),
+                    gov_md_root=gov_md_root,
+                    qc_root=Path(tmpdir),
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
+            self.assertEqual(opened["command"], "remote-qc-open")
+            self.assertEqual(opened["refresh"]["command"][0], "skip-policy-briefing-refresh")
+
+    def test_remote_qc_golden_text_uses_recent_inbound_markdown_when_attachment_path_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "storage_batch"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            media_root = Path(tmpdir) / "media" / "inbound"
+            sample_dir = remote_root / "policy_briefing_2026_04_13_156754285"
+            sample_dir.mkdir(parents=True)
+            (sample_dir / "source.hwpx").write_bytes(b"PK\x03\x04fake")
+            (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
+            (sample_dir / "review.md").write_text("review", encoding="utf-8")
+            (sample_dir / "meta.json").write_text(
+                json.dumps({"sample_status": "scratch", "source_hwpx": "policy.hwpx"}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            session_dir = state_root / "telegram_qc_sessions"
+            session_dir.mkdir(parents=True, exist_ok=True)
+            (session_dir / "6475698942.json").write_text(
+                json.dumps({"selected_sample_id": sample_dir.name}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            media_root.mkdir(parents=True, exist_ok=True)
+            upload = media_root / "uploaded.md"
+            upload.write_text("# golden\n", encoding="utf-8")
+
+            with mock.patch("scripts.openclaw_ops.DEFAULT_OPENCLAW_MEDIA_INBOUND_ROOT", media_root), \
+                 mock.patch("scripts.openclaw_ops._rewrite_sample_review"), \
+                 mock.patch(
+                     "scripts.openclaw_ops._spawn_background_fix",
+                     return_value={"command": "remote-qc-fix-queued", "ok": True},
+                 ) as mocked_fix:
+                payload = dispatch_telegram_message(
+                    "golden",
+                    chat_scope="dm",
+                    export_root=Path(tmpdir),
+                    gov_md_root=gov_md_root,
+                    qc_root=Path(tmpdir),
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
+
+            self.assertEqual(payload["command"], "remote-qc-fix-queued")
+            self.assertEqual((sample_dir / "golden.md").read_text(encoding="utf-8"), "# golden\n")
+            self.assertEqual(payload["golden_upload"]["uploaded_from"], str(upload))
+            mocked_fix.assert_called_once()
+
     def test_remote_qc_recent_job_generation_uses_storage_pipeline(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             remote_root = Path(tmpdir) / "storage_batch"

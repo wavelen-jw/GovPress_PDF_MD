@@ -11,6 +11,7 @@ import re
 import select
 import subprocess
 import sys
+import time
 from typing import Any
 from urllib.error import URLError
 from urllib.request import urlopen
@@ -22,7 +23,18 @@ if str(PROJECT_ROOT) not in sys.path:
 from scripts.build_policy_briefing_qc_dashboard import build_dashboard_payload
 from scripts.build_policy_briefing_qc_issue import build_issue_payload, load_report as load_issue_report
 from scripts.evaluate_policy_briefing_qc_report import build_markdown_summary
-from server.app.adapters.policy_briefing_qc import scaffold_storage_qc_jobs
+from server.app.adapters.policy_briefing import (
+    PolicyBriefingCatalog,
+    PolicyBriefingClient,
+    find_cached_policy_briefing_by_title,
+)
+from server.app.adapters.policy_briefing_qc import (
+    export_policy_briefings_for_qc,
+    find_storage_job_by_title,
+    normalize_storage_title_key,
+    run_gov_md_scaffold,
+    scaffold_storage_qc_jobs,
+)
 
 
 DEFAULT_EXPORT_ROOT = Path(
@@ -41,6 +53,12 @@ DEFAULT_STATE_ROOT = Path(
     __import__("os").environ.get(
         "GOVPRESS_OPENCLAW_STATE_ROOT",
         Path.home() / ".openclaw" / "agents" / "govpress_qc_ops" / "state",
+    )
+).resolve()
+DEFAULT_OPENCLAW_MEDIA_INBOUND_ROOT = Path(
+    __import__("os").environ.get(
+        "GOVPRESS_OPENCLAW_MEDIA_INBOUND_ROOT",
+        Path.home() / ".openclaw" / "media" / "inbound",
     )
 ).resolve()
 MOBILE_CONSTANTS_PATH = PROJECT_ROOT / "mobile" / "src" / "constants.ts"
@@ -127,6 +145,29 @@ def _extract_media_paths(message: str) -> tuple[Path, ...]:
         if candidate.exists():
             paths.append(candidate)
     return tuple(paths)
+
+
+def _find_recent_inbound_markdown(
+    media_root: Path | None = None,
+    *,
+    max_age_seconds: int = 15 * 60,
+) -> tuple[Path, ...]:
+    media_root = (media_root or DEFAULT_OPENCLAW_MEDIA_INBOUND_ROOT).resolve()
+    if not media_root.exists():
+        return ()
+    now = time.time()
+    candidates: list[tuple[float, Path]] = []
+    for candidate in media_root.glob("*.md"):
+        try:
+            stat = candidate.stat()
+        except OSError:
+            continue
+        age_seconds = now - stat.st_mtime
+        if age_seconds < 0 or age_seconds > max_age_seconds:
+            continue
+        candidates.append((stat.st_mtime, candidate))
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return tuple(path for _, path in candidates[:1])
 
 
 def _fallback_sender_id_from_state_root(state_root: Path) -> str | None:
@@ -230,6 +271,105 @@ def _find_sample(sample_id: str, remote_qc_root: Path) -> SampleRecord:
     if not sample_dir.exists():
         raise FileNotFoundError(f"Unknown QC sample: {sample_id}")
     return _sample_record(sample_dir)
+
+
+def _maybe_scaffold_storage_sample(
+    sample_id: str,
+    *,
+    gov_md_root: Path,
+    remote_qc_root: Path,
+    storage_root: Path,
+) -> SampleRecord | None:
+    if not sample_id.startswith("storage_job_"):
+        return None
+    job_id = sample_id.removeprefix("storage_")
+    result = scaffold_storage_qc_jobs(
+        gov_md_converter_root=gov_md_root,
+        qc_root=remote_qc_root,
+        storage_root=storage_root,
+        limit=1,
+        job_ids=[job_id],
+        autofill=True,
+        force=False,
+        order_by_recent=False,
+    )
+    if int(result.get("scaffolded_count", 0) or 0) <= 0:
+        return None
+    return _find_sample(sample_id, remote_qc_root)
+
+
+def _resolve_remote_sample(
+    sample_id: str,
+    *,
+    gov_md_root: Path,
+    remote_qc_root: Path,
+    storage_root: Path,
+) -> SampleRecord:
+    try:
+        return _find_sample(sample_id, remote_qc_root)
+    except FileNotFoundError:
+        scaffolded = _maybe_scaffold_storage_sample(
+            sample_id,
+            gov_md_root=gov_md_root,
+            remote_qc_root=remote_qc_root,
+            storage_root=storage_root,
+        )
+        if scaffolded is not None:
+            return scaffolded
+        raise
+
+
+def _maybe_export_policy_briefing_sample(
+    title_query: str,
+    *,
+    export_root: Path,
+    gov_md_root: Path,
+    remote_qc_root: Path,
+    storage_root: Path,
+) -> SampleRecord | None:
+    catalog = PolicyBriefingCatalog(
+        client=PolicyBriefingClient(service_key=os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY")),
+        cache_path=storage_root / "policy_briefing_catalog.json",
+    )
+    item = find_cached_policy_briefing_by_title(catalog, title_query)
+    if item is None:
+        return None
+    target_date = date.fromisoformat(item.approve_date.split()[0]) if "-" in item.approve_date[:10] else None
+    if target_date is None:
+        try:
+            from datetime import datetime
+
+            target_date = datetime.strptime(item.approve_date, "%m/%d/%Y %H:%M:%S").date()
+        except ValueError:
+            return None
+
+    sample_id = f"policy_briefing_{target_date:%Y_%m_%d}_{item.news_item_id}"
+    try:
+        return _find_sample(sample_id, remote_qc_root)
+    except FileNotFoundError:
+        pass
+
+    report = export_policy_briefings_for_qc(
+        client=PolicyBriefingClient(service_key=os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY")),
+        catalog=catalog,
+        target_date=target_date,
+        output_root=export_root,
+        news_item_ids=[item.news_item_id],
+        include_pdf=True,
+        ensure_fresh=False,
+        scaffold_runner=run_gov_md_scaffold,
+        gov_md_converter_root=gov_md_root,
+        qc_root=remote_qc_root,
+        autofill=True,
+        force=False,
+        sample_status="scratch",
+    )
+    if int(report.get("scaffolded_count", 0) or 0) <= 0:
+        try:
+            return _find_sample(sample_id, remote_qc_root)
+        except FileNotFoundError:
+            return None
+    return _find_sample(sample_id, remote_qc_root)
 
 
 def _ensure_selected_sample(state_root: Path, sender_id: str, remote_qc_root: Path) -> SampleRecord:
@@ -763,8 +903,55 @@ def _normalize_message(message: str) -> str:
 
 
 def _extract_sample_id_from_text(text: str) -> str | None:
-    match = re.search(r"\b(storage_job_[A-Za-z0-9]+)\b", text)
+    match = re.search(r"\b(storage_job_[A-Za-z0-9]+|policy_briefing_\d{4}_\d{2}_\d{2}_[A-Za-z0-9]+)\b", text)
     return match.group(1) if match else None
+
+
+def _extract_title_query_from_text(text: str) -> str | None:
+    direct_patterns = [
+        r"국정브리핑\s+보도자료\s+(.+?)\s+를\s+job으로\s+열어줘",
+        r"국정브리핑\s+보도자료\s+(.+?)\s+job으로\s+열어줘",
+    ]
+    for pattern in direct_patterns:
+        match = re.search(pattern, text)
+        if match:
+            candidate = match.group(1).strip()
+            if candidate:
+                return candidate.strip("'\"“”‘’ ").strip()
+
+    quoted = re.findall(r"'([^']+)'|\"([^\"]+)\"", text)
+    parts = [left or right for left, right in quoted if (left or right)]
+    if parts:
+        return " ".join(part.strip() for part in parts if part.strip()).strip() or None
+
+    cleaned = text.strip()
+    cleaned = re.sub(r"\b(job|샘플)\b", " ", cleaned, flags=re.IGNORECASE)
+    cleaned = cleaned.replace("국정브리핑", " ")
+    cleaned = cleaned.replace("보도자료", " ")
+    cleaned = cleaned.replace("열어줘", " ")
+    cleaned = cleaned.replace("로", " ")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned or None
+
+
+def _should_try_implicit_title_open(text: str) -> bool:
+    normalized = text.strip()
+    if not normalized:
+        return False
+    lowered = normalized.lower()
+    if normalized.startswith("/"):
+        return False
+    if _extract_sample_id_from_text(normalized):
+        return False
+    if any(token in lowered for token in ("review", "rendered", "source", "golden")):
+        return False
+    if _is_pass_message(normalized) or _is_defer_message(normalized) or _is_fix_message(normalized):
+        return False
+    if _wants_job_list(normalized) or _wants_review_queue(normalized) or _wants_next_job(normalized):
+        return False
+    if _wants_golden_upload_fix(normalized):
+        return False
+    return len(normalized) >= 8
 
 
 def _is_pass_message(text: str) -> bool:
@@ -824,6 +1011,44 @@ def _wants_open_sample(text: str) -> bool:
     return "열어줘" in text or text.strip().startswith("storage_job_")
 
 
+def _wants_open_storage_title(text: str) -> bool:
+    lowered = text.lower()
+    return "열어줘" in text and "storage_job_" not in lowered and ("국정브리핑" in text or "보도자료" in text)
+
+
+def _resolve_sample_id_from_text(
+    text: str,
+    *,
+    storage_root: Path,
+) -> str | None:
+    sample_id = _extract_sample_id_from_text(text)
+    if sample_id:
+        return sample_id
+    if not _wants_open_storage_title(text):
+        return None
+    title_query = _extract_title_query_from_text(text)
+    if not title_query:
+        return None
+    artifact = find_storage_job_by_title(storage_root=storage_root, query=title_query)
+    if artifact is None:
+        return None
+    return f"storage_{artifact.job_id}"
+
+
+def _require_sample_id_for_open_request(
+    text: str,
+    *,
+    storage_root: Path,
+) -> str | None:
+    sample_id = _resolve_sample_id_from_text(text, storage_root=storage_root)
+    if sample_id is not None:
+        return sample_id
+    if _wants_open_storage_title(text):
+        title_query = _extract_title_query_from_text(text) or text.strip()
+        raise ValueError(f"해당 제목으로 매칭되는 storage job을 찾지 못했습니다: {title_query}")
+    return None
+
+
 def _requested_file_keys(text: str) -> list[str]:
     lowered = text.lower()
     if "다운로드" in text or "다운받" in text or "파일 보내" in text:
@@ -845,6 +1070,15 @@ def _requested_file_keys(text: str) -> list[str]:
 
 
 def _refresh_remote_qc_sample(*, sample: SampleRecord, gov_md_root: Path) -> dict[str, Any]:
+    if sample.sample_id.startswith("policy_briefing_"):
+        # Policy briefing samples may come from cached export artifacts that are
+        # already scaffolded; reopening should not force a fresh re-download.
+        return {
+            "returncode": 0,
+            "stdout": "skip refresh for policy_briefing sample",
+            "stderr": "",
+            "command": ["skip-policy-briefing-refresh", sample.sample_id],
+        }
     meta_path = sample.sample_dir / "meta.json"
     sample_status = sample.status
     if meta_path.exists():
@@ -1437,7 +1671,13 @@ def _dispatch_remote_qc_message(
     if not sender_id:
         raise ValueError("Telegram sender_id를 찾지 못했습니다.")
     text = _normalize_message(message)
-    sample_id = _extract_sample_id_from_text(text)
+    title_open_requested = _wants_open_storage_title(text)
+    implicit_title_open = False
+    title_query = _extract_title_query_from_text(text) if title_open_requested else None
+    if title_query is None and _should_try_implicit_title_open(text):
+        title_query = text.strip()
+        implicit_title_open = True
+    sample_id = _resolve_sample_id_from_text(text, storage_root=DEFAULT_STORAGE_ROOT)
     recent_job_count = _requested_recent_job_count(text)
 
     if recent_job_count is not None:
@@ -1448,9 +1688,32 @@ def _dispatch_remote_qc_message(
             limit=recent_job_count,
         )
 
+    if sample_id is None and title_query:
+        policy_sample = _maybe_export_policy_briefing_sample(
+            title_query,
+            export_root=export_root,
+            gov_md_root=gov_md_root,
+            remote_qc_root=remote_qc_root,
+            storage_root=DEFAULT_STORAGE_ROOT,
+        )
+        if policy_sample is not None:
+            return _select_sample(
+                policy_sample,
+                sender_id=sender_id,
+                state_root=state_root,
+                gov_md_root=gov_md_root,
+            )
+        if title_open_requested or implicit_title_open:
+            raise ValueError(f"해당 제목으로 매칭되는 storage job 또는 국정브리핑 문서를 찾지 못했습니다: {title_query}")
+
     if sample_id and (_wants_open_sample(text) or text.strip() == sample_id):
         return _select_sample(
-            _find_sample(sample_id, remote_qc_root),
+            _resolve_remote_sample(
+                sample_id,
+                gov_md_root=gov_md_root,
+                remote_qc_root=remote_qc_root,
+                storage_root=DEFAULT_STORAGE_ROOT,
+            ),
             sender_id=sender_id,
             state_root=state_root,
             gov_md_root=gov_md_root,
@@ -1467,10 +1730,32 @@ def _dispatch_remote_qc_message(
             gov_md_root=gov_md_root,
         )
 
-    sample = _find_sample(sample_id, remote_qc_root) if sample_id else _ensure_selected_sample(state_root, sender_id, remote_qc_root)
+    sample = (
+        _resolve_remote_sample(
+            sample_id,
+            gov_md_root=gov_md_root,
+            remote_qc_root=remote_qc_root,
+            storage_root=DEFAULT_STORAGE_ROOT,
+        )
+        if sample_id
+        else _ensure_selected_sample(state_root, sender_id, remote_qc_root)
+    )
 
-    if ctx.media_paths:
-        upload_payload = _handle_golden_upload(ctx=ctx, sender_id=sender_id, sample=sample, gov_md_root=gov_md_root)
+    effective_media_paths = ctx.media_paths
+    if not effective_media_paths and _wants_golden_upload_fix(text):
+        effective_media_paths = _find_recent_inbound_markdown()
+
+    if effective_media_paths:
+        upload_payload = _handle_golden_upload(
+            ctx=TelegramContext(
+                sender_id=ctx.sender_id,
+                message_id=ctx.message_id,
+                media_paths=effective_media_paths,
+            ),
+            sender_id=sender_id,
+            sample=sample,
+            gov_md_root=gov_md_root,
+        )
         fix_text = text.strip() if text.strip() else _build_default_fix_message_after_golden(sample)
         fix_payload = _spawn_background_fix(
             sender_id=sender_id,
@@ -1539,7 +1824,7 @@ def _dispatch_remote_qc_message(
     return {
         "command": "remote-qc-unsupported",
         "ok": False,
-        "message": "지원: job 목록 보여줘 | review 필요한 job만 보여줘 | <sample-id> 열어줘 | source/rendered/review/golden 보내줘 | golden.md 업로드 | 통과 | 보류 | 수정: ...",
+        "message": "지원: job 목록 보여줘 | review 필요한 job만 보여줘 | <sample-id> 열어줘 | 국정브리핑 보도자료 '<제목>' 를 job으로 열어줘 | source/rendered/review/golden 보내줘 | golden.md 업로드 | 통과 | 보류 | 수정: ...",
     }
 
 
