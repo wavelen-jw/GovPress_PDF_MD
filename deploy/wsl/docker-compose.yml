@@ -78,7 +78,7 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: govpress-cloudflared
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate --protocol http2 run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
       - caddy
     mem_limit: 64m

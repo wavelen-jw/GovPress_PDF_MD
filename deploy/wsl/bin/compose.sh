@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 DEPLOY_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
 COMPOSE_FILE="${COMPOSE_FILE_OVERRIDE:-$DEPLOY_DIR/docker-compose.yml}"
+HOST_PROXY_COMPOSE_FILE="$DEPLOY_DIR/docker-compose.host-proxy.yml"
+ENV_FILE="$DEPLOY_DIR/.env"
 
 # Docker Desktop contexts can drift to the Windows npipe endpoint inside WSL.
 # Force the local Linux daemon socket unless the caller explicitly overrides it.
@@ -12,13 +14,14 @@ unset DOCKER_CONTEXT
 export COMPOSE_DOCKER_CLI_BUILD="${COMPOSE_DOCKER_CLI_BUILD:-0}"
 export DOCKER_BUILDKIT="${DOCKER_BUILDKIT:-0}"
 
-DOCKER_CONFIG_DIR="${DOCKER_CONFIG:-$HOME/.docker}"
+HOME_DIR="${HOME:-$(getent passwd $(id -u) | cut -d: -f6)}"
+DOCKER_CONFIG_DIR="${DOCKER_CONFIG:-$HOME_DIR/.docker}"
 DOCKER_CONFIG_FILE="$DOCKER_CONFIG_DIR/config.json"
 if [[ -f "$DOCKER_CONFIG_FILE" ]] \
   && grep -q '"credsStore"' "$DOCKER_CONFIG_FILE" \
   && grep -q '"desktop.exe"' "$DOCKER_CONFIG_FILE" \
   && ! command -v docker-credential-desktop.exe >/dev/null 2>&1; then
-  export DOCKER_CONFIG="$HOME/.cache/govpress-docker-config"
+  export DOCKER_CONFIG="$HOME_DIR/.cache/govpress-docker-config"
   mkdir -p "$DOCKER_CONFIG"
   cat > "$DOCKER_CONFIG/config.json" <<'EOF'
 {
@@ -32,8 +35,17 @@ if [[ $# -eq 0 ]]; then
   exit 1
 fi
 
-if [[ -x "$HOME/.local/bin/docker-compose" ]]; then
-  exec "$HOME/.local/bin/docker-compose" -f "$COMPOSE_FILE" "$@"
+DEPLOY_MODE="${GOVPRESS_DEPLOY_MODE:-}"
+if [[ -z "$DEPLOY_MODE" ]] && [[ -f "$ENV_FILE" ]]; then
+  DEPLOY_MODE=$(grep -E '^GOVPRESS_DEPLOY_MODE=' "$ENV_FILE" | tail -n1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || true)
+fi
+
+if [[ -z "${COMPOSE_FILE_OVERRIDE:-}" ]] && [[ "$DEPLOY_MODE" == "host_proxy" ]] && [[ -f "$HOST_PROXY_COMPOSE_FILE" ]]; then
+  COMPOSE_FILE="$HOST_PROXY_COMPOSE_FILE"
+fi
+
+if [[ -x "$HOME_DIR/.local/bin/docker-compose" ]]; then
+  exec "$HOME_DIR/.local/bin/docker-compose" -f "$COMPOSE_FILE" "$@"
 fi
 
 if docker compose version >/dev/null 2>&1; then
