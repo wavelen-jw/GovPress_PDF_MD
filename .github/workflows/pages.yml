@@ -63,6 +63,12 @@ jobs:
           cp ui/benchmark-curated.html mobile/dist/benchmark-curated/index.html
           cp ui/benchmark-curated-data.js mobile/dist/benchmark-curated/benchmark-curated-data.js
 
+      - name: Install official benchmark page
+        run: |
+          mkdir -p mobile/dist/benchmark-official
+          cp ui/benchmark-official.html mobile/dist/benchmark-official/index.html
+          cp ui/benchmark-official-data.js mobile/dist/benchmark-official/benchmark-official-data.js
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 

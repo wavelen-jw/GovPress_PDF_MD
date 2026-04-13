@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>공식 벤치 방식으로 본 읽힘 PDF 성능</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4efe7;
+      --panel: rgba(255,255,255,0.84);
+      --line: rgba(21, 19, 16, 0.1);
+      --text: #181512;
+      --muted: #6e665d;
+      --accent: #0f6a55;
+      --accent-soft: rgba(15, 106, 85, 0.12);
+      --shadow: 0 16px 36px rgba(29, 20, 14, 0.08);
+      --warn: #8c3b2f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      font-family: "Pretendard Variable", Pretendard, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(247, 211, 175, 0.34), transparent 28%),
+        radial-gradient(circle at top right, rgba(185, 220, 210, 0.35), transparent 24%),
+        linear-gradient(180deg, #fbf7f1 0%, var(--bg) 55%, #ebe3d7 100%);
+    }
+    a { color: inherit; }
+    .shell {
+      width: min(1280px, calc(100vw - 36px));
+      margin: 0 auto;
+      padding: 34px 0 70px;
+    }
+    .hero, .section, .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+    .hero {
+      padding: 32px;
+      margin-bottom: 18px;
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 20px;
+    }
+    .eyebrow {
+      display: inline-block;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(24, 21, 18, 0.06);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 16px 0 12px;
+      font-size: clamp(34px, 5.2vw, 62px);
+      line-height: 0.96;
+      letter-spacing: -0.05em;
+    }
+    .hero p {
+      margin: 0;
+      color: #413931;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+    .source-box {
+      padding: 18px;
+      border-radius: 22px;
+      background: rgba(24, 21, 18, 0.04);
+      border: 1px solid var(--line);
+      display: grid;
+      gap: 10px;
+    }
+    .source-box strong { font-size: 13px; }
+    .source-box span {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.55;
+      word-break: break-word;
+    }
+    .warn {
+      margin-top: 14px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(140, 59, 47, 0.08);
+      border: 1px solid rgba(140, 59, 47, 0.12);
+      color: #6d2f26;
+      line-height: 1.6;
+      font-size: 14px;
+    }
+    .metric-grid {
+      margin: 18px 0;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .card { padding: 18px; }
+    .metric-label {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .metric-value {
+      margin-top: 12px;
+      font-size: clamp(28px, 3.8vw, 42px);
+      font-weight: 900;
+      letter-spacing: -0.05em;
+    }
+    .metric-note {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .section {
+      margin-top: 18px;
+      padding: 28px;
+    }
+    .section h2 {
+      margin: 0 0 8px;
+      font-size: clamp(25px, 3vw, 34px);
+      letter-spacing: -0.04em;
+    }
+    .section-copy {
+      color: var(--muted);
+      line-height: 1.68;
+      font-size: 15px;
+      margin-bottom: 18px;
+      max-width: 860px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td {
+      text-align: left;
+      padding: 14px 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    tr.highlight { background: rgba(15, 106, 85, 0.08); }
+    .engine-name {
+      font-weight: 800;
+      font-size: 15px;
+    }
+    .pill {
+      display: inline-block;
+      margin-top: 5px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(24, 21, 18, 0.06);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .score {
+      font-feature-settings: "tnum" 1, "lnum" 1;
+      font-weight: 800;
+    }
+    .example-list {
+      display: grid;
+      gap: 14px;
+    }
+    .example-nav {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .example-button {
+      border: 1px solid var(--line);
+      background: rgba(24, 21, 18, 0.04);
+      border-radius: 999px;
+      padding: 10px 14px;
+      font: inherit;
+      cursor: pointer;
+      color: var(--muted);
+    }
+    .example-button.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .example-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .compare-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .preview-card {
+      padding: 18px;
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.72);
+      min-height: 420px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .preview-card h3 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: -0.03em;
+    }
+    .preview-meta {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .preview-surface {
+      border-radius: 18px;
+      background: #fff;
+      border: 1px solid rgba(24, 21, 18, 0.07);
+      padding: 18px;
+      min-height: 220px;
+      overflow: auto;
+      line-height: 1.7;
+    }
+    .preview-surface h1,
+    .preview-surface h2,
+    .preview-surface h3,
+    .preview-surface h4,
+    .preview-surface h5,
+    .preview-surface h6 {
+      margin: 1.1em 0 0.45em;
+      line-height: 1.2;
+    }
+    .preview-surface p { margin: 0.6em 0; }
+    .preview-surface table {
+      display: block;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    pre.code {
+      margin: 0;
+      padding: 16px;
+      border-radius: 18px;
+      background: #171412;
+      color: #efe7dd;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      max-height: 260px;
+    }
+    .source-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 10px;
+    }
+    .source-card {
+      padding: 18px;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: rgba(24, 21, 18, 0.04);
+    }
+    .source-card a {
+      text-decoration: none;
+      font-weight: 800;
+    }
+    .source-card p {
+      margin: 10px 0 0;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+    @media (max-width: 1100px) {
+      .hero, .compare-grid, .source-grid { grid-template-columns: 1fr; }
+      .metric-grid, .example-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 720px) {
+      .shell { width: min(100vw - 20px, 1280px); }
+      .metric-grid, .example-metrics { grid-template-columns: 1fr; }
+      .section, .hero { padding: 22px; border-radius: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Official Benchmark Style</div>
+        <h1 id="page-title">공식 벤치 방식으로 본 읽힘 PDF 성능</h1>
+        <p id="page-subtitle"></p>
+      </div>
+      <div class="source-box">
+        <div>
+          <strong>출처와 기준</strong>
+          <span id="repo-source"></span>
+        </div>
+        <div>
+          <strong>Ground Truth</strong>
+          <span id="corpus-source"></span>
+        </div>
+        <div>
+          <strong>읽힘 행의 생성 방식</strong>
+          <span id="adapter-note"></span>
+        </div>
+      </div>
+    </section>
+
+    <div class="metric-grid">
+      <article class="card">
+        <div class="metric-label">읽힘 Overall</div>
+        <div class="metric-value" id="metric-overall">-</div>
+        <div class="metric-note">공식 evaluator로 계산한 읽힘의 문서 평균 종합 점수</div>
+      </article>
+      <article class="card">
+        <div class="metric-label">읽힘 NID</div>
+        <div class="metric-value" id="metric-nid">-</div>
+        <div class="metric-note">본문 읽기 순서와 텍스트 보존</div>
+      </article>
+      <article class="card">
+        <div class="metric-label">읽힘 TEDS</div>
+        <div class="metric-value" id="metric-teds">-</div>
+        <div class="metric-note">표 구조와 셀 내용 보존</div>
+      </article>
+      <article class="card">
+        <div class="metric-label">읽힘 MHS</div>
+        <div class="metric-value" id="metric-mhs">-</div>
+        <div class="metric-note">제목 계층과 문서 구조 보존</div>
+      </article>
+    </div>
+
+    <section class="section">
+      <h2>엔진별 전체 점수</h2>
+      <div class="section-copy">
+        아래 표는 로컬 clone의 <code>opendataloader-bench</code> 공식 코퍼스와 <code>evaluation.json</code>을 기준으로 다시 정리한 리더보드입니다.
+        <strong>읽힘</strong>은 이번에 별도 엔진으로 추가해 같은 ground truth와 같은 evaluator로 평가했습니다.
+      </div>
+      <div class="warn">
+        정확도 지표인 <strong>Overall / NID / TEDS / MHS</strong>는 같은 코퍼스와 같은 evaluator 위에서 직접 비교 가능합니다.
+        다만 속도는 엔진마다 실행 시점과 하드웨어가 달라 이 페이지에서는 참고값으로만 보여줍니다.
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>엔진</th>
+            <th>Overall</th>
+            <th>NID</th>
+            <th>TEDS</th>
+            <th>MHS</th>
+            <th>속도(s/page)</th>
+            <th>환경</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboard-body"></tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>비교 예시</h2>
+      <div class="section-copy">
+        예시는 <strong>공식 ground truth</strong>, <strong>읽힘</strong>, <strong>OpenDataLoader</strong>를 나란히 보여줍니다.
+        문서 선택 버튼은 두 엔진의 Overall 차이가 큰 순으로 정렬했습니다.
+      </div>
+      <div class="example-nav" id="example-nav"></div>
+      <div class="example-list">
+        <div class="example-metrics">
+          <article class="card">
+            <div class="metric-label">읽힘 점수</div>
+            <div class="metric-note" id="readhim-score-box"></div>
+          </article>
+          <article class="card">
+            <div class="metric-label">OpenDataLoader 점수</div>
+            <div class="metric-note" id="opendataloader-score-box"></div>
+          </article>
+        </div>
+        <div class="compare-grid">
+          <article class="preview-card">
+            <div>
+              <h3>Ground Truth</h3>
+              <div class="preview-meta" id="gt-meta"></div>
+            </div>
+            <div class="preview-surface" id="gt-preview"></div>
+            <pre class="code" id="gt-code"></pre>
+          </article>
+          <article class="preview-card">
+            <div>
+              <h3>읽힘</h3>
+              <div class="preview-meta" id="readhim-meta"></div>
+            </div>
+            <div class="preview-surface" id="readhim-preview"></div>
+            <pre class="code" id="readhim-code"></pre>
+          </article>
+          <article class="preview-card">
+            <div>
+              <h3>OpenDataLoader</h3>
+              <div class="preview-meta" id="odl-meta"></div>
+            </div>
+            <div class="preview-surface" id="odl-preview"></div>
+            <pre class="code" id="odl-code"></pre>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>방법과 출처</h2>
+      <div class="section-copy">
+        이 페이지는 <strong>OpenDataLoader 공식 벤치 방식을 그대로 따르되</strong>, 여기에 <strong>읽힘</strong>을 하나의 PDF 변환 엔진으로 추가한 결과를 정리한 것입니다.
+        출처 표시는 아래 세 축으로 나눴습니다. 공식 지표 설명, 공식 코퍼스와 evaluator 구현, 그리고 이번에 추가한 읽힘 실행 방식입니다.
+      </div>
+      <div class="source-grid" id="source-grid"></div>
+    </section>
+
+    <section class="section">
+      <h2>지표 해설</h2>
+      <div class="section-copy">
+        지표 정의와 수식의 원문 설명은 OpenDataLoader 공식 문서를 기준으로 삼았습니다.
+        여기서는 페이지 해석에 필요한 수준으로만 요약하고, 자세한 근거는 공식 문서 링크를 함께 남깁니다.
+      </div>
+      <div class="source-grid" id="metric-grid"></div>
+    </section>
+  </main>
+
+  <script src="./benchmark-official-data.js"></script>
+  <script>
+    const data = window.BENCHMARK_OFFICIAL_DATA;
+
+    const formatScore = (value) => value == null ? "n/a" : value.toFixed(3);
+    const formatSpeed = (value) => value == null ? "n/a" : value.toFixed(3);
+    const renderMarkdown = (text) => marked.parse(text || "");
+    const $ = (id) => document.getElementById(id);
+
+    function fillHeader() {
+      $("page-title").textContent = data.title;
+      $("page-subtitle").textContent = data.subtitle;
+      $("repo-source").innerHTML = `공식 기준 문서: <a href="${data.repo.docs_url}" target="_blank" rel="noreferrer">${data.repo.docs_url}</a><br>벤치 구현 저장소: <a href="${data.repo.url}" target="_blank" rel="noreferrer">${data.repo.url}</a><br>사용한 clone commit: <code>${data.repo.commit}</code>`;
+      $("corpus-source").innerHTML = `입력 PDF ${data.corpus.pdf_count}건은 <code>${data.corpus.pdf_path}</code>, 기준 Markdown ${data.corpus.ground_truth_count}건은 <code>${data.corpus.ground_truth_path}</code>에서 읽었습니다.`;
+      $("adapter-note").textContent = data.readhim_adapter.adapter_note + " 실행 환경: " + data.readhim_adapter.run_environment;
+    }
+
+    function fillTopMetrics() {
+      const row = data.readhim;
+      $("metric-overall").textContent = formatScore(row.overall);
+      $("metric-nid").textContent = formatScore(row.nid);
+      $("metric-teds").textContent = formatScore(row.teds);
+      $("metric-mhs").textContent = formatScore(row.mhs);
+    }
+
+    function fillLeaderboard() {
+      $("leaderboard-body").innerHTML = data.leaderboard.map((row) => `
+        <tr class="${row.engine === "readhim" ? "highlight" : ""}">
+          <td>
+            <div class="engine-name">${row.label}</div>
+            <div class="pill">${row.license}</div>
+          </td>
+          <td class="score">${formatScore(row.overall)}</td>
+          <td class="score">${formatScore(row.nid)}</td>
+          <td class="score">${formatScore(row.teds)}</td>
+          <td class="score">${formatScore(row.mhs)}</td>
+          <td class="score">${formatSpeed(row.speed_s_per_page)}</td>
+          <td>${row.processor || "n/a"}<br><span class="preview-meta">${row.date || ""}</span></td>
+        </tr>
+      `).join("");
+    }
+
+    function scoreBlock(label, scores) {
+      return [
+        `${label}`,
+        `Overall ${formatScore(scores.overall)}`,
+        `NID ${formatScore(scores.nid)}`,
+        `TEDS ${formatScore(scores.teds)}`,
+        `MHS ${formatScore(scores.mhs)}`
+      ].join("<br>");
+    }
+
+    function renderExample(example) {
+      $("readhim-score-box").innerHTML = scoreBlock("읽힘", example.readhim_scores);
+      $("opendataloader-score-box").innerHTML = scoreBlock("OpenDataLoader", example.opendataloader_scores);
+
+      $("gt-meta").textContent = `${example.document_id} · ${example.title}`;
+      $("readhim-meta").textContent = `Overall ${formatScore(example.readhim_scores.overall)} · NID ${formatScore(example.readhim_scores.nid)} · TEDS ${formatScore(example.readhim_scores.teds)} · MHS ${formatScore(example.readhim_scores.mhs)}`;
+      $("odl-meta").textContent = `Overall ${formatScore(example.opendataloader_scores.overall)} · NID ${formatScore(example.opendataloader_scores.nid)} · TEDS ${formatScore(example.opendataloader_scores.teds)} · MHS ${formatScore(example.opendataloader_scores.mhs)}`;
+
+      $("gt-preview").innerHTML = renderMarkdown(example.ground_truth_markdown);
+      $("readhim-preview").innerHTML = renderMarkdown(example.readhim_markdown);
+      $("odl-preview").innerHTML = renderMarkdown(example.opendataloader_markdown);
+
+      $("gt-code").textContent = example.ground_truth_markdown;
+      $("readhim-code").textContent = example.readhim_markdown;
+      $("odl-code").textContent = example.opendataloader_markdown;
+    }
+
+    function fillExamples() {
+      const nav = $("example-nav");
+      data.examples.forEach((example, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "example-button" + (index === 0 ? " active" : "");
+        button.textContent = `${example.document_id} · ${example.title}`;
+        button.addEventListener("click", () => {
+          document.querySelectorAll(".example-button").forEach((item) => item.classList.remove("active"));
+          button.classList.add("active");
+          renderExample(example);
+        });
+        nav.appendChild(button);
+      });
+      if (data.examples.length > 0) {
+        renderExample(data.examples[0]);
+      }
+    }
+
+    function fillSources() {
+      $("source-grid").innerHTML = data.source_notes.map((item) => `
+        <article class="source-card">
+          <a href="${item.url}" target="_blank" rel="noreferrer">${item.label}</a>
+          <p>${item.description}</p>
+        </article>
+      `).join("");
+
+      $("metric-grid").innerHTML = data.metric_help.map((item) => `
+        <article class="source-card">
+          <a href="${data.repo.docs_url}" target="_blank" rel="noreferrer">${item.label}</a>
+          <p>${item.description}</p>
+        </article>
+      `).join("");
+    }
+
+    fillHeader();
+    fillTopMetrics();
+    fillLeaderboard();
+    fillExamples();
+    fillSources();
+  </script>
+</body>
+</html>
