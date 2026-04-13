@@ -80,6 +80,11 @@ jobs:
           mkdir -p mobile/dist/comparison-goilyuga
           cp ui/comparison-goilyuga.html mobile/dist/comparison-goilyuga/index.html
           cp ui/comparison-goilyuga-data.js mobile/dist/comparison-goilyuga/comparison-goilyuga-data.js
+          mkdir -p mobile/dist/comparison-goilyuga/downloads
+          cp artifacts/policy_briefing_benchmark/corpus_latest100/hwpxs/156754095.hwpx mobile/dist/comparison-goilyuga/downloads/156754095.hwpx
+          cp artifacts/policy_briefing_benchmark/corpus_latest100/pdfs/156754095.pdf mobile/dist/comparison-goilyuga/downloads/156754095.pdf
+          cp artifacts/policy_briefing_benchmark/corpus_latest100/prediction/readhim/markdown/156754095.md mobile/dist/comparison-goilyuga/downloads/readhim-156754095.md
+          cp artifacts/policy_briefing_benchmark/corpus_latest100/prediction/opendataloader/markdown/156754095.md mobile/dist/comparison-goilyuga/downloads/opendataloader-156754095.md
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
