@@ -163,25 +163,56 @@ jobs:
           set -euo pipefail
           KEY_FILE=~/.ssh/deploy_key
           LOCAL_SCRIPT=deploy/common/remote-deploy-cf.sh
-          REMOTE_PATH="/tmp/govpress-remote-deploy-${GITHUB_RUN_ID:-manual}.sh"
-          REMOTE_CMD="$(printf "export DEPLOY_DIR=%q BRANCH=%q COMPOSE_FILE=%q DEPLOY_MODE=%q SERVICE=%q HEALTHCHECK_URL=%q CONVERTER_SPEC=%q; cat > %q && chmod 700 %q && /bin/bash --noprofile --norc %q && rm -f %q" "$DEPLOY_DIR" "$BRANCH" "$COMPOSE_FILE" "$DEPLOY_MODE" "$SERVICE" "$HEALTHCHECK_URL" "$CONVERTER_SPEC" "$REMOTE_PATH" "$REMOTE_PATH" "$REMOTE_PATH" "$REMOTE_PATH")"
-          deploy_exit=1
+          REMOTE_DIR="/tmp/govpress-remote-deploy-${GITHUB_RUN_ID:-manual}"
+          REMOTE_PATH="${REMOTE_DIR}/remote-deploy.sh"
+          REMOTE_LOG="${REMOTE_DIR}/remote-deploy.log"
+          REMOTE_STATUS="${REMOTE_DIR}/status.env"
+          LAUNCH_CMD="$(printf "export DEPLOY_DIR=%q BRANCH=%q COMPOSE_FILE=%q DEPLOY_MODE=%q SERVICE=%q HEALTHCHECK_URL=%q CONVERTER_SPEC=%q; remote_dir=%q; remote_path=%q; remote_log=%q; remote_status=%q; mkdir -p \"\$remote_dir\"; rm -f \"\$remote_status\"; cat > \"\$remote_path\" && chmod 700 \"\$remote_path\" && { ( /bin/bash --noprofile --norc \"\$remote_path\" > \"\$remote_log\" 2>&1; rc=\$?; printf 'exit_code=%%s\\n' \"\$rc\" > \"\$remote_status\"; rm -f \"\$remote_path\" ) </dev/null >/dev/null 2>&1 & printf 'launch_pid=%%s\\n' \"\$!\"; }; printf 'remote_log=%%s\\n' \"\$remote_log\"; printf 'remote_status=%%s\\n' \"\$remote_status\"" "$DEPLOY_DIR" "$BRANCH" "$COMPOSE_FILE" "$DEPLOY_MODE" "$SERVICE" "$HEALTHCHECK_URL" "$CONVERTER_SPEC" "$REMOTE_DIR" "$REMOTE_PATH" "$REMOTE_LOG" "$REMOTE_STATUS")"
+          POLL_CMD="$(printf "if [ -f %q ]; then cat %q; fi; printf '__REMOTE_LOG__\\n'; if [ -f %q ]; then tail -n 200 %q; fi" "$REMOTE_STATUS" "$REMOTE_STATUS" "$REMOTE_LOG" "$REMOTE_LOG")"
+          launch_exit=1
           for attempt in 1 2 3 4; do
-            : > remote-deploy.log
-            wc -c "$LOCAL_SCRIPT" | tee remote-deploy-script-size.log >> remote-deploy.log
+            : > remote-launch.log
+            wc -c "$LOCAL_SCRIPT" | tee remote-deploy-script-size.log >> remote-launch.log
             set +e
-            ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "$REMOTE_CMD" > remote-deploy.log 2>&1 < "$LOCAL_SCRIPT"
-            deploy_exit=$?
+            ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "$LAUNCH_CMD" > remote-launch.log 2>&1 < "$LOCAL_SCRIPT"
+            launch_exit=$?
             set -e
-            printf 'ssh_exit_code=%s\n' "$deploy_exit" >> remote-deploy.log
-            cat remote-deploy.log
-            if [ "$deploy_exit" -eq 0 ]; then
+            printf 'ssh_exit_code=%s\n' "$launch_exit" >> remote-launch.log
+            cat remote-launch.log
+            if [ "$launch_exit" -eq 0 ] && grep -q '^launch_pid=' remote-launch.log; then
               break
             fi
-            if ! grep -Eqi 'websocket: bad handshake|proxy command failed|connection reset|connection closed|kex_exchange_identification|timed out|broken pipe' remote-deploy.log; then
+            if ! grep -Eqi 'websocket: bad handshake|proxy command failed|connection reset|connection closed|kex_exchange_identification|timed out|broken pipe|banner exchange' remote-launch.log; then
               break
             fi
             sleep $((attempt * 5))
+          done
+          test "$launch_exit" -eq 0
+          grep -q '^launch_pid=' remote-launch.log
+
+          deploy_exit=1
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36; do
+            : > remote-deploy.log
+            set +e
+            ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "$POLL_CMD" > remote-deploy.log 2>&1
+            poll_exit=$?
+            set -e
+            printf 'ssh_poll_exit=%s\n' "$poll_exit" >> remote-deploy.log
+            cat remote-deploy.log
+            if [ "$poll_exit" -eq 0 ]; then
+              if grep -q '^exit_code=0$' remote-deploy.log; then
+                deploy_exit=0
+                break
+              fi
+              if grep -q '^exit_code=' remote-deploy.log; then
+                deploy_exit=1
+                break
+              fi
+            elif ! grep -Eqi 'websocket: bad handshake|proxy command failed|connection reset|connection closed|kex_exchange_identification|timed out|broken pipe|banner exchange' remote-deploy.log; then
+              deploy_exit="$poll_exit"
+              break
+            fi
+            sleep 5
           done
           test "$deploy_exit" -eq 0
 
