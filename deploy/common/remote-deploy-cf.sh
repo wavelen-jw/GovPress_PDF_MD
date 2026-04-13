@@ -148,15 +148,15 @@ emit_compose_diagnostics() {
 
 trap 'emit_compose_diagnostics' ERR
 
-# Keep deploy-time cache eviction explicit so policy briefing fixes go live on
-# every server even when only cached converted output would differ.
+# Keep deploy-time cache eviction explicit so policy briefing conversion fixes go
+# live on every server even when only cached converted output would differ.
+# Preserve the per-day catalog cache so recent-date status checks do not cold-hit
+# the upstream provider immediately after every deploy.
 rm -f \
   "$DEPLOY_DIR/deploy/wsl/data/storage/policy_briefing_cache/index.json" \
-  "$DEPLOY_DIR"/deploy/wsl/data/storage/policy_briefing_catalog/*.json \
   "$DEPLOY_DIR/storage/policy_briefing_cache/index.json" \
-  "$DEPLOY_DIR"/storage/policy_briefing_catalog/*.json \
   2>/dev/null || true
-echo "policy_cache_reset=1"
+echo "policy_cache_reset=documents_only"
 
 if [ -n "${COMPOSE_FILE:-}" ]; then
   COMPOSE_PATH="$DEPLOY_DIR/$COMPOSE_FILE"
