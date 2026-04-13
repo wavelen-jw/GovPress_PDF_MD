@@ -52,7 +52,10 @@
 
 ## 운영 QC 내보내기
 
-오늘 작업 기준 운영 정리는 [docs/policy-briefing-qc-status-2026-04-12.md](/home/wavel/projects/GovPress_PDF_MD/docs/policy-briefing-qc-status-2026-04-12.md:1)에 따로 정리했습니다.
+오늘 작업 기준 운영 정리는 아래 문서에 따로 정리했습니다.
+
+- [docs/policy-briefing-qc-status-2026-04-12.md](/home/wavel/projects/GovPress_PDF_MD/docs/policy-briefing-qc-status-2026-04-12.md:1)
+- [docs/release-notes-2026-04-13-edge-stabilization.md](/home/wavel/projects/GovPress_PDF_MD/docs/release-notes-2026-04-13-edge-stabilization.md:1)
 
 운영 중 발견한 정책브리핑 원문을 `gov-md-converter` QC 코퍼스로 넘기려면 서비스 레포에서 원문을 export한 뒤 private 엔진 레포로 scaffold하면 됩니다.
 
