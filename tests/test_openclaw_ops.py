@@ -274,6 +274,48 @@ class OpenClawOpsTests(unittest.TestCase):
             state = _load_session_state(state_root, "6475698942")
             self.assertEqual(state["selected_sample_id"], "storage_job_abc123")
 
+    def test_remote_qc_recent_job_generation_uses_storage_pipeline(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "storage_batch"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            with mock.patch(
+                "scripts.openclaw_ops.scaffold_storage_qc_jobs",
+                return_value={
+                    "limit": 10,
+                    "order_by_recent": True,
+                    "storage_root": str(Path(tmpdir) / "storage"),
+                    "qc_root": str(remote_root),
+                    "selected_count": 2,
+                    "scaffolded_count": 2,
+                    "items": [
+                        {
+                            "news_item_id": "job_recent1",
+                            "title": "최근 1",
+                            "scaffold_sample_dir": str(remote_root / "storage_job_recent1"),
+                        },
+                        {
+                            "news_item_id": "job_recent2",
+                            "title": "최근 2",
+                            "scaffold_sample_dir": str(remote_root / "storage_job_recent2"),
+                        },
+                    ],
+                },
+            ) as mocked_scaffold:
+                payload = dispatch_telegram_message(
+                    'Conversation info (untrusted metadata): {"message_id":"18","sender_id":"6475698942"}\n국정브리핑 보도자료 최근 10건을 검토할 job으로 생성해줘',
+                    chat_scope="dm",
+                    export_root=Path(tmpdir),
+                    gov_md_root=gov_md_root,
+                    qc_root=Path(tmpdir),
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
+            self.assertEqual(payload["command"], "remote-qc-generate-recent-jobs")
+            self.assertEqual(payload["scaffolded_count"], 2)
+            mocked_scaffold.assert_called_once()
+            self.assertIn("recent=10", format_human(payload))
+
     def test_remote_qc_falls_back_to_default_sender_when_metadata_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             remote_root = Path(tmpdir) / "storage_batch"

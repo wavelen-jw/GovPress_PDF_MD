@@ -45,6 +45,7 @@ class ExportedPolicyBriefingArtifact:
 class StorageQcArtifact:
     job_id: str
     title: str
+    updated_at: str | None
     export_dir: str
     hwpx_path: str
     pdf_path: str | None
@@ -56,6 +57,7 @@ class StorageQcArtifact:
         return {
             "news_item_id": self.job_id,
             "title": self.title,
+            "updated_at": self.updated_at,
             "export_dir": self.export_dir,
             "hwpx_path": self.hwpx_path,
             "pdf_path": self.pdf_path,
@@ -410,7 +412,7 @@ def _load_storage_job_metadata(storage_root: Path) -> dict[str, dict[str, str | 
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT job_id, file_name, title, final_markdown_path, original_pdf_path
+            SELECT job_id, file_name, title, updated_at, final_markdown_path, original_pdf_path
             FROM jobs
             """
         )
@@ -423,6 +425,7 @@ def _load_storage_job_metadata(storage_root: Path) -> dict[str, dict[str, str | 
         payload[str(row["job_id"])] = {
             "file_name": row["file_name"],
             "title": row["title"],
+            "updated_at": row["updated_at"],
             "final_markdown_path": row["final_markdown_path"],
             "original_pdf_path": row["original_pdf_path"],
         }
@@ -433,6 +436,8 @@ def _discover_storage_qc_artifacts(
     *,
     storage_root: str | Path,
     limit: int | None = None,
+    job_ids: list[str] | None = None,
+    order_by_recent: bool = False,
 ) -> list[StorageQcArtifact]:
     root = Path(storage_root).resolve()
     originals_dir = root / "originals"
@@ -452,6 +457,7 @@ def _discover_storage_qc_artifacts(
         if preview_match:
             golden_by_job_preview[preview_match.group(1)] = golden_path
 
+    requested_ids = set(job_ids or [])
     grouped: dict[str, dict[str, Path | str | None]] = {}
     for source_path in sorted(originals_dir.iterdir()):
         if not source_path.is_file():
@@ -463,6 +469,8 @@ def _discover_storage_qc_artifacts(
         if not stem.startswith("job_"):
             continue
         job_id = stem.split("-", 1)[0]
+        if requested_ids and job_id not in requested_ids:
+            continue
         metadata = job_metadata.get(job_id, {})
         title = str(metadata.get("title") or _storage_title_from_original(source_path))
         record = grouped.setdefault(
@@ -470,6 +478,7 @@ def _discover_storage_qc_artifacts(
             {
                 "job_id": job_id,
                 "title": title,
+                "updated_at": metadata.get("updated_at"),
                 "hwpx_path": None,
                 "pdf_path": None,
                 "file_name": metadata.get("file_name"),
@@ -480,8 +489,20 @@ def _discover_storage_qc_artifacts(
         elif suffix == ".pdf" and record.get("pdf_path") is None:
             record["pdf_path"] = source_path
 
+    ordered_items = list(grouped.items())
+    if requested_ids:
+        index_map = {job_id: index for index, job_id in enumerate(job_ids or [])}
+        ordered_items.sort(key=lambda item: index_map.get(item[0], 10**9))
+    elif order_by_recent:
+        def sort_key(item: tuple[str, dict[str, Path | str | None]]) -> tuple[str, str]:
+            updated_at = str(item[1].get("updated_at") or "")
+            return (updated_at, item[0])
+        ordered_items.sort(key=sort_key, reverse=True)
+    else:
+        ordered_items.sort(key=lambda item: item[0])
+
     artifacts: list[StorageQcArtifact] = []
-    for job_id, record in sorted(grouped.items()):
+    for job_id, record in ordered_items:
         hwpx_path = record.get("hwpx_path")
         if not isinstance(hwpx_path, Path):
             continue
@@ -503,6 +524,7 @@ def _discover_storage_qc_artifacts(
             StorageQcArtifact(
                 job_id=job_id,
                 title=title,
+                updated_at=str(record.get("updated_at") or "") or None,
                 export_dir=str(hwpx_path.parent),
                 hwpx_path=str(hwpx_path),
                 pdf_path=str(record["pdf_path"]) if isinstance(record.get("pdf_path"), Path) else None,
@@ -513,6 +535,60 @@ def _discover_storage_qc_artifacts(
         if limit is not None and len(artifacts) >= limit:
             break
     return artifacts
+
+
+def scaffold_storage_qc_jobs(
+    *,
+    gov_md_converter_root: str | Path,
+    qc_root: str | Path,
+    storage_root: str | Path,
+    limit: int = 10,
+    autofill: bool = True,
+    force: bool = False,
+    order_by_recent: bool = True,
+    scaffold_runner: ScaffoldRunner = run_gov_md_scaffold,
+) -> dict[str, object]:
+    discovered = _discover_storage_qc_artifacts(
+        storage_root=storage_root,
+        limit=limit,
+        order_by_recent=order_by_recent,
+    )
+    exported_items: list[dict[str, object]] = []
+    for artifact in discovered:
+        sample_id = f"storage_{artifact.job_id}"
+        existing_sample_dir = Path(qc_root).resolve() / sample_id
+        if existing_sample_dir.exists() and not force:
+            sample_dir = str(existing_sample_dir)
+        else:
+            sample_dir = scaffold_runner(
+                gov_md_converter_root=gov_md_converter_root,
+                source_path=artifact.hwpx_path,
+                pdf_path=artifact.pdf_path,
+                qc_root=qc_root,
+                sample_id=sample_id,
+                autofill=autofill,
+                force=force,
+                sample_status="scratch",
+            )
+        _attach_storage_sidecars(
+            sample_dir=sample_dir,
+            result_md_path=artifact.result_md_path,
+            golden_md_path=artifact.golden_md_path,
+            artifact=artifact,
+        )
+        item_payload = artifact.to_dict()
+        item_payload["scaffold_sample_dir"] = sample_dir
+        exported_items.append(item_payload)
+
+    return {
+        "limit": limit,
+        "order_by_recent": order_by_recent,
+        "storage_root": str(Path(storage_root).resolve()),
+        "qc_root": str(Path(qc_root).resolve()),
+        "selected_count": len(discovered),
+        "scaffolded_count": len(exported_items),
+        "items": exported_items,
+    }
 
 
 def _attach_storage_sidecars(

@@ -22,6 +22,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from scripts.build_policy_briefing_qc_dashboard import build_dashboard_payload
 from scripts.build_policy_briefing_qc_issue import build_issue_payload, load_report as load_issue_report
 from scripts.evaluate_policy_briefing_qc_report import build_markdown_summary
+from server.app.adapters.policy_briefing_qc import scaffold_storage_qc_jobs
 
 
 DEFAULT_EXPORT_ROOT = Path(
@@ -54,6 +55,7 @@ DEFAULT_TELEGRAM_SENDER_ID = str(
 DEFAULT_QC_WORKER_AGENT = "govpress_qc_worker"
 DEFAULT_CODEX_MODEL = "gpt-5.4"
 DEFAULT_QC_MEMORY_ROOT = "tests/manual_samples/qc_memory"
+DEFAULT_STORAGE_ROOT = (PROJECT_ROOT / "deploy" / "wsl" / "data" / "storage").resolve()
 MAX_BATCH_TURNS = 40
 MAX_BATCH_SAMPLES = 8
 
@@ -798,6 +800,22 @@ def _wants_review_queue(text: str) -> bool:
     return "review 필요한" in text or "검토할" in text
 
 
+def _requested_recent_job_count(text: str) -> int | None:
+    if not ("job" in text.lower() and "생성" in text):
+        return None
+    if "국정브리핑" not in text and "보도자료" not in text:
+        return None
+    match = re.search(r"최근\s*(\d+)\s*건", text)
+    if match:
+        try:
+            return max(1, min(50, int(match.group(1))))
+        except ValueError:
+            return None
+    if "최근" in text:
+        return 10
+    return None
+
+
 def _wants_next_job(text: str) -> bool:
     return "다음 job" in text or "다음 샘플" in text
 
@@ -901,6 +919,28 @@ def _build_job_list_payload(*, remote_qc_root: Path, review_only: bool) -> dict[
             }
             for record in records[:12]
         ],
+    }
+
+
+def _build_recent_storage_jobs_payload(
+    *,
+    gov_md_root: Path,
+    remote_qc_root: Path,
+    storage_root: Path,
+    limit: int,
+) -> dict[str, Any]:
+    result = scaffold_storage_qc_jobs(
+        gov_md_converter_root=gov_md_root,
+        qc_root=remote_qc_root,
+        storage_root=storage_root,
+        limit=limit,
+        autofill=True,
+        force=False,
+        order_by_recent=True,
+    )
+    return {
+        "command": "remote-qc-generate-recent-jobs",
+        **result,
     }
 
 
@@ -1398,6 +1438,15 @@ def _dispatch_remote_qc_message(
         raise ValueError("Telegram sender_id를 찾지 못했습니다.")
     text = _normalize_message(message)
     sample_id = _extract_sample_id_from_text(text)
+    recent_job_count = _requested_recent_job_count(text)
+
+    if recent_job_count is not None:
+        return _build_recent_storage_jobs_payload(
+            gov_md_root=gov_md_root,
+            remote_qc_root=remote_qc_root,
+            storage_root=DEFAULT_STORAGE_ROOT,
+            limit=recent_job_count,
+        )
 
     if sample_id and (_wants_open_sample(text) or text.strip() == sample_id):
         return _select_sample(
@@ -1639,6 +1688,18 @@ def format_human(payload: dict[str, Any]) -> str:
         for item in payload.get("samples", []):
             golden = "golden" if item.get("has_golden") else "no-golden"
             lines.append(f"- {item.get('sample_id')} status={item.get('status')} {golden} source={item.get('source_name')}")
+        return "\n".join(lines)
+    if command == "remote-qc-generate-recent-jobs":
+        lines = [
+            f"[QC Jobs Generated] recent={payload.get('limit')}",
+            f"scaffolded={payload.get('scaffolded_count', 0)}",
+        ]
+        for item in payload.get("items", [])[:10]:
+            sample_dir = str(item.get("scaffold_sample_dir") or "")
+            lines.append(
+                f"- storage_{item.get('news_item_id')} title={item.get('title')} sample={Path(sample_dir).name if sample_dir else '-'}"
+            )
+        lines.append("다음: `review 필요한 job만 보여줘` 또는 `<sample-id> 열어줘`")
         return "\n".join(lines)
     if command == "remote-qc-open":
         return "\n".join(
