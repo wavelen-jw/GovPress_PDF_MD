@@ -29,6 +29,7 @@ function normalizePolicyBriefingFailure(message: string): string {
     lowered.includes("timed out") ||
     lowered.includes("timeout") ||
     lowered.includes("bad gateway") ||
+    lowered.includes("load failed") ||
     lowered.includes("signal is aborted") ||
     lowered.includes("aborterror") ||
     lowered.includes("failed to fetch") ||
@@ -112,7 +113,7 @@ function isRetryableUploadError(error: unknown): boolean {
     return true;
   }
   const message = error.message.toLowerCase();
-  if (message.includes("network") || message.includes("fetch")) {
+  if (message.includes("network") || message.includes("fetch") || message.includes("load failed")) {
     return true;
   }
   // API key rejected by a specific server — fall back to next server
