@@ -1,0 +1,706 @@
+{
+  "generated_at": "2026-04-13T17:29:03.494093",
+  "document_count": 100,
+  "documents": [
+    {
+      "news_item_id": "156754291",
+      "title": "[참고] \"중동발 공사 지연, 민간 건설현장도 공기연장 길 열린다\"",
+      "department": "국토교통부",
+      "approve_date": "04/13/2026 16:31:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754291.md"
+    },
+    {
+      "news_item_id": "156754290",
+      "title": "훈장의 가치 바로잡는다 부적절한 정부포상 전면 재검토 착수",
+      "department": "행정안전부",
+      "approve_date": "04/13/2026 16:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754290.md"
+    },
+    {
+      "news_item_id": "156754287",
+      "title": "\"새만금에 일자리·주거·교통 함께 들어선다\" 새만금 투자지원 TF 본격 가동",
+      "department": "국토교통부",
+      "approve_date": "04/13/2026 16:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754287.md"
+    },
+    {
+      "news_item_id": "156754286",
+      "title": "중동전쟁 관련 반려동물 의료제품 수급상황 점검",
+      "department": "농림축산식품부",
+      "approve_date": "04/13/2026 16:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754286.md"
+    },
+    {
+      "news_item_id": "156754285",
+      "title": "주민이 직접 가꾸는 '살고 싶은 농촌' 농식품부, '클린농촌 만들기' 본격 가동",
+      "department": "농림축산식품부",
+      "approve_date": "04/13/2026 16:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754285.md"
+    },
+    {
+      "news_item_id": "156754282",
+      "title": "[차관동정] 홍지선 2차관, 중동상황 극복을 위한 시·도 교통물류 관계자 회의 개최",
+      "department": "국토교통부",
+      "approve_date": "04/13/2026 15:38:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754282.md"
+    },
+    {
+      "news_item_id": "156754281",
+      "title": "2026년 재외동포정책 시행계획 확정",
+      "department": "외교부",
+      "approve_date": "04/13/2026 15:30:14",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754281.md"
+    },
+    {
+      "news_item_id": "156754280",
+      "title": "(동정) 청년 공무원 만나 조직문화·업무 혁신 이끈다",
+      "department": "해양수산부",
+      "approve_date": "04/13/2026 15:26:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754280.md"
+    },
+    {
+      "news_item_id": "156754279",
+      "title": "농식품부 기획조정실장, 추경 예산 신속 집행을 위한 재정집행점검회의 개최",
+      "department": "농림축산식품부",
+      "approve_date": "04/13/2026 15:23:36",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754279.md"
+    },
+    {
+      "news_item_id": "156754278",
+      "title": "면세유 이용 현장 및 시설채소 생육동향 점검",
+      "department": "농림축산식품부",
+      "approve_date": "04/13/2026 15:21:28",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754278.md"
+    },
+    {
+      "news_item_id": "156754277",
+      "title": "기상청, '케이(K)-기상' 선진 예보기술로 아시아 기후위기 대응 지원",
+      "department": "기상청",
+      "approve_date": "04/13/2026 15:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754277.md"
+    },
+    {
+      "news_item_id": "156754275",
+      "title": "제2차 외국인 증권투자 유치 자문위원회 개최",
+      "department": "재정경제부",
+      "approve_date": "04/13/2026 15:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754275.md"
+    },
+    {
+      "news_item_id": "156754268",
+      "title": "석유화학제품 생산현장 릴레이 점검",
+      "department": "산업통상부",
+      "approve_date": "04/13/2026 14:44:28",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754268.md"
+    },
+    {
+      "news_item_id": "156754267",
+      "title": "민간의 우수한 AI소프트웨어, '다수공급자계약'으로 공공시장에 더 빠르게 진입한다",
+      "department": "조달청",
+      "approve_date": "04/13/2026 14:11:17",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754267.md"
+    },
+    {
+      "news_item_id": "156754265",
+      "title": "고유가 피해지원금의 신속한 지급 위해 중앙·지방 총력 대응",
+      "department": "행정안전부",
+      "approve_date": "04/13/2026 14:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754265.md"
+    },
+    {
+      "news_item_id": "156754261",
+      "title": "도매시장법인, 한농대 발전기금 기부 잇달아",
+      "department": "농림축산식품부",
+      "approve_date": "04/13/2026 14:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754261.md"
+    },
+    {
+      "news_item_id": "156754263",
+      "title": "봄에 내리는 순백의 눈꽃···이팝나무길 '봄의 낭만' 선사",
+      "department": "산림청",
+      "approve_date": "04/13/2026 13:59:01",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754263.md"
+    },
+    {
+      "news_item_id": "156754259",
+      "title": "소비로 꽃피우는 4월, 2026 동행축제 개막",
+      "department": "중소벤처기업부",
+      "approve_date": "04/13/2026 13:44:07",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754259.md"
+    },
+    {
+      "news_item_id": "156754250",
+      "title": "관세청, 중동 상황 대응 긴급 수요물품 신속통관 및 물류지원 등 5,070건 조치 및 관세 2,407억원 납기연장 세정지원 실시",
+      "department": "관세청",
+      "approve_date": "04/13/2026 13:25:12",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754250.md"
+    },
+    {
+      "news_item_id": "156754249",
+      "title": "관세청, 국제통화기금(IMF)과 디지털 정부 협력 강화 ··· '글로벌 인공지능(AI) 허브' 도약",
+      "department": "관세청",
+      "approve_date": "04/13/2026 13:23:53",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754249.md"
+    },
+    {
+      "news_item_id": "156754248",
+      "title": "국립수목원, 종자은행 20년 보전 야생식물 종자 발아력 확인",
+      "department": "산림청",
+      "approve_date": "04/13/2026 13:18:27",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754248.md"
+    },
+    {
+      "news_item_id": "156754253",
+      "title": "고용노동부, 산업재해 고위험  사업장 10만개소 전수조사",
+      "department": "고용노동부",
+      "approve_date": "04/13/2026 13:16:55",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754253.md"
+    },
+    {
+      "news_item_id": "156754252",
+      "title": "2026년 3월 고용행정 통계로 본 노동시장 동향",
+      "department": "고용노동부",
+      "approve_date": "04/13/2026 13:15:25",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754252.md"
+    },
+    {
+      "news_item_id": "156754251",
+      "title": "행복도시 개발 경험 세계로... 4개국과 글로벌 협력 강화",
+      "department": "행정중심복합도시건설청",
+      "approve_date": "04/13/2026 13:12:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754251.md"
+    },
+    {
+      "news_item_id": "156754256",
+      "title": "경찰, 부패비리 특별단속 결과 총 1,997명 송치, 56명 구속",
+      "department": "경찰청",
+      "approve_date": "04/13/2026 13:04:57",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754256.md"
+    },
+    {
+      "news_item_id": "156754246",
+      "title": "종량제봉투, 재생원료 사용 확대로 공급망 위기의 파고를 넘는다",
+      "department": "기후에너지환경부",
+      "approve_date": "04/13/2026 13:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754246.md"
+    },
+    {
+      "news_item_id": "156754241",
+      "title": "행안부-기후부, 남원시 람천 불법공사 관련 정부합동감사 결과 통보",
+      "department": "행정안전부",
+      "approve_date": "04/13/2026 12:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754241.md"
+    },
+    {
+      "news_item_id": "156754239",
+      "title": "행안부-기후부, 남원시 람천 불법공사 관련 정부합동감사 결과 통보",
+      "department": "기후에너지환경부",
+      "approve_date": "04/13/2026 12:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754239.md"
+    },
+    {
+      "news_item_id": "156754238",
+      "title": "전력망 안정성 확보 위해 기술기준 고도화 및 전력감독체계 개선 공감대 형성",
+      "department": "기후에너지환경부",
+      "approve_date": "04/13/2026 12:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754238.md"
+    },
+    {
+      "news_item_id": "156754237",
+      "title": "태양광 기술 전문가, 정부 민간인재 영입지원 발탁",
+      "department": "인사혁신처",
+      "approve_date": "04/13/2026 12:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754237.md"
+    },
+    {
+      "news_item_id": "156754235",
+      "title": "[4.14.화.조간] 봄철 참진드기 활동 시작, 전국 감시체계 가동",
+      "department": "질병관리청",
+      "approve_date": "04/13/2026 12:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754235.md"
+    },
+    {
+      "news_item_id": "156754228",
+      "title": "에이치엘홀딩스(주)의 지주회사  행위제한규정 위반 제재",
+      "department": "공정거래위원회",
+      "approve_date": "04/13/2026 12:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754228.md"
+    },
+    {
+      "news_item_id": "156754224",
+      "title": "(참고자료)산업부 '26년 제1회 추가경정예산안 1조 980억원 확정",
+      "department": "산업통상부",
+      "approve_date": "04/13/2026 11:23:48",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754224.md"
+    },
+    {
+      "news_item_id": "156754222",
+      "title": "국립고궁박물관, 세계박람회 조선 최초 출품작 '의장기' 5건 보존처리",
+      "department": "국가유산청",
+      "approve_date": "04/13/2026 11:20:02",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754222.md"
+    },
+    {
+      "news_item_id": "156754216",
+      "title": "회화와 유적으로 만나는 '조선 왕실의 말(馬)'",
+      "department": "국가유산청",
+      "approve_date": "04/13/2026 11:13:08",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754216.md"
+    },
+    {
+      "news_item_id": "156754214",
+      "title": "1937년과 2020년 경주 월성 수습 비편들(돌비석 조각) 원래 하나였다",
+      "department": "국가유산청",
+      "approve_date": "04/13/2026 11:10:18",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754214.md"
+    },
+    {
+      "news_item_id": "156754212",
+      "title": "국립문화유산연구원-한국고고학회 『2026 여름 발굴캠프』 참가자 모집",
+      "department": "국가유산청",
+      "approve_date": "04/13/2026 11:06:51",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754212.md"
+    },
+    {
+      "news_item_id": "156754211",
+      "title": "경력법조인 출신 신임검사 임용 대상자 명단 공개",
+      "department": "법무부",
+      "approve_date": "04/13/2026 11:04:01",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754211.md"
+    },
+    {
+      "news_item_id": "156754266",
+      "title": "[보도자료] 김민석 국무총리, 완도 화재 순직 소방관 조문",
+      "department": "국무조정실",
+      "approve_date": "04/13/2026 11:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754266.md"
+    },
+    {
+      "news_item_id": "156754210",
+      "title": "아시아 5개국에서 '한국형 인공지능(AI) 도시 기술'의 실증 본격화",
+      "department": "국토교통부",
+      "approve_date": "04/13/2026 11:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754210.md"
+    },
+    {
+      "news_item_id": "156754209",
+      "title": "농식품 스타트업기업 16개사, 팁스 R&D 별도 선정으로 최대 60억원 지원 받는다.",
+      "department": "농림축산식품부",
+      "approve_date": "04/13/2026 11:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754209.md"
+    },
+    {
+      "news_item_id": "156754206",
+      "title": "보훈부, 2026년 국외 보훈사적지 답사 참가자 13일부터 모집",
+      "department": "국가보훈부",
+      "approve_date": "04/13/2026 10:56:17",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754206.md"
+    },
+    {
+      "news_item_id": "156754205",
+      "title": "보훈부, 성과 중심 공직문화 확산 추진 특별성과 포상 실시",
+      "department": "국가보훈부",
+      "approve_date": "04/13/2026 10:55:02",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754205.md"
+    },
+    {
+      "news_item_id": "156754194",
+      "title": "플라스틱 가공 중소기업 원가 상승 부담 완화를 위해 대·중소기업 상생협약 체결",
+      "department": "중소벤처기업부",
+      "approve_date": "04/13/2026 10:46:30",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754194.md"
+    },
+    {
+      "news_item_id": "156754191",
+      "title": "\"통역사 없어도 OK\" 외국인 건설근로자, 퇴직공제금 신청 '인공지능(AI)로 해결'",
+      "department": "고용노동부",
+      "approve_date": "04/13/2026 10:26:55",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754191.md"
+    },
+    {
+      "news_item_id": "156754190",
+      "title": "건설근로자공제회, 대규모 건설현장서 복지·금융지원 홍보 캠페인 전개",
+      "department": "고용노동부",
+      "approve_date": "04/13/2026 10:26:05",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754190.md"
+    },
+    {
+      "news_item_id": "156754189",
+      "title": "한국기술교육대 '참여형 캠퍼스 안전문화' 선도",
+      "department": "고용노동부",
+      "approve_date": "04/13/2026 10:24:48",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754189.md"
+    },
+    {
+      "news_item_id": "156754188",
+      "title": "한국고용노동교육원 노사관계전문가과정 재개",
+      "department": "고용노동부",
+      "approve_date": "04/13/2026 10:23:16",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754188.md"
+    },
+    {
+      "news_item_id": "156754187",
+      "title": "인공지능(AI) 전환 과정에서 일자리와 공존을 위해 지혜를 모으다.",
+      "department": "고용노동부",
+      "approve_date": "04/13/2026 10:21:44",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754187.md"
+    },
+    {
+      "news_item_id": "156754185",
+      "title": "\"방송·미디어·통신 정책 제안해 주세요\"",
+      "department": "방송미디어통신위원회",
+      "approve_date": "04/13/2026 10:07:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754185.md"
+    },
+    {
+      "news_item_id": "156754181",
+      "title": "원안위, 제10차 원자력안전협약(CNS) 이행검토회의 참석",
+      "department": "원자력안전위원회",
+      "approve_date": "04/13/2026 10:05:01",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754181.md"
+    },
+    {
+      "news_item_id": "156754183",
+      "title": "경찰청, 봄 행락철 버스전용차로 위반 · 대형버스 법규 위반 집중단속 실시",
+      "department": "경찰청",
+      "approve_date": "04/13/2026 10:04:20",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754183.md"
+    },
+    {
+      "news_item_id": "156754182",
+      "title": "개인정보 유출한 공공기관 대상 패널티 대폭 확대한다",
+      "department": "개인정보보호위원회",
+      "approve_date": "04/13/2026 10:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754182.md"
+    },
+    {
+      "news_item_id": "156754180",
+      "title": "중동전쟁으로 인한 현장의 고용위기, 신속한 제도개선을 통해 빈틈없이 지원한다.",
+      "department": "고용노동부",
+      "approve_date": "04/13/2026 09:48:19",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754180.md"
+    },
+    {
+      "news_item_id": "156754155",
+      "title": "K-브랜드 정부인증제도 도입... 추경 95억원 확정",
+      "department": "지식재산처",
+      "approve_date": "04/13/2026 09:34:29",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754155.md"
+    },
+    {
+      "news_item_id": "156754151",
+      "title": "세계보건기구(WHO), 대한민국 합동외부평가 최종보고서 공개(4.13.월)",
+      "department": "질병관리청",
+      "approve_date": "04/13/2026 09:30:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754151.md"
+    },
+    {
+      "news_item_id": "156754154",
+      "title": "국민의 생각으로 지식재산 정책을 바꿔주세요!",
+      "department": "지식재산처",
+      "approve_date": "04/13/2026 09:29:14",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754154.md"
+    },
+    {
+      "news_item_id": "156754146",
+      "title": "걷고, 인증하고, 특별한 경험까지",
+      "department": "산림청",
+      "approve_date": "04/13/2026 09:19:01",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754146.md"
+    },
+    {
+      "news_item_id": "156754148",
+      "title": "지식재산처, 박현희 첫 여성 기획조정관 임명",
+      "department": "지식재산처",
+      "approve_date": "04/13/2026 09:15:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754148.md"
+    },
+    {
+      "news_item_id": "156754147",
+      "title": "2026년 4월 1일 ~ 4월 10일 수출입 현황 [잠정치]",
+      "department": "관세청",
+      "approve_date": "04/13/2026 09:14:18",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754147.md"
+    },
+    {
+      "news_item_id": "156754144",
+      "title": "조달청, 국민의 마음을 사로잡은 심(心)스틸러 발굴",
+      "department": "조달청",
+      "approve_date": "04/13/2026 09:11:04",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754144.md"
+    },
+    {
+      "news_item_id": "156754143",
+      "title": "\"윤리경영이 곧 조직의 경쟁력!\",  2026년 윤리경영 자율준수 프로그램 지원 사업 대상 모집 실시",
+      "department": "국민권익위원회",
+      "approve_date": "04/13/2026 09:07:04",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754143.md"
+    },
+    {
+      "news_item_id": "156754142",
+      "title": "\"모두의 생각, '국민생각함'에 모여라\"… 국민 눈높이에 맞는 정책 발굴 나서",
+      "department": "국민권익위원회",
+      "approve_date": "04/13/2026 09:04:21",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754142.md"
+    },
+    {
+      "news_item_id": "156754139",
+      "title": "우리나라 '이동형 재난통신 차량 기술', 아시아·태평양지역 국제표준 됐다",
+      "department": "행정안전부",
+      "approve_date": "04/13/2026 09:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754139.md"
+    },
+    {
+      "news_item_id": "156754137",
+      "title": "국가재난안전교육원-EBS, 재난안전 교육 발전을 위한 업무협약 체결",
+      "department": "행정안전부",
+      "approve_date": "04/13/2026 09:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754137.md"
+    },
+    {
+      "news_item_id": "156754135",
+      "title": "생명을 존중하는 안전 사회 위해, 대통령 소속 '국민생명안전위원회' 만든다",
+      "department": "행정안전부",
+      "approve_date": "04/13/2026 09:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754135.md"
+    },
+    {
+      "news_item_id": "156754132",
+      "title": "'체크인, 검역' 우리가 만드는 여행건강 이야기, 국민 생각 공모전 개최(4.13.월)",
+      "department": "질병관리청",
+      "approve_date": "04/13/2026 08:50:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754132.md"
+    },
+    {
+      "news_item_id": "156754131",
+      "title": "고위공무원 신규임용",
+      "department": "방위사업청",
+      "approve_date": "04/13/2026 08:40:15",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754131.md"
+    },
+    {
+      "news_item_id": "156754130",
+      "title": "(동정) 부산공동어시장에서 수산분야 현장 목소리 청취",
+      "department": "해양수산부",
+      "approve_date": "04/13/2026 08:40:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754130.md"
+    },
+    {
+      "news_item_id": "156754128",
+      "title": "범정부·기업 방산협력 사절단 칠레·브라질에서 K-방산 세일즈 활동",
+      "department": "방위사업청",
+      "approve_date": "04/13/2026 08:27:46",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754128.md"
+    },
+    {
+      "news_item_id": "156754127",
+      "title": "K-유통 산업, 이제는 해외로 나간다",
+      "department": "산업통상부",
+      "approve_date": "04/13/2026 08:23:04",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754127.md"
+    },
+    {
+      "news_item_id": "156754126",
+      "title": "\"표시량 믿고 샀는데...\" 4개중 1개는 내용량 부족",
+      "department": "산업통상부",
+      "approve_date": "04/13/2026 08:22:04",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754126.md"
+    },
+    {
+      "news_item_id": "156754125",
+      "title": "한-방글라데시 포괄적경제동반자협정(CEPA) 제3차 공식협상(4.12.(일) ~ 17.(금)) 개최",
+      "department": "산업통상부",
+      "approve_date": "04/13/2026 08:21:08",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754125.md"
+    },
+    {
+      "news_item_id": "156754122",
+      "title": "'반값 여행' 혜택, 놓치지 말고 얼른 사전 신청하세요",
+      "department": "문화체육관광부",
+      "approve_date": "04/13/2026 08:14:51",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754122.md"
+    },
+    {
+      "news_item_id": "156754121",
+      "title": "일상에서 '인문 가치'를 더 깊고, 넓게 나눌 기관 찾아요",
+      "department": "문화체육관광부",
+      "approve_date": "04/13/2026 08:14:04",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754121.md"
+    },
+    {
+      "news_item_id": "156754124",
+      "title": "중기부, 탄소 감축 희망 공급망 내 협력기업에  에너지 고효율・탄소 저감 설비 구축 지원한다!",
+      "department": "중소벤처기업부",
+      "approve_date": "04/13/2026 08:13:25",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754124.md"
+    },
+    {
+      "news_item_id": "156754120",
+      "title": "'케이-그림책', '2026 볼로냐아동도서전'에서 세계 시장 공략",
+      "department": "문화체육관광부",
+      "approve_date": "04/13/2026 08:13:18",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754120.md"
+    },
+    {
+      "news_item_id": "156754119",
+      "title": "법무부, 제32회「외국인 인권보호 및 권익증진협의회」 개최",
+      "department": "법무부",
+      "approve_date": "04/13/2026 07:32:35",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754119.md"
+    },
+    {
+      "news_item_id": "156754117",
+      "title": "기후위기 대응 등 10개 국정과제 이행 공로자 대상으로 특별성과 포상",
+      "department": "기후에너지환경부",
+      "approve_date": "04/13/2026 06:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754117.md"
+    },
+    {
+      "news_item_id": "156754244",
+      "title": "성평등가족부, 2026년 성평등 조직문화 조성 사업설명회 개최",
+      "department": "성평등가족부",
+      "approve_date": "04/13/2026 00:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754244.md"
+    },
+    {
+      "news_item_id": "156754178",
+      "title": "제266차 대외경제장관회의 개최",
+      "department": "재정경제부",
+      "approve_date": "04/13/2026 00:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754178.md"
+    },
+    {
+      "news_item_id": "156754149",
+      "title": "제1회 '금융위人상' 시상, 탁월한 성과에 파격포상",
+      "department": "금융위원회",
+      "approve_date": "04/13/2026 00:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754149.md"
+    },
+    {
+      "news_item_id": "156754116",
+      "title": "국제경제관리관, 홍콩·싱가포르 금융기관 대상으로 투자자 설명(IR) 실시",
+      "department": "재정경제부",
+      "approve_date": "04/12/2026 19:50:11",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754116.md"
+    },
+    {
+      "news_item_id": "156754103",
+      "title": "범정부·기업 방산협력 사절단 칠레·브라질에서 K-방산 세일즈 활동",
+      "department": "외교부",
+      "approve_date": "04/12/2026 14:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754103.md"
+    },
+    {
+      "news_item_id": "156754129",
+      "title": "2025년 가맹사업 현황 통계 발표",
+      "department": "공정거래위원회",
+      "approve_date": "04/12/2026 12:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754129.md"
+    },
+    {
+      "news_item_id": "156754101",
+      "title": "환경분야 시험·검사 전문성 높인다… 현장 요구 반영한 맞춤형 교육 본격 확대",
+      "department": "기후에너지환경부",
+      "approve_date": "04/12/2026 12:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754101.md"
+    },
+    {
+      "news_item_id": "156754098",
+      "title": "우리 동네 교통·안전 문제,  '도시 데이터'로 똑똑하게 해결한다",
+      "department": "국토교통부",
+      "approve_date": "04/12/2026 11:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754098.md"
+    },
+    {
+      "news_item_id": "156754097",
+      "title": "수산물 수출 포장비 최대 2천만 원 지원… 4월 13일부터 참여업체 모집",
+      "department": "해양수산부",
+      "approve_date": "04/12/2026 11:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754097.md"
+    },
+    {
+      "news_item_id": "156754096",
+      "title": "이상기후에 맞서, 벼 키다리병원균 4종 한 번에 찾는다!",
+      "department": "농림축산식품부",
+      "approve_date": "04/12/2026 11:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754096.md"
+    },
+    {
+      "news_item_id": "156754141",
+      "title": "전남 완도군 냉동창고 화재 관련 긴급 지시",
+      "department": "행정안전부",
+      "approve_date": "04/12/2026 10:30:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754141.md"
+    },
+    {
+      "news_item_id": "156754105",
+      "title": "[보도자료] 김민석 국무총리, 완도 냉동창고 화재 관련 긴급지시",
+      "department": "국무조정실",
+      "approve_date": "04/12/2026 10:30:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754105.md"
+    },
+    {
+      "news_item_id": "156754104",
+      "title": "[보도자료] 12·29 여객기 참사 현장 전면 재수색 추진 보도자료",
+      "department": "국무조정실",
+      "approve_date": "04/12/2026 10:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754104.md"
+    },
+    {
+      "news_item_id": "156754095",
+      "title": "고유가 피해지원금 4월 27일 지급 시작",
+      "department": "행정안전부",
+      "approve_date": "04/12/2026 09:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754095.md"
+    },
+    {
+      "news_item_id": "156754093",
+      "title": "2026년 행정안전부 추가경정예산 9조 4,880억원 확정",
+      "department": "행정안전부",
+      "approve_date": "04/12/2026 09:00:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754093.md"
+    },
+    {
+      "news_item_id": "156754077",
+      "title": "중동 위기 선제 대응 위한  문체부 2026년 1회 추경 4,614억 원 확정",
+      "department": "문화체육관광부",
+      "approve_date": "04/11/2026 08:54:46",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754077.md"
+    },
+    {
+      "news_item_id": "156754060",
+      "title": "중기부 '26년 추경예산 1조 6,903억원 확정",
+      "department": "중소벤처기업부",
+      "approve_date": "04/11/2026 07:18:57",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754060.md"
+    },
+    {
+      "news_item_id": "156754133",
+      "title": "(참고) 기후에너지환경부, 추가경정예산 6,162억 원 증액 확정",
+      "department": "기후에너지환경부",
+      "approve_date": "04/10/2026 22:50:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754133.md"
+    },
+    {
+      "news_item_id": "156754052",
+      "title": "(참고) 2026년 고용노동부 소관 제1회 추가경정예산 주요 내용",
+      "department": "고용노동부",
+      "approve_date": "04/10/2026 22:43:22",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754052.md"
+    },
+    {
+      "news_item_id": "156754053",
+      "title": "[참고] '26년 국토교통부 제1회 추가경정예산 확정",
+      "department": "국토교통부",
+      "approve_date": "04/10/2026 22:42:00",
+      "path": "artifacts/policy_briefing_benchmark/corpus_latest100/ground-truth/156754053.md"
+    }
+  ],
+  "failures": [
+    {
+      "news_item_id": "156754218",
+      "title": "조선왕실 여성의 의례, 뮤지컬로 되살아나다",
+      "error": "SystemExit('docViewer iframe src not found')"
+    }
+  ]
+}

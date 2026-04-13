@@ -1,0 +1,9 @@
+{
+  "engine_name": "opendataloader",
+  "failures": [
+    {
+      "document_id": "156754285",
+      "error": "CalledProcessError(1, ['java', '-jar', '/home/wavel/opendataloader-bench/.venv/lib/python3.12/site-packages/opendataloader_pdf/jar/opendataloader-pdf-cli.jar', PosixPath('artifacts/policy_briefing_benchmark/corpus_latest100/pdfs/156754285.pdf'), '--output-dir', PosixPath('artifacts/policy_briefing_benchmark/corpus_latest100/prediction/opendataloader/markdown'), '--format', 'markdown', '--quiet', '--table-method', 'cluster', '--image-output', 'off'])"
+    }
+  ]
+}

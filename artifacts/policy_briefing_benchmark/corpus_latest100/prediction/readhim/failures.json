@@ -1,0 +1,25 @@
+{
+  "engine_name": "readhim",
+  "failures": [
+    {
+      "document_id": "156754125",
+      "error": "ValueError('HWPX 파일이 손상되었거나 유효하지 않습니다.')"
+    },
+    {
+      "document_id": "156754127",
+      "error": "ValueError('HWPX 파일이 손상되었거나 유효하지 않습니다.')"
+    },
+    {
+      "document_id": "156754224",
+      "error": "ValueError('HWPX 파일이 손상되었거나 유효하지 않습니다.')"
+    },
+    {
+      "document_id": "156754268",
+      "error": "ValueError('HWPX 파일이 손상되었거나 유효하지 않습니다.')"
+    },
+    {
+      "document_id": "156754285",
+      "error": "ValueError('HWPX 파일이 손상되었거나 유효하지 않습니다.')"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "summary": {
+    "engine_name": "readhim",
+    "engine_version": "0.1.0-hwpx",
+    "document_count": 94,
+    "total_elapsed": 4.343007564544678,
+    "elapsed_per_doc": 0.04620220813345402,
+    "date": "2026-04-13"
+  },
+  "metrics": {
+    "score": {
+      "overall_mean": 0.6460508410656766,
+      "nid_mean": 0.8904593639575971,
+      "nid_s_mean": 0.8918314061917195,
+      "teds_mean": 0.7906976744186046,
+      "teds_s_mean": 0.8604651162790697,
+      "mhs_mean": 0.2569954848208281,
+      "mhs_s_mean": 0.7857142857142857
+    },
+    "nid_count": 1,
+    "teds_count": 1,
+    "mhs_count": 1,
+    "missing_predictions": 0
+  },
+  "documents": [
+    {
+      "document_id": "156754246",
+      "scores": {
+        "overall": 0.6460508410656766,
+        "nid": 0.8904593639575971,
+        "nid_s": 0.8918314061917195,
+        "teds": 0.7906976744186046,
+        "teds_s": 0.8604651162790697,
+        "mhs": 0.2569954848208281,
+        "mhs_s": 0.7857142857142857
+      },
+      "prediction_available": true
+    }
+  ]
+}
