@@ -1,9 +1,39 @@
 .git
+.github
 .venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Frontend/build outputs that are not needed by the API/worker image
+artifacts
+assets
+docs
+licenses
+mobile
+ops
+packages
+tests
+ui
+
+# Local/runtime data and caches
 node_modules
-mobile/node_modules
-mobile/dist
 storage
-deploy/wsl/data
 deploy/wsl/config
-tests/manual_samples
+deploy/wsl/data
+deploy/vps/data
+
+# Deployment helpers are executed on the host, not inside the app image
+deploy/common
+deploy/vps
+
+# Keep only the WSL Docker build inputs from deploy/
+deploy/wsl/README.md
+deploy/wsl/apply-host-proxy.sh
+deploy/wsl/bin
+deploy/wsl/install-remote-deploy-sudoers.sh
+deploy/wsl/systemd
