@@ -156,8 +156,6 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
     cleanup_split_edge_orphans
     restart_tunnel_after_compose=1
     echo "split_edge_tunnel_origin=http://127.0.0.1:8080"
-    echo "split_edge_public_hostname=api4.govpress.cloud"
-    echo "split_edge_tunnel_id=4390f5bd-3dbe-49f5-ab52-382de7670294"
     echo "split_edge_cloudflared_unit=govpress-cloudflared.service"
     run_compose up -d --build --remove-orphans api worker caddy
   else
