@@ -43,6 +43,12 @@ WSL Linux 파일시스템 안에 프로젝트를 두는 편이 좋습니다.
 cd /home/wavel/projects/GovPress_PDF_MD/deploy/wsl
 ```
 
+직접 접속 가능한 서버에서 host-proxy 구조를 즉시 적용하려면:
+
+```bash
+bash deploy/wsl/apply-host-proxy.sh
+```
+
 ## 준비
 
 1. WSL2 Ubuntu 설치
