@@ -83,8 +83,12 @@ class ProxyHandler(BaseHTTPRequestHandler):
         print(f"{self.address_string()} - - [{self.log_date_time_string()}] {fmt % args}", flush=True)
 
 
+class ReusableThreadingHTTPServer(ThreadingHTTPServer):
+    allow_reuse_address = True
+
+
 def main() -> None:
-    server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), ProxyHandler)
+    server = ReusableThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), ProxyHandler)
     try:
         server.serve_forever()
     finally:

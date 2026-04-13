@@ -70,6 +70,25 @@ cleanup_host_proxy_orphans() {
   echo "host_proxy_orphan_cleanup=1"
 }
 
+cleanup_host_proxy_port_conflicts() {
+  local pids
+  pids="$(
+    sudo ss -ltnp 'sport = :8080' 2>/dev/null \
+      | sed -n 's/.*users:(("docker-proxy",pid=\([0-9]\+\).*/\1/p' \
+      | sort -u
+  )"
+  if [ -z "$pids" ]; then
+    echo "host_proxy_port_conflict_cleanup=0"
+    return
+  fi
+  echo "host_proxy_port_conflict_pids=$pids"
+  for pid in $pids; do
+    sudo kill "$pid" >/dev/null 2>&1 || true
+  done
+  sleep 1
+  echo "host_proxy_port_conflict_cleanup=1"
+}
+
 cleanup_split_edge_orphans() {
   docker rm -f govpress-cloudflared >/dev/null 2>&1 || true
   echo "split_edge_orphan_cleanup=1"
@@ -190,6 +209,7 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_DEPLOY_MODE" "host_proxy"
     install_host_proxy_services
     cleanup_host_proxy_orphans
+    cleanup_host_proxy_port_conflicts
     restart_tunnel_after_compose=2
     echo "host_proxy_tunnel_origin=http://127.0.0.1:8080"
     echo "host_proxy_caddy_unit=govpress-caddy.service"
