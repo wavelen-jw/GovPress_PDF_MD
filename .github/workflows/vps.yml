@@ -74,8 +74,8 @@ jobs:
       ssh_host:        ${{ vars.GOVPRESS_H_SSH_HOST }}
       deploy_dir:      ${{ vars.GOVPRESS_H_DEPLOY_DIR }}
       branch:          ${{ vars.GOVPRESS_H_BRANCH || 'web' }}
-      compose_file:    ${{ vars.GOVPRESS_H_COMPOSE_FILE || 'deploy/wsl/docker-compose.yml' }}
-      deploy_mode:     split_edge
+      compose_file:    ${{ vars.GOVPRESS_H_COMPOSE_FILE || 'deploy/wsl/docker-compose.host-proxy.yml' }}
+      deploy_mode:     host_proxy
       healthcheck_url: ${{ vars.GOVPRESS_H_HEALTHCHECK_URL || 'http://127.0.0.1:8080/health' }}
     secrets:
       user:             ${{ secrets.GOVPRESS_H_USER }}
@@ -92,8 +92,8 @@ jobs:
       ssh_host:        ${{ vars.GOVPRESS_W_SSH_HOST }}
       deploy_dir:      ${{ vars.GOVPRESS_W_DEPLOY_DIR }}
       branch:          ${{ vars.GOVPRESS_W_BRANCH || 'web' }}
-      compose_file:    ${{ vars.GOVPRESS_W_COMPOSE_FILE || 'deploy/wsl/docker-compose.yml' }}
-      deploy_mode:     split_edge
+      compose_file:    ${{ vars.GOVPRESS_W_COMPOSE_FILE || 'deploy/wsl/docker-compose.host-proxy.yml' }}
+      deploy_mode:     host_proxy
       healthcheck_url: ${{ vars.GOVPRESS_W_HEALTHCHECK_URL || 'http://127.0.0.1:8080/health' }}
     secrets:
       user:             ${{ secrets.GOVPRESS_W_USER }}

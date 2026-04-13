@@ -65,7 +65,7 @@ run_compose() {
 }
 
 cleanup_host_proxy_orphans() {
-  docker rm -f govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
+  docker rm -f govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
   echo "host_proxy_orphan_cleanup=1"
 }
 
@@ -88,6 +88,23 @@ install_split_edge_services() {
   sudo systemctl daemon-reload
 }
 
+install_host_proxy_services() {
+  require_passwordless_sudo
+  sudo cp "$DEPLOY_DIR/deploy/wsl/systemd/govpress-compose.service" /etc/systemd/system/govpress-compose.service
+  sudo cp "$DEPLOY_DIR/deploy/wsl/systemd/govpress-caddy.service" /etc/systemd/system/govpress-caddy.service
+  sudo cp "$DEPLOY_DIR/deploy/wsl/systemd/govpress-cloudflared.service" /etc/systemd/system/govpress-cloudflared.service
+  sudo systemctl daemon-reload
+}
+
+restart_host_proxy_edge() {
+  require_passwordless_sudo
+  sudo systemctl enable govpress-caddy.service govpress-cloudflared.service
+  sudo systemctl restart govpress-caddy.service
+  sudo systemctl restart govpress-cloudflared.service
+  sudo systemctl status --no-pager govpress-caddy.service govpress-cloudflared.service || true
+  sudo journalctl -u govpress-caddy.service -u govpress-cloudflared.service -n 30 --no-pager || true
+}
+
 restart_split_edge_tunnel() {
   require_passwordless_sudo
   sudo systemctl enable govpress-cloudflared.service
@@ -107,11 +124,11 @@ emit_compose_diagnostics() {
   echo "=== host port diagnostics ==="
   ss -ltnp | grep ':8080' || true
   echo "=== systemd diagnostics ==="
-  sudo systemctl status --no-pager govpress-compose.service govpress-cloudflared.service 2>/dev/null || true
+  sudo systemctl status --no-pager govpress-compose.service govpress-caddy.service govpress-cloudflared.service 2>/dev/null || true
   echo "=== health probe diagnostics ==="
   curl -i --max-time 10 "$HEALTHCHECK_URL" || true
   echo "=== container diagnostics ==="
-  docker inspect --format 'name={{.Name}} state={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' govpress-api govpress-worker govpress-caddy govpress-cloudflared 2>/dev/null || true
+  docker inspect --format 'name={{.Name}} state={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' govpress-api govpress-worker govpress-caddy govpress-caddy-host govpress-cloudflared 2>/dev/null || true
 }
 
 trap 'emit_compose_diagnostics' ERR
@@ -149,7 +166,13 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
   fi
   if [ "${DEPLOY_MODE:-compose_proxy}" = "host_proxy" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_DEPLOY_MODE" "host_proxy"
+    install_host_proxy_services
     cleanup_host_proxy_orphans
+    restart_tunnel_after_compose=2
+    echo "host_proxy_tunnel_origin=http://127.0.0.1:8080"
+    echo "host_proxy_caddy_unit=govpress-caddy.service"
+    echo "host_proxy_cloudflared_unit=govpress-cloudflared.service"
+    run_compose up -d --build --remove-orphans api worker
   elif [ "${DEPLOY_MODE:-compose_proxy}" = "split_edge" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_DEPLOY_MODE" "split_edge"
     install_split_edge_services
@@ -163,6 +186,8 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
   fi
   if [ "$restart_tunnel_after_compose" = "1" ]; then
     restart_split_edge_tunnel
+  elif [ "$restart_tunnel_after_compose" = "2" ]; then
+    restart_host_proxy_edge
   fi
   run_compose ps
   sleep 3

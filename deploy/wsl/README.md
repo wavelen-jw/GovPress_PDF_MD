@@ -14,16 +14,18 @@
 - `caddy`: 로컬 reverse proxy
 - `cloudflared`: 외부 공개용 Tunnel
 
-현재 운영 서버는 두 가지 모드로 나뉩니다.
+현재 운영 서버는 같은 `host_proxy` 계열 모드를 씁니다.
 
 - `serverW`
-  - `deploy/wsl/docker-compose.yml`
-  - compose가 `api/worker/caddy/cloudflared`를 모두 관리
+  - `deploy/wsl/docker-compose.host-proxy.yml`
+  - compose는 `api/worker`만 관리
+  - `api`는 `127.0.0.1:8013`으로만 publish되고, host-level `caddy`가 `127.0.0.1:8080`을 유지
 - `serverH`
   - `deploy/wsl/docker-compose.host-proxy.yml`
   - host-level `caddy/cloudflared`를 유지하고, compose는 `api/worker`만 관리
+  - `api`는 `127.0.0.1:8013`으로만 publish되고, host-level `caddy`가 `127.0.0.1:8080`을 유지
 
-즉 둘 다 WSL이어도 같은 배포 절차를 쓰지 않습니다. 특히 `serverH`에서는 `127.0.0.1:8080`을 점유한 host-level proxy를 기본 전제로 두고, 배포 시 이를 종료하거나 교체하지 않습니다.
+즉 서버H와 서버W 모두 Docker가 publish한 `127.0.0.1:8080`에 `cloudflared`가 직접 의존하지 않도록 host-level `caddy/cloudflared`를 기본 전제로 두고, compose는 `api/worker`만 관리합니다.
 
 ## 권장 디렉터리
 

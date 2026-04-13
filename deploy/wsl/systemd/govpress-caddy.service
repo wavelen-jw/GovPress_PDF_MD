@@ -1,0 +1,16 @@
+[Unit]
+Description=GovPress Host Proxy
+Wants=network-online.target govpress-compose.service
+After=network-online.target govpress-compose.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wavel/projects/GovPress_PDF_MD/deploy/wsl
+Environment=HOME=/home/wavel
+ExecStartPre=/bin/bash -lc "for i in $(seq 1 20); do curl -sf http://127.0.0.1:8013/health >/dev/null 2>&1 && exit 0; sleep 3; done; exit 1"
+ExecStart=/bin/bash --noprofile --norc -lc 'exec python3 /home/wavel/projects/GovPress_PDF_MD/deploy/wsl/bin/host_proxy.py'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

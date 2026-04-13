@@ -1,7 +1,7 @@
 [Unit]
 Description=GovPress Cloudflared Tunnel
-Wants=network-online.target
-After=network-online.target
+Wants=network-online.target govpress-caddy.service
+After=network-online.target govpress-caddy.service
 
 [Service]
 Type=simple

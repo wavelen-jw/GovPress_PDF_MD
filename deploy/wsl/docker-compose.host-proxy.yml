@@ -24,8 +24,8 @@ services:
     volumes:
       - ../../:/app
       - ./data/storage:/data/storage
-    expose:
-      - "8013"
+    ports:
+      - "127.0.0.1:8013:8013"
     restart: unless-stopped
 
   worker:

@@ -14,6 +14,8 @@
 
 ```bash
 sudo cp deploy/wsl/systemd/govpress-compose.service /etc/systemd/system/govpress-compose.service
+sudo cp deploy/wsl/systemd/govpress-caddy.service /etc/systemd/system/govpress-caddy.service
+sudo cp deploy/wsl/systemd/govpress-cloudflared.service /etc/systemd/system/govpress-cloudflared.service
 ```
 
 필요하면 `WorkingDirectory`를 현재 경로에 맞게 수정합니다.
