@@ -44,12 +44,17 @@ export function SettingsModal({
       serverH: null,
     });
 
+    const probeAt = Date.now();
+
     void Promise.all(
       SERVER_PRESETS.map(async (preset) => {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), SERVER_FALLBACK_TIMEOUT_MS);
         try {
-          const response = await fetch(`${preset.url}/health`, { signal: controller.signal });
+          const response = await fetch(`${preset.url}/health?_t=${probeAt}`, {
+            signal: controller.signal,
+            cache: "no-store",
+          });
           return { key: preset.key, ok: response.ok };
         } catch {
           return { key: preset.key, ok: false };
