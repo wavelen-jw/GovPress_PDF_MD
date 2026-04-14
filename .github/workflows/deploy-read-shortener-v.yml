@@ -77,6 +77,7 @@ jobs:
             echo "✅ ServerV read shortener deployment"
             echo ""
             echo "- Local origin: \`http://127.0.0.1:8091\`"
+            echo "- Deployed as \`govpress-read-shortener.service\` on serverV"
             echo "- Existing \`api2.govpress.cloud\` path is not touched by this workflow"
             echo "- Remaining manual steps:"
             echo "  - add \`read.govpress.cloud\` public hostname in Cloudflare"

@@ -128,6 +128,7 @@ docker compose -f deploy/vps/docker-compose.yml up -d --build
 배포:
 
 ```bash
+sudo bash deploy/vps/install-read-shortener-sudoers.sh
 sudo bash deploy/vps/install-read-shortener.sh ~/GovPress_PDF_MD
 ```
 
@@ -137,6 +138,13 @@ sudo bash deploy/vps/install-read-shortener.sh ~/GovPress_PDF_MD
 curl http://127.0.0.1:8091/health
 curl -I http://127.0.0.1:8091/abc123
 sudo systemctl status --no-pager govpress-read-shortener.service
+```
+
+GitHub Actions 원격배포까지 쓰려면 서버에서 한 번만 아래를 실행합니다.
+
+```bash
+cd ~/GovPress_PDF_MD
+sudo bash deploy/vps/install-read-shortener-sudoers.sh
 ```
 
 Cloudflare에서 추가할 것:
