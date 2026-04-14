@@ -77,21 +77,20 @@ jobs:
           echo
 
           echo "=== Before restart: services ==="
-          sudo -n true
-          timeout 15s sudo -n systemctl status --no-pager govpress-compose.service govpress-caddy.service govpress-cloudflared.service || true
+          sudo systemctl status --no-pager govpress-compose.service govpress-caddy.service govpress-cloudflared.service || true
           echo
 
           echo "=== Before restart: caddy journal ==="
-          timeout 15s sudo -n journalctl -u govpress-caddy.service -n 40 --no-pager || true
+          sudo journalctl -u govpress-caddy.service -n 40 --no-pager || true
           echo
 
           echo "=== Before restart: cloudflared journal ==="
-          timeout 15s sudo -n journalctl -u govpress-cloudflared.service -n 40 --no-pager || true
+          sudo journalctl -u govpress-cloudflared.service -n 40 --no-pager || true
           echo
 
           echo "=== Restarting host edge services ==="
-          timeout 20s sudo -n systemctl restart govpress-caddy.service
-          timeout 20s sudo -n systemctl restart govpress-cloudflared.service
+          sudo systemctl restart govpress-caddy.service
+          sudo systemctl restart govpress-cloudflared.service
           sleep 6
 
           echo "=== After restart: loopback health ==="
@@ -99,7 +98,7 @@ jobs:
           echo
 
           echo "=== After restart: services ==="
-          timeout 15s sudo -n systemctl status --no-pager govpress-caddy.service govpress-cloudflared.service || true
+          sudo systemctl status --no-pager govpress-caddy.service govpress-cloudflared.service || true
           echo
 
           echo "=== After restart: public health from remote host ==="
@@ -109,3 +108,4 @@ jobs:
             echo "GOVPRESS_API_KEY missing from $ENV_PATH"
           fi
           BASH
+
