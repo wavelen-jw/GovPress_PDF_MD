@@ -9,9 +9,41 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import os
 from typing import Callable
 
 from .policy_briefing import PolicyBriefingAttachment, PolicyBriefingCatalogResult, PolicyBriefingClient, PolicyBriefingItem
+
+
+def _load_gov_md_converter_qc_pipeline() -> tuple[Callable[..., dict[str, object]], Callable[..., dict[str, object]], Callable[..., dict[str, object]], Callable[..., dict[str, object]]]:
+    candidates = []
+    env_root = os.environ.get("GOV_MD_CONVERTER_ROOT")
+    if env_root:
+        candidates.append(Path(env_root).resolve())
+    candidates.append(Path(__file__).resolve().parents[4] / "gov-md-converter")
+    for root in candidates:
+        module_path = root / "src" / "qc_pipeline.py"
+        if not module_path.exists():
+            continue
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
+        from src.qc_pipeline import (
+            build_qc_pipeline_report,
+            run_gov_md_batch_local,
+            run_gov_md_qc_command,
+            run_local_hwpx_qc_pipeline,
+        )
+
+        return run_gov_md_qc_command, run_gov_md_batch_local, build_qc_pipeline_report, run_local_hwpx_qc_pipeline
+    raise ModuleNotFoundError("gov-md-converter QC pipeline module not found")
+
+
+(
+    _converter_run_gov_md_qc_command,
+    _converter_run_gov_md_batch_local,
+    _converter_build_qc_pipeline_report,
+    _converter_run_local_hwpx_qc_pipeline,
+) = _load_gov_md_converter_qc_pipeline()
 
 
 ScaffoldRunner = Callable[..., str]
@@ -183,47 +215,12 @@ def run_gov_md_qc_command(
     qc_root: str | Path,
     output_path: str | Path | None = None,
 ) -> dict[str, object]:
-    resolved_root = Path(gov_md_converter_root).resolve()
-    script_path = resolved_root / "scripts" / "run_hwpx_qc.py"
-    if not script_path.exists():
-        raise FileNotFoundError(f"gov-md-converter QC CLI not found: {script_path}")
-
-    cmd = [
-        sys.executable,
-        str(script_path),
-        command,
-        "--root",
-        str(qc_root),
-    ]
-    if command == "regression":
-        cmd.append("--json")
-    else:
-        if output_path is not None:
-            cmd.extend(["--output", str(Path(output_path).resolve())])
-        cmd.append("--json")
-
-    result = subprocess.run(
-        cmd,
-        cwd=resolved_root,
-        check=False,
-        capture_output=True,
-        text=True,
+    return _converter_run_gov_md_qc_command(
+        gov_md_converter_root=gov_md_converter_root,
+        command=command,
+        qc_root=qc_root,
+        output_path=output_path,
     )
-    payload: dict[str, object] | list[object] | None = None
-    stdout = result.stdout.strip()
-    if stdout:
-        try:
-            payload = json.loads(stdout)
-        except json.JSONDecodeError:
-            payload = None
-    return {
-        "command": command,
-        "returncode": result.returncode,
-        "stdout": stdout,
-        "stderr": result.stderr.strip(),
-        "output_path": str(Path(output_path).resolve()) if output_path is not None else None,
-        "payload": payload,
-    }
 
 
 def run_gov_md_batch_local(
@@ -236,53 +233,15 @@ def run_gov_md_batch_local(
     autofill: bool = True,
     force: bool = False,
 ) -> dict[str, object]:
-    resolved_root = Path(gov_md_converter_root).resolve()
-    script_path = resolved_root / "scripts" / "run_hwpx_qc.py"
-    if not script_path.exists():
-        raise FileNotFoundError(f"gov-md-converter QC CLI not found: {script_path}")
-
-    cmd = [
-        sys.executable,
-        str(script_path),
-        "batch-local",
-        "--source-root",
-        str(Path(source_root).resolve()),
-        "--output-root",
-        str(Path(qc_root).resolve()),
-        "--mode",
-        mode,
-        "--json",
-    ]
-    if limit is not None:
-        cmd.extend(["--limit", str(limit)])
-    if not autofill:
-        cmd.append("--no-autofill")
-    if force:
-        cmd.append("--force")
-
-    result = subprocess.run(
-        cmd,
-        cwd=resolved_root,
-        check=False,
-        capture_output=True,
-        text=True,
+    return _converter_run_gov_md_batch_local(
+        gov_md_converter_root=gov_md_converter_root,
+        source_root=source_root,
+        qc_root=qc_root,
+        limit=limit,
+        mode=mode,
+        autofill=autofill,
+        force=force,
     )
-    stdout = result.stdout.strip()
-    payload: dict[str, object] | None = None
-    if stdout:
-        try:
-            parsed = json.loads(stdout)
-            if isinstance(parsed, dict):
-                payload = parsed
-        except json.JSONDecodeError:
-            payload = None
-    return {
-        "command": "batch-local",
-        "returncode": result.returncode,
-        "stdout": stdout,
-        "stderr": result.stderr.strip(),
-        "payload": payload,
-    }
 
 
 def export_policy_briefings_for_qc(
@@ -718,75 +677,14 @@ def run_storage_backed_qc_pipeline(
         "source_kind": "storage_backed_corpus",
     }
 
-    reports_dir = dated_root / "gov_md_reports"
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    qc_steps: list[tuple[str, Path | None]] = [
-        ("regression", reports_dir / "regression.json"),
-        ("triage", reports_dir / "triage_report.json"),
-        ("suggest-fix", reports_dir / "suggest_fix.json"),
-        ("patch-template", reports_dir / "patch_templates.json"),
-        ("fix-plan", reports_dir / "fix_plan.json"),
-        ("apply-fix-hint", reports_dir / "apply_fix_hint.json"),
-        ("auto-patch-draft", reports_dir / "auto_patch_draft.json"),
-    ]
-    qc_results: list[dict[str, object]] = []
-    for command, output_path in qc_steps:
-        result = command_runner(
-            gov_md_converter_root=gov_md_converter_root,
-            command=command,
-            qc_root=qc_root,
-            output_path=None if command == "regression" else output_path,
-        )
-        if command == "regression" and result.get("payload") is not None:
-            (reports_dir / "regression.json").write_text(
-                json.dumps(result["payload"], ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-            result["output_path"] = str((reports_dir / "regression.json").resolve())
-        qc_results.append(result)
-
-    triage_payload = next(
-        (entry.get("payload") for entry in qc_results if entry["command"] == "triage" and isinstance(entry.get("payload"), dict)),
-        None,
+    return _converter_build_qc_pipeline_report(
+        target_date=target_date,
+        output_root=output_root,
+        export_report=export_report,
+        gov_md_converter_root=gov_md_converter_root,
+        qc_root=qc_root,
+        command_runner=command_runner,
     )
-    suggest_payload = next(
-        (entry.get("payload") for entry in qc_results if entry["command"] == "suggest-fix" and isinstance(entry.get("payload"), dict)),
-        None,
-    )
-    auto_patch_payload = next(
-        (
-            entry.get("payload")
-            for entry in qc_results
-            if entry["command"] == "auto-patch-draft" and isinstance(entry.get("payload"), dict)
-        ),
-        None,
-    )
-
-    return {
-        "date": target_date.isoformat(),
-        "export": export_report,
-        "reports_dir": str(reports_dir),
-        "qc_commands": qc_results,
-        "summary": {
-            "exported_count": export_report["exported_count"],
-            "scaffolded_count": export_report["scaffolded_count"],
-            "review_required_count": (
-                triage_payload.get("summary", {}).get("review_required_count")
-                if isinstance(triage_payload, dict)
-                else None
-            ),
-            "proposal_count": (
-                suggest_payload.get("proposal_count")
-                if isinstance(suggest_payload, dict)
-                else None
-            ),
-            "draft_count": (
-                auto_patch_payload.get("draft_count")
-                if isinstance(auto_patch_payload, dict)
-                else None
-            ),
-        },
-    }
 
 
 def run_policy_briefing_qc_pipeline(
@@ -823,90 +721,14 @@ def run_policy_briefing_qc_pipeline(
         force=force,
         sample_status=sample_status,
     )
-    if export_report["missing_news_item_ids"]:
-        return {
-            "date": target_date.isoformat(),
-            "export": export_report,
-            "reports_dir": None,
-            "qc_commands": [],
-            "summary": {
-                "exported_count": export_report["exported_count"],
-                "scaffolded_count": export_report["scaffolded_count"],
-                "review_required_count": None,
-                "proposal_count": None,
-                "draft_count": None,
-            },
-        }
-
-    reports_dir = Path(output_root).resolve() / target_date.isoformat() / "gov_md_reports"
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    qc_steps: list[tuple[str, Path | None]] = [
-        ("regression", reports_dir / "regression.json"),
-        ("triage", reports_dir / "triage_report.json"),
-        ("suggest-fix", reports_dir / "suggest_fix.json"),
-        ("patch-template", reports_dir / "patch_templates.json"),
-        ("fix-plan", reports_dir / "fix_plan.json"),
-        ("apply-fix-hint", reports_dir / "apply_fix_hint.json"),
-        ("auto-patch-draft", reports_dir / "auto_patch_draft.json"),
-    ]
-    qc_results: list[dict[str, object]] = []
-    for command, output_path in qc_steps:
-        result = command_runner(
-            gov_md_converter_root=gov_md_converter_root,
-            command=command,
-            qc_root=qc_root,
-            output_path=None if command == "regression" else output_path,
-        )
-        if command == "regression" and result.get("payload") is not None:
-            (reports_dir / "regression.json").write_text(
-                json.dumps(result["payload"], ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-            result["output_path"] = str((reports_dir / "regression.json").resolve())
-        qc_results.append(result)
-
-    triage_payload = next(
-        (entry.get("payload") for entry in qc_results if entry["command"] == "triage" and isinstance(entry.get("payload"), dict)),
-        None,
+    return _converter_build_qc_pipeline_report(
+        target_date=target_date,
+        output_root=output_root,
+        export_report=export_report,
+        gov_md_converter_root=gov_md_converter_root,
+        qc_root=qc_root,
+        command_runner=command_runner,
     )
-    suggest_payload = next(
-        (entry.get("payload") for entry in qc_results if entry["command"] == "suggest-fix" and isinstance(entry.get("payload"), dict)),
-        None,
-    )
-    auto_patch_payload = next(
-        (
-            entry.get("payload")
-            for entry in qc_results
-            if entry["command"] == "auto-patch-draft" and isinstance(entry.get("payload"), dict)
-        ),
-        None,
-    )
-
-    return {
-        "date": target_date.isoformat(),
-        "export": export_report,
-        "reports_dir": str(reports_dir),
-        "qc_commands": qc_results,
-        "summary": {
-            "exported_count": export_report["exported_count"],
-            "scaffolded_count": export_report["scaffolded_count"],
-            "review_required_count": (
-                triage_payload.get("summary", {}).get("review_required_count")
-                if isinstance(triage_payload, dict)
-                else None
-            ),
-            "proposal_count": (
-                suggest_payload.get("proposal_count")
-                if isinstance(suggest_payload, dict)
-                else None
-            ),
-            "draft_count": (
-                auto_patch_payload.get("draft_count")
-                if isinstance(auto_patch_payload, dict)
-                else None
-            ),
-        },
-    }
 
 
 def run_local_hwpx_qc_pipeline(
@@ -923,128 +745,16 @@ def run_local_hwpx_qc_pipeline(
     batch_runner: GovMdBatchRunner = run_gov_md_batch_local,
     command_runner: GovMdCommandRunner = run_gov_md_qc_command,
 ) -> dict[str, object]:
-    resolved_output_root = Path(output_root).resolve()
-    dated_root = resolved_output_root / target_date.isoformat()
-    dated_root.mkdir(parents=True, exist_ok=True)
-
-    batch_result = batch_runner(
+    return _converter_run_local_hwpx_qc_pipeline(
+        target_date=target_date,
+        output_root=output_root,
         gov_md_converter_root=gov_md_converter_root,
-        source_root=source_root,
         qc_root=qc_root,
+        source_root=source_root,
         limit=limit,
         mode=mode,
         autofill=autofill,
         force=force,
+        batch_runner=batch_runner,
+        command_runner=command_runner,
     )
-    batch_payload = batch_result.get("payload") if isinstance(batch_result.get("payload"), dict) else {}
-    candidates = batch_payload.get("candidates") if isinstance(batch_payload.get("candidates"), list) else []
-    exported_items: list[dict[str, object]] = []
-    for item in candidates:
-        if not isinstance(item, dict):
-            continue
-        sample_id = item.get("sample_id")
-        exported_items.append(
-            {
-                "news_item_id": str(sample_id),
-                "title": Path(str(item.get("source_path", sample_id))).stem,
-                "export_dir": str(Path(str(item.get("source_path", ""))).resolve().parent),
-                "hwpx_path": item.get("source_path"),
-                "pdf_path": item.get("pdf_path"),
-                "metadata_path": None,
-                "scaffold_sample_dir": str(Path(qc_root).resolve() / str(sample_id)),
-                "risk_score": item.get("risk_score"),
-                "reasons": item.get("reasons", []),
-                "doc_type": item.get("doc_type"),
-            }
-        )
-
-    export_report = {
-        "date": target_date.isoformat(),
-        "output_root": str(dated_root),
-        "source_root": str(Path(source_root).resolve()),
-        "ensure_fresh": False,
-        "served_stale": False,
-        "stale_reason": "local_corpus",
-        "requested_news_item_ids": [],
-        "missing_news_item_ids": [],
-        "selected_count": len(exported_items),
-        "exported_count": len(exported_items),
-        "scaffolded_count": len(exported_items),
-        "items": exported_items,
-        "mode": mode,
-        "limit": limit,
-        "source_kind": "local_hwpx_corpus",
-    }
-
-    reports_dir = dated_root / "gov_md_reports"
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    batch_report_path = reports_dir / "batch_local.json"
-    batch_report_path.write_text(json.dumps(batch_result, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    qc_steps: list[tuple[str, Path | None]] = [
-        ("regression", reports_dir / "regression.json"),
-        ("triage", reports_dir / "triage_report.json"),
-        ("suggest-fix", reports_dir / "suggest_fix.json"),
-        ("patch-template", reports_dir / "patch_templates.json"),
-        ("fix-plan", reports_dir / "fix_plan.json"),
-        ("apply-fix-hint", reports_dir / "apply_fix_hint.json"),
-        ("auto-patch-draft", reports_dir / "auto_patch_draft.json"),
-    ]
-    qc_results: list[dict[str, object]] = [dict(batch_result, output_path=str(batch_report_path.resolve()))]
-    for command, output_path in qc_steps:
-        result = command_runner(
-            gov_md_converter_root=gov_md_converter_root,
-            command=command,
-            qc_root=qc_root,
-            output_path=None if command == "regression" else output_path,
-        )
-        if command == "regression" and result.get("payload") is not None:
-            (reports_dir / "regression.json").write_text(
-                json.dumps(result["payload"], ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-            result["output_path"] = str((reports_dir / "regression.json").resolve())
-        qc_results.append(result)
-
-    triage_payload = next(
-        (entry.get("payload") for entry in qc_results if entry["command"] == "triage" and isinstance(entry.get("payload"), dict)),
-        None,
-    )
-    suggest_payload = next(
-        (entry.get("payload") for entry in qc_results if entry["command"] == "suggest-fix" and isinstance(entry.get("payload"), dict)),
-        None,
-    )
-    auto_patch_payload = next(
-        (
-            entry.get("payload")
-            for entry in qc_results
-            if entry["command"] == "auto-patch-draft" and isinstance(entry.get("payload"), dict)
-        ),
-        None,
-    )
-
-    return {
-        "date": target_date.isoformat(),
-        "export": export_report,
-        "reports_dir": str(reports_dir),
-        "qc_commands": qc_results,
-        "summary": {
-            "exported_count": export_report["exported_count"],
-            "scaffolded_count": export_report["scaffolded_count"],
-            "review_required_count": (
-                triage_payload.get("summary", {}).get("review_required_count")
-                if isinstance(triage_payload, dict)
-                else None
-            ),
-            "proposal_count": (
-                suggest_payload.get("proposal_count")
-                if isinstance(suggest_payload, dict)
-                else None
-            ),
-            "draft_count": (
-                auto_patch_payload.get("draft_count")
-                if isinstance(auto_patch_payload, dict)
-                else None
-            ),
-        },
-    }

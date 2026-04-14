@@ -10,7 +10,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from server.app.adapters.policy_briefing_qc import run_local_hwpx_qc_pipeline
+GOV_MD_ROOT = (PROJECT_ROOT / ".." / "gov-md-converter").resolve()
+if str(GOV_MD_ROOT) not in sys.path:
+    sys.path.insert(0, str(GOV_MD_ROOT))
+
+from src.qc_pipeline import run_local_hwpx_qc_pipeline
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -33,11 +37,7 @@ def main() -> int:
     args = build_parser().parse_args()
     target_date = date.fromisoformat(args.date)
     output_root = Path(args.output_root).resolve()
-    report_output = (
-        Path(args.output).resolve()
-        if args.output
-        else output_root / target_date.isoformat() / "pipeline_report.json"
-    )
+    report_output = Path(args.output).resolve() if args.output else output_root / target_date.isoformat() / "pipeline_report.json"
     report = run_local_hwpx_qc_pipeline(
         target_date=target_date,
         output_root=output_root,
