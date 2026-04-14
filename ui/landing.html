@@ -140,19 +140,23 @@
          style="font-size: clamp(1.05rem, 2.2vw, 1.35rem);"
          data-aos="fade-up" data-aos-duration="700" data-aos-delay="180">
         정부문서가 막힌 곳에서,<br>
-        <span class="text-white font-semibold">사람과 AI 모두 통하게 한다.</span>
+        <span class="text-white font-semibold">사람도 AI도 읽을 수 있게 만든다.</span>
       </p>
 
       <!-- format flow -->
-      <div class="fmt-flow flex items-center justify-center gap-3 mb-14"
+      <div class="fmt-flow flex flex-col items-center justify-center gap-2 mb-14"
            data-aos="fade-up" data-aos-delay="320">
-        <span class="fmt-tag">.hwpx</span>
-        <span class="text-white/25 text-lg font-thin">+</span>
-        <span class="fmt-tag">.pdf</span>
-        <span class="text-white/25 text-lg font-thin">+</span>
-        <span class="fmt-tag">HTML API</span>
-        <span class="text-white/50 text-xl font-light mx-1">→</span>
-        <span class="fmt-result">.md ✓</span>
+        <div class="flex items-center gap-3">
+          <span class="fmt-tag">HWPX</span>
+          <span class="text-white/25 text-lg font-thin">·</span>
+          <span class="fmt-tag">PDF</span>
+          <span class="text-white/25 text-lg font-thin">·</span>
+          <span class="fmt-tag">HTML API를</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-white/50 text-xl font-light">→</span>
+          <span class="fmt-result">AI가 읽기 좋은 Markdown으로 변환</span>
+        </div>
       </div>
 
       <div class="flex flex-col sm:flex-row items-center justify-center gap-3"
@@ -194,7 +198,7 @@
       </h2>
       <p class="text-gray-400 mb-16 max-w-lg text-[1.05rem]"
          data-aos="fade-up" data-aos-delay="130">
-        형식은 달라도 결과는 같다?<br>AI가 읽으면 맥락이 사라진다.
+        형식이 다르면, AI가 읽는 결과도 달라집니다.<br>정부문서는 내용보다 구조 때문에 먼저 무너집니다.
       </p>
 
       <!-- 3 cards -->
@@ -235,7 +239,7 @@
 &lt;/HWPML&gt;</code></pre>
           <div class="px-4 py-4 border-t border-gray-100 space-y-2.5">
             <p class="text-[0.65rem] font-semibold text-red-500 uppercase tracking-wider">
-              ● 구조 비노출 · AI 직접 처리 불가
+              ● 구조가 드러나지 않아 AI가 문서 계층을 이해하기 어렵습니다
             </p>
             <div>
               <div class="flex justify-between text-[0.65rem] text-gray-400 mb-1">
@@ -285,7 +289,7 @@
 &lt;/tbody&gt;&lt;/table&gt;</code></pre>
           <div class="px-4 py-4 border-t border-gray-100 space-y-2.5">
             <p class="text-[0.65rem] font-semibold text-yellow-500 uppercase tracking-wider">
-              ◐ 태그 노이즈 · &amp;nbsp; 범람
+              ◐ 태그 노이즈와 공백 문자 때문에 토큰만 낭비됩니다
             </p>
             <div>
               <div class="flex justify-between text-[0.65rem] text-gray-400 mb-1">
@@ -332,7 +336,7 @@
 |---|</code></pre>
           <div class="px-4 py-4 border-t border-gray-100 space-y-2.5">
             <p class="text-[0.65rem] font-semibold text-yellow-500 uppercase tracking-wider">
-              ◐ 불필요한 표 모양 · 문장 관계 약화 · 페이지 잔여물 유지
+              ◐ 표 구조와 페이지 잔여물이 남아 문장 관계가 무너집니다
             </p>
             <div>
               <div class="flex justify-between text-[0.65rem] text-gray-400 mb-1">
@@ -363,7 +367,7 @@
       <h2 class="font-black leading-tight mb-5 text-white"
           style="font-size: clamp(2rem, 4.5vw, 3.2rem);"
           data-aos="fade-up" data-aos-delay="80">
-        읽힘이면 다르다
+        읽힘은 결과가 다릅니다
       </h2>
       <p class="text-white/35 mb-16 max-w-lg text-[1.05rem]"
          data-aos="fade-up" data-aos-delay="130">
@@ -441,7 +445,7 @@
         <div data-aos="fade-left" data-aos-delay="230">
           <div class="flex items-center gap-2 mb-3">
             <span class="w-2 h-2 rounded-full bg-green-500"></span>
-            <span class="text-xs font-semibold text-white/40">읽힘</span>
+            <span class="text-xs font-semibold text-white/40">읽힘 AI</span>
           </div>
           <div class="rounded-xl overflow-hidden border border-green-500/25">
             <div class="px-4 py-2 border-b border-green-500/15 flex items-center justify-between" style="background:#061209;">
@@ -519,13 +523,13 @@
 
         <div class="text-center" data-aos="fade-up" data-aos-delay="80">
           <div class="stat-n text-green-400">✓</div>
-          <div class="text-white/55 text-sm font-bold mt-3">계층 구조 유지</div>
+          <div class="text-white/55 text-sm font-bold mt-3">제목·단락·목록 구조 보존</div>
           <div class="text-white/25 text-[11px] mt-2 leading-relaxed">제목·단락·목록의<br>구조를 그대로 보존</div>
         </div>
 
         <div class="text-center" data-aos="fade-up" data-aos-delay="160">
           <div class="stat-n text-green-400">+31<span class="text-white/40 text-xl font-black">%</span></div>
-          <div class="text-white/55 text-sm font-bold mt-3">변환 정확도 우세</div>
+          <div class="text-white/55 text-sm font-bold mt-3">표·계층 변환 정확도 우세</div>
           <div class="text-white/25 text-[11px] mt-2 leading-relaxed">정책브리핑 99건 기준<br>OpenDataLoader 대비</div>
           <a href="./benchmark-policy-briefing/"
              class="inline-flex items-center justify-center gap-1 mt-3 text-[0.68rem] font-semibold text-green-400/70 hover:text-green-400 transition-colors">
@@ -536,7 +540,7 @@
 
         <div class="text-center" data-aos="fade-up" data-aos-delay="240">
           <div class="stat-n text-green-400">−91<span class="text-white/40 text-xl font-black">%</span></div>
-          <div class="text-white/55 text-sm font-bold mt-3">AI 토큰 절감</div>
+          <div class="text-white/55 text-sm font-bold mt-3">AI 입력 토큰 최대 91% 절감</div>
           <div class="text-white/25 text-[11px] mt-2 leading-relaxed">HWPX 대비 MD 기준<br>tiktoken 측정값</div>
         </div>
 
@@ -551,12 +555,12 @@
       <h2 class="font-black leading-tight mb-5 text-ink"
           style="font-size: clamp(2rem, 4.5vw, 3.2rem);"
           data-aos="fade-up">
-        지금 변환해보세요.
+        지금 바로 변환해보세요.
       </h2>
       <p class="text-gray-400 mb-12 text-[1.05rem] leading-relaxed"
          data-aos="fade-up" data-aos-delay="100">
-        PDF, HWPX, 보도자료 HTML —<br>
-        어떤 형식이든 깔끔한 마크다운으로.
+        PDF, HWPX, 보도자료 HTML을<br>
+        사람도 AI도 읽기 좋은 Markdown으로 변환합니다.
       </p>
 
       <!-- 정책브리핑 callout -->
@@ -569,14 +573,14 @@
         </div>
         <a href="./app/?editor=1"
            data-app-action="policy-briefings"
-           class="ml-2 text-[0.72rem] font-bold text-green-600 hover:text-green-700 whitespace-nowrap">앱에서 보기 →</a>
+           class="ml-2 text-[0.72rem] font-bold text-green-600 hover:text-green-700 whitespace-nowrap">정책브리핑 읽기 →</a>
       </div>
 
       <div data-aos="fade-up" data-aos-delay="200">
         <button type="button"
            data-app-action="convert"
            class="cta-btn inline-flex items-center gap-3 bg-ink text-white font-bold px-10 py-5 rounded-xl text-[1rem] mb-5">
-          변환 시작하기
+          문서 변환 시작하기
           <svg width="17" height="17" viewBox="0 0 17 17" fill="none">
             <path d="M3 8.5h11M9.5 4l4.5 4.5L9.5 13" stroke="currentColor" stroke-width="1.9"
                   stroke-linecap="round" stroke-linejoin="round"/>
