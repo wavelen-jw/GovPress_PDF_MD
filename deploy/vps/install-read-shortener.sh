@@ -19,7 +19,7 @@ if [[ ! -f "$MAP_PATH" ]]; then
   exit 1
 fi
 
-$PYTHON_BIN "$DEPLOY_DIR/scripts/read_shortener_server.py" --map-file "$MAP_PATH" --validate-only >/dev/null
+$PYTHON_BIN "$DEPLOY_DIR/scripts/read_shortener_server.py" --config-file "$MAP_PATH" --validate-only >/dev/null
 
 sed \
   -e "s|__DEPLOY_DIR__|$DEPLOY_DIR|g" \

@@ -64,9 +64,7 @@ jobs:
           git -C "$DEPLOY_DIR" checkout "$BRANCH"
           git -C "$DEPLOY_DIR" reset --hard "origin/$BRANCH"
           echo "git_head=\$(git -C "$DEPLOY_DIR" rev-parse HEAD)"
-          python3 "$DEPLOY_DIR/scripts/read_shortener_server.py" --map-file "$DEPLOY_DIR/config/read_shortlinks.json" --validate-only >/dev/null
-          sample_slug="\$(python3 -c 'import json, sys; from pathlib import Path; data = json.loads(Path(sys.argv[1]).read_text(encoding=\"utf-8\")); print(next(iter(data.keys()), \"\"))' "$DEPLOY_DIR/config/read_shortlinks.json")"
-          echo "sample_slug=\$sample_slug"
+          python3 "$DEPLOY_DIR/scripts/read_shortener_server.py" --config-file "$DEPLOY_DIR/config/read_shortlinks.json" --validate-only >/dev/null
           sed \
             -e "s|__DEPLOY_DIR__|$DEPLOY_DIR|g" \
             -e "s|__SERVICE_USER__|\$remote_user|g" \
@@ -84,14 +82,9 @@ jobs:
           done
           echo "health_code=\$health_code"
           echo "health_body=\$(cat /tmp/govpress-read-shortener-health.txt 2>/dev/null || true)"
-          if [ -n "\$sample_slug" ]; then
-            status_code="\$(curl -sS -o /tmp/govpress-read-shortener-root.txt -w '%{http_code}' "http://127.0.0.1:8091/\$sample_slug" || true)"
-            echo "sample_redirect_code=\$status_code"
-            echo "sample_redirect_headers=\$(curl -sSI "http://127.0.0.1:8091/\$sample_slug" | tr '\n' ' ' | cut -c1-400 || true)"
-          else
-            echo "sample_redirect_code=skipped"
-            echo "sample_redirect_headers="
-          fi
+          status_code="\$(curl -sS -o /tmp/govpress-read-shortener-root.txt -w '%{http_code}' "http://127.0.0.1:8091/" || true)"
+          echo "root_redirect_code=\$status_code"
+          echo "root_redirect_headers=\$(curl -sSI "http://127.0.0.1:8091/" | tr '\n' ' ' | cut -c1-400 || true)"
           sudo -n systemctl --no-pager --full status govpress-read-shortener.service | sed -n '1,30p' || true
           EOF
 
@@ -124,14 +117,13 @@ jobs:
             exit 1
           fi
 
-          sample_redirect_code="$(sed -n 's/^sample_redirect_code=//p' remote-read-shortener.log | tail -n1)"
-          sample_slug="$(sed -n 's/^sample_slug=//p' remote-read-shortener.log | tail -n1)"
+          root_redirect_code="$(sed -n 's/^root_redirect_code=//p' remote-read-shortener.log | tail -n1)"
           health_code="$(sed -n 's/^health_code=//p' remote-read-shortener.log | tail -n1)"
           if [ "$health_code" != "200" ]; then
             echo "unexpected health code: ${health_code:-missing}" >&2
             exit 1
           fi
-          if [ -n "$sample_slug" ] && [ "$sample_redirect_code" != "302" ]; then
-            echo "unexpected sample redirect code: ${sample_redirect_code:-missing}" >&2
+          if [ "$root_redirect_code" != "302" ]; then
+            echo "unexpected root redirect code: ${root_redirect_code:-missing}" >&2
             exit 1
           fi

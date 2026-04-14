@@ -106,23 +106,23 @@ docker compose -f deploy/vps/docker-compose.yml up -d --build
 구성:
 
 - `serverV`에 초경량 Python redirect 서버를 별도 systemd 서비스로 띄웁니다.
-- slug 매핑은 repo의 `config/read_shortlinks.json` 파일에서 관리합니다.
+- 단일 redirect target은 repo의 `config/read_shortlinks.json` 파일에서 관리합니다.
 - 기존 `api2.govpress.cloud`와 `127.0.0.1:8080` API 경로는 건드리지 않습니다.
 - Cloudflare에서 `read.govpress.cloud` public hostname만 새로 추가합니다.
 - 광고 없음, 중간 페이지 없음, DB 없음, admin 없음
 
-매핑 파일 예:
+설정 파일 예:
 
 ```json
-{}
+{
+  "default_target": "https://wavelen-jw.github.io/GovPress_PDF_MD/"
+}
 ```
-
-실제 운영 시에만 slug를 추가합니다.
 
 로컬 서비스 기준:
 
 - health: `http://127.0.0.1:8091/health`
-- redirect: `http://127.0.0.1:8091/<slug>`
+- redirect: `http://127.0.0.1:8091/`
 - systemd: `govpress-read-shortener.service`
 
 배포:
@@ -136,7 +136,7 @@ sudo bash deploy/vps/install-read-shortener.sh ~/GovPress_PDF_MD
 
 ```bash
 curl http://127.0.0.1:8091/health
-curl -I http://127.0.0.1:8091/<실제-slug>
+curl -I http://127.0.0.1:8091/
 sudo systemctl status --no-pager govpress-read-shortener.service
 ```
 
@@ -156,7 +156,7 @@ Cloudflare에서 추가할 것:
 정상 기준:
 
 - `/health`는 `200`
-- 등록된 실제 slug는 `302`와 대상 `Location` 응답
+- `/`는 `302`와 대상 `Location` 응답
 - 기존 `api2.govpress.cloud`는 영향 없음
 
 ## 메모리 모니터링
