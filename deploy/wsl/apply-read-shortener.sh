@@ -41,6 +41,7 @@ echo "== Container status =="
 COMPOSE_FILE_OVERRIDE="$COMPOSE_PATH" "$SCRIPT_DIR/bin/compose.sh" ps
 
 echo "== Local checks =="
+curl -sS -o /dev/null -w 'root_http=%{http_code}\n' --max-time 10 "http://127.0.0.1:${PORT}/" || true
 curl -L -sS -o /dev/null -w 'admin_http=%{http_code}\n' --max-time 10 "http://127.0.0.1:${PORT}/admin/" || true
 echo
 echo "Cloudflare public hostname target should be: http://127.0.0.1:${PORT}"

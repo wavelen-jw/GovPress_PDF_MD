@@ -172,6 +172,7 @@ serverW로 연결되는 현재 공개 주소는 `https://api4.govpress.cloud`입
 
 - YOURLS는 `serverW`에 별도 compose로 띄웁니다.
 - 기존 `api/worker/caddy/cloudflared` 구성은 건드리지 않습니다.
+- 기존 `api4.govpress.cloud`와 `127.0.0.1:8080` host proxy 경로는 건드리지 않습니다.
 - Cloudflare Zero Trust에서 `read.govpress.cloud` public hostname을 새로 추가합니다.
 - Cloudflare Access는 `https://read.govpress.cloud/admin/*`에만 적용합니다.
 
@@ -215,6 +216,7 @@ Cloudflare에서 추가할 것:
 검증:
 
 ```bash
+curl -I http://127.0.0.1:8091/
 curl -I http://127.0.0.1:8091/admin/
 curl -I https://read.govpress.cloud/admin/
 curl -I https://read.govpress.cloud/abc123
