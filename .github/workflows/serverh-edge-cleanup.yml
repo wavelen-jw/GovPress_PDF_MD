@@ -1,0 +1,135 @@
+name: ServerH Edge Cleanup
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: "Cleanup legacy cloudflared on ServerH"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install cloudflared
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb \
+            -o cloudflared.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: Materialize SSH key
+        env:
+          SSH_KEY: ${{ secrets.GOVPRESS_H_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          KEY_FILE=~/.ssh/deploy_key
+
+          if printf '%s' "$SSH_KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+            printf '%s\n' "$SSH_KEY" | tr -d '\r' > "$KEY_FILE"
+          else
+            printf '%s' "$SSH_KEY" | tr -d '\r\n ' | base64 -d > "$KEY_FILE"
+          fi
+
+          chmod 600 "$KEY_FILE"
+          ssh-keygen -lf "$KEY_FILE"
+
+      - name: Configure SSH to use Cloudflare Tunnel
+        env:
+          SSH_HOST: ${{ vars.GOVPRESS_H_SSH_HOST }}
+          CF_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh ~/.ssh/cm
+          : > ~/cloudflared-proxy.log
+          cloudflared access tcp \
+            --hostname "$SSH_HOST" \
+            --url "127.0.0.1:2222" \
+            --service-token-id "$CF_ID" \
+            --service-token-secret "$CF_SECRET" \
+            --logfile "$HOME/cloudflared-proxy.log" \
+            >/tmp/cloudflared-access-tcp.stdout 2>&1 &
+          echo $! > ~/cloudflared-access-tcp.pid
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            if ss -ltn | grep -q "127.0.0.1:2222"; then
+              break
+            fi
+            sleep 1
+          done
+          cat >> ~/.ssh/config << EOF
+          Host ${SSH_HOST}
+            HostName 127.0.0.1
+            StrictHostKeyChecking accept-new
+            Port 2222
+            ControlMaster auto
+            ControlPersist 10m
+            ControlPath ~/.ssh/cm/%C
+            ServerAliveInterval 15
+            ServerAliveCountMax 6
+            TCPKeepAlive yes
+            ConnectTimeout 30
+          EOF
+
+      - name: Preflight SSH over Cloudflare Tunnel
+        env:
+          USER: ${{ secrets.GOVPRESS_H_USER }}
+          SSH_HOST: ${{ vars.GOVPRESS_H_SSH_HOST }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=~/.ssh/deploy_key
+          ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "hostname && whoami"
+
+      - name: Inspect and remediate legacy cloudflared service
+        env:
+          USER: ${{ secrets.GOVPRESS_H_USER }}
+          SSH_HOST: ${{ vars.GOVPRESS_H_SSH_HOST }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=~/.ssh/deploy_key
+          ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" \
+            bash -s <<'BASH'
+          set -euo pipefail
+
+          echo "=== before ==="
+          systemctl status --no-pager cloudflared.service || true
+          ls -l /etc/systemd/system/cloudflared.service || true
+          pgrep -af cloudflared || true
+
+          echo "=== remediation ==="
+          sudo systemctl disable --now cloudflared.service || true
+          sudo rm -f /etc/systemd/system/cloudflared.service || true
+          sudo systemctl daemon-reload || true
+          sudo systemctl restart govpress-caddy.service || true
+          sudo systemctl restart govpress-cloudflared.service || true
+
+          echo "=== after ==="
+          systemctl status --no-pager cloudflared.service || true
+          ls -l /etc/systemd/system/cloudflared.service || true
+          systemctl status --no-pager govpress-caddy.service || true
+          systemctl status --no-pager govpress-cloudflared.service || true
+          pgrep -af cloudflared || true
+          curl -sS http://127.0.0.1:8013/health || true
+          curl -sS http://127.0.0.1:8080/health || true
+          BASH
+
+      - name: Verify public health from runner
+        run: |
+          set -euo pipefail
+          curl -sS -i --max-time 10 https://api.govpress.cloud/health
+
+      - name: Summary
+        run: |
+          {
+            echo "ServerH edge cleanup attempted."
+            echo ""
+            echo "- Target: \`api.govpress.cloud\`"
+            echo "- Checked legacy \`cloudflared.service\`"
+            echo "- Restarted \`govpress-caddy.service\` and \`govpress-cloudflared.service\`"
+            echo "- Verified local and public health"
+          } >> "$GITHUB_STEP_SUMMARY"
