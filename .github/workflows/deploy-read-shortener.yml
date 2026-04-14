@@ -142,6 +142,10 @@ jobs:
           docker ps --filter name=govpress-yourls --filter name=govpress-yourls-db || true
           docker logs --tail 80 govpress-yourls || true
           docker logs --tail 80 govpress-yourls-db || true
+          docker exec govpress-yourls sh -lc 'printf "\n== apache error.log ==\n"; tail -n 120 /var/log/apache2/error.log 2>/dev/null || true' || true
+          docker exec govpress-yourls sh -lc 'printf "\n== apache modules ==\n"; apache2ctl -M 2>/dev/null | tail -n 40 || true' || true
+          docker exec govpress-yourls sh -lc 'printf "\n== yourls paths ==\n"; ls -la /var/www/html; printf "\n== user paths ==\n"; ls -la /var/www/html/user; printf "\n== config presence ==\n"; ls -l /var/www/html/user/config.php 2>/dev/null || true' || true
+          docker exec govpress-yourls php -r 'error_reporting(E_ALL); ini_set("display_errors","1"); $_SERVER["HTTP_HOST"]="read.govpress.cloud"; $_SERVER["REQUEST_URI"]="/"; include "/var/www/html/index.php";' || true
           exit 1
           BASH
 
