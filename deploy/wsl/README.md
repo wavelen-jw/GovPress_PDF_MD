@@ -159,6 +159,79 @@ serverW로 연결되는 현재 공개 주소는 `https://api4.govpress.cloud`입
 - GitHub Pages를 쓸 경우 보통 `https://wavelen-jw.github.io/GovPress_PDF_MD` 형식입니다.
 - 현재 웹 클라이언트는 GitHub Pages에서 기본 API를 `https://api.govpress.cloud`로 보도록 설정되어 있습니다.
 
+## `read.govpress.cloud` 단축 리다이렉트
+
+목표:
+
+- `https://read.govpress.cloud/<slug>`를 YOURLS가 바로 `301` redirect
+- 대상 URL은 기존 GitHub Pages `https://wavelen-jw.github.io/GovPress_PDF_MD/...`
+- 광고 없음
+- 중간 페이지 없음
+
+최소 구성 기준:
+
+- YOURLS는 `serverW`에 별도 compose로 띄웁니다.
+- 기존 `api/worker/caddy/cloudflared` 구성은 건드리지 않습니다.
+- Cloudflare Zero Trust에서 `read.govpress.cloud` public hostname을 새로 추가합니다.
+- Cloudflare Access는 `https://read.govpress.cloud/admin/*`에만 적용합니다.
+
+필요한 `.env` 값:
+
+```env
+GOVPRESS_READ_SHORTENER_PORT=8091
+YOURLS_SITE=https://read.govpress.cloud
+YOURLS_USER=admin
+YOURLS_PASSWORD=change-me
+YOURLS_PRIVATE=true
+YOURLS_DB_NAME=yourls
+YOURLS_DB_USER=yourls
+YOURLS_DB_PASSWORD=change-me
+YOURLS_DB_ROOT_PASSWORD=change-me
+```
+
+로컬 YOURLS 기동:
+
+```bash
+bash deploy/wsl/apply-read-shortener.sh
+```
+
+이 스크립트는 아래 compose 파일을 사용합니다.
+
+- `deploy/wsl/docker-compose.yourls.yml`
+
+기동 후 기준:
+
+- YOURLS admin local: `http://127.0.0.1:8091/admin/`
+- Cloudflare public hostname origin: `http://127.0.0.1:8091`
+- public short URL base: `https://read.govpress.cloud`
+
+Cloudflare에서 추가할 것:
+
+1. `read.govpress.cloud` public hostname 생성
+2. service/origin을 `http://127.0.0.1:8091`로 지정
+3. `read.govpress.cloud/admin/*`에만 Access policy 적용
+4. `read.govpress.cloud/*` 전체에 redirect rule을 추가하지 않음
+
+검증:
+
+```bash
+curl -I http://127.0.0.1:8091/admin/
+curl -I https://read.govpress.cloud/admin/
+curl -I https://read.govpress.cloud/abc123
+```
+
+정상 기준:
+
+- `/admin/`은 local에서 `200` 또는 `302`
+- public `/admin/`은 Access 없이는 차단
+- 공개 shortlink는 `301`로 GitHub Pages 최종 URL을 바로 가리킴
+
+운영 메모:
+
+- long URL은 YOURLS admin에서 `https://wavelen-jw.github.io/GovPress_PDF_MD/...` 형식으로 직접 넣습니다.
+- slug 생성/수정/삭제는 YOURLS admin에서 처리합니다.
+- 기존 `api.govpress.cloud`, `api4.govpress.cloud`, `api2.govpress.cloud` 경로와 무관하게 운영합니다.
+
 ## 실행
 
 ```bash

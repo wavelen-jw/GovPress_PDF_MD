@@ -1,0 +1,37 @@
+services:
+  yourls-db:
+    image: mariadb:11.4
+    container_name: govpress-yourls-db
+    command: >
+      --transaction-isolation=READ-COMMITTED
+      --binlog-format=ROW
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${YOURLS_DB_ROOT_PASSWORD:?set YOURLS_DB_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${YOURLS_DB_NAME:-yourls}
+      MYSQL_USER: ${YOURLS_DB_USER:-yourls}
+      MYSQL_PASSWORD: ${YOURLS_DB_PASSWORD:?set YOURLS_DB_PASSWORD in .env}
+    volumes:
+      - ./data/yourls-db:/var/lib/mysql
+    restart: unless-stopped
+
+  yourls:
+    image: yourls:1.10-apache
+    container_name: govpress-yourls
+    depends_on:
+      - yourls-db
+    environment:
+      YOURLS_DB_HOST: yourls-db
+      YOURLS_DB_NAME: ${YOURLS_DB_NAME:-yourls}
+      YOURLS_DB_USER: ${YOURLS_DB_USER:-yourls}
+      YOURLS_DB_PASS: ${YOURLS_DB_PASSWORD:?set YOURLS_DB_PASSWORD in .env}
+      YOURLS_SITE: ${YOURLS_SITE:?set YOURLS_SITE in .env}
+      YOURLS_USER: ${YOURLS_USER:?set YOURLS_USER in .env}
+      YOURLS_PASS: ${YOURLS_PASSWORD:?set YOURLS_PASSWORD in .env}
+      YOURLS_PRIVATE: ${YOURLS_PRIVATE:-true}
+    ports:
+      - "127.0.0.1:${GOVPRESS_READ_SHORTENER_PORT:-8091}:80"
+    volumes:
+      - ./data/yourls-user:/var/www/html/user
+    restart: unless-stopped
