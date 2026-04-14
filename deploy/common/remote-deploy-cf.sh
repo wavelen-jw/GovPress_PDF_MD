@@ -282,7 +282,14 @@ done
 echo "health_probe_code=$health_code"
 test "$health_code" = "200"
 if [ "${RUN_POLICY_PROBE:-1}" = "1" ]; then
-  echo "policy_probe_code=$(curl -sS -o /tmp/govpress-policy.txt -w '%{http_code}' 'http://127.0.0.1:8080/v1/policy-briefings/today?date=2026-04-08' || true)"
+  policy_probe_header=()
+  if [ -n "${ENV_PATH:-}" ] && [ -f "$ENV_PATH" ]; then
+    api_key="$(sed -n 's/^GOVPRESS_API_KEY=//p' "$ENV_PATH" | tail -n1)"
+    if [ -n "$api_key" ]; then
+      policy_probe_header=(-H "x-api-key: $api_key")
+    fi
+  fi
+  echo "policy_probe_code=$(curl -sS -o /tmp/govpress-policy.txt -w '%{http_code}' "${policy_probe_header[@]}" 'http://127.0.0.1:8080/v1/policy-briefings/today?date=2026-04-08' || true)"
   echo "policy_probe_body=$(head -c 200 /tmp/govpress-policy.txt | tr '\n' ' ' || true)"
 fi
 echo "deploy-complete"
