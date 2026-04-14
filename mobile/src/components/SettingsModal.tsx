@@ -46,6 +46,7 @@ export function SettingsModal({
     serverH: "",
   });
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [lastCheckedAt, setLastCheckedAt] = useState<string>("");
 
   const selectedKey = useMemo<ServerKey>(() => {
     return SERVER_PRESETS.find((preset) => preset.url === draft.baseUrl)?.key || PRIMARY_SERVER_KEY;
@@ -78,12 +79,7 @@ export function SettingsModal({
     return { ok: false, detail: "unknown" };
   }
 
-  useEffect(() => {
-    if (!visible) {
-      return;
-    }
-
-    let cancelled = false;
+  async function refreshServerStatuses(cancelledRef?: { current: boolean }) {
     setCheckingStatus(true);
     setServerStatus({
       serverV: null,
@@ -95,31 +91,39 @@ export function SettingsModal({
       serverW: "",
       serverH: "",
     });
-
-    void Promise.all(
+    const results = await Promise.all(
       SERVER_PRESETS.map(async (preset) => {
         const result = await probeServerHealth(preset.url, SERVER_FALLBACK_TIMEOUT_MS);
         return { key: preset.key, ...result };
       }),
-    ).then((results) => {
-      if (cancelled) {
-        return;
-      }
-      setServerStatus({
-        serverV: results.find((item) => item.key === "serverV")?.ok ?? null,
-        serverW: results.find((item) => item.key === "serverW")?.ok ?? null,
-        serverH: results.find((item) => item.key === "serverH")?.ok ?? null,
-      });
-      setServerDetails({
-        serverV: results.find((item) => item.key === "serverV")?.detail ?? "",
-        serverW: results.find((item) => item.key === "serverW")?.detail ?? "",
-        serverH: results.find((item) => item.key === "serverH")?.detail ?? "",
-      });
-      setCheckingStatus(false);
+    );
+    if (cancelledRef?.current) {
+      return;
+    }
+    setServerStatus({
+      serverV: results.find((item) => item.key === "serverV")?.ok ?? null,
+      serverW: results.find((item) => item.key === "serverW")?.ok ?? null,
+      serverH: results.find((item) => item.key === "serverH")?.ok ?? null,
     });
+    setServerDetails({
+      serverV: results.find((item) => item.key === "serverV")?.detail ?? "",
+      serverW: results.find((item) => item.key === "serverW")?.detail ?? "",
+      serverH: results.find((item) => item.key === "serverH")?.detail ?? "",
+    });
+    setLastCheckedAt(new Date().toLocaleTimeString("ko-KR", { hour12: false }));
+    setCheckingStatus(false);
+  }
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+
+    const cancelled = { current: false };
+    void refreshServerStatuses(cancelled);
 
     return () => {
-      cancelled = true;
+      cancelled.current = true;
     };
   }, [visible]);
 
@@ -175,6 +179,12 @@ export function SettingsModal({
           <Text style={styles.modalHint}>기본 서버 2초 내 무응답 시 대체 서버로 자동 전환됩니다.</Text>
           <View style={styles.settingsStatusBox}>
             {checkingStatus ? <ActivityIndicator size="small" color="#7b664f" /> : <View style={styles.settingsStatusSpacer} />}
+            <Pressable onPress={() => void refreshServerStatuses()} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonLabel}>다시 점검</Text>
+            </Pressable>
+            <Text style={styles.settingsStatusText}>
+              {checkingStatus ? "서버 상태 재점검 중" : lastCheckedAt ? `마지막 점검 ${lastCheckedAt}` : "아직 점검 전"}
+            </Text>
           </View>
           <View style={styles.modalActions}>
             <Pressable onPress={onClose} style={styles.secondaryButton}>
