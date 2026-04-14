@@ -1,0 +1,105 @@
+name: Deploy Read Shortener To ServerV
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-read-shortener-v:
+    name: "Deploy read.govpress.cloud redirector on ServerV"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Materialize deploy key
+        env:
+          VPS_KEY: ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          KEY_FILE=~/.ssh/deploy_key
+
+          if printf '%s' "$VPS_KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+            printf '%s\n' "$VPS_KEY" | tr -d '\r' > "$KEY_FILE"
+          else
+            printf '%s' "$VPS_KEY" | tr -d '\r\n ' | base64 -d > "$KEY_FILE"
+          fi
+
+          chmod 600 "$KEY_FILE"
+          ssh-keygen -y -f "$KEY_FILE" > /dev/null
+
+      - name: Add server to known_hosts
+        env:
+          HOST: ${{ secrets.GOVPRESS_VPS_HOST }}
+          PORT: ${{ vars.GOVPRESS_VPS_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${PORT}" -H "$HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy redirector
+        env:
+          HOST: ${{ secrets.GOVPRESS_VPS_HOST }}
+          USER: ${{ secrets.GOVPRESS_VPS_USER }}
+          PORT: ${{ vars.GOVPRESS_VPS_PORT || '22' }}
+          DEPLOY_DIR: ${{ vars.GOVPRESS_VPS_DEPLOY_DIR }}
+          BRANCH: ${{ vars.GOVPRESS_VPS_BRANCH || 'web' }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=~/.ssh/deploy_key
+
+          ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes -p "$PORT" "$USER@$HOST" /bin/bash --noprofile --norc <<EOF 2>&1 | tee remote-read-shortener.log
+          set -euo pipefail
+          echo "=== read shortener remote diagnostics ==="
+          echo "remote_host=\$(hostname)"
+          echo "remote_user=\$(whoami)"
+          echo "deploy_dir=$DEPLOY_DIR"
+          echo "target_branch=$BRANCH"
+          git -C "$DEPLOY_DIR" fetch origin
+          git -C "$DEPLOY_DIR" checkout "$BRANCH"
+          git -C "$DEPLOY_DIR" reset --hard "origin/$BRANCH"
+          echo "git_head=\$(git -C "$DEPLOY_DIR" rev-parse HEAD)"
+          sudo -n bash "$DEPLOY_DIR/deploy/vps/install-read-shortener.sh" "$DEPLOY_DIR"
+          status_code="\$(curl -sS -o /tmp/govpress-read-shortener-root.txt -w '%{http_code}' http://127.0.0.1:8091/abc123 || true)"
+          echo "sample_redirect_code=\$status_code"
+          echo "sample_redirect_headers=\$(curl -sSI http://127.0.0.1:8091/abc123 | tr '\n' ' ' | cut -c1-400 || true)"
+          sudo -n systemctl --no-pager --full status govpress-read-shortener.service | sed -n '1,30p' || true
+          EOF
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "✅ ServerV read shortener deployment"
+            echo ""
+            echo "- Local origin: \`http://127.0.0.1:8091\`"
+            echo "- Existing \`api2.govpress.cloud\` path is not touched by this workflow"
+            echo "- Remaining manual steps:"
+            echo "  - add \`read.govpress.cloud\` public hostname in Cloudflare"
+            echo "  - set origin to \`http://127.0.0.1:8091\` on serverV tunnel"
+            echo "  - no admin path is needed"
+            echo ""
+            echo '```text'
+            cat remote-read-shortener.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify remote redirector
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f remote-read-shortener.log ]; then
+            echo "remote-read-shortener.log missing" >&2
+            exit 1
+          fi
+
+          sample_redirect_code="$(sed -n 's/^sample_redirect_code=//p' remote-read-shortener.log | tail -n1)"
+          if [ "$sample_redirect_code" != "302" ]; then
+            echo "unexpected sample redirect code: ${sample_redirect_code:-missing}" >&2
+            exit 1
+          fi

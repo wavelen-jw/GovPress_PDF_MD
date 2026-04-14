@@ -1,0 +1,14 @@
+[Unit]
+Description=GovPress Read Shortener
+After=network.target
+
+[Service]
+Type=simple
+User=__SERVICE_USER__
+WorkingDirectory=__DEPLOY_DIR__
+ExecStart=/usr/bin/python3 __DEPLOY_DIR__/scripts/read_shortener_server.py --host 127.0.0.1 --port 8091 --map-file __DEPLOY_DIR__/config/read_shortlinks.json
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -101,6 +101,56 @@ git pull
 docker compose -f deploy/vps/docker-compose.yml up -d --build
 ```
 
+## `read.govpress.cloud` 단축 리다이렉트
+
+구성:
+
+- `serverV`에 초경량 Python redirect 서버를 별도 systemd 서비스로 띄웁니다.
+- slug 매핑은 repo의 `config/read_shortlinks.json` 파일에서 관리합니다.
+- 기존 `api2.govpress.cloud`와 `127.0.0.1:8080` API 경로는 건드리지 않습니다.
+- Cloudflare에서 `read.govpress.cloud` public hostname만 새로 추가합니다.
+- 광고 없음, 중간 페이지 없음, DB 없음, admin 없음
+
+매핑 파일 예:
+
+```json
+{
+  "abc123": "https://wavelen-jw.github.io/GovPress_PDF_MD/"
+}
+```
+
+로컬 서비스 기준:
+
+- health: `http://127.0.0.1:8091/health`
+- redirect: `http://127.0.0.1:8091/<slug>`
+- systemd: `govpress-read-shortener.service`
+
+배포:
+
+```bash
+sudo bash deploy/vps/install-read-shortener.sh ~/GovPress_PDF_MD
+```
+
+검증:
+
+```bash
+curl http://127.0.0.1:8091/health
+curl -I http://127.0.0.1:8091/abc123
+sudo systemctl status --no-pager govpress-read-shortener.service
+```
+
+Cloudflare에서 추가할 것:
+
+1. `read.govpress.cloud` public hostname 생성
+2. service/origin을 `http://127.0.0.1:8091`로 지정
+3. 별도 admin 경로나 Access policy는 필요 없음
+
+정상 기준:
+
+- `/health`는 `200`
+- `/abc123`은 `302`와 `Location: https://wavelen-jw.github.io/GovPress_PDF_MD/`
+- 기존 `api2.govpress.cloud`는 영향 없음
+
 ## 메모리 모니터링
 
 1 GB 환경에서는 메모리 여유를 주기적으로 확인합니다.
