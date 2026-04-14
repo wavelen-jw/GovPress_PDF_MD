@@ -101,14 +101,14 @@ git pull
 docker compose -f deploy/vps/docker-compose.yml up -d --build
 ```
 
-## `read.govpress.cloud` 단축 리다이렉트
+## `ai.govpress.cloud` 단축 리다이렉트
 
 구성:
 
 - `serverV`에 초경량 Python redirect 서버를 별도 systemd 서비스로 띄웁니다.
 - 단일 redirect target은 repo의 `config/read_shortlinks.json` 파일에서 관리합니다.
 - 기존 `api2.govpress.cloud`와 `127.0.0.1:8080` API 경로는 건드리지 않습니다.
-- Cloudflare에서 `read.govpress.cloud` public hostname만 새로 추가합니다.
+- Cloudflare에서 `ai.govpress.cloud` public hostname만 새로 추가합니다.
 - 광고 없음, 중간 페이지 없음, DB 없음, admin 없음
 
 설정 파일 예:
@@ -149,7 +149,7 @@ sudo bash deploy/vps/install-read-shortener-sudoers.sh
 
 Cloudflare에서 추가할 것:
 
-1. `read.govpress.cloud` public hostname 생성
+1. `ai.govpress.cloud` public hostname 생성
 2. service/origin을 `http://127.0.0.1:8091`로 지정
 3. 별도 admin 경로나 Access policy는 필요 없음
 
