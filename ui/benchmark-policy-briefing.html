@@ -590,7 +590,15 @@
 
   <script src="./benchmark-policy-briefing-data.js"></script>
   <script>
-    const data = window.BENCHMARK_POLICY_BRIEFING_DATA;
+    // 국가유산청 문서: PDF가 본문이 아닌 붙임(포스터·사진) 페이지를 가리켜 HWPX와 내용이 다름 → 제외
+    const EXCLUDED_IDS = new Set(["156754222", "156754216", "156754214", "156754212"]);
+
+    const _raw = window.BENCHMARK_POLICY_BRIEFING_DATA;
+    const data = {
+      ..._raw,
+      documents: _raw.documents.filter(r => !EXCLUDED_IDS.has(String(r.document_id))),
+      examples:  _raw.examples.filter(e => !EXCLUDED_IDS.has(String(e.document_id))),
+    };
     const $ = (id) => document.getElementById(id);
     const fmtPct = (v) => v == null ? "n/a" : (v * 100).toFixed(1) + "점";
     const fmtRaw = (v) => v == null ? "n/a" : v.toFixed(3);
