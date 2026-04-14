@@ -112,6 +112,17 @@ function normalizePolicyBriefingStatusMessage(message: string): string {
   return message;
 }
 
+function formatProbeError(error: unknown): string {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return "timeout";
+  }
+  if (error instanceof Error) {
+    const message = error.message.trim();
+    return message || error.name || "fetch failed";
+  }
+  return String(error || "fetch failed");
+}
+
 async function probeServerHealthStatus(url: string, timeoutMs: number): Promise<{ ok: boolean; detail: string }> {
   const attempts = 2;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -128,9 +139,9 @@ async function probeServerHealthStatus(url: string, timeoutMs: number): Promise<
       if (attempt === attempts - 1) {
         return { ok: false, detail: `HTTP ${response.status}` };
       }
-    } catch {
+    } catch (error) {
       if (attempt === attempts - 1) {
-        return { ok: false, detail: "fetch failed" };
+        return { ok: false, detail: formatProbeError(error) };
       }
     } finally {
       clearTimeout(timeout);

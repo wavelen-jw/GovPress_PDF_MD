@@ -11,6 +11,17 @@ type ServerProbeResult = {
   detail: string;
 };
 
+function formatProbeError(error: unknown): string {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return "timeout";
+  }
+  if (error instanceof Error) {
+    const message = error.message.trim();
+    return message || error.name || "fetch failed";
+  }
+  return String(error || "fetch failed");
+}
+
 export function SettingsModal({
   visible,
   draft,
@@ -56,9 +67,9 @@ export function SettingsModal({
         if (attempt === attempts - 1) {
           return { ok: false, detail: `HTTP ${response.status}` };
         }
-      } catch {
+      } catch (error) {
         if (attempt === attempts - 1) {
-          return { ok: false, detail: "fetch failed" };
+          return { ok: false, detail: formatProbeError(error) };
         }
       } finally {
         clearTimeout(timeout);
