@@ -8,6 +8,11 @@ on:
         required: false
         default: true
         type: boolean
+      test_message:
+        description: "Optional Telegram test message to send immediately."
+        required: false
+        default: ""
+        type: string
   schedule:
     - cron: "*/5 * * * *"
 
@@ -131,6 +136,19 @@ jobs:
             echo "## Server Health Monitor"
             cat server-health-summary.txt
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Send Telegram test message
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.send_telegram != false && inputs.test_message != '' }}
+        env:
+          TEST_MESSAGE: ${{ inputs.test_message }}
+        run: |
+          python - <<'PY'
+          import os
+          from server.app.core.notify import send_telegram
+
+          send_telegram(os.environ["TEST_MESSAGE"])
+          print("test_message_sent=true")
+          PY
 
       - name: Update state issue
         if: always()
