@@ -315,6 +315,13 @@ sudo -n true
 - `api4.govpress.cloud` DNS는 `4390f5bd-3dbe-49f5-ab52-382de7670294.cfargotunnel.com`
 - stale connector가 남아 있지 않은지 tunnel connections 확인
 
+반복 점검용 스크립트:
+
+```bash
+python3 scripts/check_cloudflare_tunnel_connectors.py --json
+python3 scripts/check_cloudflare_tunnel_connectors.py --tunnel serverH --cleanup-stale
+```
+
 ## 저장 위치
 
 배포 데이터는 이 디렉터리 아래에 남습니다.
