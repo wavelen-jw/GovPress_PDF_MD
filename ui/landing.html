@@ -372,12 +372,12 @@
 
       <!-- Option tabs -->
       <div class="flex gap-2 mb-6" data-aos="fade-up" data-aos-delay="100">
-        <button id="tab-a" onclick="switchTab('a')"
+        <button id="tab-a" type="button" onclick="switchOptionTab('a')"
           class="px-4 py-1.5 rounded-full text-xs font-bold transition-all"
-          style="background:#22c55e; color:#0d0d0d;">A: 화면 비교</button>
-        <button id="tab-b" onclick="switchTab('b')"
+          style="background:#22c55e; color:#0d0d0d; cursor:pointer;">A: 화면 비교</button>
+        <button id="tab-b" type="button" onclick="switchOptionTab('b')"
           class="px-4 py-1.5 rounded-full text-xs font-bold transition-all"
-          style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.45);">B: AI 활용 비교</button>
+          style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.45); cursor:pointer;">B: AI 활용 비교</button>
       </div>
 
       <!-- ── OPTION A: 렌더링 결과 나란히 ── -->
@@ -652,7 +652,7 @@
     AOS.init({ duration: 680, once: true, offset: 70, easing: 'ease-out-cubic' });
 
     // Section 3 option tab switcher
-    function switchTab(opt) {
+    function switchOptionTab(opt) {
       const isA = opt === 'a';
       document.getElementById('panel-a').style.display = isA ? '' : 'none';
       document.getElementById('panel-b').style.display = isA ? 'none' : '';
