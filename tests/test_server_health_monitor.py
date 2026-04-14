@@ -46,7 +46,7 @@ class ServerHealthMonitorTests(unittest.TestCase):
         self.assertEqual(state["servers"]["serverH"]["status"], "up")
         self.assertEqual(state["servers"]["serverW"]["consecutive_failures"], 0)
 
-    def test_first_failure_does_not_alert_before_threshold(self) -> None:
+    def test_first_failure_emits_degraded_alert_before_threshold(self) -> None:
         previous_state = {
             "servers": {
                 "serverH": {
@@ -62,15 +62,16 @@ class ServerHealthMonitorTests(unittest.TestCase):
             failure_threshold=2,
             checked_at="2026-04-14T00:05:00Z",
         )
-        self.assertEqual(transitions, [])
-        self.assertEqual(state["servers"]["serverH"]["status"], "up")
+        self.assertEqual(len(transitions), 1)
+        self.assertEqual(transitions[0]["type"], "degraded")
+        self.assertEqual(state["servers"]["serverH"]["status"], "degraded")
         self.assertEqual(state["servers"]["serverH"]["consecutive_failures"], 1)
 
     def test_second_consecutive_failure_emits_single_down_alert(self) -> None:
         previous_state = {
             "servers": {
                 "serverH": {
-                    "status": "up",
+                    "status": "degraded",
                     "consecutive_failures": 1,
                     "last_transition_at": "2026-04-14T00:00:00Z",
                 }
@@ -128,6 +129,26 @@ class ServerHealthMonitorTests(unittest.TestCase):
         self.assertEqual(state["servers"]["serverH"]["status"], "up")
         self.assertEqual(state["servers"]["serverH"]["consecutive_failures"], 0)
 
+    def test_recovery_from_degraded_emits_single_recovered_alert(self) -> None:
+        previous_state = {
+            "servers": {
+                "serverH": {
+                    "status": "degraded",
+                    "consecutive_failures": 1,
+                    "last_transition_at": "2026-04-14T00:05:00Z",
+                }
+            }
+        }
+        state, transitions = evaluate_monitor(
+            previous_state,
+            [self._status("serverH", ok=True, status=200, detail="HTTP 200", label="서버H")],
+            failure_threshold=2,
+            checked_at="2026-04-14T00:06:00Z",
+        )
+        self.assertEqual(len(transitions), 1)
+        self.assertEqual(transitions[0]["type"], "recovered")
+        self.assertEqual(state["servers"]["serverH"]["status"], "up")
+
     def test_malformed_state_file_resets_safely(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "state.json"
@@ -147,6 +168,15 @@ class ServerHealthMonitorTests(unittest.TestCase):
         message = format_transition_message(
             [
                 {
+                    "type": "degraded",
+                    "server": "serverV",
+                    "label": "서버V",
+                    "url": "https://api2.govpress.cloud",
+                    "checked_at": "2026-04-14T00:09:00Z",
+                    "detail": "timed out",
+                    "consecutive_failures": 1,
+                },
+                {
                     "type": "down",
                     "server": "serverH",
                     "label": "서버H",
@@ -165,6 +195,6 @@ class ServerHealthMonitorTests(unittest.TestCase):
                 },
             ]
         )
+        self.assertIn("DEGRADED 서버V", message)
         self.assertIn("DOWN 서버H", message)
         self.assertIn("RECOVERED 서버W", message)
-

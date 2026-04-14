@@ -137,7 +137,7 @@ def evaluate_monitor(
         if status["ok"]:
             current_status = "up"
             consecutive_failures = 0
-            if previous_status == "down":
+            if previous_status in {"degraded", "down"}:
                 transitions.append(
                     {
                         "server": key,
@@ -167,7 +167,20 @@ def evaluate_monitor(
                     }
                 )
             else:
-                current_status = "up" if previous_status == "up" else "unknown"
+                current_status = "degraded"
+                if previous_status != "degraded":
+                    transitions.append(
+                        {
+                            "server": key,
+                            "label": status["label"],
+                            "url": status["url"],
+                            "type": "degraded",
+                            "checked_at": checked_at,
+                            "detail": status["detail"],
+                            "status": status.get("status"),
+                            "consecutive_failures": consecutive_failures,
+                        }
+                    )
 
         next_servers[key] = {
             "status": current_status,
@@ -188,7 +201,12 @@ def evaluate_monitor(
 def format_transition_message(transitions: list[dict[str, Any]]) -> str:
     lines = ["[Server Alert]"]
     for item in transitions:
-        if item["type"] == "down":
+        if item["type"] == "degraded":
+            lines.append(
+                f"DEGRADED {item['label']} ({item['server']})"
+                f" - {item['detail']} - failures={item['consecutive_failures']}"
+            )
+        elif item["type"] == "down":
             lines.append(
                 f"DOWN {item['label']} ({item['server']})"
                 f" - {item['detail']} - failures={item['consecutive_failures']}"
