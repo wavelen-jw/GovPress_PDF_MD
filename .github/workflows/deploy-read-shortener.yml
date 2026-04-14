@@ -75,7 +75,7 @@ jobs:
           cd "$DEPLOY_DIR"
           git fetch origin "$BRANCH"
           git checkout "$BRANCH"
-          git pull --ff-only origin "$BRANCH"
+          git merge --ff-only "origin/$BRANCH"
 
           python3 - <<'PY' "$ENV_PATH" "$SHARED_SECRET"
           from pathlib import Path
