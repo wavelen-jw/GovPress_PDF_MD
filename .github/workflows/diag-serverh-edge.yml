@@ -1,0 +1,111 @@
+name: Diagnose ServerH Edge
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: "Diagnose/Recover ServerH Edge"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install cloudflared
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb \
+            -o cloudflared.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: Materialize SSH key
+        env:
+          SSH_KEY: ${{ secrets.GOVPRESS_H_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          KEY_FILE=~/.ssh/deploy_key
+
+          if printf '%s' "$SSH_KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+            printf '%s\n' "$SSH_KEY" | tr -d '\r' > "$KEY_FILE"
+          else
+            printf '%s' "$SSH_KEY" | tr -d '\r\n ' | base64 -d > "$KEY_FILE"
+          fi
+
+          chmod 600 "$KEY_FILE"
+          ssh-keygen -lf "$KEY_FILE"
+
+      - name: Configure SSH to use Cloudflare Tunnel
+        env:
+          SSH_HOST: ${{ vars.GOVPRESS_H_SSH_HOST }}
+          CF_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          cat >> ~/.ssh/config << EOF
+          Host ${SSH_HOST}
+            StrictHostKeyChecking accept-new
+            Port 2222
+            ProxyCommand /bin/sh -lc 'cloudflared access ssh --hostname %h --service-token-id ${CF_ID} --service-token-secret ${CF_SECRET}'
+          EOF
+
+      - name: Diagnose and restart host edge services
+        env:
+          USER: ${{ secrets.GOVPRESS_H_USER }}
+          SSH_HOST: ${{ vars.GOVPRESS_H_SSH_HOST }}
+          DEPLOY_DIR: ${{ vars.GOVPRESS_H_DEPLOY_DIR }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=~/.ssh/deploy_key
+
+          ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" \
+            bash -s "$DEPLOY_DIR" <<'BASH'
+          set -euo pipefail
+          DEPLOY_DIR="$1"
+          ENV_PATH="$DEPLOY_DIR/deploy/wsl/.env"
+          API_KEY="$(grep '^GOVPRESS_API_KEY=' "$ENV_PATH" | cut -d= -f2- || true)"
+
+          echo "=== Before restart: loopback health ==="
+          curl -sS -i --max-time 10 http://127.0.0.1:8013/health || true
+          echo
+          curl -sS -i --max-time 10 http://127.0.0.1:8080/health || true
+          echo
+
+          echo "=== Before restart: services ==="
+          sudo systemctl status --no-pager govpress-compose.service govpress-caddy.service govpress-cloudflared.service || true
+          echo
+
+          echo "=== Before restart: caddy journal ==="
+          sudo journalctl -u govpress-caddy.service -n 40 --no-pager || true
+          echo
+
+          echo "=== Before restart: cloudflared journal ==="
+          sudo journalctl -u govpress-cloudflared.service -n 40 --no-pager || true
+          echo
+
+          echo "=== Restarting host edge services ==="
+          sudo systemctl restart govpress-caddy.service
+          sudo systemctl restart govpress-cloudflared.service
+          sleep 6
+
+          echo "=== After restart: loopback health ==="
+          curl -sS -i --max-time 10 http://127.0.0.1:8080/health || true
+          echo
+
+          echo "=== After restart: services ==="
+          sudo systemctl status --no-pager govpress-caddy.service govpress-cloudflared.service || true
+          echo
+
+          echo "=== After restart: public health from remote host ==="
+          if [ -n "$API_KEY" ]; then
+            curl -sS -i --max-time 15 -H "X-API-Key: $API_KEY" https://api.govpress.cloud/health || true
+          else
+            echo "GOVPRESS_API_KEY missing from $ENV_PATH"
+          fi
+          BASH
+
