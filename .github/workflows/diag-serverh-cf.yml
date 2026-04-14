@@ -89,17 +89,20 @@ jobs:
             echo "== listeners =="
             ss -ltnp | sed -n "1,120p"
             echo
+            echo "== restart =="
+            sudo -n systemctl restart govpress-caddy.service
+            sudo -n systemctl restart govpress-cloudflared.service
+            sleep 5
+            echo done
+            echo
             echo "== cloudflared-status =="
-            sudo -n systemctl status --no-pager govpress-cloudflared.service || true
+            sudo -n systemctl status --no-pager govpress-cloudflared.service
             echo
             echo "== caddy-status =="
-            sudo -n systemctl status --no-pager govpress-caddy.service || true
+            sudo -n systemctl status --no-pager govpress-caddy.service
             echo
-            echo "== cloudflared-log =="
-            sudo -n journalctl -u govpress-cloudflared.service -n 80 --no-pager || true
-            echo
-            echo "== caddy-log =="
-            sudo -n journalctl -u govpress-caddy.service -n 80 --no-pager || true
+            echo "== caddy-log-before =="
+            sudo -n journalctl -u govpress-caddy.service -n 30 --no-pager
           '
 
       - name: Probe public health from runner
@@ -108,3 +111,19 @@ jobs:
         run: |
           set -euo pipefail
           curl -sS -i -H "X-API-Key: $API_KEY" https://api.govpress.cloud/health | sed -n '1,20p'
+
+      - name: Collect post-probe logs
+        env:
+          USERNAME: ${{ secrets.GOVPRESS_H_USER }}
+          SSH_HOST: ${{ vars.GOVPRESS_H_SSH_HOST }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=~/.ssh/deploy_key
+          ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USERNAME@$SSH_HOST" '
+            set -euo pipefail
+            echo "== cloudflared-log-after =="
+            sudo -n journalctl -u govpress-cloudflared.service -n 30 --no-pager
+            echo
+            echo "== caddy-log-after =="
+            sudo -n journalctl -u govpress-caddy.service -n 30 --no-pager
+          '
