@@ -463,30 +463,6 @@
       </div>
     </section>
 
-    <!-- ── 문서별 점수표 ── -->
-    <section class="section">
-      <h2>문서별 점수</h2>
-      <p class="section-copy">
-        99건 각각에 대한 두 도구의 점수입니다. 차이 컬럼이 양수(↑)이면 읽힘이 앞섰고, 음수(↓)이면 OpenDataLoader가 앞섰다는 의미입니다.
-        기본 정렬은 점수 차이가 큰 순서입니다.
-      </p>
-      <div class="leaderboard-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>문서</th>
-              <th>읽힘</th>
-              <th>OpenDataLoader</th>
-              <th>차이</th>
-              <th>읽힘 세부 (텍스트/표/구조)</th>
-              <th>ODL 세부 (텍스트/표/구조)</th>
-            </tr>
-          </thead>
-          <tbody id="documents-body"></tbody>
-        </table>
-      </div>
-    </section>
-
     <!-- ── 비교 예시 ── -->
     <section class="section">
       <h2>실제 변환 결과 비교</h2>
@@ -533,6 +509,30 @@
       </div>
     </section>
 
+    <!-- ── 문서별 점수표 ── -->
+    <section class="section">
+      <h2>문서별 점수</h2>
+      <p class="section-copy">
+        각 문서에 대한 두 도구의 점수입니다. 차이 컬럼이 양수(↑)이면 읽힘이 앞섰고, 음수(↓)이면 OpenDataLoader가 앞섰다는 의미입니다.
+        기본 정렬은 점수 차이가 큰 순서입니다. 한쪽 변환 결과가 없어 0점 처리된 문서는 제외됩니다.
+      </p>
+      <div class="leaderboard-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>문서</th>
+              <th>읽힘</th>
+              <th>OpenDataLoader</th>
+              <th>차이</th>
+              <th>읽힘 세부 (텍스트/표/구조)</th>
+              <th>ODL 세부 (텍스트/표/구조)</th>
+            </tr>
+          </thead>
+          <tbody id="documents-body"></tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- ── 방법과 출처 ── -->
     <section class="section">
       <h2>측정 방법과 출처</h2>
@@ -540,6 +540,41 @@
         지표 정의는 <code>opendataloader-bench</code>를 따랐고, 정책브리핑 ground truth는 이 저장소에서 별도로 생성했습니다.
       </p>
       <div class="source-grid" id="source-grid"></div>
+    </section>
+
+    <!-- ── Ground Truth 생성 방법 ── -->
+    <section class="section">
+      <h2>Ground Truth 생성 방법</h2>
+      <p class="section-copy">
+        이 벤치마크의 ground truth는 정책브리핑 공식 홈페이지의 <strong>문서 뷰어 HTML</strong>에서 추출했습니다.
+        PDF나 HWPX를 재변환한 것이 아니라, 정책브리핑이 직접 제공하는 웹 뷰어 렌더링을 기준으로 삼았습니다.
+      </p>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px;">
+        <article class="source-card">
+          <strong style="font-size:14px; display:block; margin-bottom:8px;">1단계 — 문서 뷰어 HTML 수집</strong>
+          <p style="font-size:13px; margin:0; color:var(--muted); line-height:1.65;">
+            정책브리핑 보도자료 각 문서의 공식 뷰어 URL에서 HTML을 수집합니다.
+            이 HTML에는 원문의 제목·본문·표·목록이 정책브리핑이 의도한 그대로 담겨 있습니다.
+          </p>
+        </article>
+        <article class="source-card">
+          <strong style="font-size:14px; display:block; margin-bottom:8px;">2단계 — HTML → Markdown 변환</strong>
+          <p style="font-size:13px; margin:0; color:var(--muted); line-height:1.65;">
+            수집한 HTML을 Markdown으로 변환합니다. 불필요한 메타 태그·스크립트·스타일을 제거하고,
+            제목 계층·표·목록·인용 구조를 Markdown 문법으로 정규화합니다.
+          </p>
+        </article>
+        <article class="source-card">
+          <strong style="font-size:14px; display:block; margin-bottom:8px;">3단계 — 정규화 및 검수</strong>
+          <p style="font-size:13px; margin:0; color:var(--muted); line-height:1.65;">
+            공백·줄바꿈·특수문자를 정규화하고, 문서 구조가 올바르게 추출됐는지 확인합니다.
+            뷰어 HTML 파싱에 실패하거나 내용이 불충분한 문서는 corpus에서 제외했습니다.
+          </p>
+        </article>
+      </div>
+      <div class="caveat" style="margin-top:18px;">
+        ※ 정책브리핑 문서 뷰어가 표현하지 못하는 일부 복잡한 표(이미지형 표 등)는 ground truth에서도 반영되지 않을 수 있습니다.
+      </div>
     </section>
 
     <!-- ── 지표 상세 정의 ── -->
@@ -614,7 +649,10 @@
     }
 
     function fillDocumentsTable() {
-      const rows = [...data.documents].sort((a, b) => {
+      const rows = [...data.documents]
+        .filter(r => r.readhim.prediction_available !== false && r.opendataloader.prediction_available !== false)
+        .filter(r => r.readhim.overall > 0 && r.opendataloader.overall > 0)
+        .sort((a, b) => {
         const av = a.delta_overall == null ? -999 : Math.abs(a.delta_overall);
         const bv = b.delta_overall == null ? -999 : Math.abs(b.delta_overall);
         return bv - av;
@@ -665,7 +703,12 @@
 
     function fillExamples() {
       const nav = $("example-nav");
-      data.examples.forEach((example, index) => {
+      const examples = data.examples.filter(e =>
+        e.readhim.prediction_available !== false &&
+        e.opendataloader.prediction_available !== false &&
+        e.readhim.overall > 0 && e.opendataloader.overall > 0
+      );
+      examples.forEach((example, index) => {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "example-button" + (index === 0 ? " active" : "");
@@ -678,7 +721,7 @@
         });
         nav.appendChild(button);
       });
-      if (data.examples.length) renderExample(data.examples[0]);
+      if (examples.length) renderExample(examples[0]);
     }
 
     function fillSources() {
