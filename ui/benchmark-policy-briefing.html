@@ -514,7 +514,7 @@
       <h2>문서별 점수</h2>
       <p class="section-copy">
         각 문서에 대한 두 도구의 점수입니다. 차이 컬럼이 양수(↑)이면 읽힘이 앞섰고, 음수(↓)이면 OpenDataLoader가 앞섰다는 의미입니다.
-        기본 정렬은 점수 차이가 큰 순서입니다. 한쪽 변환 결과가 없어 0점 처리된 문서는 제외됩니다.
+        기본 정렬은 점수 차이가 큰 순서입니다.
       </p>
       <div class="leaderboard-wrap">
         <table>
@@ -649,10 +649,7 @@
     }
 
     function fillDocumentsTable() {
-      const rows = [...data.documents]
-        .filter(r => r.readhim.prediction_available !== false && r.opendataloader.prediction_available !== false)
-        .filter(r => r.readhim.overall > 0 && r.opendataloader.overall > 0)
-        .sort((a, b) => {
+      const rows = [...data.documents].sort((a, b) => {
         const av = a.delta_overall == null ? -999 : Math.abs(a.delta_overall);
         const bv = b.delta_overall == null ? -999 : Math.abs(b.delta_overall);
         return bv - av;
