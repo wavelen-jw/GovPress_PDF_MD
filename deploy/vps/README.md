@@ -114,10 +114,10 @@ docker compose -f deploy/vps/docker-compose.yml up -d --build
 매핑 파일 예:
 
 ```json
-{
-  "abc123": "https://wavelen-jw.github.io/GovPress_PDF_MD/"
-}
+{}
 ```
+
+실제 운영 시에만 slug를 추가합니다.
 
 로컬 서비스 기준:
 
@@ -136,7 +136,7 @@ sudo bash deploy/vps/install-read-shortener.sh ~/GovPress_PDF_MD
 
 ```bash
 curl http://127.0.0.1:8091/health
-curl -I http://127.0.0.1:8091/abc123
+curl -I http://127.0.0.1:8091/<실제-slug>
 sudo systemctl status --no-pager govpress-read-shortener.service
 ```
 
@@ -156,7 +156,7 @@ Cloudflare에서 추가할 것:
 정상 기준:
 
 - `/health`는 `200`
-- `/abc123`은 `302`와 `Location: https://wavelen-jw.github.io/GovPress_PDF_MD/`
+- 등록된 실제 slug는 `302`와 대상 `Location` 응답
 - 기존 `api2.govpress.cloud`는 영향 없음
 
 ## 메모리 모니터링
