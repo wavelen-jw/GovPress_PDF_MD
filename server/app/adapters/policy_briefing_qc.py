@@ -15,6 +15,14 @@ from typing import Callable
 from .policy_briefing import PolicyBriefingAttachment, PolicyBriefingCatalogResult, PolicyBriefingClient, PolicyBriefingItem
 
 
+_QC_PIPELINE_MODULES: tuple[
+    Callable[..., dict[str, object]],
+    Callable[..., dict[str, object]],
+    Callable[..., dict[str, object]],
+    Callable[..., dict[str, object]],
+] | None = None
+
+
 def _load_gov_md_converter_qc_pipeline() -> tuple[Callable[..., dict[str, object]], Callable[..., dict[str, object]], Callable[..., dict[str, object]], Callable[..., dict[str, object]]]:
     candidates = []
     env_root = os.environ.get("GOV_MD_CONVERTER_ROOT")
@@ -38,12 +46,11 @@ def _load_gov_md_converter_qc_pipeline() -> tuple[Callable[..., dict[str, object
     raise ModuleNotFoundError("gov-md-converter QC pipeline module not found")
 
 
-(
-    _converter_run_gov_md_qc_command,
-    _converter_run_gov_md_batch_local,
-    _converter_build_qc_pipeline_report,
-    _converter_run_local_hwpx_qc_pipeline,
-) = _load_gov_md_converter_qc_pipeline()
+def _get_gov_md_converter_qc_pipeline() -> tuple[Callable[..., dict[str, object]], Callable[..., dict[str, object]], Callable[..., dict[str, object]], Callable[..., dict[str, object]]]:
+    global _QC_PIPELINE_MODULES
+    if _QC_PIPELINE_MODULES is None:
+        _QC_PIPELINE_MODULES = _load_gov_md_converter_qc_pipeline()
+    return _QC_PIPELINE_MODULES
 
 
 ScaffoldRunner = Callable[..., str]
@@ -215,7 +222,8 @@ def run_gov_md_qc_command(
     qc_root: str | Path,
     output_path: str | Path | None = None,
 ) -> dict[str, object]:
-    return _converter_run_gov_md_qc_command(
+    converter_run_gov_md_qc_command, _, _, _ = _get_gov_md_converter_qc_pipeline()
+    return converter_run_gov_md_qc_command(
         gov_md_converter_root=gov_md_converter_root,
         command=command,
         qc_root=qc_root,
@@ -233,7 +241,8 @@ def run_gov_md_batch_local(
     autofill: bool = True,
     force: bool = False,
 ) -> dict[str, object]:
-    return _converter_run_gov_md_batch_local(
+    _, converter_run_gov_md_batch_local, _, _ = _get_gov_md_converter_qc_pipeline()
+    return converter_run_gov_md_batch_local(
         gov_md_converter_root=gov_md_converter_root,
         source_root=source_root,
         qc_root=qc_root,
@@ -677,7 +686,8 @@ def run_storage_backed_qc_pipeline(
         "source_kind": "storage_backed_corpus",
     }
 
-    return _converter_build_qc_pipeline_report(
+    _, _, converter_build_qc_pipeline_report, _ = _get_gov_md_converter_qc_pipeline()
+    return converter_build_qc_pipeline_report(
         target_date=target_date,
         output_root=output_root,
         export_report=export_report,
@@ -721,7 +731,8 @@ def run_policy_briefing_qc_pipeline(
         force=force,
         sample_status=sample_status,
     )
-    return _converter_build_qc_pipeline_report(
+    _, _, converter_build_qc_pipeline_report, _ = _get_gov_md_converter_qc_pipeline()
+    return converter_build_qc_pipeline_report(
         target_date=target_date,
         output_root=output_root,
         export_report=export_report,
@@ -745,7 +756,8 @@ def run_local_hwpx_qc_pipeline(
     batch_runner: GovMdBatchRunner = run_gov_md_batch_local,
     command_runner: GovMdCommandRunner = run_gov_md_qc_command,
 ) -> dict[str, object]:
-    return _converter_run_local_hwpx_qc_pipeline(
+    _, _, _, converter_run_local_hwpx_qc_pipeline = _get_gov_md_converter_qc_pipeline()
+    return converter_run_local_hwpx_qc_pipeline(
         target_date=target_date,
         output_root=output_root,
         gov_md_converter_root=gov_md_converter_root,

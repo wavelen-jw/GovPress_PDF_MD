@@ -62,6 +62,7 @@ DEFAULT_OPENCLAW_MEDIA_INBOUND_ROOT = Path(
     )
 ).resolve()
 MOBILE_CONSTANTS_PATH = PROJECT_ROOT / "mobile" / "src" / "constants.ts"
+DEPLOY_ENV_PATH = PROJECT_ROOT / "deploy" / "wsl" / ".env"
 DEFAULT_DASHBOARD_PATH = "/v1/policy-briefings/qc/dashboard"
 DEFAULT_TELEGRAM_ACCOUNT = str(__import__("os").environ.get("GOVPRESS_TELEGRAM_ACCOUNT", "govpress_bot")).strip()
 DEFAULT_TELEGRAM_CHANNEL = "telegram"
@@ -598,7 +599,18 @@ def parse_server_presets(constants_path: Path = MOBILE_CONSTANTS_PATH) -> tuple[
 def _fetch_health(url: str, *, timeout: float = 5.0) -> dict[str, Any]:
     endpoint = url.rstrip("/") + "/health"
     try:
-        with urlopen(endpoint, timeout=timeout) as response:
+        request = __import__("urllib.request").request.Request(endpoint)
+        request.add_header("User-Agent", "govpress-openclaw-healthcheck/1.0")
+        request.add_header("Accept", "application/json")
+        api_key = os.environ.get("GOVPRESS_API_KEY", "").strip()
+        if not api_key and DEPLOY_ENV_PATH.exists():
+            for line in DEPLOY_ENV_PATH.read_text(encoding="utf-8").splitlines():
+                if line.startswith("GOVPRESS_API_KEY="):
+                    api_key = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    break
+        if api_key:
+            request.add_header("X-API-Key", api_key)
+        with urlopen(request, timeout=timeout) as response:
             body = response.read().decode("utf-8", errors="replace")
             return {"ok": 200 <= response.status < 300, "status": response.status, "endpoint": endpoint, "body": body[:200]}
     except URLError as exc:
