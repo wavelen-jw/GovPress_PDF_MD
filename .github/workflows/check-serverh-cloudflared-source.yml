@@ -1,0 +1,83 @@
+name: Check ServerH Cloudflared Source
+
+on:
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install cloudflared
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb \
+            -o cloudflared.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: Materialize deploy key
+        env:
+          VPS_KEY: ${{ secrets.GOVPRESS_H_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          KEY_FILE=~/.ssh/deploy_key
+          if printf '%s' "$VPS_KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+            printf '%s\n' "$VPS_KEY" | tr -d '\r' > "$KEY_FILE"
+          else
+            printf '%s' "$VPS_KEY" | tr -d '\r\n ' | base64 -d > "$KEY_FILE"
+          fi
+          chmod 600 "$KEY_FILE"
+
+      - name: Configure SSH over Cloudflare Access
+        env:
+          SSH_HOST: ${{ vars.GOVPRESS_H_SSH_HOST }}
+          CF_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          cloudflared access tcp \
+            --hostname "$SSH_HOST" \
+            --url "127.0.0.1:2222" \
+            --service-token-id "$CF_ID" \
+            --service-token-secret "$CF_SECRET" \
+            >/tmp/cloudflared-access-tcp.stdout 2>&1 &
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            if ss -ltn | grep -q "127.0.0.1:2222"; then
+              break
+            fi
+            sleep 1
+          done
+          cat >> ~/.ssh/config << EOF
+          Host ${SSH_HOST}
+            HostName 127.0.0.1
+            Port 2222
+            StrictHostKeyChecking accept-new
+          EOF
+
+      - name: Inspect source
+        env:
+          USERNAME: ${{ secrets.GOVPRESS_H_USER }}
+          SSH_HOST: ${{ vars.GOVPRESS_H_SSH_HOST }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=~/.ssh/deploy_key
+          ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USERNAME@$SSH_HOST" '
+            set -euo pipefail
+            echo "== ps-tree =="
+            ps -ef | grep cloudflared | grep -v grep || true
+            echo
+            echo "== user-systemd =="
+            systemctl --user status cloudflared.service --no-pager || true
+            systemctl --user list-unit-files | grep cloudflared || true
+            echo
+            echo "== user-process-units =="
+            loginctl user-status "$(id -un)" || true
+            echo
+            echo "== home-config =="
+            cat ~/.cloudflared/config.yml || true
+            echo
+            echo "== startup-files =="
+            grep -Rni "cloudflared" ~/.config/systemd ~/.config/autostart ~/.bashrc ~/.profile ~/.bash_profile /etc/systemd /etc/profile.d 2>/dev/null | sed -n "1,200p" || true
+          '
