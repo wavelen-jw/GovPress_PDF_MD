@@ -58,6 +58,10 @@
 - [docs/release-notes-2026-04-13-edge-stabilization.md](/home/wavel/projects/GovPress_PDF_MD/docs/release-notes-2026-04-13-edge-stabilization.md:1)
 
 운영 중 발견한 정책브리핑 원문을 `gov-md-converter` QC 코퍼스로 넘기려면 서비스 레포에서 원문을 export한 뒤 private 엔진 레포로 scaffold하면 됩니다.
+현재 경계는 아래처럼 나뉩니다.
+
+- `GovPress_PDF_MD`: 정책브리핑 export, 운영 storage bridge, OpenClaw 운영 래퍼
+- `gov-md-converter`: 범용 QC 파이프라인, dashboard, issue payload, Telegram 요약, 로컬 corpus QC
 
 원문만 export:
 
@@ -80,31 +84,41 @@ python3 scripts/export_policy_briefings_for_qc.py \
 
 이 스크립트는 각 기사별로 `source.hwpx`, `source.pdf`, `metadata.json`을 만들고, 필요하면 `gov-md-converter/scripts/run_hwpx_qc.py scaffold-local ...`까지 호출합니다.
 
-export부터 QC 분석 산출물까지 한 번에 돌리려면:
+export부터 QC 분석 산출물까지 한 번에 돌리려면 현재는 `gov-md-converter`에서 파이프라인을 실행합니다.
+먼저 이 레포에서 원문을 export하고:
 
 ```bash
-python3 scripts/run_policy_briefing_qc_pipeline.py \
+python3 scripts/export_policy_briefings_for_qc.py \
   --date 2026-04-09 \
   --output-root exports/policy_briefing_qc \
   --gov-md-converter-root ../gov-md-converter \
   --qc-root tests/manual_samples/policy_briefings
 ```
 
-이 명령은 export 후 `gov-md-converter`에서 `regression`, `triage`, `suggest-fix`, `patch-template`, `fix-plan`, `apply-fix-hint`, `auto-patch-draft`를 순서대로 실행하고 `gov_md_reports/` 아래에 결과를 모읍니다.
-
-정책브리핑 API가 죽어 있을 때는 로컬 HWPX/PDF 코퍼스로 같은 형식의 `pipeline_report.json`을 만들 수 있습니다.
+그 다음 `gov-md-converter`에서 QC 후속 단계를 실행합니다.
 
 ```bash
+cd ../gov-md-converter
+python3 scripts/evaluate_policy_briefing_qc_report.py \
+  ../GovPress_PDF_MD/exports/policy_briefing_qc/2026-04-09/pipeline_report.json \
+  --summary-markdown ../GovPress_PDF_MD/exports/policy_briefing_qc/2026-04-09/qc_summary.md
+```
+
+정책브리핑 export와 QC 후속 실행을 한 번에 묶는 orchestration은 현재 서비스 레포 어댑터에서 제공하지만, 범용 QC CLI의 기준 구현과 유지보수 위치는 `gov-md-converter`입니다.
+
+정책브리핑 API가 죽어 있을 때는 로컬 HWPX/PDF 코퍼스로 같은 형식의 `pipeline_report.json`을 만듭니다.
+
+```bash
+cd ../gov-md-converter
 python3 scripts/run_local_hwpx_qc_pipeline.py \
-  --date 2026-04-12 \
-  --output-root exports/policy_briefing_qc \
-  --gov-md-converter-root ../gov-md-converter \
-  --qc-root ../gov-md-converter/tests/manual_samples/local_batch \
-  --source-root ../gov-md-converter/tests/problem \
+  --date 2026-04-09 \
+  --output-root ../GovPress_PDF_MD/exports/policy_briefing_qc \
+  --qc-root tests/manual_samples/local_batch \
+  --source-root tests/problem \
   --limit 5
 ```
 
-이 명령은 `gov-md-converter`의 `batch-local`을 먼저 실행해 scratch 샘플을 만들고, 같은 QC 후속 단계들을 돌린 뒤 기존 dashboard/OpenClaw/issue가 그대로 읽을 수 있는 `pipeline_report.json`을 남깁니다.
+이 명령은 `batch-local`을 먼저 실행해 scratch 샘플을 만들고, 같은 QC 후속 단계들을 돌린 뒤 기존 dashboard/OpenClaw/issue가 그대로 읽을 수 있는 `pipeline_report.json`을 남깁니다.
 
 운영 storage의 `originals/results/golden`을 직접 QC 코퍼스로 쓰려면:
 
@@ -126,9 +140,10 @@ python3 scripts/run_storage_qc_pipeline.py \
 
 즉 자동 QC는 현재 변환기 기준으로 계속 돌리고, 사람이 보는 운영 결과와 수동 golden은 같은 sample 디렉터리에서 바로 대조할 수 있습니다.
 
-CI나 cron에서 실패 여부만 판정하고 Markdown 요약을 남기려면:
+CI나 cron에서 실패 여부만 판정하고 Markdown 요약을 남기려면 `gov-md-converter` CLI를 사용합니다.
 
 ```bash
+cd ../gov-md-converter
 python3 scripts/evaluate_policy_briefing_qc_report.py \
   exports/policy_briefing_qc/2026-04-09/pipeline_report.json \
   --summary-markdown exports/policy_briefing_qc/2026-04-09/qc_summary.md
@@ -153,9 +168,10 @@ GitHub Actions로 주기 실행하려면 `.github/workflows/policy-briefing-qc-m
 생성된 issue에는 `gov-md-converter`의 `suggest-fix`와 `auto-patch-draft`를 바탕으로 수정 대상 파일, 첫 패치 방향, 회귀 테스트 명령까지 함께 적습니다.
 또한 `exports/policy_briefing_qc/dashboard/` 아래에 정적 HTML 대시보드와 집계 JSON을 생성하고, Telegram 알림이 설정되어 있으면 상위 샘플과 수정 대상 파일 요약을 전송합니다.
 
-대시보드를 수동으로 다시 만들려면:
+대시보드를 수동으로 다시 만들려면 `gov-md-converter`에서 실행합니다.
 
 ```bash
+cd ../gov-md-converter
 python3 scripts/build_policy_briefing_qc_dashboard.py \
   --root exports/policy_briefing_qc \
   --output-html exports/policy_briefing_qc/dashboard/index.html \
@@ -167,9 +183,10 @@ python3 scripts/build_policy_briefing_qc_dashboard.py \
 - HTML dashboard: `/v1/policy-briefings/qc/dashboard`
 - JSON dashboard: `/v1/policy-briefings/qc/dashboard.json`
 
-Telegram 메시지를 실제 전송 전에 확인하려면:
+Telegram 메시지를 실제 전송 전에 확인하려면 `gov-md-converter`에서 실행합니다.
 
 ```bash
+cd ../gov-md-converter
 python3 scripts/send_policy_briefing_qc_telegram.py \
   exports/policy_briefing_qc/2026-04-09/pipeline_report.json \
   --print-only
