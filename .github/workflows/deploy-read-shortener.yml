@@ -128,7 +128,9 @@ jobs:
           cd "$DEPLOY_DIR"
           bash deploy/wsl/apply-read-shortener.sh
           for _ in 1 2 3 4 5 6; do
-            if curl -I --max-time 10 http://127.0.0.1:8091/admin/; then
+            status_code="$(curl -L -sS -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:8091/admin/ || true)"
+            if [ "$status_code" = "200" ] || [ "$status_code" = "302" ]; then
+              echo "yourls_admin_http=${status_code}"
               exit 0
             fi
             sleep 5
