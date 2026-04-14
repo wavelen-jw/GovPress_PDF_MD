@@ -10,7 +10,26 @@ GOV_MD_ROOT = (PROJECT_ROOT / ".." / "gov-md-converter").resolve()
 if str(GOV_MD_ROOT) not in sys.path:
     sys.path.insert(0, str(GOV_MD_ROOT))
 
-from src.qc_report import build_markdown_summary, evaluate_report, load_report
+
+def _load_report_module():
+    from src.qc_report import build_markdown_summary, evaluate_report, load_report
+
+    return build_markdown_summary, evaluate_report, load_report
+
+
+def build_markdown_summary(*args, **kwargs):
+    build_markdown_summary_fn, _, _ = _load_report_module()
+    return build_markdown_summary_fn(*args, **kwargs)
+
+
+def evaluate_report(*args, **kwargs):
+    _, evaluate_report_fn, _ = _load_report_module()
+    return evaluate_report_fn(*args, **kwargs)
+
+
+def load_report(*args, **kwargs):
+    _, _, load_report_fn = _load_report_module()
+    return load_report_fn(*args, **kwargs)
 
 
 def build_parser() -> argparse.ArgumentParser:

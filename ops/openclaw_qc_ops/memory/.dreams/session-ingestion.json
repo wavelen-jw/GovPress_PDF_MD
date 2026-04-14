@@ -1,0 +1,78 @@
+{
+  "version": 3,
+  "files": {
+    "govpress_qc_ops:sessions/5003b808-3509-4bf0-9330-6e583618b464.jsonl.deleted.2026-04-14T04-25-42.037Z": {
+      "mtimeMs": 1776054024223,
+      "size": 20337,
+      "contentHash": "4eb88270b74630a677a516e2ba0c498ca776d6292299af758a32f9e7d0df95af",
+      "lineCount": 2,
+      "lastContentLine": 2
+    },
+    "govpress_qc_ops:sessions/c0f7e2df-8b84-4305-b0e4-e4a60348ee97.jsonl": {
+      "mtimeMs": 1776140442236,
+      "size": 88677,
+      "contentHash": "a92046631dd96688fa857ec392839333ce4e43d00b4fd0984bfd3cffab4b7c56",
+      "lineCount": 2,
+      "lastContentLine": 2
+    },
+    "govpress_qc_ops:sessions/db434b6e-afbd-4a71-b7e3-33ca14df238d.jsonl": {
+      "mtimeMs": 1776077644228,
+      "size": 72435,
+      "contentHash": "0810d03667d45c127a2c17678fa7fd8dcc36c9a8f99820d9dbd0a13345fec930",
+      "lineCount": 10,
+      "lastContentLine": 10
+    },
+    "govpress_qc_ops:sessions/e28d75f3-4a92-4af7-8eaf-de76f71aa00c.jsonl": {
+      "mtimeMs": 1776049179147,
+      "size": 12484,
+      "contentHash": "2e43bf089bc25d1f8c2820b50ca6fa3c32953cadaa9244bca14ed58dfc610fc1",
+      "lineCount": 2,
+      "lastContentLine": 2
+    },
+    "govpress_qc_worker:sessions/4aca78e2-ec8b-445a-8e7b-44e8b267482f.jsonl": {
+      "mtimeMs": 1776005899911,
+      "size": 355348,
+      "contentHash": "92218c64ae4067c4d70957b9c50069a70b63cabfbc083f12a192abb5eeb3c1a6",
+      "lineCount": 10,
+      "lastContentLine": 10
+    }
+  },
+  "seenMessages": {
+    "govpress_qc_ops:5003b808-3509-4bf0-9330-6e583618b464": [
+      "fd04f2fa504960f57c187ed754763dfbd62f7ae7",
+      "c6388140c36702a7ea072d38ff68f7ad601a2798"
+    ],
+    "govpress_qc_ops:c0f7e2df-8b84-4305-b0e4-e4a60348ee97": [
+      "f255ead9230b4eb5f7ce67a718a7649bf9c5e4ac",
+      "d3365a1a6a2f138663bfb127cc0d2ebdd6cd6405"
+    ],
+    "govpress_qc_ops:db434b6e-afbd-4a71-b7e3-33ca14df238d": [
+      "190b691c2f6b1c0b59e55d8d2dec1427157f79c6",
+      "341914ca4c72adeaa08fa3fb554830391d2a636e",
+      "416c06bc5fced54e8dc96ef788d156c6aa1a4858",
+      "e1cbf7dc111f28134fa1653b37d68ec2a0fccab6",
+      "2a0ed1953289e0e02994a4dc786501ffbf8f7607",
+      "20ae12a4b6f367a425b1fde2ae49c719f0fd23f7",
+      "5c175449620ffbab7b62b1badb400611adc8085f",
+      "20509294188218e811538640ba4c8bdb9afed845",
+      "9814a886c7ec18eff16c676063a7bda165ccc301",
+      "343b05ee566a5c82786e51564bf7282b1cd0bc96"
+    ],
+    "govpress_qc_ops:e28d75f3-4a92-4af7-8eaf-de76f71aa00c": [
+      "412c6796c16085c69d92e8dcad404968c9289568",
+      "bdc27eeb3a513d36166d43e5eb6ff37ba7f17e66"
+    ],
+    "govpress_qc_worker:4aca78e2-ec8b-445a-8e7b-44e8b267482f": [
+      "bad4e7fd035ae0014f3dd1564d245e5edfc90cad",
+      "a4b99dec882a31905c67321de0458bb470d7e0b9",
+      "10a0f5dbe2e0129c1cde3bbafa404f2001a8f7be",
+      "5f800b138ed87880f6e35a00ad2d20562d200bc7",
+      "b677051b4301f96fb2e6e9c72847d3bffb959dd2",
+      "5d6ca647f8f6d08a6f7476ef682ab1256ecee2cf",
+      "353f57f8f66f3c484e964d8892a90cb6eb8d3766",
+      "b2623fca676bfb29817483803d022657308a0925",
+      "3b75c2f1a3c1e9fe603f374a449022bf663f7bfc",
+      "41fda28d25f7b3f7a14fc9020e23dbdd86fab762"
+    ]
+  }
+}

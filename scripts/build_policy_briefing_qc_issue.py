@@ -10,7 +10,29 @@ GOV_MD_ROOT = (PROJECT_ROOT / ".." / "gov-md-converter").resolve()
 if str(GOV_MD_ROOT) not in sys.path:
     sys.path.insert(0, str(GOV_MD_ROOT))
 
-from src.qc_issue import ISSUE_MARKER, build_issue_body, build_issue_payload, load_report
+
+def _load_issue_module():
+    from src.qc_issue import ISSUE_MARKER, build_issue_body, build_issue_payload, load_report
+
+    return ISSUE_MARKER, build_issue_body, build_issue_payload, load_report
+
+
+def build_issue_payload(*args, **kwargs):
+    _, _, build_issue_payload_fn, _ = _load_issue_module()
+    return build_issue_payload_fn(*args, **kwargs)
+
+
+def build_issue_body(*args, **kwargs):
+    _, build_issue_body_fn, _, _ = _load_issue_module()
+    return build_issue_body_fn(*args, **kwargs)
+
+
+def load_report(*args, **kwargs):
+    _, _, _, load_report_fn = _load_issue_module()
+    return load_report_fn(*args, **kwargs)
+
+
+ISSUE_MARKER = "<!-- policy-briefing-qc-issue -->"
 
 
 def build_parser() -> argparse.ArgumentParser:

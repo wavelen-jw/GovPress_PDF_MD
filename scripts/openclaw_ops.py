@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta
 import tempfile
 import json
 import os
@@ -30,10 +30,7 @@ from server.app.adapters.policy_briefing import (
 )
 from server.app.adapters.policy_briefing_qc import (
     export_policy_briefings_for_qc,
-    find_storage_job_by_title,
-    normalize_storage_title_key,
     run_gov_md_scaffold,
-    scaffold_storage_qc_jobs,
 )
 
 
@@ -48,6 +45,9 @@ DEFAULT_QC_ROOT = Path(
 ).resolve()
 DEFAULT_REMOTE_QC_ROOT = Path(
     __import__("os").environ.get("GOVPRESS_REMOTE_QC_ROOT", DEFAULT_GOV_MD_ROOT / "tests" / "manual_samples" / "storage_batch")
+).resolve()
+DEFAULT_CURATED_QC_ROOT = Path(
+    __import__("os").environ.get("GOVPRESS_CURATED_QC_ROOT", DEFAULT_GOV_MD_ROOT / "tests" / "qc_samples")
 ).resolve()
 DEFAULT_STATE_ROOT = Path(
     __import__("os").environ.get(
@@ -101,6 +101,19 @@ class SampleRecord:
     source_name: str
     has_golden: bool
     has_review: bool
+
+
+@dataclass(frozen=True)
+class PolicyQueueEntry:
+    sample: SampleRecord
+    title: str
+    approve_date: str
+    news_item_id: str
+    review_required: bool
+    risk_score: int
+    finding_count: int
+    hard_finding_count: int
+    defect_classes: tuple[str, ...]
 
 
 def _valid_date(value: str) -> str:
@@ -251,10 +264,11 @@ def _read_text(path: Path) -> str:
 
 def _sample_record(sample_dir: Path) -> SampleRecord:
     meta = _load_json(sample_dir / "meta.json") if (sample_dir / "meta.json").exists() else {}
+    status = str(meta.get("sample_status", "")).strip() or ("curated" if (sample_dir / "golden_slices.json").exists() else "scratch")
     return SampleRecord(
         sample_id=sample_dir.name,
         sample_dir=sample_dir,
-        status=str(meta.get("sample_status", "scratch")),
+        status=status,
         source_name=str(meta.get("source_hwpx", "source.hwpx")),
         has_golden=(sample_dir / "golden.md").exists(),
         has_review=(sample_dir / "review.md").exists(),
@@ -267,36 +281,177 @@ def _list_samples(remote_qc_root: Path) -> list[SampleRecord]:
     return records
 
 
-def _find_sample(sample_id: str, remote_qc_root: Path) -> SampleRecord:
-    sample_dir = remote_qc_root / sample_id
-    if not sample_dir.exists():
-        raise FileNotFoundError(f"Unknown QC sample: {sample_id}")
-    return _sample_record(sample_dir)
+def _build_policy_catalog(storage_root: Path) -> PolicyBriefingCatalog:
+    return PolicyBriefingCatalog(
+        client=PolicyBriefingClient(service_key=os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY")),
+        cache_path=storage_root / "policy_briefing_catalog.json",
+    )
 
 
-def _maybe_scaffold_storage_sample(
-    sample_id: str,
+def _approve_datetime(value: str) -> datetime:
+    for fmt in ("%m/%d/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(value, fmt)
+        except ValueError:
+            continue
+    if len(value) >= 10:
+        return datetime.fromisoformat(value[:10])
+    raise ValueError(f"Unsupported approve_date: {value}")
+
+
+def _collect_latest_policy_briefing_items(
     *,
+    storage_root: Path,
+    limit: int,
+    lookback_days: int = 14,
+) -> list[Any]:
+    catalog = _build_policy_catalog(storage_root)
+    items_by_id: dict[str, Any] = {}
+    for offset in range(lookback_days):
+        target_date = date.today() - timedelta(days=offset)
+        result = catalog.list_cached_items_with_status(target_date=target_date, ensure_fresh=True)
+        for item in result.items:
+            if item.news_item_id not in items_by_id:
+                items_by_id[item.news_item_id] = item
+        if len(items_by_id) >= limit:
+            break
+    items = list(items_by_id.values())
+    items.sort(key=lambda item: _approve_datetime(item.approve_date), reverse=True)
+    return items[:limit]
+
+
+def _load_policy_meta(sample_dir: Path) -> dict[str, str]:
+    metadata_path = sample_dir / "metadata.json"
+    if metadata_path.exists():
+        payload = _load_json(metadata_path)
+        return {
+            "title": str(payload.get("title", "")).strip(),
+            "approve_date": str(payload.get("approve_date", "")).strip(),
+            "news_item_id": str(payload.get("news_item_id", "")).strip(),
+        }
+    meta_path = sample_dir / "meta.json"
+    if meta_path.exists():
+        payload = _load_json(meta_path)
+        return {
+            "title": str(payload.get("title", "")).strip(),
+            "approve_date": str(payload.get("approve_date", "")).strip(),
+            "news_item_id": str(payload.get("news_item_id", "")).strip(),
+        }
+    return {"title": "", "approve_date": "", "news_item_id": ""}
+
+
+def _load_qc_triage_modules() -> tuple[Any, Any]:
+    root = DEFAULT_GOV_MD_ROOT.resolve()
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from src.hwpx_qc_runner import run_qc_for_manifest  # type: ignore
+    from src.hwpx_qc_triage import build_triage_entry  # type: ignore
+
+    return run_qc_for_manifest, build_triage_entry
+
+
+def _evaluate_policy_queue(sample_dirs: list[Path]) -> dict[str, dict[str, Any]]:
+    run_qc_for_manifest, build_triage_entry = _load_qc_triage_modules()
+    evaluations: dict[str, dict[str, Any]] = {}
+    for sample_dir in sample_dirs:
+        manifest_path = sample_dir / "assertions.json"
+        if not manifest_path.exists():
+            continue
+        result = run_qc_for_manifest(manifest_path)
+        triage = build_triage_entry(manifest_path, result).to_dict()
+        evaluations[sample_dir.name] = triage
+    return evaluations
+
+
+def _scaffold_latest_policy_queue(
+    *,
+    export_root: Path,
     gov_md_root: Path,
     remote_qc_root: Path,
     storage_root: Path,
-) -> SampleRecord | None:
-    if not sample_id.startswith("storage_job_"):
-        return None
-    job_id = sample_id.removeprefix("storage_")
-    result = scaffold_storage_qc_jobs(
-        gov_md_converter_root=gov_md_root,
-        qc_root=remote_qc_root,
-        storage_root=storage_root,
-        limit=1,
-        job_ids=[job_id],
-        autofill=True,
-        force=False,
-        order_by_recent=False,
+    limit: int = 20,
+) -> list[PolicyQueueEntry]:
+    items = _collect_latest_policy_briefing_items(storage_root=storage_root, limit=limit)
+    curated_ids = {path.name for path in DEFAULT_CURATED_QC_ROOT.iterdir() if path.is_dir()}
+    queued_items = [item for item in items if f"policy_briefing_{_approve_datetime(item.approve_date):%Y_%m_%d}_{item.news_item_id}" not in curated_ids]
+    if not queued_items:
+        return []
+
+    grouped: dict[date, list[Any]] = {}
+    item_by_sample_id: dict[str, Any] = {}
+    for item in queued_items:
+        approved_at = _approve_datetime(item.approve_date).date()
+        sample_id = f"policy_briefing_{approved_at:%Y_%m_%d}_{item.news_item_id}"
+        item_by_sample_id[sample_id] = item
+        if (remote_qc_root / sample_id).exists():
+            continue
+        grouped.setdefault(approved_at, []).append(item)
+
+    for target_date, day_items in grouped.items():
+        export_policy_briefings_for_qc(
+            client=PolicyBriefingClient(service_key=os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY")),
+            catalog=_build_policy_catalog(storage_root),
+            target_date=target_date,
+            output_root=export_root,
+            news_item_ids=[item.news_item_id for item in day_items],
+            include_pdf=True,
+            ensure_fresh=True,
+            scaffold_runner=run_gov_md_scaffold,
+            gov_md_converter_root=gov_md_root,
+            qc_root=remote_qc_root,
+            autofill=True,
+            force=False,
+            sample_status="scratch",
+        )
+
+    sample_dirs = [remote_qc_root / sample_id for sample_id in item_by_sample_id if (remote_qc_root / sample_id / "assertions.json").exists()]
+    evaluations = _evaluate_policy_queue(sample_dirs)
+
+    entries: list[PolicyQueueEntry] = []
+    for sample_id, item in item_by_sample_id.items():
+        sample_dir = remote_qc_root / sample_id
+        if not sample_dir.exists():
+            continue
+        sample = _sample_record(sample_dir)
+        triage = evaluations.get(sample_id, {})
+        meta = _load_policy_meta(sample_dir)
+        title = meta["title"] or str(item.title)
+        approve_date = meta["approve_date"] or str(item.approve_date)
+        news_item_id = meta["news_item_id"] or str(item.news_item_id)
+        entries.append(
+            PolicyQueueEntry(
+                sample=sample,
+                title=title,
+                approve_date=approve_date,
+                news_item_id=news_item_id,
+                review_required=bool(triage.get("review_required", sample.status != "curated")),
+                risk_score=int(triage.get("risk_score", 0) or 0),
+                finding_count=int(triage.get("finding_count", 0) or 0),
+                hard_finding_count=int(triage.get("hard_finding_count", 0) or 0),
+                defect_classes=tuple(str(value) for value in triage.get("defect_classes", []) if str(value)),
+            )
+        )
+    entries.sort(
+        key=lambda entry: (
+            -int(entry.review_required),
+            -entry.hard_finding_count,
+            -entry.risk_score,
+            -entry.finding_count,
+            entry.sample.sample_id,
+        )
     )
-    if int(result.get("scaffolded_count", 0) or 0) <= 0:
-        return None
-    return _find_sample(sample_id, remote_qc_root)
+    return entries
+
+
+def _find_sample(sample_id: str, remote_qc_root: Path, curated_qc_root: Path | None = None) -> SampleRecord:
+    candidate_roots = [remote_qc_root]
+    if curated_qc_root is not None and curated_qc_root not in candidate_roots:
+        candidate_roots.append(curated_qc_root)
+    for root in candidate_roots:
+        sample_dir = root / sample_id
+        if sample_dir.exists():
+            return _sample_record(sample_dir)
+    raise FileNotFoundError(f"Unknown QC sample: {sample_id}")
 
 
 def _resolve_remote_sample(
@@ -306,18 +461,8 @@ def _resolve_remote_sample(
     remote_qc_root: Path,
     storage_root: Path,
 ) -> SampleRecord:
-    try:
-        return _find_sample(sample_id, remote_qc_root)
-    except FileNotFoundError:
-        scaffolded = _maybe_scaffold_storage_sample(
-            sample_id,
-            gov_md_root=gov_md_root,
-            remote_qc_root=remote_qc_root,
-            storage_root=storage_root,
-        )
-        if scaffolded is not None:
-            return scaffolded
-        raise
+    del gov_md_root, storage_root
+    return _find_sample(sample_id, remote_qc_root, DEFAULT_CURATED_QC_ROOT)
 
 
 def _maybe_export_policy_briefing_sample(
@@ -346,7 +491,7 @@ def _maybe_export_policy_briefing_sample(
 
     sample_id = f"policy_briefing_{target_date:%Y_%m_%d}_{item.news_item_id}"
     try:
-        return _find_sample(sample_id, remote_qc_root)
+        return _find_sample(sample_id, remote_qc_root, DEFAULT_CURATED_QC_ROOT)
     except FileNotFoundError:
         pass
 
@@ -378,7 +523,7 @@ def _ensure_selected_sample(state_root: Path, sender_id: str, remote_qc_root: Pa
     sample_id = str(state.get("selected_sample_id", "")).strip()
     if not sample_id:
         raise ValueError("현재 선택된 job이 없습니다. 먼저 `job 목록 보여줘` 또는 `<sample-id> 열어줘`를 보내주세요.")
-    return _find_sample(sample_id, remote_qc_root)
+    return _find_sample(sample_id, remote_qc_root, DEFAULT_CURATED_QC_ROOT)
 
 
 def _rewrite_sample_review(gov_md_root: Path, sample_dir: Path) -> None:
@@ -1020,7 +1165,7 @@ def _wants_next_job(text: str) -> bool:
 
 
 def _wants_open_sample(text: str) -> bool:
-    return "열어줘" in text or text.strip().startswith("storage_job_")
+    return "열어줘" in text or bool(_extract_sample_id_from_text(text.strip()))
 
 
 def _wants_open_storage_title(text: str) -> bool:
@@ -1033,18 +1178,8 @@ def _resolve_sample_id_from_text(
     *,
     storage_root: Path,
 ) -> str | None:
-    sample_id = _extract_sample_id_from_text(text)
-    if sample_id:
-        return sample_id
-    if not _wants_open_storage_title(text):
-        return None
-    title_query = _extract_title_query_from_text(text)
-    if not title_query:
-        return None
-    artifact = find_storage_job_by_title(storage_root=storage_root, query=title_query)
-    if artifact is None:
-        return None
-    return f"storage_{artifact.job_id}"
+    del storage_root
+    return _extract_sample_id_from_text(text)
 
 
 def _require_sample_id_for_open_request(
@@ -1057,7 +1192,7 @@ def _require_sample_id_for_open_request(
         return sample_id
     if _wants_open_storage_title(text):
         title_query = _extract_title_query_from_text(text) or text.strip()
-        raise ValueError(f"해당 제목으로 매칭되는 storage job을 찾지 못했습니다: {title_query}")
+        raise ValueError(f"해당 제목으로 매칭되는 국정브리핑 문서를 찾지 못했습니다: {title_query}")
     return None
 
 
@@ -1148,52 +1283,102 @@ def _select_sample(sample: SampleRecord, *, sender_id: str, state_root: Path, go
     }
 
 
-def _build_job_list_payload(*, remote_qc_root: Path, review_only: bool) -> dict[str, Any]:
-    records = _list_samples(remote_qc_root)
+def _build_job_list_payload(
+    *,
+    export_root: Path,
+    gov_md_root: Path,
+    remote_qc_root: Path,
+    storage_root: Path,
+    review_only: bool,
+    limit: int = 20,
+) -> dict[str, Any]:
+    entries = _scaffold_latest_policy_queue(
+        export_root=export_root,
+        gov_md_root=gov_md_root,
+        remote_qc_root=remote_qc_root,
+        storage_root=storage_root,
+        limit=limit,
+    )
     if review_only:
-        records = [record for record in records if record.status != "curated"]
+        entries = [entry for entry in entries if entry.review_required]
     return {
         "command": "remote-qc-list",
         "review_only": review_only,
-        "sample_count": len(records),
+        "sample_count": len(entries),
+        "source_kind": "policy_briefing_latest",
         "samples": [
             {
-                "sample_id": record.sample_id,
-                "status": record.status,
-                "has_golden": record.has_golden,
-                "source_name": record.source_name,
+                "sample_id": entry.sample.sample_id,
+                "status": entry.sample.status,
+                "has_golden": entry.sample.has_golden,
+                "source_name": entry.sample.source_name,
+                "title": entry.title,
+                "approve_date": entry.approve_date,
+                "review_required": entry.review_required,
+                "risk_score": entry.risk_score,
+                "finding_count": entry.finding_count,
+                "hard_finding_count": entry.hard_finding_count,
+                "defect_classes": list(entry.defect_classes),
             }
-            for record in records[:12]
+            for entry in entries[:12]
         ],
     }
 
 
 def _build_recent_storage_jobs_payload(
     *,
+    export_root: Path,
     gov_md_root: Path,
     remote_qc_root: Path,
     storage_root: Path,
     limit: int,
 ) -> dict[str, Any]:
-    result = scaffold_storage_qc_jobs(
-        gov_md_converter_root=gov_md_root,
-        qc_root=remote_qc_root,
+    entries = _scaffold_latest_policy_queue(
+        export_root=export_root,
+        gov_md_root=gov_md_root,
+        remote_qc_root=remote_qc_root,
         storage_root=storage_root,
         limit=limit,
-        autofill=True,
-        force=True,
-        order_by_recent=True,
     )
     return {
         "command": "remote-qc-generate-recent-jobs",
-        **result,
+        "limit": limit,
+        "selected_count": len(entries),
+        "scaffolded_count": len(entries),
+        "source_kind": "policy_briefing_latest",
+        "items": [
+            {
+                "news_item_id": entry.news_item_id,
+                "title": entry.title,
+                "approve_date": entry.approve_date,
+                "sample_id": entry.sample.sample_id,
+                "scaffold_sample_dir": str(entry.sample.sample_dir),
+                "review_required": entry.review_required,
+                "risk_score": entry.risk_score,
+            }
+            for entry in entries
+        ],
     }
 
 
-def _build_next_sample_payload(*, remote_qc_root: Path, sender_id: str, state_root: Path, gov_md_root: Path) -> dict[str, Any]:
-    records = _list_samples(remote_qc_root)
-    review_records = [record for record in records if record.status != "curated"]
-    if not review_records:
+def _build_next_sample_payload(
+    *,
+    export_root: Path,
+    remote_qc_root: Path,
+    storage_root: Path,
+    sender_id: str,
+    state_root: Path,
+    gov_md_root: Path,
+) -> dict[str, Any]:
+    entries = _scaffold_latest_policy_queue(
+        export_root=export_root,
+        gov_md_root=gov_md_root,
+        remote_qc_root=remote_qc_root,
+        storage_root=storage_root,
+        limit=20,
+    )
+    review_entries = [entry for entry in entries if entry.review_required]
+    if not review_entries:
         return {
             "command": "remote-qc-next",
             "message": "검토할 review queue 샘플이 없습니다.",
@@ -1201,10 +1386,10 @@ def _build_next_sample_payload(*, remote_qc_root: Path, sender_id: str, state_ro
     state = _load_session_state(state_root, sender_id)
     current_id = str(state.get("selected_sample_id", "")).strip()
     if current_id:
-        for index, record in enumerate(review_records):
-            if record.sample_id == current_id and index + 1 < len(review_records):
-                return _select_sample(review_records[index + 1], sender_id=sender_id, state_root=state_root, gov_md_root=gov_md_root)
-    return _select_sample(review_records[0], sender_id=sender_id, state_root=state_root, gov_md_root=gov_md_root)
+        for index, entry in enumerate(review_entries):
+            if entry.sample.sample_id == current_id and index + 1 < len(review_entries):
+                return _select_sample(review_entries[index + 1].sample, sender_id=sender_id, state_root=state_root, gov_md_root=gov_md_root)
+    return _select_sample(review_entries[0].sample, sender_id=sender_id, state_root=state_root, gov_md_root=gov_md_root)
 
 
 def _build_sample_summary(sample: SampleRecord) -> dict[str, Any]:
@@ -1694,6 +1879,7 @@ def _dispatch_remote_qc_message(
 
     if recent_job_count is not None:
         return _build_recent_storage_jobs_payload(
+            export_root=export_root,
             gov_md_root=gov_md_root,
             remote_qc_root=remote_qc_root,
             storage_root=DEFAULT_STORAGE_ROOT,
@@ -1716,7 +1902,7 @@ def _dispatch_remote_qc_message(
                 gov_md_root=gov_md_root,
             )
         if title_open_requested or implicit_title_open:
-            raise ValueError(f"해당 제목으로 매칭되는 storage job 또는 국정브리핑 문서를 찾지 못했습니다: {title_query}")
+            raise ValueError(f"해당 제목으로 매칭되는 국정브리핑 문서를 찾지 못했습니다: {title_query}")
 
     if sample_id and (_wants_open_sample(text) or text.strip() == sample_id):
         return _select_sample(
@@ -1731,12 +1917,26 @@ def _dispatch_remote_qc_message(
             gov_md_root=gov_md_root,
         )
     if _wants_review_queue(text):
-        return _build_job_list_payload(remote_qc_root=remote_qc_root, review_only=True)
+        return _build_job_list_payload(
+            export_root=export_root,
+            gov_md_root=gov_md_root,
+            remote_qc_root=remote_qc_root,
+            storage_root=DEFAULT_STORAGE_ROOT,
+            review_only=True,
+        )
     if _wants_job_list(text):
-        return _build_job_list_payload(remote_qc_root=remote_qc_root, review_only=False)
+        return _build_job_list_payload(
+            export_root=export_root,
+            gov_md_root=gov_md_root,
+            remote_qc_root=remote_qc_root,
+            storage_root=DEFAULT_STORAGE_ROOT,
+            review_only=False,
+        )
     if _wants_next_job(text):
         return _build_next_sample_payload(
+            export_root=export_root,
             remote_qc_root=remote_qc_root,
+            storage_root=DEFAULT_STORAGE_ROOT,
             sender_id=sender_id,
             state_root=state_root,
             gov_md_root=gov_md_root,
@@ -1836,7 +2036,7 @@ def _dispatch_remote_qc_message(
     return {
         "command": "remote-qc-unsupported",
         "ok": False,
-        "message": "지원: job 목록 보여줘 | review 필요한 job만 보여줘 | <sample-id> 열어줘 | 국정브리핑 보도자료 '<제목>' 를 job으로 열어줘 | source/rendered/review/golden 보내줘 | golden.md 업로드 | 통과 | 보류 | 수정: ...",
+        "message": "지원: job 목록 보여줘 | review 필요한 job만 보여줘 | <sample-id> 열어줘 | 국정브리핑 보도자료 '<제목>' 열어줘 | source/rendered/review/golden 보내줘 | golden.md 업로드 | 통과 | 보류 | 수정: ...",
     }
 
 
@@ -1870,8 +2070,8 @@ def dispatch_telegram_message(
             state_root=state_root,
         )
         if payload.get("command") == "remote-qc-open" and ctx.sender_id:
-            sample = _find_sample(str(payload.get("sample_id")), remote_qc_root)
-            file_keys = ["review", "rendered", "source"]
+            sample = _find_sample(str(payload.get("sample_id")), remote_qc_root, DEFAULT_CURATED_QC_ROOT)
+            file_keys = [key for key in ["review", "rendered", "source"] if (sample.sample_dir / {"review": "review.md", "rendered": "rendered.md", "source": "source.hwpx"}[key]).exists()]
             if sample.has_golden:
                 file_keys.append("golden")
             payload["results"] = _send_requested_files(
@@ -1980,22 +2180,28 @@ def format_human(payload: dict[str, Any]) -> str:
         ).strip()
     if command == "remote-qc-list":
         lines = [
-            f"[QC Jobs] count={payload.get('sample_count', 0)}",
+            f"[QC Jobs] count={payload.get('sample_count', 0)} source=policy_briefing_latest20",
         ]
         for item in payload.get("samples", []):
             golden = "golden" if item.get("has_golden") else "no-golden"
-            lines.append(f"- {item.get('sample_id')} status={item.get('status')} {golden} source={item.get('source_name')}")
+            review = "review" if item.get("review_required") else "self-ok"
+            defects = ",".join(item.get("defect_classes") or []) or "-"
+            lines.append(
+                f"- {item.get('sample_id')} risk={item.get('risk_score')} findings={item.get('finding_count')} "
+                f"{review} {golden} title={item.get('title')} defects={defects}"
+            )
         return "\n".join(lines)
     if command == "remote-qc-generate-recent-jobs":
         lines = [
             f"[QC Jobs Generated] recent={payload.get('limit')}",
             f"scaffolded={payload.get('scaffolded_count', 0)}",
-            "source=국정브리핑 storage recent corpus (fresh scaffold)",
+            "source=국정브리핑 latest corpus (fresh scaffold)",
         ]
         for item in payload.get("items", [])[:10]:
             sample_dir = str(item.get("scaffold_sample_dir") or "")
             lines.append(
-                f"- storage_{item.get('news_item_id')} title={item.get('title')} sample={Path(sample_dir).name if sample_dir else '-'}"
+                f"- {item.get('sample_id')} risk={item.get('risk_score')} review={item.get('review_required')} "
+                f"title={item.get('title')} sample={Path(sample_dir).name if sample_dir else '-'}"
             )
         lines.append("다음: `review 필요한 job만 보여줘` 또는 `<sample-id> 열어줘`")
         return "\n".join(lines)

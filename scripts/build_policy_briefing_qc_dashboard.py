@@ -10,7 +10,26 @@ GOV_MD_ROOT = (PROJECT_ROOT / ".." / "gov-md-converter").resolve()
 if str(GOV_MD_ROOT) not in sys.path:
     sys.path.insert(0, str(GOV_MD_ROOT))
 
-from src.qc_dashboard import build_dashboard_html, build_dashboard_payload, write_dashboard
+
+def _load_dashboard_module():
+    from src.qc_dashboard import build_dashboard_html, build_dashboard_payload, write_dashboard
+
+    return build_dashboard_html, build_dashboard_payload, write_dashboard
+
+
+def build_dashboard_payload(*args, **kwargs):
+    _, build_dashboard_payload_fn, _ = _load_dashboard_module()
+    return build_dashboard_payload_fn(*args, **kwargs)
+
+
+def build_dashboard_html(*args, **kwargs):
+    build_dashboard_html_fn, _, _ = _load_dashboard_module()
+    return build_dashboard_html_fn(*args, **kwargs)
+
+
+def write_dashboard(*args, **kwargs):
+    _, _, write_dashboard_fn = _load_dashboard_module()
+    return write_dashboard_fn(*args, **kwargs)
 
 
 def build_parser() -> argparse.ArgumentParser:

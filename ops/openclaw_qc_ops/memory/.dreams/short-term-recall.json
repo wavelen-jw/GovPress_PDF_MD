@@ -1,0 +1,1372 @@
+{
+  "version": 1,
+  "updatedAt": "2026-04-14T16:38:32.618Z",
+  "entries": {
+    "memory:memory/.dreams/session-corpus/2026-04-12.txt:1:1": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-12.txt:1:1",
+      "path": "memory/.dreams/session-corpus/2026-04-12.txt",
+      "startLine": 1,
+      "endLine": 1,
+      "source": "memory",
+      "snippet": "User: Continue where you left off. The previous model attempt failed or timed out.",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "d67a1d127bbd"
+      ],
+      "recallDays": [
+        "2026-04-12",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "user",
+        "continue",
+        "where",
+        "you",
+        "left",
+        "off",
+        "the",
+        "previous"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-12.txt:2:2": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-12.txt:2:2",
+      "path": "memory/.dreams/session-corpus/2026-04-12.txt",
+      "startLine": 2,
+      "endLine": 2,
+      "source": "memory",
+      "snippet": "Assistant: NO_REPLY",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "d67a1d127bbd"
+      ],
+      "recallDays": [
+        "2026-04-12",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "no-reply",
+        "assistant"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-12.txt:3:3": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-12.txt:3:3",
+      "path": "memory/.dreams/session-corpus/2026-04-12.txt",
+      "startLine": 3,
+      "endLine": 3,
+      "source": "memory",
+      "snippet": "User: Continue where you left off. The previous model attempt failed or timed out.",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "d67a1d127bbd"
+      ],
+      "recallDays": [
+        "2026-04-12",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "user",
+        "continue",
+        "where",
+        "you",
+        "left",
+        "off",
+        "the",
+        "previous"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-12.txt:4:4": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-12.txt:4:4",
+      "path": "memory/.dreams/session-corpus/2026-04-12.txt",
+      "startLine": 4,
+      "endLine": 4,
+      "source": "memory",
+      "snippet": "Assistant: NO_REPLY",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "d67a1d127bbd"
+      ],
+      "recallDays": [
+        "2026-04-12",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "no-reply",
+        "assistant"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-12.txt:5:5": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-12.txt:5:5",
+      "path": "memory/.dreams/session-corpus/2026-04-12.txt",
+      "startLine": 5,
+      "endLine": 5,
+      "source": "memory",
+      "snippet": "User: [Sun 2026-04-12 23:54 GMT+9] ping",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "d67a1d127bbd"
+      ],
+      "recallDays": [
+        "2026-04-12",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "user",
+        "sun",
+        "gmt",
+        "ping"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-12.txt:6:6": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-12.txt:6:6",
+      "path": "memory/.dreams/session-corpus/2026-04-12.txt",
+      "startLine": 6,
+      "endLine": 6,
+      "source": "memory",
+      "snippet": "Assistant: 확인했습니다. 대기 중입니다.",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "d67a1d127bbd"
+      ],
+      "recallDays": [
+        "2026-04-12",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "assistant",
+        "확인했습니다",
+        "대기",
+        "중입니다"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-12.txt:7:7": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-12.txt:7:7",
+      "path": "memory/.dreams/session-corpus/2026-04-12.txt",
+      "startLine": 7,
+      "endLine": 7,
+      "source": "memory",
+      "snippet": "User: [Sun 2026-04-12 23:55 GMT+9] 선택된 remote QC sample에 대한 수정 요청입니다. sample_id: storage_job_23c81b8c21fd sample_dir: /home/wavel/projects/gov-md-converter/tests/manual_samples/storage_batch/storage_job_23c81b8c21fd review_md: /home/wavel/projects/gov-md-converter/tests/manual_sa",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "d67a1d127bbd"
+      ],
+      "recallDays": [
+        "2026-04-12",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "sample-id",
+        "storage-job-23c81b8c21fd",
+        "sample-dir",
+        "review-md",
+        "user",
+        "sun",
+        "gmt",
+        "선택된"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-12.txt:8:8": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-12.txt:8:8",
+      "path": "memory/.dreams/session-corpus/2026-04-12.txt",
+      "startLine": 8,
+      "endLine": 8,
+      "source": "memory",
+      "snippet": "Assistant: 관련 파일부터 보고 바로 수정하겠습니다.",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "d67a1d127bbd"
+      ],
+      "recallDays": [
+        "2026-04-12",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "assistant",
+        "관련",
+        "파일부터",
+        "보고",
+        "바로",
+        "수정하겠습니다"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-12.txt:9:9": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-12.txt:9:9",
+      "path": "memory/.dreams/session-corpus/2026-04-12.txt",
+      "startLine": 9,
+      "endLine": 9,
+      "source": "memory",
+      "snippet": "Assistant: 현재 동작이 이미 꽤 맞아서, 이 샘플을 회귀 테스트로 넘기는 쪽으로 정리해보겠습니다.",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "d67a1d127bbd"
+      ],
+      "recallDays": [
+        "2026-04-12",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "assistant",
+        "현재",
+        "동작이",
+        "이미",
+        "맞아서",
+        "샘플을",
+        "회귀",
+        "테스트로"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-12.txt:10:10": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-12.txt:10:10",
+      "path": "memory/.dreams/session-corpus/2026-04-12.txt",
+      "startLine": 10,
+      "endLine": 10,
+      "source": "memory",
+      "snippet": "Assistant: ground rule golden slice handoff는 렌더러를 다시 만지기보다, QC 회귀 검사가 공백 행 차이 때문에 false negative를 내지 않도록 golden slice 비교를 정규화해서 테스트 자산으로 넘긴다. scope report implementation result - `src/hwpx_qc_assertions.py`에서 golden slice `contains` 비교 시 빈 줄 차이를 무시하도록 정규화 추가 - `tests/test_hwpx_qc",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "d67a1d127bbd"
+      ],
+      "recallDays": [
+        "2026-04-12",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "src/hwpx-qc-assertions.py",
+        "tests/test-hwpx-qc",
+        "assistant",
+        "ground",
+        "rule",
+        "golden",
+        "slice",
+        "handoff"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-13.txt:1:1": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-13.txt:1:1",
+      "path": "memory/.dreams/session-corpus/2026-04-13.txt",
+      "startLine": 1,
+      "endLine": 1,
+      "source": "memory",
+      "snippet": "User: [cron:67a9d666-dca9-4742-9a60-ff84fb5f0087 govpress-qc-digest] /qc today Current time: Monday, April 13th, 2026 - 1:20 PM (Asia/Seoul) / 2026-04-13 04:20 UTC Return your summary as plain text; it will be delivered automatically. If the task explicitly calls for messaging a",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "27426694d940"
+      ],
+      "recallDays": [
+        "2026-04-13",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "govpress-qc-digest",
+        "asia/seoul",
+        "user",
+        "cron",
+        "67a9d666",
+        "dca9",
+        "9a60",
+        "ff84fb5f0087"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-13.txt:2:2": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-13.txt:2:2",
+      "path": "memory/.dreams/session-corpus/2026-04-13.txt",
+      "startLine": 2,
+      "endLine": 2,
+      "source": "memory",
+      "snippet": "Assistant: No pipeline_report.json found under /home/wavel/projects/GovPress_PDF_MD/exports/policy_briefing_qc",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "27426694d940"
+      ],
+      "recallDays": [
+        "2026-04-13",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "pipeline-report.json",
+        "assistant",
+        "found",
+        "under",
+        "home",
+        "wavel",
+        "projects",
+        "govpress-pdf-md"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-13.txt:3:3": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-13.txt:3:3",
+      "path": "memory/.dreams/session-corpus/2026-04-13.txt",
+      "startLine": 3,
+      "endLine": 3,
+      "source": "memory",
+      "snippet": "User: Conversation info (untrusted metadata): ```json { \"message_id\": \"441\", \"sender_id\": \"6475698942\", \"sender\": \"준우 정\", \"timestamp\": \"Mon 2026-04-13 19:14 GMT+9\" } ``` Sender (untrusted metadata): ```json { \"label\": \"준우 정 (6475698942)\", \"id\": \"6475698942\", \"name\": \"준우 정\", \"user",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "27426694d940"
+      ],
+      "recallDays": [
+        "2026-04-13",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "message-id",
+        "sender-id",
+        "user",
+        "conversation",
+        "info",
+        "untrusted",
+        "metadata",
+        "sender"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-13.txt:4:4": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-13.txt:4:4",
+      "path": "memory/.dreams/session-corpus/2026-04-13.txt",
+      "startLine": 4,
+      "endLine": 4,
+      "source": "memory",
+      "snippet": "Assistant: [QC Job Open] policy_briefing_2026_04_12_156754095 status=scratch golden=False review=True sample_dir=/home/wavel/projects/GovPress_PDF_MD/tests/manual_samples/storage_batch/policy_briefing_2026_04_12_156754095 다음: `review 보내줘` 또는 `source 보내줘` 또는 `통과` 또는 `수정: ...`",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "27426694d940"
+      ],
+      "recallDays": [
+        "2026-04-13",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "sample-dir",
+        "assistant",
+        "job",
+        "open",
+        "status",
+        "scratch",
+        "golden",
+        "false"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-13.txt:5:5": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-13.txt:5:5",
+      "path": "memory/.dreams/session-corpus/2026-04-13.txt",
+      "startLine": 5,
+      "endLine": 5,
+      "source": "memory",
+      "snippet": "User: [media attached: /home/wavel/.openclaw/media/inbound/260411_11시_고유가_피해지원금_4월_27일_지급_시작재정정책과---f6d155aa-7c73-4088-bb84-8c0409897480.md (text/markdown) | /home/wavel/.openclaw/media/inbound/260411_11시_고유가_피해지원금_4월_27일_지급_시작재정정책과---f6d155aa-7c73-4088-bb84-8c0409897480.md] To s",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "27426694d940"
+      ],
+      "recallDays": [
+        "2026-04-13",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "home/wavel",
+        "text/markdown",
+        "user",
+        "media",
+        "attached",
+        "home",
+        "wavel",
+        "openclaw"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-13.txt:6:6": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-13.txt:6:6",
+      "path": "memory/.dreams/session-corpus/2026-04-13.txt",
+      "startLine": 6,
+      "endLine": 6,
+      "source": "memory",
+      "snippet": "Assistant: [QC Fix Queued] sample=policy_briefing_2026_04_12_156754095 golden.md 저장 및 review 갱신 완료 pid=83252 수정 진행/완료 메시지는 이어서 전송됩니다.",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "27426694d940"
+      ],
+      "recallDays": [
+        "2026-04-13",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "golden.md",
+        "진행/완료",
+        "assistant",
+        "fix",
+        "queued",
+        "sample",
+        "저장",
+        "review"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-13.txt:7:7": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-13.txt:7:7",
+      "path": "memory/.dreams/session-corpus/2026-04-13.txt",
+      "startLine": 7,
+      "endLine": 7,
+      "source": "memory",
+      "snippet": "User: Conversation info (untrusted metadata): ```json { \"message_id\": \"477\", \"sender_id\": \"6475698942\", \"sender\": \"준우 정\", \"timestamp\": \"Mon 2026-04-13 19:38 GMT+9\" } ``` Sender (untrusted metadata): ```json { \"label\": \"준우 정 (6475698942)\", \"id\": \"6475698942\", \"name\": \"준우 정\", \"user",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "27426694d940"
+      ],
+      "recallDays": [
+        "2026-04-13",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "message-id",
+        "sender-id",
+        "user",
+        "conversation",
+        "info",
+        "untrusted",
+        "metadata",
+        "sender"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-13.txt:8:8": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-13.txt:8:8",
+      "path": "memory/.dreams/session-corpus/2026-04-13.txt",
+      "startLine": 8,
+      "endLine": 8,
+      "source": "memory",
+      "snippet": "Assistant: [QC Fix Queued] sample=policy_briefing_2026_04_12_156754095 pid=85807 수정 진행/완료 메시지는 이어서 전송됩니다.",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "27426694d940"
+      ],
+      "recallDays": [
+        "2026-04-13",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "진행/완료",
+        "assistant",
+        "fix",
+        "queued",
+        "sample",
+        "pid",
+        "수정",
+        "진행"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-13.txt:9:9": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-13.txt:9:9",
+      "path": "memory/.dreams/session-corpus/2026-04-13.txt",
+      "startLine": 9,
+      "endLine": 9,
+      "source": "memory",
+      "snippet": "User: Conversation info (untrusted metadata): ```json { \"message_id\": \"493\", \"sender_id\": \"6475698942\", \"sender\": \"준우 정\", \"timestamp\": \"Mon 2026-04-13 19:49 GMT+9\" } ``` Sender (untrusted metadata): ```json { \"label\": \"준우 정 (6475698942)\", \"id\": \"6475698942\", \"name\": \"준우 정\", \"user",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "27426694d940"
+      ],
+      "recallDays": [
+        "2026-04-13",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "message-id",
+        "sender-id",
+        "user",
+        "conversation",
+        "info",
+        "untrusted",
+        "metadata",
+        "sender"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-13.txt:10:10": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-13.txt:10:10",
+      "path": "memory/.dreams/session-corpus/2026-04-13.txt",
+      "startLine": 10,
+      "endLine": 10,
+      "source": "memory",
+      "snippet": "Assistant: [QC Fix Queued] sample=policy_briefing_2026_04_12_156754095 pid=87295 수정 진행/완료 메시지는 이어서 전송됩니다.",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "27426694d940"
+      ],
+      "recallDays": [
+        "2026-04-13",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "진행/완료",
+        "assistant",
+        "fix",
+        "queued",
+        "sample",
+        "pid",
+        "수정",
+        "진행"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-13.txt:11:11": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-13.txt:11:11",
+      "path": "memory/.dreams/session-corpus/2026-04-13.txt",
+      "startLine": 11,
+      "endLine": 11,
+      "source": "memory",
+      "snippet": "User: Conversation info (untrusted metadata): ```json { \"message_id\": \"510\", \"sender_id\": \"6475698942\", \"sender\": \"준우 정\", \"timestamp\": \"Mon 2026-04-13 19:53 GMT+9\" } ``` Sender (untrusted metadata): ```json { \"label\": \"준우 정 (6475698942)\", \"id\": \"6475698942\", \"name\": \"준우 정\", \"user",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "27426694d940"
+      ],
+      "recallDays": [
+        "2026-04-13",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "message-id",
+        "sender-id",
+        "user",
+        "conversation",
+        "info",
+        "untrusted",
+        "metadata",
+        "sender"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-13.txt:12:12": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-13.txt:12:12",
+      "path": "memory/.dreams/session-corpus/2026-04-13.txt",
+      "startLine": 12,
+      "endLine": 12,
+      "source": "memory",
+      "snippet": "Assistant: [QC Pass] sample=policy_briefing_2026_04_12_156754095 status=ok /home/wavel/projects/GovPress_PDF_MD/tests/manual_samples/storage_batch/policy_briefing_2026_04_12_156754095/golden_slices.json",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "27426694d940"
+      ],
+      "recallDays": [
+        "2026-04-13",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "assistant",
+        "pass",
+        "sample",
+        "status",
+        "home",
+        "wavel",
+        "projects",
+        "govpress-pdf-md"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-13.txt:13:13": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-13.txt:13:13",
+      "path": "memory/.dreams/session-corpus/2026-04-13.txt",
+      "startLine": 13,
+      "endLine": 13,
+      "source": "memory",
+      "snippet": "User: [Mon 2026-04-13 11:59 GMT+9] 국정브리핑 보도자료 최근 10건을 검토할 job으로 생성해줘",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "27426694d940"
+      ],
+      "recallDays": [
+        "2026-04-13",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "user",
+        "mon",
+        "gmt",
+        "국정브리핑",
+        "보도자료",
+        "최근",
+        "건을",
+        "검토할"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-13.txt:14:14": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-13.txt:14:14",
+      "path": "memory/.dreams/session-corpus/2026-04-13.txt",
+      "startLine": 14,
+      "endLine": 14,
+      "source": "memory",
+      "snippet": "Assistant: [QC Jobs Generated] recent=10 scaffolded=10 source=국정브리핑 storage recent corpus (fresh scaffold) - storage_job_7006d141cbab title=영농부산물 파쇄지원, 농업 현장 안전·환경·효율 동시 실현 sample=storage_job_7006d141cbab - storage_job_2b6351aa9b3a title=우리나라, 제48차 유네스코 세계유산위원회(2026년) 유치 sample=s",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "27426694d940"
+      ],
+      "recallDays": [
+        "2026-04-13",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "storage-job-7006d141cbab",
+        "storage-job-2b6351aa9b3a",
+        "assistant",
+        "jobs",
+        "generated",
+        "recent",
+        "scaffolded",
+        "source"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-14.txt:1:1": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-14.txt:1:1",
+      "path": "memory/.dreams/session-corpus/2026-04-14.txt",
+      "startLine": 1,
+      "endLine": 1,
+      "source": "memory",
+      "snippet": "User: [cron:67a9d666-dca9-4742-9a60-ff84fb5f0087 govpress-qc-digest] /qc today Current time: Tuesday, April 14th, 2026 - 1:20 PM (Asia/Seoul) / 2026-04-14 04:20 UTC Return your summary as plain text; it will be delivered automatically. If the task explicitly calls for messaging a",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "91b74f012fab"
+      ],
+      "recallDays": [
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "govpress-qc-digest",
+        "asia/seoul",
+        "user",
+        "cron",
+        "67a9d666",
+        "dca9",
+        "9a60",
+        "ff84fb5f0087"
+      ]
+    },
+    "memory:memory/.dreams/session-corpus/2026-04-14.txt:2:2": {
+      "key": "memory:memory/.dreams/session-corpus/2026-04-14.txt:2:2",
+      "path": "memory/.dreams/session-corpus/2026-04-14.txt",
+      "startLine": 2,
+      "endLine": 2,
+      "source": "memory",
+      "snippet": "Assistant: QC today: no pipeline_report.json or dashboard assets found under /home/wavel/projects/GovPress_PDF_MD, and the wrapper could not run because scripts/build_policy_briefing_qc_dashboard.py fails to import src.qc_dashboard.",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.58,
+      "maxScore": 0.58,
+      "firstRecalledAt": "2026-04-14T14:08:32.572Z",
+      "lastRecalledAt": "2026-04-14T14:08:32.572Z",
+      "queryHashes": [
+        "91b74f012fab"
+      ],
+      "recallDays": [
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "pipeline-report.json",
+        "src.qc-dashboard",
+        "assistant",
+        "dashboard",
+        "assets",
+        "found",
+        "under",
+        "home"
+      ]
+    },
+    "memory:memory/2026-04-14.md:118:121": {
+      "key": "memory:memory/2026-04-14.md:118:121",
+      "path": "memory/2026-04-14.md",
+      "startLine": 118,
+      "endLine": 121,
+      "source": "memory",
+      "snippet": "Reflections: Theme: `assistant` kept surfacing across 14 memories.; confidence: 1.00; evidence: memory/.dreams/session-corpus/2026-04-12.txt:2-2, memory/.dreams/session-corpus/2026-04-12.txt:4-4, memory/.dreams/session-corpus/2026-04-12.txt:6-6; note: reflection",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T14:38:32.577Z",
+      "lastRecalledAt": "2026-04-14T14:38:32.577Z",
+      "queryHashes": [
+        "11d1361acb2d"
+      ],
+      "recallDays": [
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "1.00",
+        "2-2",
+        "4-4",
+        "6-6",
+        "reflections",
+        "theme",
+        "assistant",
+        "kept"
+      ]
+    },
+    "memory:memory/2026-04-14.md:122:125": {
+      "key": "memory:memory/2026-04-14.md:122:125",
+      "path": "memory/2026-04-14.md",
+      "startLine": 122,
+      "endLine": 125,
+      "source": "memory",
+      "snippet": "Reflections: Theme: `user` kept surfacing across 12 memories.; confidence: 0.92; evidence: memory/.dreams/session-corpus/2026-04-12.txt:1-1, memory/.dreams/session-corpus/2026-04-12.txt:3-3, memory/.dreams/session-corpus/2026-04-12.txt:5-5; note: reflection",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T14:38:32.577Z",
+      "lastRecalledAt": "2026-04-14T14:38:32.577Z",
+      "queryHashes": [
+        "11d1361acb2d"
+      ],
+      "recallDays": [
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "0.92",
+        "1-1",
+        "3-3",
+        "5-5",
+        "reflections",
+        "theme",
+        "user",
+        "kept"
+      ]
+    },
+    "memory:memory/2026-04-14.md:128:128": {
+      "key": "memory:memory/2026-04-14.md:128:128",
+      "path": "memory/2026-04-14.md",
+      "startLine": 128,
+      "endLine": 128,
+      "source": "memory",
+      "snippet": "Possible Lasting Truths: No strong candidate truths surfaced.",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T14:38:32.577Z",
+      "lastRecalledAt": "2026-04-14T14:38:32.577Z",
+      "queryHashes": [
+        "11d1361acb2d"
+      ],
+      "recallDays": [
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "possible",
+        "lasting",
+        "truths",
+        "strong",
+        "candidate",
+        "surfaced"
+      ]
+    },
+    "memory:memory/2026-04-14.md:133:136": {
+      "key": "memory:memory/2026-04-14.md:133:136",
+      "path": "memory/2026-04-14.md",
+      "startLine": 133,
+      "endLine": 136,
+      "source": "memory",
+      "snippet": "Reflections: Theme: `assistant` kept surfacing across 16 memories.; confidence: 1.00; evidence: memory/.dreams/session-corpus/2026-04-12.txt:2-2, memory/.dreams/session-corpus/2026-04-12.txt:4-4, memory/.dreams/session-corpus/2026-04-12.txt:6-6; note: reflection",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T14:38:32.577Z",
+      "lastRecalledAt": "2026-04-14T15:08:32.590Z",
+      "queryHashes": [
+        "11d1361acb2d"
+      ],
+      "recallDays": [
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "1.00",
+        "2-2",
+        "4-4",
+        "6-6",
+        "reflections",
+        "theme",
+        "assistant",
+        "kept"
+      ]
+    },
+    "memory:memory/2026-04-14.md:137:140": {
+      "key": "memory:memory/2026-04-14.md:137:140",
+      "path": "memory/2026-04-14.md",
+      "startLine": 137,
+      "endLine": 140,
+      "source": "memory",
+      "snippet": "Reflections: Theme: `user` kept surfacing across 14 memories.; confidence: 0.88; evidence: memory/.dreams/session-corpus/2026-04-12.txt:1-1, memory/.dreams/session-corpus/2026-04-12.txt:3-3, memory/.dreams/session-corpus/2026-04-12.txt:5-5; note: reflection",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T14:38:32.577Z",
+      "lastRecalledAt": "2026-04-14T15:08:32.590Z",
+      "queryHashes": [
+        "11d1361acb2d"
+      ],
+      "recallDays": [
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "0.88",
+        "1-1",
+        "3-3",
+        "5-5",
+        "reflections",
+        "theme",
+        "user",
+        "kept"
+      ]
+    },
+    "memory:memory/2026-04-14.md:143:143": {
+      "key": "memory:memory/2026-04-14.md:143:143",
+      "path": "memory/2026-04-14.md",
+      "startLine": 143,
+      "endLine": 143,
+      "source": "memory",
+      "snippet": "Possible Lasting Truths: No strong candidate truths surfaced.",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T14:38:32.577Z",
+      "lastRecalledAt": "2026-04-14T15:08:32.590Z",
+      "queryHashes": [
+        "11d1361acb2d"
+      ],
+      "recallDays": [
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "possible",
+        "lasting",
+        "truths",
+        "strong",
+        "candidate",
+        "surfaced"
+      ]
+    },
+    "memory:memory/2026-04-15.md:138:141": {
+      "key": "memory:memory/2026-04-15.md:138:141",
+      "path": "memory/2026-04-15.md",
+      "startLine": 138,
+      "endLine": 141,
+      "source": "memory",
+      "snippet": "Reflections: Theme: `assistant` kept surfacing across 16 memories.; confidence: 1.00; evidence: memory/.dreams/session-corpus/2026-04-12.txt:2-2, memory/.dreams/session-corpus/2026-04-12.txt:4-4, memory/.dreams/session-corpus/2026-04-12.txt:6-6; note: reflection",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T15:38:32.657Z",
+      "lastRecalledAt": "2026-04-14T15:38:32.657Z",
+      "queryHashes": [
+        "4c4c0cb04efa"
+      ],
+      "recallDays": [
+        "2026-04-15",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "1.00",
+        "2-2",
+        "4-4",
+        "6-6",
+        "reflections",
+        "theme",
+        "assistant",
+        "kept"
+      ]
+    },
+    "memory:memory/2026-04-15.md:142:145": {
+      "key": "memory:memory/2026-04-15.md:142:145",
+      "path": "memory/2026-04-15.md",
+      "startLine": 142,
+      "endLine": 145,
+      "source": "memory",
+      "snippet": "Reflections: Theme: `user` kept surfacing across 14 memories.; confidence: 0.88; evidence: memory/.dreams/session-corpus/2026-04-12.txt:1-1, memory/.dreams/session-corpus/2026-04-12.txt:3-3, memory/.dreams/session-corpus/2026-04-12.txt:5-5; note: reflection",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T15:38:32.657Z",
+      "lastRecalledAt": "2026-04-14T15:38:32.657Z",
+      "queryHashes": [
+        "4c4c0cb04efa"
+      ],
+      "recallDays": [
+        "2026-04-15",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "0.88",
+        "1-1",
+        "3-3",
+        "5-5",
+        "reflections",
+        "theme",
+        "user",
+        "kept"
+      ]
+    },
+    "memory:memory/2026-04-15.md:148:148": {
+      "key": "memory:memory/2026-04-15.md:148:148",
+      "path": "memory/2026-04-15.md",
+      "startLine": 148,
+      "endLine": 148,
+      "source": "memory",
+      "snippet": "Possible Lasting Truths: No strong candidate truths surfaced.",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T15:38:32.657Z",
+      "lastRecalledAt": "2026-04-14T15:38:32.657Z",
+      "queryHashes": [
+        "4c4c0cb04efa"
+      ],
+      "recallDays": [
+        "2026-04-15",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "possible",
+        "lasting",
+        "truths",
+        "strong",
+        "candidate",
+        "surfaced"
+      ]
+    },
+    "memory:memory/2026-04-15.md:153:156": {
+      "key": "memory:memory/2026-04-15.md:153:156",
+      "path": "memory/2026-04-15.md",
+      "startLine": 153,
+      "endLine": 156,
+      "source": "memory",
+      "snippet": "Reflections: Theme: `assistant` kept surfacing across 18 memories.; confidence: 0.95; evidence: memory/.dreams/session-corpus/2026-04-12.txt:2-2, memory/.dreams/session-corpus/2026-04-12.txt:4-4, memory/.dreams/session-corpus/2026-04-12.txt:6-6; note: reflection",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T15:38:32.657Z",
+      "lastRecalledAt": "2026-04-14T16:08:32.604Z",
+      "queryHashes": [
+        "4c4c0cb04efa"
+      ],
+      "recallDays": [
+        "2026-04-15",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "0.95",
+        "2-2",
+        "4-4",
+        "6-6",
+        "reflections",
+        "theme",
+        "assistant",
+        "kept"
+      ]
+    },
+    "memory:memory/2026-04-15.md:157:160": {
+      "key": "memory:memory/2026-04-15.md:157:160",
+      "path": "memory/2026-04-15.md",
+      "startLine": 157,
+      "endLine": 160,
+      "source": "memory",
+      "snippet": "Reflections: Theme: `user` kept surfacing across 16 memories.; confidence: 0.84; evidence: memory/.dreams/session-corpus/2026-04-12.txt:1-1, memory/.dreams/session-corpus/2026-04-12.txt:3-3, memory/.dreams/session-corpus/2026-04-12.txt:5-5; note: reflection",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T15:38:32.657Z",
+      "lastRecalledAt": "2026-04-14T16:08:32.604Z",
+      "queryHashes": [
+        "4c4c0cb04efa"
+      ],
+      "recallDays": [
+        "2026-04-15",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "0.84",
+        "1-1",
+        "3-3",
+        "5-5",
+        "reflections",
+        "theme",
+        "user",
+        "kept"
+      ]
+    },
+    "memory:memory/2026-04-15.md:163:163": {
+      "key": "memory:memory/2026-04-15.md:163:163",
+      "path": "memory/2026-04-15.md",
+      "startLine": 163,
+      "endLine": 163,
+      "source": "memory",
+      "snippet": "Possible Lasting Truths: No strong candidate truths surfaced.",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T15:38:32.657Z",
+      "lastRecalledAt": "2026-04-14T16:08:32.604Z",
+      "queryHashes": [
+        "4c4c0cb04efa"
+      ],
+      "recallDays": [
+        "2026-04-15",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "possible",
+        "lasting",
+        "truths",
+        "strong",
+        "candidate",
+        "surfaced"
+      ]
+    },
+    "memory:memory/2026-04-15.md:163:166": {
+      "key": "memory:memory/2026-04-15.md:163:166",
+      "path": "memory/2026-04-15.md",
+      "startLine": 163,
+      "endLine": 166,
+      "source": "memory",
+      "snippet": "Reflections: Theme: `assistant` kept surfacing across 19 memories.; confidence: 0.93; evidence: memory/.dreams/session-corpus/2026-04-12.txt:2-2, memory/.dreams/session-corpus/2026-04-12.txt:4-4, memory/.dreams/session-corpus/2026-04-12.txt:6-6; note: reflection",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T16:08:32.604Z",
+      "lastRecalledAt": "2026-04-14T16:38:32.591Z",
+      "queryHashes": [
+        "4c4c0cb04efa"
+      ],
+      "recallDays": [
+        "2026-04-15",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "0.93",
+        "2-2",
+        "4-4",
+        "6-6",
+        "reflections",
+        "theme",
+        "assistant",
+        "kept"
+      ]
+    },
+    "memory:memory/2026-04-15.md:167:170": {
+      "key": "memory:memory/2026-04-15.md:167:170",
+      "path": "memory/2026-04-15.md",
+      "startLine": 167,
+      "endLine": 170,
+      "source": "memory",
+      "snippet": "Reflections: Theme: `user` kept surfacing across 17 memories.; confidence: 0.83; evidence: memory/.dreams/session-corpus/2026-04-12.txt:1-1, memory/.dreams/session-corpus/2026-04-12.txt:3-3, memory/.dreams/session-corpus/2026-04-12.txt:5-5; note: reflection",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T16:08:32.604Z",
+      "lastRecalledAt": "2026-04-14T16:38:32.591Z",
+      "queryHashes": [
+        "4c4c0cb04efa"
+      ],
+      "recallDays": [
+        "2026-04-15",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "0.83",
+        "1-1",
+        "3-3",
+        "5-5",
+        "reflections",
+        "theme",
+        "user",
+        "kept"
+      ]
+    },
+    "memory:memory/2026-04-15.md:173:173": {
+      "key": "memory:memory/2026-04-15.md:173:173",
+      "path": "memory/2026-04-15.md",
+      "startLine": 173,
+      "endLine": 173,
+      "source": "memory",
+      "snippet": "Possible Lasting Truths: No strong candidate truths surfaced.",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T16:08:32.604Z",
+      "lastRecalledAt": "2026-04-14T16:38:32.591Z",
+      "queryHashes": [
+        "4c4c0cb04efa"
+      ],
+      "recallDays": [
+        "2026-04-15",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "possible",
+        "lasting",
+        "truths",
+        "strong",
+        "candidate",
+        "surfaced"
+      ]
+    },
+    "memory:memory/2026-04-15.md:173:176": {
+      "key": "memory:memory/2026-04-15.md:173:176",
+      "path": "memory/2026-04-15.md",
+      "startLine": 173,
+      "endLine": 176,
+      "source": "memory",
+      "snippet": "Reflections: Theme: `assistant` kept surfacing across 19 memories.; confidence: 0.93; evidence: memory/.dreams/session-corpus/2026-04-12.txt:2-2, memory/.dreams/session-corpus/2026-04-12.txt:4-4, memory/.dreams/session-corpus/2026-04-12.txt:6-6; note: reflection",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T16:38:32.591Z",
+      "lastRecalledAt": "2026-04-14T16:38:32.591Z",
+      "queryHashes": [
+        "4c4c0cb04efa"
+      ],
+      "recallDays": [
+        "2026-04-15",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "0.93",
+        "2-2",
+        "4-4",
+        "6-6",
+        "reflections",
+        "theme",
+        "assistant",
+        "kept"
+      ]
+    },
+    "memory:memory/2026-04-15.md:177:180": {
+      "key": "memory:memory/2026-04-15.md:177:180",
+      "path": "memory/2026-04-15.md",
+      "startLine": 177,
+      "endLine": 180,
+      "source": "memory",
+      "snippet": "Reflections: Theme: `user` kept surfacing across 17 memories.; confidence: 0.83; evidence: memory/.dreams/session-corpus/2026-04-12.txt:1-1, memory/.dreams/session-corpus/2026-04-12.txt:3-3, memory/.dreams/session-corpus/2026-04-12.txt:5-5; note: reflection",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T16:38:32.591Z",
+      "lastRecalledAt": "2026-04-14T16:38:32.591Z",
+      "queryHashes": [
+        "4c4c0cb04efa"
+      ],
+      "recallDays": [
+        "2026-04-15",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "0.83",
+        "1-1",
+        "3-3",
+        "5-5",
+        "reflections",
+        "theme",
+        "user",
+        "kept"
+      ]
+    },
+    "memory:memory/2026-04-15.md:183:183": {
+      "key": "memory:memory/2026-04-15.md:183:183",
+      "path": "memory/2026-04-15.md",
+      "startLine": 183,
+      "endLine": 183,
+      "source": "memory",
+      "snippet": "Possible Lasting Truths: No strong candidate truths surfaced.",
+      "recallCount": 0,
+      "dailyCount": 1,
+      "groundedCount": 0,
+      "totalScore": 0.62,
+      "maxScore": 0.62,
+      "firstRecalledAt": "2026-04-14T16:38:32.591Z",
+      "lastRecalledAt": "2026-04-14T16:38:32.591Z",
+      "queryHashes": [
+        "4c4c0cb04efa"
+      ],
+      "recallDays": [
+        "2026-04-15",
+        "2026-04-14"
+      ],
+      "conceptTags": [
+        "possible",
+        "lasting",
+        "truths",
+        "strong",
+        "candidate",
+        "surfaced"
+      ]
+    }
+  }
+}
