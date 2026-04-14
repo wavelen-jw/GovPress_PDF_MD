@@ -1,0 +1,106 @@
+name: Check ServerW Edge
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install cloudflared
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb \
+            -o cloudflared.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: Materialize deploy key
+        env:
+          VPS_KEY: ${{ secrets.GOVPRESS_W_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          KEY_FILE=~/.ssh/deploy_key
+          if printf '%s' "$VPS_KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+            printf '%s\n' "$VPS_KEY" | tr -d '\r' > "$KEY_FILE"
+          else
+            printf '%s' "$VPS_KEY" | tr -d '\r\n ' | base64 -d > "$KEY_FILE"
+          fi
+          chmod 600 "$KEY_FILE"
+
+      - name: Configure SSH over Cloudflare Access
+        env:
+          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST }}
+          CF_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh ~/.ssh/cm
+          cloudflared access tcp \
+            --hostname "$SSH_HOST" \
+            --url "127.0.0.1:2222" \
+            --service-token-id "$CF_ID" \
+            --service-token-secret "$CF_SECRET" \
+            >/tmp/cloudflared-access-tcp.stdout 2>&1 &
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            if ss -ltn | grep -q "127.0.0.1:2222"; then
+              break
+            fi
+            sleep 1
+          done
+          cat >> ~/.ssh/config << EOF
+          Host ${SSH_HOST}
+            HostName 127.0.0.1
+            Port 2222
+            StrictHostKeyChecking accept-new
+          EOF
+
+      - name: Inspect ServerW edge
+        env:
+          USERNAME: ${{ secrets.GOVPRESS_W_USER }}
+          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST }}
+          DEPLOY_DIR: ${{ vars.GOVPRESS_W_DEPLOY_DIR }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=~/.ssh/deploy_key
+          ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USERNAME@$SSH_HOST" bash -s "$DEPLOY_DIR" <<'BASH'
+          set -euo pipefail
+          DEPLOY_DIR="$1"
+          API_KEY="$(grep '^GOVPRESS_API_KEY=' "$DEPLOY_DIR/deploy/wsl/.env" | cut -d= -f2- || true)"
+          echo "== whoami =="
+          whoami
+          echo
+          echo "== health 8013 =="
+          curl -i --max-time 10 http://127.0.0.1:8013/health || true
+          echo
+          echo "== health 8080 =="
+          curl -i --max-time 10 http://127.0.0.1:8080/health || true
+          echo
+          echo "== public health =="
+          curl -i --max-time 10 -H "X-API-Key: $API_KEY" https://api4.govpress.cloud/health || true
+          echo
+          echo "== systemd units =="
+          sudo systemctl status --no-pager govpress-compose.service govpress-caddy.service govpress-cloudflared.service || true
+          echo
+          echo "== legacy cloudflared unit =="
+          sudo systemctl status --no-pager cloudflared.service || true
+          echo
+          echo "== listening 8080 =="
+          sudo lsof -iTCP:8080 -sTCP:LISTEN -n -P || true
+          echo
+          echo "== cloudflared processes =="
+          pgrep -af cloudflared || true
+          echo
+          echo "== startup references =="
+          grep -Rni "cloudflared" ~/.cloudflared ~/.config/systemd ~/.config/autostart /etc/systemd /etc/profile.d 2>/dev/null | sed -n '1,200p' || true
+          echo
+          echo "== cloudflared logs =="
+          sudo journalctl -u govpress-cloudflared.service -n 80 --no-pager || true
+          BASH
