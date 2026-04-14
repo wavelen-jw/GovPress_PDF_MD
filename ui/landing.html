@@ -370,223 +370,215 @@
         같은 문서, 완전히 다른 결과.
       </p>
 
-      <!-- Split comparison -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-20">
+      <!-- Option tabs -->
+      <div class="flex gap-2 mb-6" data-aos="fade-up" data-aos-delay="100">
+        <button id="tab-a" onclick="switchTab('a')"
+          class="px-4 py-1.5 rounded-full text-xs font-bold transition-all"
+          style="background:#22c55e; color:#0d0d0d;">A: 화면 비교</button>
+        <button id="tab-b" onclick="switchTab('b')"
+          class="px-4 py-1.5 rounded-full text-xs font-bold transition-all"
+          style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.45);">B: AI 활용 비교</button>
+      </div>
 
-        <!-- Left: OpenDataLoader -->
-        <div data-aos="fade-right" data-aos-delay="150">
-          <div class="flex items-center gap-2 mb-3">
-            <span class="w-2.5 h-2.5 rounded-full bg-red-500/70"></span>
-            <span class="text-xs font-semibold text-white/40">OpenDataLoader 변환 결과</span>
-          </div>
-          <div class="rounded-xl overflow-hidden border border-white/8">
-            <div class="px-4 py-2.5 border-b border-white/8 flex items-center justify-between" style="background:#111;">
-              <span class="text-[0.62rem] font-semibold text-white/45">Markdown + Preview 동시 확인</span>
-              <span class="text-[0.62rem] font-mono text-white/30">odl_output.md</span>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-[1fr_20px_1fr]">
-              <div class="p-5 font-mono text-[0.68rem] leading-relaxed space-y-1 border-b md:border-b-0 md:border-r border-white/8"
-                   style="background:#111; min-height:320px; color:#d4d4d4;">
-                <div class="text-[0.62rem] font-semibold text-white/45 mb-3">Markdown</div>
-                <div class="text-white/60">|![image 1](...)&lt;br&gt;&lt;br&gt;보도자료|</div>
-                <div><span class="diff-bad">|---|</span></div>
-                <div class="text-white/55 mt-2">보도시점 (온라인, 지면) 2026. 4. 11.(토) 11:00</div>
-                <div class="text-white/60 mt-3">|고유가 피해지원금 4월 27일 지급 시작&lt;br&gt;&lt;br&gt;- 범정부 TF 발표 ...|</div>
-                <div><span class="diff-bad">|---|</span></div>
-                <div class="text-white/55 mt-2">- □ 정부는 4월 11일(토) 정부서울청사에서 관계부처 합동 브리핑을 개최 하고,</div>
-                <div class="text-white/55">고유가 피해지원금의 신청기간 · 지원규모 등 지급 방안을 발표했다.</div>
-                <div class="text-white/55 mt-2"><span class="diff-bad">- 1 -</span></div>
-                <div class="text-white/60 mt-2">|붙임4|</div>
-                <div><span class="diff-bad">|---|</span></div>
-                <div class="mt-3"><span class="diff-bad">※ 헤드라인과 붙임이 불필요한 표 모양으로 남고, 문장 관계가 약해짐</span></div>
-              </div>
-              <div class="hidden md:flex items-center justify-center border-r border-white/8" style="background:linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));">
-                <div class="text-white/25 text-xs font-semibold tracking-[0.18em] rotate-90 whitespace-nowrap">SYNC</div>
-              </div>
-              <div class="p-5 text-[0.78rem] leading-relaxed"
-                   style="background:#fff7f5; min-height:320px; color:#362822; font-family: 'Pretendard Variable', sans-serif;">
-                <div class="text-[0.62rem] font-semibold text-[#aa4c24] mb-3">Rendered Preview</div>
-                <table style="width:100%; border-collapse:collapse; font-size:0.72rem; margin:0 0 12px;">
-                  <tbody>
-                    <tr><td style="border:1px solid #eadfd6; padding:6px 8px; color:#6b5d56;">![image 1](...)<br><br>보도자료</td></tr>
-                  </tbody>
-                </table>
-                <p style="margin:0 0 12px; color:#6b5d56; font-size:0.76rem;">보도시점 (온라인, 지면) 2026. 4. 11.(토) 11:00</p>
-                <table style="width:100%; border-collapse:collapse; font-size:0.72rem; margin:0 0 12px;">
-                  <tbody>
-                    <tr>
-                      <td style="border:1px solid #eadfd6; padding:8px 10px; color:#6b5d56;">
-                        <strong style="color:#362822;">고유가 피해지원금 4월 27일 지급 시작</strong><br><br>
-                        - 「고유가 피해지원금」 범정부 TF, 지급계획 발표<br>
-                        - 지방으로 갈수록, 취약계층일수록 두텁게 지원
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-                <ul style="margin:0 0 10px 1.1rem; padding:0; color:#6b5d56; font-size:0.76rem;">
-                  <li>□ 정부는 4월 11일(토) 정부서울청사에서 관계부처 합동 브리핑을 개최 하고, 고유가 피해지원금의 신청기간 · 지원규모 등 지급 방안을 발표했다.</li>
-                </ul>
-                <p style="margin:0 0 10px; color:#7a3028; font-size:0.72rem; font-weight:700;">- 1 -</p>
-                <h4 style="margin:0 0 8px; font-size:0.8rem; color:#362822;">&lt; 지원 대상 및 규모 &gt;</h4>
-                <table style="width:100%; border-collapse:collapse; font-size:0.72rem; margin:0;">
-                  <tbody>
-                    <tr><td style="border:1px solid #eadfd6; padding:6px 8px; color:#6b5d56;">붙임4</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div class="px-4 py-2.5 border-t border-white/8 text-[0.66rem] text-white/35 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5" style="background:#111;">
-              <span>헤드라인과 붙임이 표처럼 남고</span>
-              <span><span class="text-[#ffb199] font-semibold">문장 관계와 페이지 맥락</span>은 후처리가 필요함</span>
-            </div>
-          </div>
-        </div>
+      <!-- ── OPTION A: 렌더링 결과 나란히 ── -->
+      <div id="panel-a" class="mb-20">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-        <!-- Right: 읽힘 -->
-        <div data-aos="fade-left" data-aos-delay="230">
-          <div class="flex items-center gap-2 mb-3">
-            <span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
-            <span class="text-xs font-semibold text-white/40">읽힘 변환 결과</span>
-          </div>
-          <div class="rounded-xl overflow-hidden border border-green-500/20">
-            <div class="px-4 py-2.5 border-b border-green-500/15 flex items-center justify-between" style="background:#0a150f;">
-              <span class="text-[0.62rem] font-semibold text-green-400">Markdown + Preview 동시 확인</span>
-              <span class="text-[0.62rem] font-mono text-green-400/50">output_clean.md</span>
+          <!-- Left: 기존 변환기 (broken rendered) -->
+          <div data-aos="fade-right" data-aos-delay="150">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="w-2 h-2 rounded-full bg-red-500/80"></span>
+              <span class="text-xs font-semibold text-white/40">기존 PDF→MD 변환기</span>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-[1fr_20px_1fr]">
-              <div class="p-5 font-mono text-[0.68rem] leading-relaxed space-y-1 border-b md:border-b-0 md:border-r border-green-500/10"
-                   style="background:#0a150f; min-height:260px;">
-                <div class="text-[0.62rem] font-semibold text-green-400/75 mb-3">Markdown</div>
-                <div class="text-green-300 font-bold">## 고유가 피해지원금 4월 27일 지급 시작</div>
-                <div class="text-green-100/55 mt-2">□ 정부는 4월 11일(토) 정부서울청사에서 관계부처 합동 브리핑을 개최하고,</div>
-                <div class="text-green-100/55">고유가 피해지원금의 신청기간· 지원규모 등 지급 방안을 발표했다.</div>
-                <div class="text-green-300 font-bold mt-3">### 신청 및 사용 기간</div>
-                <div class="text-green-200/75 mt-1.5">| 요일제 구분 | 5.18.(월) | 5.19.(화) | 5.20.(수) | 5.21.(목) | 5.22.(금) |</div>
-                <div class="text-green-200/75">| --- | --- | --- | --- | --- | --- |</div>
-                <div class="text-green-200/75"><span class="diff-good">| 출생연도 끝자리 | 1, 6 | 2, 7 | 3, 8 | 4, 9 | 5, 0 |</span></div>
-                <div class="text-green-300 font-bold mt-3">#### 사용처 및 사용 지역</div>
-                <div class="text-green-200/75">| 사용가능 가맹점 (예시) | 사용제한 업종 |</div>
-                <div class="text-green-200/75">| --- | --- |</div>
-                <div class="text-green-200/75">| 전통시장, 동네마트, 식당, 카페 | 유흥·사행업종, 환금성 업종 |</div>
-                <div class="text-green-200/75"><span class="diff-good">| 대형마트 내 임대매장 / 프랜차이즈 가맹점 | 온라인 쇼핑몰, 배달앱, PG 키오스크 |</span></div>
-                <div class="text-green-400 mt-3">&gt; 붙임과 Q&amp;A도 제목·표·목록 계층을 유지한 채 이어집니다.</div>
+            <div class="rounded-xl overflow-hidden border border-red-500/20">
+              <div class="px-4 py-2 border-b border-red-500/15 flex items-center justify-between" style="background:#1a0a0a;">
+                <span class="text-[0.62rem] font-mono text-red-400/60">output.md → 렌더링</span>
+                <span class="text-[0.6rem] font-semibold text-red-400/70">미리보기</span>
               </div>
-              <div class="hidden md:flex items-center justify-center border-r border-green-500/10" style="background:linear-gradient(180deg, rgba(34,197,94,0.08), rgba(34,197,94,0.02));">
-                <div class="text-green-400/45 text-xs font-semibold tracking-[0.18em] rotate-90 whitespace-nowrap">SYNC</div>
+              <div class="p-5 space-y-3" style="background:#fff; min-height:330px; font-family:'Pretendard Variable',sans-serif; font-size:0.8rem; color:#1a1a1a;">
+
+                <!-- 제목 깨짐 -->
+                <div>
+                  <span style="font-size:0.88rem; font-weight:800; color:#111;">고유가피해지원금4월27일지급시작</span>
+                  <span style="display:inline-block; margin-left:5px; padding:1px 6px; border-radius:4px; background:#fee2e2; color:#dc2626; font-size:0.58rem; font-weight:700; vertical-align:middle;">공백 손실</span>
+                </div>
+
+                <!-- 본문 깨짐 -->
+                <div style="border-left:2px solid #fca5a5; padding-left:8px; background:#fff8f8; border-radius:0 4px 4px 0; padding:6px 8px; font-size:0.72rem; color:#6b7280;">
+                  □정부는4월11일(토)정부서울청사에서관계부처합동브리핑을개최하고,고유가피해지원금의신청기간·지원규모등지급방안을발표했다.
+                  <span style="display:inline-block; margin-left:4px; padding:1px 6px; border-radius:4px; background:#fee2e2; color:#dc2626; font-size:0.58rem; font-weight:700; vertical-align:middle;">공백 손실</span>
+                </div>
+
+                <!-- 표 누락 -->
+                <div>
+                  <p style="font-size:0.78rem; font-weight:700; margin:0 0 5px; color:#111;">신청 및 사용 기간</p>
+                  <div style="border:1.5px dashed #fca5a5; border-radius:6px; padding:10px; background:#fff8f8; text-align:center; color:#dc2626; font-size:0.7rem; font-weight:600;">
+                    ⚠ 표 내용 누락 — 열 불일치로 파싱 실패
+                  </div>
+                </div>
+
+                <!-- 이후 내용 누락 -->
+                <div>
+                  <p style="font-size:0.78rem; font-weight:700; margin:0 0 5px; color:#111;">지원 대상 및 신청 방법</p>
+                  <div style="border:1.5px dashed #fca5a5; border-radius:6px; padding:10px; background:#fff8f8; text-align:center; color:#dc2626; font-size:0.7rem; font-weight:600;">
+                    ⚠ 이후 내용 전부 누락 (붙임·Q&amp;A 포함)
+                  </div>
+                </div>
+
               </div>
-              <div class="p-5 text-[0.78rem] leading-relaxed"
-                   style="background:#fff; min-height:260px; color:#1a1a1a; font-family: 'Pretendard Variable', sans-serif;">
-                <div class="text-[0.62rem] font-semibold text-gray-500 mb-3">Rendered Preview</div>
-                <h2 style="font-size:1rem; font-weight:800; margin:0 0 10px; color:#0d0d0d; border-bottom:2px solid #e5e7eb; padding-bottom:6px;">
+            </div>
+          </div>
+
+          <!-- Right: 읽힘 (clean rendered) -->
+          <div data-aos="fade-left" data-aos-delay="230">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="w-2 h-2 rounded-full bg-green-500"></span>
+              <span class="text-xs font-semibold text-white/40">읽힘</span>
+            </div>
+            <div class="rounded-xl overflow-hidden border border-green-500/25">
+              <div class="px-4 py-2 border-b border-green-500/15 flex items-center justify-between" style="background:#061209;">
+                <span class="text-[0.62rem] font-mono text-green-400/60">output.md → 렌더링</span>
+                <span class="text-[0.6rem] font-semibold text-green-400/80">미리보기</span>
+              </div>
+              <div class="p-5 space-y-3" style="background:#fff; min-height:330px; font-family:'Pretendard Variable',sans-serif; font-size:0.8rem; color:#1a1a1a;">
+
+                <!-- 제목 정상 -->
+                <h2 style="font-size:0.95rem; font-weight:800; margin:0; color:#0d0d0d; border-bottom:2px solid #dcfce7; padding-bottom:5px;">
                   고유가 피해지원금 4월 27일 지급 시작
                 </h2>
-                <p style="margin:0 0 12px; color:#374151; font-size:0.76rem;">
-                  □ 정부는 4월 11일(토) 정부서울청사에서 관계부처 합동 브리핑을 개최하고, 고유가 피해지원금 지급계획을 발표했습니다.
+
+                <!-- 본문 정상 -->
+                <p style="font-size:0.76rem; color:#374151; line-height:1.65; margin:0;">
+                  □ 정부는 4월 11일(토) 정부서울청사에서 관계부처 합동 브리핑을 개최하고, 고유가 피해지원금의 신청기간·지원규모 등 지급 방안을 발표했다.
                 </p>
-                <h3 style="font-size:0.85rem; font-weight:700; margin:0 0 8px; color:#0d0d0d;">신청 및 사용 기간</h3>
-                <table style="width:100%; border-collapse:collapse; font-size:0.72rem; margin-bottom:12px;">
-                  <thead>
-                    <tr style="background:#f3f4f6;">
-                      <th style="border:1px solid #d1d5db; padding:4px 8px; text-align:left; font-weight:600;">요일제</th>
-                      <th style="border:1px solid #d1d5db; padding:4px 8px; text-align:left; font-weight:600;">월</th>
-                      <th style="border:1px solid #d1d5db; padding:4px 8px; text-align:left; font-weight:600;">화</th>
-                      <th style="border:1px solid #d1d5db; padding:4px 8px; text-align:left; font-weight:600;">수</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td style="border:1px solid #d1d5db; padding:4px 8px;">출생연도 끝자리</td><td style="border:1px solid #d1d5db; padding:4px 8px; background:#f0fdf4;">1, 6</td><td style="border:1px solid #d1d5db; padding:4px 8px;">2, 7</td><td style="border:1px solid #d1d5db; padding:4px 8px;">3, 8</td></tr>
-                  </tbody>
-                </table>
-                <h3 style="font-size:0.85rem; font-weight:700; margin:0 0 8px; color:#0d0d0d;">사용처 및 사용 지역</h3>
-                <table style="width:100%; border-collapse:collapse; font-size:0.72rem; margin-bottom:12px;">
-                  <thead>
-                    <tr style="background:#f3f4f6;">
-                      <th style="border:1px solid #d1d5db; padding:4px 8px; text-align:left; font-weight:600;">사용가능 가맹점</th>
-                      <th style="border:1px solid #d1d5db; padding:4px 8px; text-align:left; font-weight:600;">사용제한 업종</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td style="border:1px solid #d1d5db; padding:4px 8px; background:#f0fdf4;">전통시장, 동네마트, 식당, 카페</td>
-                      <td style="border:1px solid #d1d5db; padding:4px 8px;">유흥·사행업종, 환금성 업종</td>
-                    </tr>
-                    <tr>
-                      <td style="border:1px solid #d1d5db; padding:4px 8px;">대형마트 내 임대매장 / 프랜차이즈 가맹점</td>
-                      <td style="border:1px solid #d1d5db; padding:4px 8px;">온라인 쇼핑몰, 배달앱, PG 키오스크</td>
-                    </tr>
-                  </tbody>
-                </table>
+
+                <!-- 표 정상 -->
+                <div>
+                  <p style="font-size:0.78rem; font-weight:700; margin:0 0 5px; color:#111;">신청 및 사용 기간</p>
+                  <table style="width:100%; border-collapse:collapse; font-size:0.7rem;">
+                    <thead>
+                      <tr style="background:#f0fdf4;">
+                        <th style="border:1px solid #bbf7d0; padding:4px 8px; text-align:left; font-weight:600; color:#166534;">요일제</th>
+                        <th style="border:1px solid #bbf7d0; padding:4px 8px; text-align:left; font-weight:600; color:#166534;">월</th>
+                        <th style="border:1px solid #bbf7d0; padding:4px 8px; text-align:left; font-weight:600; color:#166534;">화</th>
+                        <th style="border:1px solid #bbf7d0; padding:4px 8px; text-align:left; font-weight:600; color:#166534;">수</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style="border:1px solid #d1d5db; padding:4px 8px; color:#374151;">출생연도 끝자리</td>
+                        <td style="border:1px solid #d1d5db; padding:4px 8px; color:#374151;">1, 6</td>
+                        <td style="border:1px solid #d1d5db; padding:4px 8px; color:#374151;">2, 7</td>
+                        <td style="border:1px solid #d1d5db; padding:4px 8px; color:#374151;">3, 8</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- 인용 정상 -->
                 <blockquote style="margin:0; border-left:3px solid #22c55e; padding:6px 10px; background:#f0fdf4; color:#166534; font-size:0.72rem; border-radius:0 4px 4px 0;">
-                  <strong>붙임과 Q&amp;A까지</strong> 같은 계층 구조로 이어져, 본문 이후 정보도 바로 검토할 수 있습니다.
+                  붙임과 Q&amp;A까지 같은 계층 구조로 이어집니다.
                 </blockquote>
+
               </div>
             </div>
-            <div class="px-4 py-2.5 border-t border-green-500/10 text-[0.66rem] text-white/35 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5" style="background:#0a150f;">
-              <span>수정은 <span class="text-green-400 font-semibold">Markdown</span>에서</span>
-              <span>확인은 <span class="text-green-400 font-semibold">Preview</span>에서</span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── OPTION B: AI 활용 시나리오 ── -->
+      <div id="panel-b" class="mb-20" style="display:none;">
+
+        <p class="text-white/30 text-xs font-semibold text-center mb-6 tracking-widest uppercase">이 결과를 AI에 붙여넣으면...</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+          <!-- Left: 기존 변환기 + AI -->
+          <div data-aos="fade-right" data-aos-delay="150">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="w-2 h-2 rounded-full bg-red-500/80"></span>
+              <span class="text-xs font-semibold text-white/40">기존 변환기 결과를 붙여넣은 경우</span>
+            </div>
+            <div class="rounded-xl overflow-hidden border border-white/8" style="background:#111;">
+              <!-- chat messages -->
+              <div class="p-5 space-y-4" style="min-height:280px;">
+                <!-- user -->
+                <div class="flex justify-end">
+                  <div style="background:#1e293b; border-radius:12px 12px 2px 12px; padding:8px 12px; max-width:85%; font-size:0.73rem; color:#cbd5e1; line-height:1.55;">
+                    고유가 피해지원금 신청 기준과 방법 알려줘
+                  </div>
+                </div>
+                <!-- ai response (broken) -->
+                <div class="flex gap-2.5 items-start">
+                  <div style="width:22px; height:22px; border-radius:50%; background:#374151; display:flex; align-items:center; justify-content:center; font-size:0.6rem; color:#94a3b8; font-weight:700; flex-shrink:0;">AI</div>
+                  <div style="background:#1c1c1c; border:1px solid rgba(239,68,68,0.25); border-radius:2px 12px 12px 12px; padding:10px 12px; font-size:0.73rem; color:#9ca3af; line-height:1.6;">
+                    죄송합니다. 제공된 문서에서 <span style="color:#f87171; font-weight:600;">표 데이터가 손상</span>되어 구체적인 신청 기준을 파악하기 어렵습니다.<br><br>
+                    원본 문서를 직접 확인하시거나, 더 명확한 정보를 제공해 주시면 답변드리겠습니다.
+                  </div>
+                </div>
+              </div>
+              <div class="px-5 py-2.5 border-t border-white/8 flex items-center gap-2">
+                <span style="width:8px; height:8px; border-radius:50%; background:#ef4444; display:inline-block;"></span>
+                <span class="text-[0.65rem] font-semibold" style="color:#f87171;">AI 응답 불완전 — 재질문 필요</span>
+              </div>
             </div>
           </div>
-        </div>
 
+          <!-- Right: 읽힘 + AI -->
+          <div data-aos="fade-left" data-aos-delay="230">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="w-2 h-2 rounded-full bg-green-500"></span>
+              <span class="text-xs font-semibold text-white/40">읽힘 결과를 붙여넣은 경우</span>
+            </div>
+            <div class="rounded-xl overflow-hidden border border-green-500/20" style="background:#0a150f;">
+              <!-- chat messages -->
+              <div class="p-5 space-y-4" style="min-height:280px;">
+                <!-- user -->
+                <div class="flex justify-end">
+                  <div style="background:#14532d; border-radius:12px 12px 2px 12px; padding:8px 12px; max-width:85%; font-size:0.73rem; color:#bbf7d0; line-height:1.55;">
+                    고유가 피해지원금 신청 기준과 방법 알려줘
+                  </div>
+                </div>
+                <!-- ai response (accurate) -->
+                <div class="flex gap-2.5 items-start">
+                  <div style="width:22px; height:22px; border-radius:50%; background:#14532d; display:flex; align-items:center; justify-content:center; font-size:0.6rem; color:#4ade80; font-weight:700; flex-shrink:0;">AI</div>
+                  <div style="background:#0d1f12; border:1px solid rgba(34,197,94,0.25); border-radius:2px 12px 12px 12px; padding:10px 12px; font-size:0.73rem; color:#d1fae5; line-height:1.6;">
+                    신청은 <span style="color:#4ade80; font-weight:600;">출생연도 끝자리 기준 요일제</span>로 진행됩니다.<br>
+                    1·6 → 5.18(월), 2·7 → 5.19(화), 3·8 → 5.20(수) 순서입니다.<br><br>
+                    전통시장·동네마트·식당 등에서 사용 가능하며, 유흥·사행업종 및 온라인은 제한됩니다.
+                  </div>
+                </div>
+              </div>
+              <div class="px-5 py-2.5 border-t border-green-500/10 flex items-center gap-2">
+                <span style="width:8px; height:8px; border-radius:50%; background:#22c55e; display:inline-block;"></span>
+                <span class="text-[0.65rem] font-semibold text-green-400">즉시 활용 가능한 답변</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
       </div>
 
       <!-- Stats -->
       <div class="grid grid-cols-3 gap-6 border-t border-white/10 pt-14 max-w-2xl mx-auto">
 
         <div class="text-center" data-aos="fade-up" data-aos-delay="80">
-          <div class="stat-n text-green-400">01</div>
-          <div class="text-white/35 text-xs mt-2 font-medium tracking-wide">문서를 다시 조립하지 않아도 됨</div>
-          <div class="text-white/25 text-[11px] mt-2 leading-relaxed">본문, 신청 절차, 붙임, Q&amp;A가 한 흐름으로 이어져서 변환 직후부터 바로 읽고 수정할 수 있습니다.</div>
+          <div class="stat-n text-green-400">✓</div>
+          <div class="text-white/55 text-sm font-bold mt-3">계층 구조 유지</div>
+          <div class="text-white/25 text-[11px] mt-2 leading-relaxed">제목·단락·목록의<br>구조를 그대로 보존</div>
         </div>
 
-        <!-- 표 안의 표 -->
         <div class="text-center" data-aos="fade-up" data-aos-delay="160">
-          <div class="flex flex-col items-center gap-3">
-            <table style="font-size:0.54rem; border-collapse:collapse; line-height:1.45; min-width:220px;">
-              <thead>
-                <tr style="background:rgba(34,197,94,0.12);">
-                  <th style="border:1px solid rgba(34,197,94,0.35); padding:3px 7px; color:#4ade80; font-weight:700;">유형</th>
-                  <th style="border:1px solid rgba(34,197,94,0.35); padding:3px 7px; color:#4ade80; font-weight:700;">항목</th>
-                  <th style="border:1px solid rgba(34,197,94,0.35); padding:3px 7px; color:#4ade80; font-weight:700;">표현</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 7px; color:rgba(255,255,255,0.5);">문자형</td>
-                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 7px; color:rgba(255,255,255,0.5);">단순 표</td>
-                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 7px; color:rgba(255,255,255,0.5);">내용 유지</td>
-                </tr>
-                <tr>
-                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 7px; color:rgba(255,255,255,0.5);">시각형</td>
-                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 7px; color:rgba(255,255,255,0.5);">표 안의 표</td>
-                  <td style="border:1px solid rgba(255,255,255,0.1); padding:3px 7px; color:#86efac; font-weight:700;">별도표 A 참조</td>
-                </tr>
-              </tbody>
-            </table>
-            <div style="width:220px; border:1px solid rgba(34,197,94,0.28); border-radius:8px; padding:8px 10px; background:rgba(255,255,255,0.03); text-align:left;">
-              <div style="color:#86efac; font-size:0.58rem; font-weight:800; letter-spacing:.03em; margin-bottom:6px;">별도표 A. 표 안의 표</div>
-              <table style="width:100%; font-size:0.5rem; border-collapse:collapse; line-height:1.45;">
-                <tbody>
-                  <tr>
-                    <td style="border:1px solid rgba(255,255,255,0.08); padding:3px 6px; color:rgba(255,255,255,0.55); width:34%;">기존문서</td>
-                    <td style="border:1px solid rgba(255,255,255,0.08); padding:3px 6px; color:rgba(255,255,255,0.55);">AI 활용 흐름</td>
-                  </tr>
-                  <tr>
-                    <td style="border:1px solid rgba(255,255,255,0.08); padding:3px 6px; color:rgba(255,255,255,0.55);">앞으로</td>
-                    <td style="border:1px solid rgba(255,255,255,0.08); padding:3px 6px; color:rgba(255,255,255,0.55);">문서 작성·활용 체계</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="text-white/35 text-xs mt-3 font-medium tracking-wide">보여주기용 장식이 작업용 구조로 바뀜</div>
-          <div class="text-white/25 text-[11px] mt-2 leading-relaxed">헤드라인용 표, 셀 안의 표, 붙임 블록을 그대로 두지 않고 실제 검토와 활용이 가능한 구조로 풀어냅니다.</div>
+          <div class="stat-n text-green-400">✓</div>
+          <div class="text-white/55 text-sm font-bold mt-3">표 완전 변환</div>
+          <div class="text-white/25 text-[11px] mt-2 leading-relaxed">합셀·중첩 표도<br>내용 손실 없이 처리</div>
         </div>
 
         <div class="text-center" data-aos="fade-up" data-aos-delay="240">
-          <div class="stat-n text-green-400">03</div>
-          <div class="text-white/35 text-xs mt-2 font-medium tracking-wide">후편집 비용이 처음부터 줄어듦</div>
-          <div class="text-white/25 text-[11px] mt-2 leading-relaxed">왼쪽 Markdown과 오른쪽 Preview를 함께 보면서, 어디를 고치고 어디는 바로 써도 되는지 즉시 판단할 수 있습니다.</div>
+          <div class="stat-n text-green-400">−91<span class="text-white/40 text-xl font-black">%</span></div>
+          <div class="text-white/55 text-sm font-bold mt-3">AI 토큰 절감</div>
+          <div class="text-white/25 text-[11px] mt-2 leading-relaxed">HWPX 대비 MD 기준<br>tiktoken 측정값</div>
         </div>
 
       </div>
@@ -658,6 +650,17 @@
   <script>
     // Init AOS
     AOS.init({ duration: 680, once: true, offset: 70, easing: 'ease-out-cubic' });
+
+    // Section 3 option tab switcher
+    function switchTab(opt) {
+      const isA = opt === 'a';
+      document.getElementById('panel-a').style.display = isA ? '' : 'none';
+      document.getElementById('panel-b').style.display = isA ? 'none' : '';
+      document.getElementById('tab-a').style.background = isA ? '#22c55e' : 'rgba(255,255,255,0.08)';
+      document.getElementById('tab-a').style.color      = isA ? '#0d0d0d' : 'rgba(255,255,255,0.45)';
+      document.getElementById('tab-b').style.background = isA ? 'rgba(255,255,255,0.08)' : '#22c55e';
+      document.getElementById('tab-b').style.color      = isA ? 'rgba(255,255,255,0.45)' : '#0d0d0d';
+    }
 
     // Smooth section scroll (custom name to avoid native conflict)
     function goTo(id) {
