@@ -371,6 +371,7 @@ export function JobDetailPanel({
 
             {selectedJob.status === "completed" && result && (
               <>
+                <Text style={{ fontSize: 11, color: '#6b7280', textAlign: 'center', marginBottom: 8 }}>읽힘 AI로 구조화된 문서입니다</Text>
                 <View style={[styles.detailStickyShell, isWideLayout && styles.detailStickyShellDesktop]}>
                   {!isWideLayout && !hideTopTabs ? (
                     <View style={styles.tabRow}>
