@@ -127,6 +127,8 @@ install_host_proxy_services() {
 
 restart_host_proxy_edge() {
   require_passwordless_sudo
+  sudo pkill -f 'cloudflared tunnel' >/dev/null 2>&1 || true
+  sleep 1
   sudo systemctl enable govpress-caddy.service
   sudo systemctl enable govpress-cloudflared.service
   sudo systemctl restart govpress-caddy.service

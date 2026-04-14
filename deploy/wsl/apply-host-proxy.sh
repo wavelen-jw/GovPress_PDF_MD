@@ -65,6 +65,8 @@ docker rm -f govpress-caddy govpress-cloudflared govpress-caddy-host >/dev/null 
 
 COMPOSE_FILE_OVERRIDE="$COMPOSE_PATH" "$SCRIPT_DIR/bin/compose.sh" up -d --build --remove-orphans api worker
 
+sudo pkill -f 'cloudflared tunnel' >/dev/null 2>&1 || true
+sleep 1
 sudo systemctl restart govpress-caddy.service
 sudo systemctl restart govpress-cloudflared.service
 
