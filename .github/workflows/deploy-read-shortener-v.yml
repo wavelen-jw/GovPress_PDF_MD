@@ -56,14 +56,32 @@ jobs:
           set -euo pipefail
           echo "=== read shortener remote diagnostics ==="
           echo "remote_host=\$(hostname)"
-          echo "remote_user=\$(whoami)"
+          remote_user="\$(whoami)"
+          echo "remote_user=\$remote_user"
           echo "deploy_dir=$DEPLOY_DIR"
           echo "target_branch=$BRANCH"
           git -C "$DEPLOY_DIR" fetch origin
           git -C "$DEPLOY_DIR" checkout "$BRANCH"
           git -C "$DEPLOY_DIR" reset --hard "origin/$BRANCH"
           echo "git_head=\$(git -C "$DEPLOY_DIR" rev-parse HEAD)"
-          sudo -n bash "$DEPLOY_DIR/deploy/vps/install-read-shortener.sh" "$DEPLOY_DIR"
+          python3 "$DEPLOY_DIR/scripts/read_shortener_server.py" --map-file "$DEPLOY_DIR/config/read_shortlinks.json" --validate-only >/dev/null
+          sed \
+            -e "s|__DEPLOY_DIR__|$DEPLOY_DIR|g" \
+            -e "s|__SERVICE_USER__|\$remote_user|g" \
+            "$DEPLOY_DIR/deploy/vps/systemd/govpress-read-shortener.service" \
+            | sudo -n tee /etc/systemd/system/govpress-read-shortener.service >/dev/null
+          sudo -n systemctl daemon-reload
+          sudo -n systemctl enable govpress-read-shortener.service
+          sudo -n systemctl restart govpress-read-shortener.service
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            health_code="\$(curl -sS -o /tmp/govpress-read-shortener-health.txt -w '%{http_code}' http://127.0.0.1:8091/health || true)"
+            if [ "\$health_code" = "200" ]; then
+              break
+            fi
+            sleep 2
+          done
+          echo "health_code=\$health_code"
+          echo "health_body=\$(cat /tmp/govpress-read-shortener-health.txt 2>/dev/null || true)"
           status_code="\$(curl -sS -o /tmp/govpress-read-shortener-root.txt -w '%{http_code}' http://127.0.0.1:8091/abc123 || true)"
           echo "sample_redirect_code=\$status_code"
           echo "sample_redirect_headers=\$(curl -sSI http://127.0.0.1:8091/abc123 | tr '\n' ' ' | cut -c1-400 || true)"
@@ -100,6 +118,11 @@ jobs:
           fi
 
           sample_redirect_code="$(sed -n 's/^sample_redirect_code=//p' remote-read-shortener.log | tail -n1)"
+          health_code="$(sed -n 's/^health_code=//p' remote-read-shortener.log | tail -n1)"
+          if [ "$health_code" != "200" ]; then
+            echo "unexpected health code: ${health_code:-missing}" >&2
+            exit 1
+          fi
           if [ "$sample_redirect_code" != "302" ]; then
             echo "unexpected sample redirect code: ${sample_redirect_code:-missing}" >&2
             exit 1
