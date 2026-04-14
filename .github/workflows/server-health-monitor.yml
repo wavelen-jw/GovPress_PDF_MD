@@ -1,0 +1,167 @@
+name: Server Health Monitor
+
+on:
+  workflow_dispatch:
+    inputs:
+      send_telegram:
+        description: "Send Telegram alerts when transitions are detected."
+        required: false
+        default: true
+        type: boolean
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: server-health-monitor
+  cancel-in-progress: true
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      SEND_TELEGRAM: ${{ github.event_name != 'workflow_dispatch' || inputs.send_telegram != false }}
+      STATE_ISSUE_TITLE: "[bot] Server Health Monitor State"
+      STATE_MARKER: "<!-- server-health-monitor-state -->"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Ensure state issue exists
+        id: ensure-state-issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = process.env.STATE_MARKER;
+            const title = process.env.STATE_ISSUE_TITLE;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100,
+            });
+            let issue = issues.find((item) => item.title === title || (item.body || '').includes(marker));
+            if (!issue) {
+              const created = await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body: `${marker}\n\`\`\`json\n{"version":1,"servers":{}}\n\`\`\``,
+              });
+              issue = created.data;
+            }
+            core.setOutput('issue_number', String(issue.number));
+            core.setOutput('issue_body', issue.body || '');
+
+      - name: Restore monitor state from issue
+        env:
+          ISSUE_BODY: ${{ steps.ensure-state-issue.outputs.issue_body }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          body = os.environ.get("ISSUE_BODY", "")
+          match = re.search(r"```json\s*(\{.*?\})\s*```", body, flags=re.S)
+          if match:
+              try:
+                  payload = json.loads(match.group(1))
+              except json.JSONDecodeError:
+                  payload = {"version": 1, "servers": {}}
+          else:
+              payload = {"version": 1, "servers": {}}
+          Path("server-health-state.json").write_text(
+              json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Run server health monitor
+        id: monitor
+        run: |
+          TELEGRAM_FLAG=""
+          if [ "${SEND_TELEGRAM}" = "true" ] && [ -n "${TELEGRAM_BOT_TOKEN}" ] && [ -n "${TELEGRAM_CHAT_ID}" ]; then
+            TELEGRAM_FLAG="--send-telegram"
+          fi
+          python scripts/server_health_monitor.py \
+            --state-path server-health-state.json \
+            --failure-threshold 2 \
+            --timeout 5 \
+            --json \
+            ${TELEGRAM_FLAG} > server-health-result.json
+          python - <<'PY'
+          import json
+          payload = json.load(open("server-health-result.json", encoding="utf-8"))
+          with open("server-health-summary.txt", "w", encoding="utf-8") as fh:
+              for line in payload.get("summary_lines", []):
+                  fh.write(line + "\n")
+              if payload.get("transitions"):
+                  fh.write("\n")
+                  fh.write(payload.get("message", ""))
+          print(f"transition_count={payload.get('transition_count', 0)}")
+          PY
+          echo "result_path=server-health-result.json" >> "$GITHUB_OUTPUT"
+
+      - name: Append monitor summary
+        if: always()
+        run: |
+          {
+            echo "## Server Health Monitor"
+            cat server-health-summary.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Update state issue
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          ISSUE_NUMBER: ${{ steps.ensure-state-issue.outputs.issue_number }}
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = process.env.STATE_MARKER;
+            const issueNumber = Number(process.env.ISSUE_NUMBER);
+            const state = fs.readFileSync('server-health-state.json', 'utf8').trim();
+            const result = JSON.parse(fs.readFileSync('server-health-result.json', 'utf8'));
+            const summaryLines = (result.summary_lines || []).map((line) => `- ${line.replace(/^- /, '')}`);
+            const body = [
+              marker,
+              '',
+              'Machine-managed state for the scheduled public server health monitor.',
+              '',
+              `Last checked: ${result.checked_at}`,
+              '',
+              'Current status:',
+              ...summaryLines,
+              '',
+              '```json',
+              state,
+              '```',
+            ].join('\n');
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body,
+            });
