@@ -139,6 +139,8 @@ serverW로 연결되는 현재 공개 주소는 `https://api4.govpress.cloud`입
 주의:
 
 - `GOVPRESS_CORS_ALLOW_ORIGINS`는 실제 프론트 주소로 바꿔야 합니다.
+- `GOVPRESS_POLICY_BRIEFING_SERVICE_KEY`는 반드시 `.env`에 명시합니다.
+- 정책브리핑 서비스키는 코드 기본값에 의존하지 않습니다.
 
 ### 비공개 변환 엔진 패키지
 
@@ -405,6 +407,25 @@ GovPress 작업 파일:
   - 기본값: `72 hours`
 - 필요하면 `Turnstile`을 켜서 업로드 전에 사람 확인 절차를 추가합니다.
 - CORS는 예시값 그대로 두지 말고 실제 프론트 주소만 허용합니다.
+
+### SSH 운영 원칙
+
+- `serverW`는 API 안정성 우선이라 direct SSH `443`을 즉시 제거하지 않습니다.
+- 다만 direct `443` SSH는 임시 운영 경로로만 두고, 최종 목표는 Cloudflare SSH 전환입니다.
+- 현재 tunnel ingress에는 `ssh-h.govpress.cloud -> tcp://host.docker.internal:443`가 연결되어 있습니다.
+- direct `443`을 닫기 전에 반드시 Cloudflare SSH 접속을 실제 운영 단말에서 검증합니다.
+- `sshd`는 최소 설정만 허용합니다.
+  - `PasswordAuthentication no`
+  - `PermitRootLogin no`
+  - `AllowUsers wavel`
+  - `X11Forwarding no`
+  - `MaxAuthTries 3`
+
+Cloudflare SSH 검증 예:
+
+```bash
+cloudflared access ssh --hostname ssh-h.govpress.cloud
+```
 
 ## 작업 접근 모델
 
