@@ -117,37 +117,6 @@
       font-size: 12px;
       line-height: 1.55;
     }
-    /* Metric explanation strip */
-    .explainer {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-    .explainer-item {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      padding: 16px 18px;
-      box-shadow: var(--shadow);
-    }
-    .explainer-item .ex-label {
-      font-size: 12px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--accent);
-    }
-    .explainer-item .ex-name {
-      font-size: 14px;
-      font-weight: 700;
-      margin: 5px 0 3px;
-    }
-    .explainer-item .ex-desc {
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.55;
-    }
     /* Metric cards */
     .metric-grid {
       display: grid;
@@ -344,15 +313,148 @@
       line-height: 1.6;
       font-size: 14px;
     }
+    /* ── 지표 설명 compact strip ── */
+    .explainer {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .explainer-item {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 16px;
+      box-shadow: 0 2px 8px rgba(33,24,18,0.05);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .explainer-item .ex-label {
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      background: var(--accent-soft);
+      padding: 2px 7px;
+      border-radius: 999px;
+    }
+    .explainer-item .ex-name {
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .explainer-item .ex-sep {
+      color: var(--line);
+      font-size: 13px;
+    }
+    .explainer-item .ex-desc {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* ── 종합 점수 비교 카드 ── */
+    .summary-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .summary-tool-card {
+      background: rgba(255,255,255,0.6);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 18px 22px;
+    }
+    .summary-tool-card.is-winner {
+      background: rgba(13,106,87,0.05);
+      border-color: rgba(13,106,87,0.2);
+    }
+    .stc-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .stc-name { font-size: 15px; font-weight: 800; letter-spacing: -0.02em; }
+    .stc-overall {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      font-feature-settings: "tnum" 1;
+    }
+    .stc-overall.accent { color: var(--accent); }
+    .stc-bars { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+    .stc-bar-row { display: flex; flex-direction: column; gap: 4px; }
+    .stc-bar-meta { display: flex; justify-content: space-between; align-items: baseline; }
+    .stc-bar-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .stc-bar-score { font-size: 12px; font-weight: 800; font-feature-settings: "tnum" 1; }
+    .stc-track { height: 7px; background: rgba(22,19,16,0.08); border-radius: 4px; overflow: hidden; }
+    .stc-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+    .stc-fill.readhim { background: var(--accent); }
+    .stc-fill.odl { background: var(--accent-2); }
+
+    /* ── 리더보드 ── */
+    .lb-controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .lb-select {
+      font: inherit;
+      font-size: 13px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+      appearance: none;
+      padding-right: 28px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%236d665f' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+    }
+    .lb-count { font-size: 13px; color: var(--muted); margin-left: auto; }
+    .lb-list { display: flex; flex-direction: column; }
+    .lb-row {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,0.45);
+      transition: background 0.15s;
+    }
+    .lb-row:first-child { border-radius: 20px 20px 0 0; }
+    .lb-row:last-child { border-bottom: none; border-radius: 0 0 20px 20px; }
+    .lb-row:only-child { border-radius: 20px; }
+    .lb-row:hover { background: rgba(255,255,255,0.72); }
+    .lb-row-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .lb-meta { flex: 1; min-width: 0; }
+    .lb-delta { flex-shrink: 0; font-size: 13px; font-weight: 800; white-space: nowrap; padding-top: 2px; }
+    .lb-bars { display: flex; flex-direction: column; gap: 6px; }
+    .lb-bar-row { display: flex; align-items: center; gap: 8px; }
+    .lb-bar-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); width: 34px; flex-shrink: 0; }
+    .lb-track { flex: 1; height: 7px; background: rgba(22,19,16,0.08); border-radius: 4px; overflow: hidden; }
+    .lb-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+    .lb-fill.readhim { background: var(--accent); }
+    .lb-fill.odl { background: var(--accent-2); }
+    .lb-score { font-size: 12px; font-weight: 800; font-feature-settings: "tnum" 1; width: 46px; text-align: right; flex-shrink: 0; color: var(--text); }
+
     @media (max-width: 1120px) {
       .hero, .compare-grid, .source-grid { grid-template-columns: 1fr; }
-      .metric-grid, .example-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .explainer { grid-template-columns: 1fr; }
+      .metric-grid, .example-metrics, .summary-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 720px) {
       .shell { width: min(100vw - 20px, 1380px); }
-      .metric-grid, .example-metrics { grid-template-columns: 1fr; }
+      .metric-grid, .example-metrics, .summary-cards { grid-template-columns: 1fr; }
       .hero, .section { padding: 22px; border-radius: 22px; }
+      .lb-row { padding: 12px 14px; }
     }
   </style>
 </head>
@@ -397,19 +499,22 @@
     <!-- ── 지표 설명 ── -->
     <div class="explainer">
       <div class="explainer-item">
-        <div class="ex-label">NID</div>
-        <div class="ex-name">텍스트 유사도</div>
-        <div class="ex-desc">변환된 텍스트가 원문과 얼마나 가까운지 측정합니다. 단어·문장의 보존 정도를 반영합니다.</div>
+        <span class="ex-label">NID</span>
+        <span class="ex-name">텍스트 유사도</span>
+        <span class="ex-sep">—</span>
+        <span class="ex-desc">변환된 텍스트가 원문과 얼마나 가까운지</span>
       </div>
       <div class="explainer-item">
-        <div class="ex-label">TEDS</div>
-        <div class="ex-name">표 정확도</div>
-        <div class="ex-desc">문서 안의 표(table)를 얼마나 정확하게 변환했는지 측정합니다. 행·열 구조 보존이 핵심입니다.</div>
+        <span class="ex-label">TEDS</span>
+        <span class="ex-name">표 정확도</span>
+        <span class="ex-sep">—</span>
+        <span class="ex-desc">표를 얼마나 정확하게 변환했는지</span>
       </div>
       <div class="explainer-item">
-        <div class="ex-label">MHS</div>
-        <div class="ex-name">구조 보존도</div>
-        <div class="ex-desc">제목·단락·목록 등 문서의 계층 구조를 얼마나 충실히 옮겼는지 측정합니다.</div>
+        <span class="ex-label">MHS</span>
+        <span class="ex-name">구조 보존도</span>
+        <span class="ex-sep">—</span>
+        <span class="ex-desc">제목·목록 등 계층 구조를 충실히 옮겼는지</span>
       </div>
     </div>
 
@@ -444,23 +549,7 @@
         각 지표별로 두 도구의 평균 점수를 비교합니다. 점수가 높을수록 원문에 가깝게 변환됐다는 의미입니다.
         <strong>읽힘</strong>은 HWPX를, <strong>OpenDataLoader</strong>는 PDF를 입력으로 사용했습니다.
       </p>
-      <div class="leaderboard-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>도구</th>
-              <th>종합 점수</th>
-              <th>텍스트 유사도 (NID)</th>
-              <th>표 정확도 (TEDS)</th>
-              <th>구조 보존도 (MHS)</th>
-              <th>누락 문서</th>
-              <th>표 평가 불가</th>
-              <th>문서당 처리 시간</th>
-            </tr>
-          </thead>
-          <tbody id="summary-body"></tbody>
-        </table>
-      </div>
+      <div id="summary-cards" class="summary-cards"></div>
     </section>
 
     <!-- ── 비교 예시 ── -->
@@ -516,20 +605,20 @@
         각 문서에 대한 두 도구의 점수입니다. 차이 컬럼이 양수(↑)이면 읽힘이 앞섰고, 음수(↓)이면 OpenDataLoader가 앞섰다는 의미입니다.
         기본 정렬은 점수 차이가 큰 순서입니다.
       </p>
+      <div class="lb-controls">
+        <select id="lb-sort" class="lb-select">
+          <option value="diff">점수 차이 큰 순</option>
+          <option value="readhim">읽힘 점수 순</option>
+          <option value="odl">ODL 점수 순</option>
+          <option value="name">가나다 순</option>
+        </select>
+        <select id="lb-dept" class="lb-select">
+          <option value="">전체 부처</option>
+        </select>
+        <span id="lb-count" class="lb-count"></span>
+      </div>
       <div class="leaderboard-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>문서</th>
-              <th>읽힘</th>
-              <th>OpenDataLoader</th>
-              <th>차이</th>
-              <th>읽힘 세부 (텍스트/표/구조)</th>
-              <th>ODL 세부 (텍스트/표/구조)</th>
-            </tr>
-          </thead>
-          <tbody id="documents-body"></tbody>
-        </table>
+        <div id="lb-list" class="lb-list"></div>
       </div>
     </section>
 
@@ -623,22 +712,39 @@
     }
 
     function fillSummaryTable() {
-      const rows = [
-        { label: "읽힘", metrics: data.metrics.readhim, summary: data.summary.readhim, highlight: true },
-        { label: "OpenDataLoader", metrics: data.metrics.opendataloader, summary: data.summary.opendataloader, highlight: false }
+      const r = data.metrics.readhim.score;
+      const o = data.metrics.opendataloader.score;
+      const metricDefs = [
+        { key: "nid",  label: "NID · 텍스트 유사도" },
+        { key: "teds", label: "TEDS · 표 정확도" },
+        { key: "mhs",  label: "MHS · 구조 보존도" }
       ];
-      $("summary-body").innerHTML = rows.map((row) => `
-        <tr class="${row.highlight ? "highlight" : ""}">
-          <td class="doc-title">${row.label}</td>
-          <td class="score">${fmtPct(row.metrics.score.overall_mean)}</td>
-          <td class="score">${fmtPct(row.metrics.score.nid_mean)}</td>
-          <td class="score">${fmtPct(row.metrics.score.teds_mean)}</td>
-          <td class="score">${fmtPct(row.metrics.score.mhs_mean)}</td>
-          <td class="score">${row.metrics.missing_predictions ?? 0}건</td>
-          <td class="score">${row.metrics.table_timeouts ?? 0}건</td>
-          <td class="score">${row.summary.elapsed_per_doc == null ? "n/a" : row.summary.elapsed_per_doc.toFixed(3) + "초"}</td>
-        </tr>
-      `).join("");
+      function barCard(label, cls, score) {
+        const overallPct = score.overall_mean == null ? 0 : (score.overall_mean * 100).toFixed(1);
+        const bars = metricDefs.map(m => {
+          const v = score[m.key + "_mean"];
+          const pct = v == null ? 0 : (v * 100).toFixed(1);
+          return `
+            <div class="stc-bar-row">
+              <div class="stc-bar-meta">
+                <span class="stc-bar-label">${m.label}</span>
+                <span class="stc-bar-score">${pct}점</span>
+              </div>
+              <div class="stc-track"><div class="stc-fill ${cls}" style="width:${pct}%"></div></div>
+            </div>`;
+        }).join("");
+        return `
+          <div class="summary-tool-card${cls === "readhim" ? " is-winner" : ""}">
+            <div class="stc-header">
+              <div class="stc-name">${label}</div>
+              <div class="stc-overall${cls === "readhim" ? " accent" : ""}">${overallPct}점</div>
+            </div>
+            <div class="stc-bars">${bars}</div>
+          </div>`;
+      }
+      $("summary-cards").innerHTML =
+        barCard("읽힘", "readhim", r) +
+        barCard("OpenDataLoader", "odl", o);
     }
 
     function rowTags(row) {
@@ -657,25 +763,74 @@
     }
 
     function fillDocumentsTable() {
-      const rows = [...data.documents].sort((a, b) => {
-        const av = a.delta_overall == null ? -999 : Math.abs(a.delta_overall);
-        const bv = b.delta_overall == null ? -999 : Math.abs(b.delta_overall);
-        return bv - av;
+      const deptSet = new Set(data.documents.map(d => d.department));
+      const deptSel = $("lb-dept");
+      [...deptSet].sort((a, b) => a.localeCompare(b, "ko")).forEach(dept => {
+        const opt = document.createElement("option");
+        opt.value = dept;
+        opt.textContent = dept;
+        deptSel.appendChild(opt);
       });
-      $("documents-body").innerHTML = rows.map((row) => `
-        <tr>
-          <td>
-            <div class="doc-title">${row.title}</div>
-            <div class="doc-meta">${row.document_id} · ${row.department} · ${row.approve_date}</div>
-            ${rowTags(row)}
-          </td>
-          <td class="score">${fmtPct(row.readhim.overall)}</td>
-          <td class="score">${fmtPct(row.opendataloader.overall)}</td>
-          <td>${deltaLabel(row.delta_overall)}</td>
-          <td class="score" style="font-size:13px;">${fmtRaw(row.readhim.nid)} / ${fmtRaw(row.readhim.teds)} / ${fmtRaw(row.readhim.mhs)}</td>
-          <td class="score" style="font-size:13px;">${fmtRaw(row.opendataloader.nid)} / ${fmtRaw(row.opendataloader.teds)} / ${fmtRaw(row.opendataloader.mhs)}</td>
-        </tr>
-      `).join("");
+
+      function renderRows() {
+        const sortVal = $("lb-sort").value;
+        const deptVal = $("lb-dept").value;
+        let rows = [...data.documents];
+        if (deptVal) rows = rows.filter(r => r.department === deptVal);
+        rows.sort((a, b) => {
+          if (sortVal === "diff") {
+            const av = a.delta_overall == null ? -999 : Math.abs(a.delta_overall);
+            const bv = b.delta_overall == null ? -999 : Math.abs(b.delta_overall);
+            return bv - av;
+          } else if (sortVal === "readhim") {
+            return (b.readhim.overall ?? 0) - (a.readhim.overall ?? 0);
+          } else if (sortVal === "odl") {
+            return (b.opendataloader.overall ?? 0) - (a.opendataloader.overall ?? 0);
+          } else {
+            return a.title.localeCompare(b.title, "ko");
+          }
+        });
+        $("lb-count").textContent = rows.length + "건";
+        $("lb-list").innerHTML = rows.map(row => {
+          const rPct = row.readhim.overall == null ? 0 : row.readhim.overall * 100;
+          const oPct = row.opendataloader.overall == null ? 0 : row.opendataloader.overall * 100;
+          const d = row.delta_overall;
+          let deltaHtml = "";
+          if (d != null) {
+            const pts = (Math.abs(d) * 100).toFixed(1);
+            deltaHtml = d >= 0
+              ? `<span class="lb-delta" style="color:var(--accent)">읽힘 ↑${pts}점</span>`
+              : `<span class="lb-delta" style="color:var(--accent-2)">ODL ↑${pts}점</span>`;
+          }
+          return `
+            <div class="lb-row">
+              <div class="lb-row-header">
+                <div class="lb-meta">
+                  <div class="doc-title">${row.title}</div>
+                  <div class="doc-meta">${row.department} · ${row.approve_date}</div>
+                  ${rowTags(row)}
+                </div>
+                ${deltaHtml}
+              </div>
+              <div class="lb-bars">
+                <div class="lb-bar-row">
+                  <span class="lb-bar-label">읽힘</span>
+                  <div class="lb-track"><div class="lb-fill readhim" style="width:${rPct.toFixed(1)}%"></div></div>
+                  <span class="lb-score">${rPct.toFixed(1)}점</span>
+                </div>
+                <div class="lb-bar-row">
+                  <span class="lb-bar-label">ODL</span>
+                  <div class="lb-track"><div class="lb-fill odl" style="width:${oPct.toFixed(1)}%"></div></div>
+                  <span class="lb-score">${oPct.toFixed(1)}점</span>
+                </div>
+              </div>
+            </div>`;
+        }).join("");
+      }
+
+      $("lb-sort").addEventListener("change", renderRows);
+      $("lb-dept").addEventListener("change", renderRows);
+      renderRows();
     }
 
     function scoreBlock(label, scores) {
