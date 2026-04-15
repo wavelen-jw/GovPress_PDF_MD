@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from server.app.adapters.policy_briefing import (
     DownloadedPolicyBriefingFile,
     PolicyBriefingAttachment,
+    PolicyBriefingClient,
     PolicyBriefingItem,
     _inject_policy_briefing_department,
 )
@@ -351,20 +352,11 @@ class PolicyBriefingApiTests(unittest.TestCase):
 
         self.assertEqual(injected, "# 제목\n\n행정안전부 보도자료 /\n보도시점: 2026. 4. 9.\n")
 
-
-def _build_minimal_hwpx_bytes() -> bytes:
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w") as archive:
-        archive.writestr("mimetype", "application/hwp+zip")
-        archive.writestr("Contents/content.hpf", "<hpf></hpf>")
-    return buffer.getvalue()
-
     def test_import_policy_briefing_rejects_non_zip_hwpx_payload(self) -> None:
         class NonZipClientStub(PolicyBriefingClientStub):
             def download_item_hwpx(self, item: PolicyBriefingItem) -> DownloadedPolicyBriefingFile:
                 downloaded = super().download_item_hwpx(item)
                 return replace(downloaded, content=b"\xd0\xcf\x11\xe0legacy-hwp")
-
 
         app = create_app(Path(self.temp_dir.name), policy_briefing_client=NonZipClientStub())
         client = TestClient(app)
@@ -398,3 +390,51 @@ def _build_minimal_hwpx_bytes() -> bytes:
 
         self.assertEqual(response.status_code, 502)
         self.assertIn("제공기관 API", response.json()["detail"])
+
+
+class PolicyBriefingClientTests(unittest.TestCase):
+    def test_list_items_collapses_redundant_title_whitespace(self) -> None:
+        payload = """\
+<response>
+  <header><resultCode>0</resultCode></header>
+  <body>
+    <NewsItem>
+      <NewsItemId>156755766</NewsItemId>
+      <Title>정부, 쉰들러 ISDS 소송비용 약 96억 원  전액 환수</Title>
+      <MinisterCode>법무부</MinisterCode>
+      <ApproveDate>04/15/2026 09:00:00</ApproveDate>
+      <OriginalUrl>https://www.korea.kr/briefing/pressReleaseView.do?newsId=156755766</OriginalUrl>
+      <FileName1>260415.hwpx</FileName1>
+      <FileUrl1>https://example.test/files/260415.hwpx</FileUrl1>
+    </NewsItem>
+  </body>
+</response>
+"""
+
+        class _FakeResponse:
+            def __init__(self, body: str) -> None:
+                self._body = body.encode("utf-8")
+
+            def read(self) -> bytes:
+                return self._body
+
+            def __enter__(self) -> "_FakeResponse":
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+        client = PolicyBriefingClient(service_key="dummy")
+        with patch("server.app.adapters.policy_briefing.urllib.request.urlopen", return_value=_FakeResponse(payload)):
+            items = client.list_items(date(2026, 4, 15))
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].title, "정부, 쉰들러 ISDS 소송비용 약 96억 원 전액 환수")
+
+
+def _build_minimal_hwpx_bytes() -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("mimetype", "application/hwp+zip")
+        archive.writestr("Contents/content.hpf", "<hpf></hpf>")
+    return buffer.getvalue()

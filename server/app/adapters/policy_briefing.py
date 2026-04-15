@@ -19,6 +19,10 @@ _PRESS_LABEL_RE = re.compile(r"^(보도자료|보도참고자료)\s*$")
 _CATALOG_REFRESH_INTERVAL_SECONDS = 3600
 
 
+def _normalize_policy_briefing_title(text: str) -> str:
+    return re.sub(r"\s+", " ", unescape(text or "")).strip()
+
+
 @dataclass(frozen=True)
 class PolicyBriefingAttachment:
     file_name: str
@@ -155,7 +159,7 @@ class PolicyBriefingClient:
             items.append(
                 PolicyBriefingItem(
                     news_item_id=(node.findtext("NewsItemId") or "").strip(),
-                    title=unescape((node.findtext("Title") or "").strip()),
+                    title=_normalize_policy_briefing_title(node.findtext("Title") or ""),
                     department=unescape((node.findtext("MinisterCode") or "").strip()),
                     approve_date=(node.findtext("ApproveDate") or "").strip(),
                     original_url=(node.findtext("OriginalUrl") or "").strip(),
@@ -566,7 +570,7 @@ def _deserialize_item(payload: dict[str, object]) -> PolicyBriefingItem:
     )
     return PolicyBriefingItem(
         news_item_id=str(payload.get("news_item_id", "")),
-        title=str(payload.get("title", "")),
+        title=_normalize_policy_briefing_title(str(payload.get("title", ""))),
         department=str(payload.get("department", "")),
         approve_date=str(payload.get("approve_date", "")),
         original_url=str(payload.get("original_url", "")),
