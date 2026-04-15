@@ -44,6 +44,19 @@ if [[ -z "${COMPOSE_FILE_OVERRIDE:-}" ]] && [[ "$DEPLOY_MODE" == "host_proxy" ]]
   COMPOSE_FILE="$HOST_PROXY_COMPOSE_FILE"
 fi
 
+cleanup_host_proxy_runtime_conflicts() {
+  if [[ "$DEPLOY_MODE" != "host_proxy" ]]; then
+    return 0
+  fi
+  case "${1:-}" in
+    up|start|restart)
+      docker rm -f govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
+      ;;
+  esac
+}
+
+cleanup_host_proxy_runtime_conflicts "${1:-}"
+
 if [[ -x "$HOME_DIR/.local/bin/docker-compose" ]]; then
   exec "$HOME_DIR/.local/bin/docker-compose" -f "$COMPOSE_FILE" "$@"
 fi
