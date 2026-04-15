@@ -251,6 +251,145 @@ def _save_session_state(state_root: Path, sender_id: str, payload: dict[str, Any
     return path
 
 
+def _now_iso() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def _background_auto_report_dir(state_root: Path) -> Path:
+    path = state_root / "auto_batch_reports"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _batch_report_slug(batch_id: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]+", "-", str(batch_id).strip()) or "auto-batch"
+
+
+def _auto_metrics_defaults() -> dict[str, Any]:
+    return {
+        "auto_batch_started_at": "",
+        "auto_batch_finished_at": "",
+        "auto_batch_metrics": {"sample_count": 0, "completed_count": 0},
+        "auto_sample_metrics": {},
+        "auto_batch_report_path": "",
+    }
+
+
+def _ensure_auto_sample_metric(
+    state: dict[str, Any],
+    *,
+    sample_id: str,
+    title: str,
+    queue_position: int,
+) -> dict[str, Any]:
+    metrics = state.setdefault("auto_sample_metrics", {})
+    sample_metric = metrics.get(sample_id)
+    if not isinstance(sample_metric, dict):
+        sample_metric = {
+            "sample_id": sample_id,
+            "title": title,
+            "queue_position": queue_position,
+            "attempts": 0,
+            "started_at": _now_iso(),
+            "finished_at": "",
+            "outcome": "",
+            "total_duration_ms": 0,
+            "inspect_total_ms": 0,
+            "fix_total_ms": 0,
+            "judge_total_ms": 0,
+            "bottleneck_stage": "",
+            "latest_decision": "",
+            "attempt_metrics": [],
+        }
+        metrics[sample_id] = sample_metric
+    else:
+        sample_metric["title"] = title or sample_metric.get("title", "")
+        sample_metric["queue_position"] = queue_position
+        if not sample_metric.get("started_at"):
+            sample_metric["started_at"] = _now_iso()
+    return sample_metric
+
+
+def _finalize_auto_sample_metric(
+    state: dict[str, Any],
+    *,
+    sample_id: str,
+    outcome: str,
+) -> None:
+    sample_metric = state.get("auto_sample_metrics", {}).get(sample_id)
+    if not isinstance(sample_metric, dict):
+        return
+    sample_metric["outcome"] = outcome
+    if not sample_metric.get("finished_at"):
+        sample_metric["finished_at"] = _now_iso()
+    started_at = str(sample_metric.get("started_at", "")).strip()
+    finished_at = str(sample_metric.get("finished_at", "")).strip()
+    if started_at and finished_at:
+        try:
+            started = datetime.fromisoformat(started_at)
+            finished = datetime.fromisoformat(finished_at)
+            sample_metric["total_duration_ms"] = max(int((finished - started).total_seconds() * 1000), 0)
+        except ValueError:
+            sample_metric["total_duration_ms"] = int(sample_metric.get("total_duration_ms", 0) or 0)
+    stage_totals = {
+        "inspect": int(sample_metric.get("inspect_total_ms", 0) or 0),
+        "fix": int(sample_metric.get("fix_total_ms", 0) or 0),
+        "judge": int(sample_metric.get("judge_total_ms", 0) or 0),
+    }
+    sample_metric["bottleneck_stage"] = max(stage_totals, key=stage_totals.get) if any(stage_totals.values()) else ""
+
+
+def _update_auto_batch_metrics(state: dict[str, Any]) -> None:
+    sample_metrics = state.get("auto_sample_metrics", {})
+    completed = [
+        item
+        for item in sample_metrics.values()
+        if isinstance(item, dict) and str(item.get("finished_at", "")).strip()
+    ]
+    state["auto_batch_metrics"] = {
+        "sample_count": len(sample_metrics),
+        "completed_count": len(completed),
+    }
+
+
+def _write_auto_batch_report(state_root: Path, sender_id: str, state: dict[str, Any]) -> Path | None:
+    batch_id = str(state.get("auto_batch_id", "")).strip()
+    if not batch_id:
+        return None
+    _update_auto_batch_metrics(state)
+    report_dir = _background_auto_report_dir(state_root)
+    report_path = report_dir / f"{_batch_report_slug(batch_id)}-{sender_id}.json"
+    payload = {
+        "batch_id": batch_id,
+        "sender_id": sender_id,
+        "source": state.get("auto_source", "policy_briefing"),
+        "requested_count": int(state.get("auto_requested_count", 0) or 0),
+        "queue_sample_ids": [str(item) for item in state.get("auto_queue_sample_ids", []) if isinstance(item, str)],
+        "queue_index": int(state.get("auto_queue_index", 0) or 0),
+        "current_sample_id": str(state.get("auto_current_sample_id", "")).strip(),
+        "current_status": str(state.get("auto_current_status", "")).strip(),
+        "auto_mode": bool(state.get("auto_mode")),
+        "started_at": str(state.get("auto_batch_started_at", "")).strip(),
+        "finished_at": str(state.get("auto_batch_finished_at", "")).strip(),
+        "summary": dict(state.get("auto_batch_metrics", {})),
+        "results": list(state.get("auto_results", [])),
+        "samples": [
+            item
+            for item in sorted(
+                (
+                    value
+                    for value in state.get("auto_sample_metrics", {}).values()
+                    if isinstance(value, dict)
+                ),
+                key=lambda item: (int(item.get("queue_position", 0) or 0), str(item.get("sample_id", ""))),
+            )
+        ],
+    }
+    report_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    state["auto_batch_report_path"] = str(report_path)
+    return report_path
+
+
 def _qc_memory_root(gov_md_root: Path) -> Path:
     return gov_md_root / DEFAULT_QC_MEMORY_ROOT
 
@@ -503,6 +642,7 @@ def _auto_state_defaults() -> dict[str, Any]:
         "auto_pass_gate": "code+ai",
         "auto_max_attempts": AUTO_MAX_ATTEMPTS,
         "auto_results": [],
+        **_auto_metrics_defaults(),
     }
 
 
@@ -560,9 +700,11 @@ def _reconcile_manual_auto_result(
         changed = True
     if not changed:
         return
+    _finalize_auto_sample_metric(state, sample_id=sample_id, outcome=outcome)
     state["last_action"] = f"manual-{outcome}"
     state["last_sample_outcome"] = outcome
     _save_session_state(state_root, sender_id, state)
+    _write_auto_batch_report(state_root, sender_id, state)
 
 
 def _auto_result_counts(state: dict[str, Any]) -> dict[str, int]:
@@ -573,7 +715,7 @@ def _auto_result_counts(state: dict[str, Any]) -> dict[str, int]:
         outcome = str(item.get("outcome", "")).strip()
         if outcome == "pass":
             counts["pass"] += 1
-        elif outcome == "defer":
+        elif outcome in {"defer", "deferred"}:
             counts["defer"] += 1
         else:
             counts["other"] += 1
@@ -2402,11 +2544,16 @@ def _build_auto_start_payload(
         auto_pass_gate="code+ai",
         auto_max_attempts=AUTO_MAX_ATTEMPTS,
         auto_results=[],
+        auto_batch_started_at=_now_iso(),
+        auto_batch_finished_at="",
+        auto_batch_metrics={"sample_count": len(queue), "completed_count": 0},
+        auto_sample_metrics={},
         last_action="auto-start",
     )
     if queue:
         state["selected_sample_id"] = queue[0]
     _save_session_state(state_root, sender_id, state)
+    _write_auto_batch_report(state_root, sender_id, state)
     payload: dict[str, Any] = {
         "command": "remote-qc-auto-start",
         "ok": True,
@@ -2465,12 +2612,23 @@ def _auto_status_payload(*, sender_id: str, state_root: Path) -> dict[str, Any]:
         "current_status": str(state.get("auto_current_status", "")),
         "results": list(state.get("auto_results", [])),
         "result_counts": counts,
+        "auto_batch_started_at": str(state.get("auto_batch_started_at", "")),
+        "auto_batch_finished_at": str(state.get("auto_batch_finished_at", "")),
+        "auto_batch_metrics": dict(state.get("auto_batch_metrics", {})),
+        "auto_batch_report_path": str(state.get("auto_batch_report_path", "")),
     }
 
 
 def _auto_stop_payload(*, sender_id: str, state_root: Path) -> dict[str, Any]:
-    state = _apply_auto_state(_load_session_state(state_root, sender_id), auto_mode=False, auto_current_status="stopped", last_action="auto-stop")
+    state = _apply_auto_state(
+        _load_session_state(state_root, sender_id),
+        auto_mode=False,
+        auto_current_status="stopped",
+        auto_batch_finished_at=_now_iso(),
+        last_action="auto-stop",
+    )
     _save_session_state(state_root, sender_id, state)
+    _write_auto_batch_report(state_root, sender_id, state)
     return {
         "command": "remote-qc-auto-stop",
         "ok": True,
@@ -2505,10 +2663,12 @@ def _complete_auto_result(
         outcome=outcome,
         attempts=int(state.get("auto_current_attempt", 0) or 0),
     )
+    _finalize_auto_sample_metric(state, sample_id=sample.sample_id, outcome=outcome)
     _advance_auto_queue(state)
     if _auto_batch_finished(state):
         state["auto_mode"] = False
         state["auto_current_status"] = "finished"
+        state["auto_batch_finished_at"] = _now_iso()
         counts = _auto_result_counts(state)
         message = (
             "[QC Auto Complete]\n"
@@ -2536,6 +2696,7 @@ def _complete_auto_result(
         )
     state["last_action"] = f"auto-{outcome}"
     _save_session_state(state_root, sender_id, state)
+    _write_auto_batch_report(state_root, sender_id, state)
     payload = {
         "command": "remote-qc-auto-advance",
         "ok": True,
@@ -2566,6 +2727,13 @@ def _run_auto_current(
         sample_title = _load_sample_title(sample)
         queue_total = len([str(item) for item in state.get("auto_queue_sample_ids", []) if isinstance(item, str)])
         queue_index = int(state.get("auto_queue_index", 0) or 0) + 1
+        sample_metric = _ensure_auto_sample_metric(
+            state,
+            sample_id=sample.sample_id,
+            title=sample_title,
+            queue_position=queue_index,
+        )
+        _write_auto_batch_report(state_root, sender_id, state)
         _select_sample(sample, sender_id=sender_id, state_root=state_root, gov_md_root=gov_md_root)
         attempt = int(state.get("auto_current_attempt", 0) or 0)
         next_fix_instruction = ""
@@ -2574,6 +2742,18 @@ def _run_auto_current(
             state["auto_current_attempt"] = attempt
             state["auto_current_status"] = "running"
             _save_session_state(state_root, sender_id, state)
+            _write_auto_batch_report(state_root, sender_id, state)
+            attempt_metric: dict[str, Any] = {
+                "attempt": attempt,
+                "started_at": _now_iso(),
+                "finished_at": "",
+                "inspect_before_ms": 0,
+                "fix_ms": 0,
+                "inspect_after_ms": 0,
+                "judge_ms": 0,
+                "decision": "",
+                "decision_summary": "",
+            }
             _send_telegram_text(
                 sender_id=sender_id,
                 message_id=message_id,
@@ -2584,7 +2764,10 @@ def _run_auto_current(
                     f"iteration={attempt}/{state.get('auto_max_attempts', AUTO_MAX_ATTEMPTS)}"
                 ),
             )
+            inspect_before_started = time.perf_counter()
             pre_inspect = _run_hwpx_qc_inspect(sample.sample_dir, gov_md_root=gov_md_root)
+            inspect_before_ms = max(int((time.perf_counter() - inspect_before_started) * 1000), 0)
+            attempt_metric["inspect_before_ms"] = inspect_before_ms
             fix_result = _handle_fix_request(
                 sender_id=sender_id,
                 message_id=message_id,
@@ -2600,7 +2783,12 @@ def _run_auto_current(
                 announce_start=False,
                 send_result_files=False,
             )
+            fix_ms = max(int((time.perf_counter() - inspect_before_started) * 1000), 0) - inspect_before_ms
+            attempt_metric["fix_ms"] = max(fix_ms, 0)
+            inspect_after_started = time.perf_counter()
             inspect_result = _run_hwpx_qc_inspect(sample.sample_dir, gov_md_root=gov_md_root)
+            inspect_after_ms = max(int((time.perf_counter() - inspect_after_started) * 1000), 0)
+            attempt_metric["inspect_after_ms"] = inspect_after_ms
             inspect_payload = inspect_result.get("payload", {})
             _send_telegram_text(
                 sender_id=sender_id,
@@ -2612,6 +2800,15 @@ def _run_auto_current(
             )
             if inspect_result["returncode"] != 0 or inspect_payload.get("passed") is not True:
                 next_fix_instruction = _build_auto_fix_instruction(sample=sample, inspect_payload=inspect_payload)
+                attempt_metric["decision"] = "retry"
+                attempt_metric["decision_summary"] = _summarize_inspect_payload(inspect_payload)
+                attempt_metric["finished_at"] = _now_iso()
+                sample_metric["attempts"] = attempt
+                sample_metric["inspect_total_ms"] = int(sample_metric.get("inspect_total_ms", 0) or 0) + inspect_before_ms + inspect_after_ms
+                sample_metric["fix_total_ms"] = int(sample_metric.get("fix_total_ms", 0) or 0) + int(attempt_metric["fix_ms"])
+                sample_metric["latest_decision"] = "retry"
+                sample_metric.setdefault("attempt_metrics", []).append(attempt_metric)
+                _write_auto_batch_report(state_root, sender_id, state)
                 _send_telegram_text(
                     sender_id=sender_id,
                     message_id=message_id,
@@ -2622,13 +2819,26 @@ def _run_auto_current(
                     ),
                 )
                 continue
+            judge_started = time.perf_counter()
             judge_result = _run_auto_judge(
                 sample=sample,
                 inspect_payload=inspect_payload,
                 worker_text=str(fix_result.get("worker_text", "")),
                 gov_md_root=gov_md_root,
             )
+            judge_ms = max(int((time.perf_counter() - judge_started) * 1000), 0)
+            attempt_metric["judge_ms"] = judge_ms
             judge: AutoJudgeResult = judge_result["judge"]
+            attempt_metric["decision"] = judge.decision
+            attempt_metric["decision_summary"] = judge.user_summary or judge.next_fix_instruction or _summarize_inspect_payload(inspect_payload)
+            attempt_metric["finished_at"] = _now_iso()
+            sample_metric["attempts"] = attempt
+            sample_metric["inspect_total_ms"] = int(sample_metric.get("inspect_total_ms", 0) or 0) + inspect_before_ms + inspect_after_ms
+            sample_metric["fix_total_ms"] = int(sample_metric.get("fix_total_ms", 0) or 0) + int(attempt_metric["fix_ms"])
+            sample_metric["judge_total_ms"] = int(sample_metric.get("judge_total_ms", 0) or 0) + judge_ms
+            sample_metric["latest_decision"] = judge.decision
+            sample_metric.setdefault("attempt_metrics", []).append(attempt_metric)
+            _write_auto_batch_report(state_root, sender_id, state)
             _send_telegram_text(
                 sender_id=sender_id,
                 message_id=message_id,
@@ -2642,7 +2852,9 @@ def _run_auto_current(
             if judge.decision == "pass":
                 state["auto_current_status"] = "awaiting_user"
                 state["auto_current_attempt"] = attempt
+                _finalize_auto_sample_metric(state, sample_id=sample.sample_id, outcome="awaiting_user")
                 _save_session_state(state_root, sender_id, state)
+                _write_auto_batch_report(state_root, sender_id, state)
                 _send_requested_files(
                     sender_id=sender_id,
                     message_id=message_id,
@@ -2677,6 +2889,7 @@ def _run_auto_current(
             attempts=attempt,
             note="max attempts reached" if attempt >= int(state.get("auto_max_attempts", AUTO_MAX_ATTEMPTS) or AUTO_MAX_ATTEMPTS) else "ai defer",
         )
+        _finalize_auto_sample_metric(state, sample_id=sample.sample_id, outcome="deferred")
         _send_telegram_text(
             sender_id=sender_id,
             message_id=message_id,
@@ -2690,9 +2903,12 @@ def _run_auto_current(
         )
         _advance_auto_queue(state)
         _save_session_state(state_root, sender_id, state)
+        _write_auto_batch_report(state_root, sender_id, state)
     state["auto_mode"] = False
     state["auto_current_status"] = "finished"
+    state["auto_batch_finished_at"] = _now_iso()
     _save_session_state(state_root, sender_id, state)
+    _write_auto_batch_report(state_root, sender_id, state)
     _send_telegram_text(
         sender_id=sender_id,
         message_id=message_id,
