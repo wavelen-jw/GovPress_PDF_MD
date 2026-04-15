@@ -481,8 +481,25 @@ def _resolve_remote_sample(
     remote_qc_root: Path,
     storage_root: Path,
 ) -> SampleRecord:
-    del gov_md_root, storage_root
-    return _find_sample(sample_id, remote_qc_root, DEFAULT_CURATED_QC_ROOT)
+    try:
+        return _find_sample(sample_id, remote_qc_root, DEFAULT_CURATED_QC_ROOT)
+    except FileNotFoundError:
+        pass
+    if sample_id.startswith("storage_job_"):
+        job_id = "job_" + sample_id.removeprefix("storage_job_")
+        scaffold_storage_qc_jobs(
+            storage_root=storage_root,
+            output_root=PROJECT_ROOT / "exports" / "policy_briefing_qc",
+            gov_md_converter_root=gov_md_root,
+            qc_root=remote_qc_root,
+            job_ids=[job_id],
+            limit=1,
+            force=False,
+            autofill=True,
+            sample_status="scratch",
+        )
+        return _find_sample(sample_id, remote_qc_root, DEFAULT_CURATED_QC_ROOT)
+    raise FileNotFoundError(f"Unknown QC sample: {sample_id}")
 
 
 def _maybe_export_policy_briefing_sample(
@@ -613,6 +630,12 @@ def _send_telegram_text(
     return _run_subprocess(command, cwd=PROJECT_ROOT)
 
 
+def _background_fix_log_dir(state_root: Path) -> Path:
+    path = state_root / "background_fix_logs"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def _spawn_background_fix(
     *,
     sender_id: str,
@@ -625,6 +648,7 @@ def _spawn_background_fix(
     remote_qc_root: Path,
     state_root: Path,
 ) -> dict[str, Any]:
+    log_path = _background_fix_log_dir(state_root) / f"{sample.sample_id}-{int(time.time())}.log"
     command = [
         sys.executable,
         str(PROJECT_ROOT / "scripts" / "openclaw_ops.py"),
@@ -648,18 +672,21 @@ def _spawn_background_fix(
     ]
     if message_id:
         command.extend(["--message-id", message_id])
+    log_handle = log_path.open("ab")
     process = subprocess.Popen(
         command,
         cwd=str(PROJECT_ROOT),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=log_handle,
+        stderr=subprocess.STDOUT,
         start_new_session=True,
     )
+    log_handle.close()
     return {
         "command": "remote-qc-fix-queued",
         "ok": True,
         "sample_id": sample.sample_id,
         "pid": process.pid,
+        "log_path": str(log_path),
     }
 
 
@@ -2480,13 +2507,35 @@ def main() -> int:
             raise AssertionError(f"Unhandled subcommand {args.subcommand}")
     except Exception as exc:
         payload = {"command": args.subcommand, "ok": False, "message": str(exc)}
+        if args.subcommand == "remote-qc-run-fix":
+            try:
+                _send_telegram_text(
+                    sender_id=args.sender_id,
+                    message_id=args.message_id,
+                    message=f"[QC Fix Handoff Failed] sample={args.sample_id}\n{str(exc).strip()}",
+                )
+            except Exception:
+                pass
         print(json.dumps(payload, ensure_ascii=False, indent=2) if args.json else payload["message"])
         return 1
+
+    human_text = format_human(payload)
+    if args.subcommand == "telegram-dispatch" and args.chat_scope == "dm":
+        try:
+            ctx = build_telegram_context(args.message, state_root=state_root)
+            if ctx.sender_id:
+                _send_telegram_text(
+                    sender_id=ctx.sender_id,
+                    message_id=ctx.message_id,
+                    message=human_text,
+                )
+        except Exception:
+            pass
 
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
-        print(format_human(payload))
+        print(human_text)
     if payload.get("returncode") not in (None, 0):
         return int(payload["returncode"])
     if payload.get("ok") is False:
