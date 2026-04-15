@@ -122,9 +122,37 @@ def resolve_qc_export_root(*, storage_root: str | Path) -> Path:
 
 
 def resolve_dashboard_paths(qc_export_root: str | Path) -> tuple[Path, Path]:
-    resolved_root = Path(qc_export_root).resolve()
-    dashboard_dir = resolved_root / "dashboard"
-    return dashboard_dir / "index.html", dashboard_dir / "dashboard.json"
+    html_path = resolve_dashboard_asset_path(qc_export_root, "index.html")
+    json_path = resolve_dashboard_asset_path(qc_export_root, "dashboard.json")
+    return html_path, json_path
+
+
+def resolve_dashboard_asset_path(qc_export_root: str | Path, asset_name: str) -> Path:
+    roots: list[Path] = []
+
+    def add_root(root: Path | None) -> None:
+        if root is None:
+            return
+        resolved = root.resolve()
+        if resolved not in roots:
+            roots.append(resolved)
+
+    primary_root = Path(qc_export_root).resolve()
+    add_root(primary_root)
+
+    gov_md_root = os.environ.get("GOV_MD_CONVERTER_ROOT")
+    if gov_md_root:
+        add_root(Path(gov_md_root) / "exports" / "policy_briefing_qc")
+
+    govpress_root = Path(__file__).resolve().parents[4]
+    add_root(govpress_root / "exports" / "policy_briefing_qc")
+    add_root(govpress_root.parent / "gov-md-converter" / "exports" / "policy_briefing_qc")
+
+    for root in roots:
+        candidate = root / "dashboard" / asset_name
+        if candidate.exists():
+            return candidate
+    return primary_root / "dashboard" / asset_name
 
 
 def _download_pdf(

@@ -322,6 +322,28 @@ class PolicyBriefingApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["run_count"], 1)
 
+    def test_get_policy_briefing_qc_dashboard_falls_back_to_converter_export_root(self) -> None:
+        converter_root = Path(self.temp_dir.name) / "gov-md-converter"
+        dashboard_dir = converter_root / "exports" / "policy_briefing_qc" / "dashboard"
+        dashboard_dir.mkdir(parents=True, exist_ok=True)
+        (dashboard_dir / "index.html").write_text("<html><body>Fallback QC Dashboard</body></html>", encoding="utf-8")
+        (dashboard_dir / "dashboard.json").write_text("{\"run_count\":2}", encoding="utf-8")
+        previous_converter_root = os.environ.get("GOV_MD_CONVERTER_ROOT")
+        os.environ["GOV_MD_CONVERTER_ROOT"] = str(converter_root)
+        try:
+            html_response = self.client.get("/v1/policy-briefings/qc/dashboard")
+            json_response = self.client.get("/v1/policy-briefings/qc/dashboard.json")
+        finally:
+            if previous_converter_root is None:
+                os.environ.pop("GOV_MD_CONVERTER_ROOT", None)
+            else:
+                os.environ["GOV_MD_CONVERTER_ROOT"] = previous_converter_root
+
+        self.assertEqual(html_response.status_code, 200)
+        self.assertIn("Fallback QC Dashboard", html_response.text)
+        self.assertEqual(json_response.status_code, 200)
+        self.assertEqual(json_response.json()["run_count"], 2)
+
     def test_get_policy_briefing_qc_curated_rendered_returns_markdown(self) -> None:
         curated_root = Path(self.temp_dir.name) / "gov-md-converter" / "tests" / "qc_samples"
         sample_dir = curated_root / "policy_briefing_2026_04_15_156755790"
