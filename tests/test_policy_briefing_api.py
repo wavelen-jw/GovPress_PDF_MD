@@ -302,7 +302,10 @@ class PolicyBriefingApiTests(unittest.TestCase):
         (dashboard_dir / "index.html").write_text("<html><body>QC Dashboard</body></html>", encoding="utf-8")
         (dashboard_dir / "dashboard.json").write_text("{\"run_count\":1}", encoding="utf-8")
 
-        response = self.client.get("/v1/policy-briefings/qc/dashboard")
+        response = self.client.get(
+            "/v1/policy-briefings/qc/dashboard",
+            headers={"X-Admin-Key": "test-admin-key"},
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("QC Dashboard", response.text)
@@ -314,13 +317,29 @@ class PolicyBriefingApiTests(unittest.TestCase):
         (dashboard_dir / "index.html").write_text("<html><body>QC Dashboard</body></html>", encoding="utf-8")
         (dashboard_dir / "dashboard.json").write_text("{\"run_count\":1}", encoding="utf-8")
 
-        response = self.client.get("/v1/policy-briefings/qc/dashboard.json")
+        response = self.client.get(
+            "/v1/policy-briefings/qc/dashboard.json",
+            headers={"X-Admin-Key": "test-admin-key"},
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["run_count"], 1)
 
-    def test_get_policy_briefing_qc_dashboard_returns_404_when_missing(self) -> None:
+    def test_get_policy_briefing_qc_dashboard_rejects_missing_admin_key(self) -> None:
+        dashboard_dir = Path(self.temp_dir.name) / "exports" / "policy_briefing_qc" / "dashboard"
+        dashboard_dir.mkdir(parents=True, exist_ok=True)
+        (dashboard_dir / "index.html").write_text("<html><body>QC Dashboard</body></html>", encoding="utf-8")
+
         response = self.client.get("/v1/policy-briefings/qc/dashboard")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["detail"], "Invalid admin key")
+
+    def test_get_policy_briefing_qc_dashboard_returns_404_when_missing(self) -> None:
+        response = self.client.get(
+            "/v1/policy-briefings/qc/dashboard",
+            headers={"X-Admin-Key": "test-admin-key"},
+        )
 
         self.assertEqual(response.status_code, 404)
         self.assertIn("not available", response.json()["detail"])

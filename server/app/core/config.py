@@ -20,6 +20,7 @@ class Settings:
     upload_rate_limit_window_seconds: int
     job_ttl_hours: int
     policy_briefing_service_key: str | None
+    using_policy_briefing_service_key_fallback: bool
 
 
 def _parse_origins(raw: str | None) -> list[str]:
@@ -28,11 +29,25 @@ def _parse_origins(raw: str | None) -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
+def _parse_bool(raw: str | None, *, default: bool) -> bool:
+    if raw is None:
+        return default
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
+
 def load_settings() -> Settings:
     raw_upload_bytes = os.environ.get("GOVPRESS_MAX_UPLOAD_BYTES", "25000000")
     raw_rate_limit_count = os.environ.get("GOVPRESS_UPLOAD_RATE_LIMIT_COUNT", "12")
     raw_rate_limit_window_seconds = os.environ.get("GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS", "60")
     raw_job_ttl_hours = os.environ.get("GOVPRESS_JOB_TTL_HOURS", "72")
+    allow_policy_briefing_service_key_fallback = _parse_bool(
+        os.environ.get("GOVPRESS_ALLOW_DEFAULT_POLICY_BRIEFING_SERVICE_KEY_FALLBACK"),
+        default=True,
+    )
+    configured_policy_briefing_service_key = os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY") or None
+    using_policy_briefing_service_key_fallback = (
+        configured_policy_briefing_service_key is None and allow_policy_briefing_service_key_fallback
+    )
     return Settings(
         api_key=os.environ.get("GOVPRESS_API_KEY") or None,
         admin_api_key=os.environ.get("GOVPRESS_ADMIN_API_KEY") or None,
@@ -43,7 +58,8 @@ def load_settings() -> Settings:
         upload_rate_limit_window_seconds=max(int(raw_rate_limit_window_seconds), 1),
         job_ttl_hours=max(int(raw_job_ttl_hours), 1),
         policy_briefing_service_key=(
-            os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY")
-            or DEFAULT_POLICY_BRIEFING_SERVICE_KEY
+            configured_policy_briefing_service_key
+            or (DEFAULT_POLICY_BRIEFING_SERVICE_KEY if allow_policy_briefing_service_key_fallback else None)
         ),
+        using_policy_briefing_service_key_fallback=using_policy_briefing_service_key_fallback,
     )

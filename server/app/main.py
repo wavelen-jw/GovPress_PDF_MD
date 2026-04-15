@@ -45,6 +45,12 @@ def create_app(
         ) from exc
 
     settings = load_settings()
+    logger = logging.getLogger("govpress.server")
+    if settings.using_policy_briefing_service_key_fallback:
+        logger.warning(
+            "Using built-in policy briefing service key fallback; "
+            "set GOVPRESS_POLICY_BRIEFING_SERVICE_KEY on every server before disabling the fallback."
+        )
     resolved_storage_root = storage_root or Path(
         os.environ.get("GOVPRESS_STORAGE_ROOT", Path(__file__).resolve().parents[2] / "storage")
     )

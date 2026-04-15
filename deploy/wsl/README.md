@@ -400,12 +400,15 @@ GovPress 작업 파일:
 - 호스트 공개 포트는 `127.0.0.1:8080`만 사용합니다.
 - 외부 공개는 `cloudflared`만 담당합니다.
 - `GOVPRESS_API_KEY`를 설정합니다.
+- `GOVPRESS_ADMIN_API_KEY`를 반드시 설정합니다.
 - `GOVPRESS_CORS_ALLOW_ORIGINS`는 실제 프론트 도메인만 허용합니다.
 - 업로드 요청은 서버 보조 rate limit으로 제한됩니다.
   - 기본값: `12 requests / 60 seconds`
 - 완료/실패 작업은 TTL이 지나면 자동 정리됩니다.
   - 기본값: `72 hours`
-- 필요하면 `Turnstile`을 켜서 업로드 전에 사람 확인 절차를 추가합니다.
+- 현재 운영 기본값은 `Turnstile` 없이 `API key + 서버 rate limit + Cloudflare rate limit`입니다.
+- `GOVPRESS_POLICY_BRIEFING_SERVICE_KEY`는 각 서버 `.env`에 명시합니다.
+- fallback 제거 전환 준비가 끝나면 `GOVPRESS_ALLOW_DEFAULT_POLICY_BRIEFING_SERVICE_KEY_FALLBACK=false`로 두고 배포합니다.
 - CORS는 예시값 그대로 두지 말고 실제 프론트 주소만 허용합니다.
 
 ### SSH 운영 원칙
@@ -432,6 +435,10 @@ cloudflared access ssh --hostname ssh-work.govpress.cloud
 - 작업 생성 시 `job_id`와 `edit_token`이 함께 발급됩니다.
 - 상태 조회, 결과 조회, 수정 저장, 재시도는 `X-Edit-Token`이 있어야만 가능합니다.
 - 공개 최근 작업 목록은 제공하지 않습니다.
+- 정책브리핑 QC dashboard는 외부 공개하지 않습니다.
+  - `GET /v1/policy-briefings/qc/dashboard`
+  - `GET /v1/policy-briefings/qc/dashboard.json`
+  - 두 경로 모두 `X-Admin-Key`가 필요합니다.
 
 ## Cloudflare 권장 규칙
 

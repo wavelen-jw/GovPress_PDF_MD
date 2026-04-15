@@ -66,6 +66,7 @@ class ServerApiContractTests(unittest.TestCase):
             self.app.state.settings.policy_briefing_service_key,
             DEFAULT_POLICY_BRIEFING_SERVICE_KEY,
         )
+        self.assertTrue(self.app.state.settings.using_policy_briefing_service_key_fallback)
 
     def test_app_reads_environment_operational_settings(self) -> None:
         previous = {
@@ -76,6 +77,9 @@ class ServerApiContractTests(unittest.TestCase):
             "GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS": os.environ.get("GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS"),
             "GOVPRESS_JOB_TTL_HOURS": os.environ.get("GOVPRESS_JOB_TTL_HOURS"),
             "GOVPRESS_POLICY_BRIEFING_SERVICE_KEY": os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY"),
+            "GOVPRESS_ALLOW_DEFAULT_POLICY_BRIEFING_SERVICE_KEY_FALLBACK": os.environ.get(
+                "GOVPRESS_ALLOW_DEFAULT_POLICY_BRIEFING_SERVICE_KEY_FALLBACK"
+            ),
         }
         try:
             os.environ["GOVPRESS_API_KEY"] = "secret-key"
@@ -103,3 +107,25 @@ class ServerApiContractTests(unittest.TestCase):
         self.assertEqual(app.state.settings.upload_rate_limit_window_seconds, 30)
         self.assertEqual(app.state.settings.job_ttl_hours, 24)
         self.assertEqual(app.state.settings.policy_briefing_service_key, "policy-key")
+        self.assertFalse(app.state.settings.using_policy_briefing_service_key_fallback)
+
+    def test_app_can_disable_policy_service_key_fallback(self) -> None:
+        previous = {
+            "GOVPRESS_POLICY_BRIEFING_SERVICE_KEY": os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY"),
+            "GOVPRESS_ALLOW_DEFAULT_POLICY_BRIEFING_SERVICE_KEY_FALLBACK": os.environ.get(
+                "GOVPRESS_ALLOW_DEFAULT_POLICY_BRIEFING_SERVICE_KEY_FALLBACK"
+            ),
+        }
+        try:
+            os.environ.pop("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY", None)
+            os.environ["GOVPRESS_ALLOW_DEFAULT_POLICY_BRIEFING_SERVICE_KEY_FALLBACK"] = "false"
+            app = create_app(Path(self.temp_dir.name))
+        finally:
+            for key, value in previous.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+        self.assertIsNone(app.state.settings.policy_briefing_service_key)
+        self.assertFalse(app.state.settings.using_policy_briefing_service_key_fallback)
