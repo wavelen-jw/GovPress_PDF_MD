@@ -461,6 +461,10 @@ def _scaffold_latest_policy_queue(
 
 def _find_sample(sample_id: str, remote_qc_root: Path, curated_qc_root: Path | None = None) -> SampleRecord:
     candidate_roots = [remote_qc_root]
+    if DEFAULT_QC_ROOT not in candidate_roots:
+        candidate_roots.append(DEFAULT_QC_ROOT)
+    if DEFAULT_REMOTE_QC_ROOT not in candidate_roots:
+        candidate_roots.append(DEFAULT_REMOTE_QC_ROOT)
     if curated_qc_root is not None and curated_qc_root not in candidate_roots:
         candidate_roots.append(curated_qc_root)
     for root in candidate_roots:
@@ -489,6 +493,7 @@ def _maybe_export_policy_briefing_sample(
     remote_qc_root: Path,
     storage_root: Path,
 ) -> SampleRecord | None:
+    policy_qc_root = DEFAULT_QC_ROOT if remote_qc_root == DEFAULT_REMOTE_QC_ROOT else remote_qc_root
     catalog = PolicyBriefingCatalog(
         client=PolicyBriefingClient(service_key=os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY")),
         cache_path=storage_root / "policy_briefing_catalog.json",
@@ -507,7 +512,7 @@ def _maybe_export_policy_briefing_sample(
 
     sample_id = f"policy_briefing_{target_date:%Y_%m_%d}_{item.news_item_id}"
     try:
-        return _find_sample(sample_id, remote_qc_root, DEFAULT_CURATED_QC_ROOT)
+        return _find_sample(sample_id, policy_qc_root, DEFAULT_CURATED_QC_ROOT)
     except FileNotFoundError:
         pass
 
@@ -521,17 +526,17 @@ def _maybe_export_policy_briefing_sample(
         ensure_fresh=False,
         scaffold_runner=run_gov_md_scaffold,
         gov_md_converter_root=gov_md_root,
-        qc_root=remote_qc_root,
+        qc_root=policy_qc_root,
         autofill=True,
         force=False,
         sample_status="scratch",
     )
     if int(report.get("scaffolded_count", 0) or 0) <= 0:
         try:
-            return _find_sample(sample_id, remote_qc_root)
+            return _find_sample(sample_id, policy_qc_root)
         except FileNotFoundError:
             return None
-    return _find_sample(sample_id, remote_qc_root)
+    return _find_sample(sample_id, policy_qc_root)
 
 
 def _ensure_selected_sample(state_root: Path, sender_id: str, remote_qc_root: Path) -> SampleRecord:
