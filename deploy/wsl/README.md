@@ -139,8 +139,8 @@ serverW로 연결되는 현재 공개 주소는 `https://api4.govpress.cloud`입
 주의:
 
 - `GOVPRESS_CORS_ALLOW_ORIGINS`는 실제 프론트 주소로 바꿔야 합니다.
-- `GOVPRESS_POLICY_BRIEFING_SERVICE_KEY`는 반드시 `.env`에 명시합니다.
-- 정책브리핑 서비스키는 코드 기본값에 의존하지 않습니다.
+- `GOVPRESS_POLICY_BRIEFING_SERVICE_KEY`는 `.env`에 명시하는 것을 권장합니다.
+- 모든 서버에 키가 채워진 뒤에만 코드 기본값 제거를 진행합니다.
 
 ### 비공개 변환 엔진 패키지
 

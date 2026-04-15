@@ -4,6 +4,11 @@ from dataclasses import dataclass
 import os
 
 
+DEFAULT_POLICY_BRIEFING_SERVICE_KEY = (
+    "QBvXfTPVvBtw48ic0JvU5iKcvMHFDRZ5Svr/zyzqpUhl+VsJP8vr2uFnX0+XmgqCpHS9sXbI6TYugGmwAvEl8w=="
+)
+
+
 @dataclass(frozen=True)
 class Settings:
     api_key: str | None
@@ -37,5 +42,8 @@ def load_settings() -> Settings:
         upload_rate_limit_count=max(int(raw_rate_limit_count), 1),
         upload_rate_limit_window_seconds=max(int(raw_rate_limit_window_seconds), 1),
         job_ttl_hours=max(int(raw_job_ttl_hours), 1),
-        policy_briefing_service_key=os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY") or None,
+        policy_briefing_service_key=(
+            os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY")
+            or DEFAULT_POLICY_BRIEFING_SERVICE_KEY
+        ),
     )

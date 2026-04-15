@@ -5,6 +5,7 @@ import os
 import tempfile
 import unittest
 
+from server.app.core.config import DEFAULT_POLICY_BRIEFING_SERVICE_KEY
 from server.app.main import create_app
 
 
@@ -61,7 +62,10 @@ class ServerApiContractTests(unittest.TestCase):
         self.assertEqual(self.app.state.settings.upload_rate_limit_count, 12)
         self.assertEqual(self.app.state.settings.upload_rate_limit_window_seconds, 60)
         self.assertEqual(self.app.state.settings.job_ttl_hours, 72)
-        self.assertIsNone(self.app.state.settings.policy_briefing_service_key)
+        self.assertEqual(
+            self.app.state.settings.policy_briefing_service_key,
+            DEFAULT_POLICY_BRIEFING_SERVICE_KEY,
+        )
 
     def test_app_reads_environment_operational_settings(self) -> None:
         previous = {
