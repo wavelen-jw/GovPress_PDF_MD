@@ -175,12 +175,14 @@ install_host_proxy_services() {
 
 restart_host_proxy_edge() {
   require_passwordless_sudo
-  sudo pkill -f 'cloudflared tunnel' >/dev/null 2>&1 || true
-  sleep 1
   sudo systemctl enable govpress-caddy.service
   sudo systemctl enable govpress-cloudflared.service
   sudo systemctl restart govpress-caddy.service
-  sudo systemctl restart govpress-cloudflared.service
+  if systemctl is-active --quiet govpress-cloudflared.service; then
+    echo "cloudflared_restart=skipped_active"
+  else
+    sudo systemctl restart govpress-cloudflared.service
+  fi
   sudo systemctl status --no-pager govpress-caddy.service || true
   sudo systemctl status --no-pager govpress-cloudflared.service || true
   sudo journalctl -u govpress-caddy.service -n 30 --no-pager || true
@@ -190,7 +192,11 @@ restart_host_proxy_edge() {
 restart_split_edge_tunnel() {
   require_passwordless_sudo
   sudo systemctl enable govpress-cloudflared.service
-  sudo systemctl restart govpress-cloudflared.service
+  if systemctl is-active --quiet govpress-cloudflared.service; then
+    echo "cloudflared_restart=skipped_active"
+  else
+    sudo systemctl restart govpress-cloudflared.service
+  fi
   sudo systemctl status --no-pager govpress-cloudflared.service || true
   sudo journalctl -u govpress-cloudflared.service -n 30 --no-pager || true
 }
