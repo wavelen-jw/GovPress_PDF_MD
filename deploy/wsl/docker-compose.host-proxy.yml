@@ -19,10 +19,13 @@ services:
     environment:
       GOVPRESS_STORAGE_ROOT: /data/storage
       GOVPRESS_QC_EXPORT_ROOT: /app/exports/policy_briefing_qc
+      GOVPRESS_CURATED_QC_ROOT: /gov-md-converter/tests/qc_samples
+      GOV_MD_CONVERTER_ROOT: /gov-md-converter
       GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-1}
     mem_limit: 256m
     volumes:
       - ../../:/app
+      - ../../../gov-md-converter:/gov-md-converter:ro
       - ./data/storage:/data/storage
     ports:
       - "127.0.0.1:8013:8013"
@@ -48,11 +51,14 @@ services:
     environment:
       GOVPRESS_STORAGE_ROOT: /data/storage
       GOVPRESS_QC_EXPORT_ROOT: /app/exports/policy_briefing_qc
+      GOVPRESS_CURATED_QC_ROOT: /gov-md-converter/tests/qc_samples
+      GOV_MD_CONVERTER_ROOT: /gov-md-converter
       GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-1}
       _JAVA_OPTIONS: "-Xms64m -Xmx256m"
     mem_limit: 512m
     volumes:
       - ../../:/app
+      - ../../../gov-md-converter:/gov-md-converter:ro
       - ./data/storage:/data/storage
     depends_on:
       - api
