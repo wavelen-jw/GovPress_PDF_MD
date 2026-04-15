@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
 GOV_MD_ROOT = (PROJECT_ROOT / ".." / "gov-md-converter").resolve()
 if str(GOV_MD_ROOT) not in sys.path:
     sys.path.insert(0, str(GOV_MD_ROOT))
+DEFAULT_OUTPUT_ROOT = GOV_MD_ROOT / "exports" / "policy_briefing_qc"
 
 from src.qc_pipeline import run_local_hwpx_qc_pipeline
 
@@ -20,9 +21,13 @@ from src.qc_pipeline import run_local_hwpx_qc_pipeline
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the GovPress QC pipeline against a local HWPX/PDF corpus")
     parser.add_argument("--date", default=date.today().isoformat(), help="Target report date in YYYY-MM-DD format")
-    parser.add_argument("--output-root", default="exports/policy_briefing_qc", help="Where to write pipeline artifacts")
-    parser.add_argument("--gov-md-converter-root", required=True, help="Path to the private gov-md-converter repository")
-    parser.add_argument("--qc-root", required=True, help="QC sample root inside gov-md-converter")
+    parser.add_argument("--output-root", default=str(DEFAULT_OUTPUT_ROOT), help="Where to write pipeline artifacts")
+    parser.add_argument("--gov-md-converter-root", default=str(GOV_MD_ROOT), help="Path to the private gov-md-converter repository")
+    parser.add_argument(
+        "--qc-root",
+        default=str(GOV_MD_ROOT / "tests" / "manual_samples" / "policy_briefings"),
+        help="QC sample root inside gov-md-converter",
+    )
     parser.add_argument("--source-root", default="../gov-md-converter/tests/problem", help="Directory containing local HWPX files")
     parser.add_argument("--mode", choices=["low", "high"], default="low", help="low=highest risk first, high=lowest risk first")
     parser.add_argument("--limit", type=int, help="Maximum number of local corpus items to scaffold")

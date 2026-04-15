@@ -4,10 +4,11 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 GOV_MD_CONVERTER_ROOT="${GOV_MD_CONVERTER_ROOT:-../gov-md-converter}"
+DEFAULT_OUTPUT_ROOT="$GOV_MD_CONVERTER_ROOT/exports/policy_briefing_qc"
 
 DATE_ARG="${1:-${TARGET_DATE:-$(date -u +%F)}}"
-OUTPUT_ROOT="${OUTPUT_ROOT:-exports/policy_briefing_qc}"
-QC_ROOT="${QC_ROOT:-tests/manual_samples/policy_briefings}"
+OUTPUT_ROOT="${OUTPUT_ROOT:-$DEFAULT_OUTPUT_ROOT}"
+QC_ROOT="${QC_ROOT:-$GOV_MD_CONVERTER_ROOT/tests/manual_samples/policy_briefings}"
 EXPORT_LIMIT="${EXPORT_LIMIT:-5}"
 
 REPORT_PATH="$OUTPUT_ROOT/$DATE_ARG/pipeline_report.json"

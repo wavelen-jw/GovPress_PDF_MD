@@ -107,6 +107,17 @@ class StorageQcArtifact:
 
 
 def resolve_qc_export_root(*, storage_root: str | Path) -> Path:
+    env_root = os.environ.get("GOVPRESS_QC_EXPORT_ROOT")
+    if env_root:
+        return Path(env_root).resolve()
+    candidates = []
+    gov_md_root = os.environ.get("GOV_MD_CONVERTER_ROOT")
+    if gov_md_root:
+        candidates.append(Path(gov_md_root).resolve())
+    candidates.append(Path(__file__).resolve().parents[4] / "gov-md-converter")
+    for root in candidates:
+        if (root / "src" / "qc_pipeline.py").exists():
+            return root / "exports" / "policy_briefing_qc"
     return Path(storage_root).resolve().parent / "exports" / "policy_briefing_qc"
 
 

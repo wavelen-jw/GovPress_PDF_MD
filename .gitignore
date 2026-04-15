@@ -17,6 +17,7 @@ dist_*/
 build_*/
 logs/
 storage/
+exports/policy_briefing_qc/
 !mobile/src/storage/
 !mobile/src/storage/config.ts
 node_modules/
@@ -29,6 +30,7 @@ tests/converted_md/
 tests/fixtures/**/*.json
 tests/manual_samples/*
 !tests/manual_samples/README.md
+ops/openclaw_qc_ops/
 *:Zone.Identifier
 
 -o/

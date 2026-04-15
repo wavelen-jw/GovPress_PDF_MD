@@ -10,6 +10,8 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+DEFAULT_GOV_MD_ROOT = Path(os.environ.get("GOV_MD_CONVERTER_ROOT", PROJECT_ROOT.parent / "gov-md-converter")).resolve()
+DEFAULT_OUTPUT_ROOT = DEFAULT_GOV_MD_ROOT / "exports" / "policy_briefing_qc"
 
 from server.app.adapters.policy_briefing import PolicyBriefingCatalog, PolicyBriefingClient
 from server.app.adapters.policy_briefing_qc import run_policy_briefing_qc_pipeline
@@ -18,13 +20,17 @@ from server.app.adapters.policy_briefing_qc import run_policy_briefing_qc_pipeli
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Export policy briefings and run the gov-md-converter QC pipeline")
     parser.add_argument("--date", default=date.today().isoformat(), help="Target date in YYYY-MM-DD format")
-    parser.add_argument("--output-root", default="exports/policy_briefing_qc", help="Where to export raw files and reports")
+    parser.add_argument("--output-root", default=str(DEFAULT_OUTPUT_ROOT), help="Where to export raw files and reports")
     parser.add_argument("--news-item-id", action="append", help="Specific news_item_id to include. Repeat to include multiple ids.")
     parser.add_argument("--limit", type=int, help="Maximum number of items to export after filtering")
     parser.add_argument("--cached-only", action="store_true", help="Use cached catalog items without forcing refresh")
     parser.add_argument("--no-pdf", action="store_true", help="Skip primary PDF download even when available")
-    parser.add_argument("--gov-md-converter-root", required=True, help="Path to the private gov-md-converter repository")
-    parser.add_argument("--qc-root", required=True, help="QC sample root inside gov-md-converter")
+    parser.add_argument("--gov-md-converter-root", default=str(DEFAULT_GOV_MD_ROOT), help="Path to the private gov-md-converter repository")
+    parser.add_argument(
+        "--qc-root",
+        default=str(DEFAULT_GOV_MD_ROOT / "tests" / "manual_samples" / "policy_briefings"),
+        help="QC sample root inside gov-md-converter",
+    )
     parser.add_argument("--force", action="store_true", help="Overwrite existing scaffold sample directories")
     parser.add_argument("--no-autofill", action="store_true", help="Skip starter assertions and golden candidate generation")
     parser.add_argument("--sample-status", default="scratch", help="Sample status to use for scaffolded QC samples")

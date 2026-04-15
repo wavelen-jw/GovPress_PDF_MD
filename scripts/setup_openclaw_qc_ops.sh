@@ -8,11 +8,11 @@ CRON_EXPR="${CRON_EXPR:-20 13 * * *}"
 TZ_NAME="${TZ_NAME:-Asia/Seoul}"
 AGENT_NAME="${AGENT_NAME:-govpress_qc_ops}"
 AGENT_MODEL="${AGENT_MODEL:-gemma4/gemma-4-26B-A4B-it-UD-IQ4_NL.gguf}"
-EXPORT_ROOT="${GOVPRESS_QC_EXPORT_ROOT:-$REPO_ROOT/exports/policy_briefing_qc}"
 GOV_MD_ROOT="${GOV_MD_CONVERTER_ROOT:-$REPO_ROOT/../gov-md-converter}"
 QC_ROOT="${GOVPRESS_QC_ROOT:-$GOV_MD_ROOT/tests/manual_samples/policy_briefings}"
 WRAPPER="$REPO_ROOT/scripts/openclaw_ops.py"
-AGENT_WORKSPACE="${AGENT_WORKSPACE:-$REPO_ROOT/ops/openclaw_qc_ops}"
+EXPORT_ROOT="${GOVPRESS_QC_EXPORT_ROOT:-$GOV_MD_ROOT/exports/policy_briefing_qc}"
+AGENT_WORKSPACE="${AGENT_WORKSPACE:-$GOV_MD_ROOT/ops/openclaw_qc_ops}"
 
 if ! command -v openclaw >/dev/null 2>&1; then
   echo "openclaw CLI not found"

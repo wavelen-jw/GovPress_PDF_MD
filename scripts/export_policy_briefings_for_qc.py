@@ -10,6 +10,8 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+DEFAULT_GOV_MD_ROOT = Path(os.environ.get("GOV_MD_CONVERTER_ROOT", PROJECT_ROOT.parent / "gov-md-converter")).resolve()
+DEFAULT_OUTPUT_ROOT = DEFAULT_GOV_MD_ROOT / "exports" / "policy_briefing_qc"
 
 from server.app.adapters.policy_briefing import PolicyBriefingCatalog, PolicyBriefingClient
 from server.app.adapters.policy_briefing_qc import export_policy_briefings_for_qc, run_gov_md_scaffold
@@ -18,7 +20,7 @@ from server.app.adapters.policy_briefing_qc import export_policy_briefings_for_q
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Export policy briefing HWPX/PDF files for gov-md-converter QC")
     parser.add_argument("--date", default=date.today().isoformat(), help="Target date in YYYY-MM-DD format")
-    parser.add_argument("--output-root", default="exports/policy_briefing_qc", help="Where to export raw files")
+    parser.add_argument("--output-root", default=str(DEFAULT_OUTPUT_ROOT), help="Where to export raw files")
     parser.add_argument(
         "--news-item-id",
         action="append",
@@ -30,10 +32,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--json", action="store_true", help="Print the full export report as JSON")
     parser.add_argument(
         "--gov-md-converter-root",
+        default=str(DEFAULT_GOV_MD_ROOT),
         help="Optional path to the private gov-md-converter repository",
     )
     parser.add_argument(
         "--qc-root",
+        default=str(DEFAULT_GOV_MD_ROOT / "tests" / "manual_samples" / "policy_briefings"),
         help="QC sample root inside gov-md-converter. Required with --gov-md-converter-root",
     )
     parser.add_argument("--force", action="store_true", help="Overwrite existing scaffold sample directories")
@@ -52,10 +56,6 @@ def main() -> int:
         raise SystemExit("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY is not configured")
 
     catalog = PolicyBriefingCatalog(client=client, cache_path=storage_root / "policy_briefing_catalog.json")
-    use_scaffold = bool(args.gov_md_converter_root or args.qc_root)
-    if use_scaffold and not (args.gov_md_converter_root and args.qc_root):
-        raise SystemExit("--gov-md-converter-root and --qc-root must be provided together")
-
     report = export_policy_briefings_for_qc(
         client=client,
         catalog=catalog,
@@ -65,7 +65,7 @@ def main() -> int:
         limit=args.limit,
         include_pdf=not args.no_pdf,
         ensure_fresh=not args.cached_only,
-        scaffold_runner=run_gov_md_scaffold if use_scaffold else None,
+        scaffold_runner=run_gov_md_scaffold,
         gov_md_converter_root=args.gov_md_converter_root,
         qc_root=args.qc_root,
         autofill=not args.no_autofill,

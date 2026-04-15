@@ -25,6 +25,7 @@ DEFAULT_GOV_MD_ROOT = Path(
 ).resolve()
 if str(DEFAULT_GOV_MD_ROOT) not in sys.path:
     sys.path.insert(0, str(DEFAULT_GOV_MD_ROOT))
+DEFAULT_GOV_MD_EXPORT_ROOT = DEFAULT_GOV_MD_ROOT / "exports" / "policy_briefing_qc"
 
 from src.qc_dashboard import build_dashboard_payload
 from src.qc_issue import build_issue_payload, load_report as load_issue_report
@@ -42,7 +43,7 @@ from server.app.adapters.policy_briefing_qc import (
 )
 
 DEFAULT_EXPORT_ROOT = Path(
-    __import__("os").environ.get("GOVPRESS_QC_EXPORT_ROOT", PROJECT_ROOT / "exports" / "policy_briefing_qc")
+    __import__("os").environ.get("GOVPRESS_QC_EXPORT_ROOT", DEFAULT_GOV_MD_EXPORT_ROOT)
 ).resolve()
 DEFAULT_QC_ROOT = Path(
     __import__("os").environ.get("GOVPRESS_QC_ROOT", DEFAULT_GOV_MD_ROOT / "tests" / "manual_samples" / "policy_briefings")
@@ -537,6 +538,31 @@ def _append_auto_result(
         }
     )
     state["auto_results"] = results
+
+
+def _reconcile_manual_auto_result(
+    *,
+    state_root: Path,
+    sender_id: str,
+    sample_id: str,
+    outcome: str,
+    note: str,
+) -> None:
+    state = _apply_auto_state(_load_session_state(state_root, sender_id))
+    changed = False
+    for item in state.get("auto_results", []):
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("sample_id", "")).strip() != sample_id:
+            continue
+        item["outcome"] = outcome
+        item["note"] = note
+        changed = True
+    if not changed:
+        return
+    state["last_action"] = f"manual-{outcome}"
+    state["last_sample_outcome"] = outcome
+    _save_session_state(state_root, sender_id, state)
 
 
 def _auto_result_counts(state: dict[str, Any]) -> dict[str, int]:
@@ -2826,7 +2852,15 @@ def _dispatch_remote_qc_message(
             if sample_id
             else _ensure_selected_sample(state_root, sender_id, remote_qc_root)
         )
-        return _handle_pass(sender_id=sender_id, sample=sample, state_root=state_root, gov_md_root=gov_md_root)
+        payload = _handle_pass(sender_id=sender_id, sample=sample, state_root=state_root, gov_md_root=gov_md_root)
+        _reconcile_manual_auto_result(
+            state_root=state_root,
+            sender_id=sender_id,
+            sample_id=sample.sample_id,
+            outcome="pass",
+            note="manually approved after batch completion",
+        )
+        return payload
     if _is_defer_message(text):
         auto_state = _apply_auto_state(_load_session_state(state_root, sender_id))
         if auto_state.get("auto_mode") and str(auto_state.get("auto_current_status", "")) == "awaiting_user":
@@ -2849,7 +2883,15 @@ def _dispatch_remote_qc_message(
             if sample_id
             else _ensure_selected_sample(state_root, sender_id, remote_qc_root)
         )
-        return _handle_defer(sender_id=sender_id, sample=sample, state_root=state_root, gov_md_root=gov_md_root)
+        payload = _handle_defer(sender_id=sender_id, sample=sample, state_root=state_root, gov_md_root=gov_md_root)
+        _reconcile_manual_auto_result(
+            state_root=state_root,
+            sender_id=sender_id,
+            sample_id=sample.sample_id,
+            outcome="defer",
+            note="manually deferred after batch completion",
+        )
+        return payload
     if _wants_current_job_defer(text):
         auto_state = _apply_auto_state(_load_session_state(state_root, sender_id))
         if auto_state.get("auto_mode") and str(auto_state.get("auto_current_status", "")) == "awaiting_user":

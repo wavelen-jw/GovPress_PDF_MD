@@ -3,12 +3,15 @@ from __future__ import annotations
 import argparse
 from datetime import date
 import json
+import os
 from pathlib import Path
 import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+DEFAULT_GOV_MD_ROOT = Path(os.environ.get("GOV_MD_CONVERTER_ROOT", PROJECT_ROOT.parent / "gov-md-converter")).resolve()
+DEFAULT_OUTPUT_ROOT = DEFAULT_GOV_MD_ROOT / "exports" / "policy_briefing_qc"
 
 from server.app.adapters.policy_briefing_qc import run_storage_backed_qc_pipeline
 
@@ -16,9 +19,13 @@ from server.app.adapters.policy_briefing_qc import run_storage_backed_qc_pipelin
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the GovPress QC pipeline against deploy storage originals/results/golden")
     parser.add_argument("--date", default=date.today().isoformat(), help="Target report date in YYYY-MM-DD format")
-    parser.add_argument("--output-root", default="exports/policy_briefing_qc", help="Where to write pipeline artifacts")
-    parser.add_argument("--gov-md-converter-root", required=True, help="Path to the private gov-md-converter repository")
-    parser.add_argument("--qc-root", required=True, help="QC sample root inside gov-md-converter")
+    parser.add_argument("--output-root", default=str(DEFAULT_OUTPUT_ROOT), help="Where to write pipeline artifacts")
+    parser.add_argument("--gov-md-converter-root", default=str(DEFAULT_GOV_MD_ROOT), help="Path to the private gov-md-converter repository")
+    parser.add_argument(
+        "--qc-root",
+        default=str(DEFAULT_GOV_MD_ROOT / "tests" / "manual_samples" / "storage_batch"),
+        help="QC sample root inside gov-md-converter",
+    )
     parser.add_argument(
         "--storage-root",
         default="deploy/wsl/data/storage",
