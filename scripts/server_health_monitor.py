@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import json
 from pathlib import Path
 import re
@@ -19,10 +19,43 @@ from server.app.core.notify import send_telegram
 
 STATE_VERSION = 1
 MOBILE_CONSTANTS_PATH = PROJECT_ROOT / "mobile" / "src" / "constants.ts"
+SEOUL_UTC_OFFSET = timedelta(hours=9)
+QUIET_HOUR_START = 2
+QUIET_HOUR_END = 8
+DOWN_REMINDER_INTERVAL = timedelta(hours=1)
 
 
 def utcnow_iso() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def is_quiet_hours_seoul(checked_at: str) -> bool:
+    checked = parse_iso_datetime(checked_at)
+    if checked is None:
+        return False
+    seoul = checked.astimezone(UTC) + SEOUL_UTC_OFFSET
+    return QUIET_HOUR_START <= seoul.hour < QUIET_HOUR_END
+
+
+def should_repeat_down_alert(previous: dict[str, Any], *, checked_at: str) -> bool:
+    if is_quiet_hours_seoul(checked_at):
+        return False
+    last_alert_at = parse_iso_datetime(str(previous.get("last_alert_at") or ""))
+    checked = parse_iso_datetime(checked_at)
+    if checked is None:
+        return False
+    if last_alert_at is None:
+        return True
+    return checked - last_alert_at >= DOWN_REMINDER_INTERVAL
 
 
 def load_monitor_state(path: Path) -> dict[str, Any]:
@@ -152,6 +185,19 @@ def evaluate_monitor(
             consecutive_failures = previous_failures + 1
             if previous_status == "down":
                 current_status = "down"
+                if should_repeat_down_alert(previous, checked_at=checked_at):
+                    transitions.append(
+                        {
+                            "server": key,
+                            "label": status["label"],
+                            "url": status["url"],
+                            "type": "down_reminder",
+                            "checked_at": checked_at,
+                            "detail": status["detail"],
+                            "status": status.get("status"),
+                            "consecutive_failures": consecutive_failures,
+                        }
+                    )
             elif consecutive_failures >= failure_threshold:
                 current_status = "down"
                 transitions.append(
@@ -182,6 +228,7 @@ def evaluate_monitor(
                         }
                     )
 
+        transition_for_server = next((item for item in reversed(transitions) if item["server"] == key), None)
         next_servers[key] = {
             "status": current_status,
             "consecutive_failures": consecutive_failures,
@@ -191,6 +238,9 @@ def evaluate_monitor(
             "last_transition_at": checked_at
             if current_status != previous_status
             else previous.get("last_transition_at"),
+            "last_alert_at": checked_at
+            if transition_for_server is not None
+            else previous.get("last_alert_at"),
             "label": status["label"],
             "url": status["url"],
         }
@@ -210,6 +260,11 @@ def format_transition_message(transitions: list[dict[str, Any]]) -> str:
             lines.append(
                 f"DOWN {item['label']} ({item['server']})"
                 f" - {item['detail']} - failures={item['consecutive_failures']}"
+            )
+        elif item["type"] == "down_reminder":
+            lines.append(
+                f"DOWN {item['label']} ({item['server']})"
+                f" - {item['detail']} - failures={item['consecutive_failures']} - reminder"
             )
         else:
             lines.append(f"RECOVERED {item['label']} ({item['server']}) - {item['detail']}")

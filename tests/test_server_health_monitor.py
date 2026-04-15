@@ -8,8 +8,10 @@ import unittest
 from scripts.server_health_monitor import (
     evaluate_monitor,
     format_transition_message,
+    is_quiet_hours_seoul,
     load_monitor_state,
     save_monitor_state,
+    should_repeat_down_alert,
 )
 
 
@@ -95,6 +97,7 @@ class ServerHealthMonitorTests(unittest.TestCase):
                     "status": "down",
                     "consecutive_failures": 2,
                     "last_transition_at": "2026-04-14T00:10:00Z",
+                    "last_alert_at": "2026-04-14T00:10:00Z",
                 }
             }
         }
@@ -107,6 +110,46 @@ class ServerHealthMonitorTests(unittest.TestCase):
         self.assertEqual(transitions, [])
         self.assertEqual(state["servers"]["serverH"]["status"], "down")
         self.assertEqual(state["servers"]["serverH"]["consecutive_failures"], 3)
+
+    def test_down_server_repeats_alert_after_one_hour_outside_quiet_hours(self) -> None:
+        previous_state = {
+            "servers": {
+                "serverH": {
+                    "status": "down",
+                    "consecutive_failures": 2,
+                    "last_transition_at": "2026-04-14T00:10:00Z",
+                    "last_alert_at": "2026-04-14T00:10:00Z",
+                }
+            }
+        }
+        state, transitions = evaluate_monitor(
+            previous_state,
+            [self._status("serverH", ok=False, status=502, detail="HTTP 502", label="서버H")],
+            failure_threshold=2,
+            checked_at="2026-04-14T01:15:00Z",
+        )
+        self.assertEqual(len(transitions), 1)
+        self.assertEqual(transitions[0]["type"], "down_reminder")
+        self.assertEqual(state["servers"]["serverH"]["last_alert_at"], "2026-04-14T01:15:00Z")
+
+    def test_down_server_does_not_repeat_alert_during_seoul_quiet_hours(self) -> None:
+        previous_state = {
+            "servers": {
+                "serverH": {
+                    "status": "down",
+                    "consecutive_failures": 2,
+                    "last_transition_at": "2026-04-14T16:00:00Z",
+                    "last_alert_at": "2026-04-14T16:00:00Z",
+                }
+            }
+        }
+        _, transitions = evaluate_monitor(
+            previous_state,
+            [self._status("serverH", ok=False, status=502, detail="HTTP 502", label="서버H")],
+            failure_threshold=2,
+            checked_at="2026-04-14T17:30:00Z",
+        )
+        self.assertEqual(transitions, [])
 
     def test_recovery_emits_single_recovered_alert(self) -> None:
         previous_state = {
@@ -198,3 +241,13 @@ class ServerHealthMonitorTests(unittest.TestCase):
         self.assertIn("DEGRADED 서버V", message)
         self.assertIn("DOWN 서버H", message)
         self.assertIn("RECOVERED 서버W", message)
+
+    def test_quiet_hour_helpers_follow_seoul_clock(self) -> None:
+        self.assertTrue(is_quiet_hours_seoul("2026-04-14T17:30:00Z"))
+        self.assertFalse(is_quiet_hours_seoul("2026-04-14T01:30:00Z"))
+        self.assertFalse(
+            should_repeat_down_alert(
+                {"last_alert_at": "2026-04-14T16:00:00Z"},
+                checked_at="2026-04-14T17:30:00Z",
+            )
+        )
