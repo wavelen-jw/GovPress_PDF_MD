@@ -12,6 +12,7 @@ from unittest import mock
 from scripts.openclaw_ops import (
     _format_codex_stream_line,
     _load_session_state,
+    _sample_record,
     build_server_status,
     dispatch_telegram_message,
     format_human,
@@ -241,7 +242,7 @@ class OpenClawOpsTests(unittest.TestCase):
             self.assertEqual(payload["command"], "remote-qc-list")
             self.assertEqual(payload["samples"][0]["sample_id"], "storage_job_abc123")
 
-            def fake_run(command, *, cwd):
+            def fake_run(command, *, cwd, extra_env=None):
                 if command[:3] == ["openclaw", "message", "send"]:
                     return {
                         "returncode": 0,
@@ -300,7 +301,7 @@ class OpenClawOpsTests(unittest.TestCase):
                     "items": [{"news_item_id": "job_abc123", "scaffold_sample_dir": str(sample_dir)}],
                 }
 
-            def fake_run(command, *, cwd):
+            def fake_run(command, *, cwd, extra_env=None):
                 if command[:3] == ["openclaw", "message", "send"]:
                     return {
                         "returncode": 0,
@@ -337,31 +338,17 @@ class OpenClawOpsTests(unittest.TestCase):
             state_root = Path(tmpdir) / "state"
             gov_md_root = Path(tmpdir) / "gov-md"
             (gov_md_root / "scripts").mkdir(parents=True, exist_ok=True)
-            sample_dir = remote_root / "storage_job_a19baebca8c1"
+            sample_dir = remote_root / "policy_briefing_2026_04_13_156754285"
+            sample_dir.mkdir(parents=True, exist_ok=True)
+            (sample_dir / "source.hwpx").write_bytes(b"hwpx")
+            (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
+            (sample_dir / "review.md").write_text("review", encoding="utf-8")
+            (sample_dir / "meta.json").write_text(
+                json.dumps({"sample_status": "scratch", "source_hwpx": "policy.hwpx"}, ensure_ascii=False),
+                encoding="utf-8",
+            )
 
-            def fake_find_storage_job_by_title(*, storage_root, query):
-                self.assertIn("주민이 직접 가꾸는", query)
-                return mock.Mock(job_id="job_a19baebca8c1")
-
-            def fake_scaffold(**kwargs: object) -> dict[str, object]:
-                self.assertEqual(kwargs["job_ids"], ["job_a19baebca8c1"])
-                sample_dir.mkdir(parents=True, exist_ok=True)
-                (sample_dir / "source.hwpx").write_bytes(b"hwpx")
-                (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
-                (sample_dir / "review.md").write_text("review", encoding="utf-8")
-                (sample_dir / "meta.json").write_text(
-                    json.dumps({"sample_status": "scratch", "source_hwpx": "job_a19baebca8c1.hwpx"}, ensure_ascii=False),
-                    encoding="utf-8",
-                )
-                return {
-                    "limit": 1,
-                    "job_ids": ["job_a19baebca8c1"],
-                    "selected_count": 1,
-                    "scaffolded_count": 1,
-                    "items": [{"news_item_id": "job_a19baebca8c1", "scaffold_sample_dir": str(sample_dir)}],
-                }
-
-            def fake_run(command, *, cwd):
+            def fake_run(command, *, cwd, extra_env=None):
                 if command[:3] == ["openclaw", "message", "send"]:
                     return {
                         "returncode": 0,
@@ -371,13 +358,15 @@ class OpenClawOpsTests(unittest.TestCase):
                     }
                 return {
                     "returncode": 0,
-                    "stdout": str(sample_dir),
+                    "stdout": '{"ok":true}',
                     "stderr": "",
                     "command": command,
                 }
 
-            with mock.patch("scripts.openclaw_ops.find_storage_job_by_title", side_effect=fake_find_storage_job_by_title), \
-                 mock.patch("scripts.openclaw_ops.scaffold_storage_qc_jobs", side_effect=fake_scaffold) as mocked_scaffold, \
+            with mock.patch(
+                "scripts.openclaw_ops._maybe_export_policy_briefing_sample",
+                return_value=_sample_record(sample_dir),
+            ), \
                  mock.patch("scripts.openclaw_ops._run_subprocess", side_effect=fake_run):
                 opened = dispatch_telegram_message(
                     'Conversation info (untrusted metadata): {"message_id":"12","sender_id":"6475698942"}\n국정브리핑 보도자료 \'주민이 직접 가꾸는 \'살고 싶은 농촌\' 농식품부, \'클린농촌 만들기\' 본격 가동\' 를 job으로 열어줘',
@@ -389,8 +378,8 @@ class OpenClawOpsTests(unittest.TestCase):
                     state_root=state_root,
                 )
             self.assertEqual(opened["command"], "remote-qc-open")
-            self.assertEqual(opened["sample_id"], "storage_job_a19baebca8c1")
-            mocked_scaffold.assert_called_once()
+            self.assertEqual(opened["sample_id"], "policy_briefing_2026_04_13_156754285")
+            self.assertTrue(opened["telegram_notification"]["ok"])
 
     def test_remote_qc_open_by_policy_briefing_title_exports_when_storage_misses(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -418,7 +407,7 @@ class OpenClawOpsTests(unittest.TestCase):
                     "items": [{"news_item_id": "156700001", "scaffold_sample_dir": str(sample_dir)}],
                 }
 
-            def fake_run(command, *, cwd):
+            def fake_run(command, *, cwd, extra_env=None):
                 if command[:3] == ["openclaw", "message", "send"]:
                     return {
                         "returncode": 0,
@@ -448,6 +437,7 @@ class OpenClawOpsTests(unittest.TestCase):
                 )
             self.assertEqual(opened["command"], "remote-qc-open")
             self.assertEqual(opened["sample_id"], "policy_briefing_2026_04_13_156700001")
+            self.assertTrue(opened["telegram_notification"]["ok"])
 
     def test_remote_qc_open_by_bare_policy_briefing_title(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -475,7 +465,7 @@ class OpenClawOpsTests(unittest.TestCase):
                     "items": [{"news_item_id": "156754095", "scaffold_sample_dir": str(sample_dir)}],
                 }
 
-            def fake_run(command, *, cwd):
+            def fake_run(command, *, cwd, extra_env=None):
                 if command[:3] == ["openclaw", "message", "send"]:
                     return {
                         "returncode": 0,
@@ -505,6 +495,7 @@ class OpenClawOpsTests(unittest.TestCase):
                 )
             self.assertEqual(opened["command"], "remote-qc-open")
             self.assertEqual(opened["sample_id"], "policy_briefing_2026_04_12_156754095")
+            self.assertTrue(opened["telegram_notification"]["ok"])
 
     def test_remote_qc_open_existing_policy_briefing_title_reuses_existing_sample(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -524,7 +515,7 @@ class OpenClawOpsTests(unittest.TestCase):
 
             fake_item = mock.Mock(news_item_id="156754095", approve_date="04/12/2026 09:00:00")
 
-            def fake_run(command, *, cwd):
+            def fake_run(command, *, cwd, extra_env=None):
                 if command[:3] == ["openclaw", "message", "send"]:
                     return {
                         "returncode": 0,
@@ -532,7 +523,12 @@ class OpenClawOpsTests(unittest.TestCase):
                         "stderr": "",
                         "command": command,
                     }
-                raise AssertionError("existing policy briefing sample should not re-run scaffold")
+                return {
+                    "returncode": 0,
+                    "stdout": '{"ok":true}',
+                    "stderr": "",
+                    "command": command,
+                }
 
             with mock.patch("scripts.openclaw_ops.find_storage_job_by_title", return_value=None), \
                  mock.patch("scripts.openclaw_ops.find_cached_policy_briefing_by_title", return_value=fake_item), \
@@ -550,6 +546,7 @@ class OpenClawOpsTests(unittest.TestCase):
             self.assertEqual(opened["command"], "remote-qc-open")
             self.assertEqual(opened["sample_id"], "policy_briefing_2026_04_12_156754095")
             self.assertEqual(opened["refresh"]["command"][0], "skip-policy-briefing-refresh")
+            self.assertTrue(opened["telegram_notification"]["ok"])
             mocked_export.assert_not_called()
 
     def test_remote_qc_reopen_policy_briefing_sample_skips_refresh(self) -> None:
@@ -567,7 +564,7 @@ class OpenClawOpsTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            def fake_run(command, *, cwd):
+            def fake_run(command, *, cwd, extra_env=None):
                 if command[:3] == ["openclaw", "message", "send"]:
                     return {
                         "returncode": 0,
@@ -575,7 +572,12 @@ class OpenClawOpsTests(unittest.TestCase):
                         "stderr": "",
                         "command": command,
                     }
-                raise AssertionError("policy_briefing reopen should not invoke scaffold subprocess")
+                return {
+                    "returncode": 0,
+                    "stdout": '{"ok":true}',
+                    "stderr": "",
+                    "command": command,
+                }
 
             with mock.patch("scripts.openclaw_ops._run_subprocess", side_effect=fake_run):
                 opened = dispatch_telegram_message(
@@ -589,6 +591,7 @@ class OpenClawOpsTests(unittest.TestCase):
                 )
             self.assertEqual(opened["command"], "remote-qc-open")
             self.assertEqual(opened["refresh"]["command"][0], "skip-policy-briefing-refresh")
+            self.assertTrue(opened["telegram_notification"]["ok"])
 
     def test_remote_qc_golden_text_uses_recent_inbound_markdown_when_attachment_path_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -788,7 +791,7 @@ class OpenClawOpsTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            def fake_run(command, *, cwd):
+            def fake_run(command, *, cwd, extra_env=None):
                 if command[:3] == ["openclaw", "message", "send"]:
                     return {
                         "returncode": 0,
@@ -843,7 +846,7 @@ class OpenClawOpsTests(unittest.TestCase):
             uploaded = Path(tmpdir) / "uploaded.md"
             uploaded.write_text("# golden", encoding="utf-8")
 
-            def fake_run(command, *, cwd):
+            def fake_run(command, *, cwd, extra_env=None):
                 if command[:3] == ["openclaw", "message", "send"]:
                     return {
                         "returncode": 0,
@@ -932,7 +935,7 @@ class OpenClawOpsTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            def fake_run(command, *, cwd):
+            def fake_run(command, *, cwd, extra_env=None):
                 if command[:3] == ["openclaw", "message", "send"]:
                     return {
                         "returncode": 0,
@@ -988,7 +991,7 @@ class OpenClawOpsTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            def fake_run(command, *, cwd):
+            def fake_run(command, *, cwd, extra_env=None):
                 if command[:3] == ["openclaw", "message", "send"]:
                     return {
                         "returncode": 0,

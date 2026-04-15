@@ -36,7 +36,9 @@ from server.app.adapters.policy_briefing import (
 )
 from server.app.adapters.policy_briefing_qc import (
     export_policy_briefings_for_qc,
+    find_storage_job_by_title,
     run_gov_md_scaffold,
+    scaffold_storage_qc_jobs,
 )
 
 DEFAULT_EXPORT_ROOT = Path(
@@ -79,6 +81,7 @@ DEFAULT_QC_MEMORY_ROOT = "tests/manual_samples/qc_memory"
 DEFAULT_STORAGE_ROOT = (PROJECT_ROOT / "deploy" / "wsl" / "data" / "storage").resolve()
 MAX_BATCH_TURNS = 40
 MAX_BATCH_SAMPLES = 8
+_POLICY_SAMPLE_ID_RE = re.compile(r"^policy_briefing_(\d{4})_(\d{2})_(\d{2})_(\d+)$")
 
 
 @dataclass(frozen=True)
@@ -116,6 +119,17 @@ class PolicyQueueEntry:
     finding_count: int
     hard_finding_count: int
     defect_classes: tuple[str, ...]
+
+
+def _load_deploy_env_value(key: str) -> str:
+    value = os.environ.get(key, "").strip()
+    if value:
+        return value
+    if DEPLOY_ENV_PATH.exists():
+        for line in DEPLOY_ENV_PATH.read_text(encoding="utf-8").splitlines():
+            if line.startswith(f"{key}="):
+                return line.split("=", 1)[1].strip().strip('"').strip("'")
+    return ""
 
 
 def _valid_date(value: str) -> str:
@@ -749,12 +763,7 @@ def _fetch_health(url: str, *, timeout: float = 5.0) -> dict[str, Any]:
         request = __import__("urllib.request").request.Request(endpoint)
         request.add_header("User-Agent", "govpress-openclaw-healthcheck/1.0")
         request.add_header("Accept", "application/json")
-        api_key = os.environ.get("GOVPRESS_API_KEY", "").strip()
-        if not api_key and DEPLOY_ENV_PATH.exists():
-            for line in DEPLOY_ENV_PATH.read_text(encoding="utf-8").splitlines():
-                if line.startswith("GOVPRESS_API_KEY="):
-                    api_key = line.split("=", 1)[1].strip().strip('"').strip("'")
-                    break
+        api_key = _load_deploy_env_value("GOVPRESS_API_KEY")
         if api_key:
             request.add_header("X-API-Key", api_key)
         with urlopen(request, timeout=timeout) as response:
@@ -854,8 +863,11 @@ def qc_issue(export_root: Path, requested_date: str) -> dict[str, Any]:
     }
 
 
-def _run_subprocess(command: list[str], *, cwd: Path) -> dict[str, Any]:
-    result = subprocess.run(command, cwd=cwd, check=False, capture_output=True, text=True)
+def _run_subprocess(command: list[str], *, cwd: Path, extra_env: dict[str, str] | None = None) -> dict[str, Any]:
+    env = os.environ.copy()
+    if extra_env:
+        env.update(extra_env)
+    result = subprocess.run(command, cwd=cwd, check=False, capture_output=True, text=True, env=env)
     return {
         "returncode": result.returncode,
         "stdout": result.stdout.strip(),
@@ -1282,6 +1294,81 @@ def _select_sample(sample: SampleRecord, *, sender_id: str, state_root: Path, go
         "has_golden": refreshed.has_golden,
         "has_review": refreshed.has_review,
         "refresh": refresh,
+    }
+
+
+def _send_policy_briefing_open_telegram(*, sample: SampleRecord, export_root: Path, gov_md_root: Path, qc_root: Path) -> dict[str, Any]:
+    match = _POLICY_SAMPLE_ID_RE.fullmatch(sample.sample_id)
+    if match is None:
+        return {"ok": False, "reason": "not_policy_briefing_sample"}
+
+    target_date = f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
+    news_item_id = match.group(4)
+    policy_service_key = _load_deploy_env_value("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY")
+    telegram_bot_token = _load_deploy_env_value("TELEGRAM_BOT_TOKEN")
+    telegram_chat_id = _load_deploy_env_value("TELEGRAM_CHAT_ID")
+    if not policy_service_key:
+        return {"ok": False, "reason": "missing_policy_service_key"}
+    if not telegram_bot_token or not telegram_chat_id:
+        return {"ok": False, "reason": "missing_telegram_credentials"}
+
+    report_path = export_root / target_date / "pipeline_report.json"
+    pipeline_command = [
+        sys.executable,
+        str(PROJECT_ROOT / "scripts" / "run_policy_briefing_qc_pipeline.py"),
+        "--date",
+        target_date,
+        "--news-item-id",
+        news_item_id,
+        "--output-root",
+        str(export_root),
+        "--gov-md-converter-root",
+        str(gov_md_root),
+        "--qc-root",
+        str(qc_root),
+        "--force",
+        "--output",
+        str(report_path),
+    ]
+    pipeline_result = _run_subprocess(
+        pipeline_command,
+        cwd=PROJECT_ROOT,
+        extra_env={"GOVPRESS_POLICY_BRIEFING_SERVICE_KEY": policy_service_key},
+    )
+    if pipeline_result["returncode"] != 0:
+        return {
+            "ok": False,
+            "reason": "pipeline_failed",
+            "pipeline": pipeline_result,
+            "report_path": str(report_path),
+        }
+
+    telegram_command = [
+        sys.executable,
+        str(gov_md_root / "scripts" / "send_policy_briefing_qc_telegram.py"),
+        str(report_path),
+        "--json",
+    ]
+    telegram_result = _run_subprocess(
+        telegram_command,
+        cwd=gov_md_root,
+        extra_env={"TELEGRAM_BOT_TOKEN": telegram_bot_token, "TELEGRAM_CHAT_ID": telegram_chat_id},
+    )
+    telegram_payload: dict[str, Any] | None = None
+    stdout = str(telegram_result.get("stdout", "")).strip()
+    if stdout:
+        try:
+            parsed = json.loads(stdout)
+            if isinstance(parsed, dict):
+                telegram_payload = parsed
+        except json.JSONDecodeError:
+            telegram_payload = None
+    return {
+        "ok": telegram_result["returncode"] == 0,
+        "report_path": str(report_path),
+        "pipeline": pipeline_result,
+        "telegram": telegram_result,
+        "telegram_payload": telegram_payload,
     }
 
 
@@ -2082,6 +2169,13 @@ def dispatch_telegram_message(
                 sample=sample,
                 file_keys=file_keys,
             )
+            if sample.sample_id.startswith("policy_briefing_"):
+                payload["telegram_notification"] = _send_policy_briefing_open_telegram(
+                    sample=sample,
+                    export_root=export_root,
+                    gov_md_root=gov_md_root,
+                    qc_root=DEFAULT_QC_ROOT,
+                )
         payload["ok"] = payload.get("ok", True)
         return payload
     if command == "qc-status":
