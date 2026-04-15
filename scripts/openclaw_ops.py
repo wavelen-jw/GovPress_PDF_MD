@@ -20,9 +20,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.build_policy_briefing_qc_dashboard import build_dashboard_payload
-from scripts.build_policy_briefing_qc_issue import build_issue_payload, load_report as load_issue_report
-from scripts.evaluate_policy_briefing_qc_report import build_markdown_summary
+DEFAULT_GOV_MD_ROOT = Path(
+    __import__("os").environ.get("GOV_MD_CONVERTER_ROOT", PROJECT_ROOT.parent / "gov-md-converter")
+).resolve()
+if str(DEFAULT_GOV_MD_ROOT) not in sys.path:
+    sys.path.insert(0, str(DEFAULT_GOV_MD_ROOT))
+
+from src.qc_dashboard import build_dashboard_payload
+from src.qc_issue import build_issue_payload, load_report as load_issue_report
+from src.qc_report import build_markdown_summary
 from server.app.adapters.policy_briefing import (
     PolicyBriefingCatalog,
     PolicyBriefingClient,
@@ -33,12 +39,8 @@ from server.app.adapters.policy_briefing_qc import (
     run_gov_md_scaffold,
 )
 
-
 DEFAULT_EXPORT_ROOT = Path(
     __import__("os").environ.get("GOVPRESS_QC_EXPORT_ROOT", PROJECT_ROOT / "exports" / "policy_briefing_qc")
-).resolve()
-DEFAULT_GOV_MD_ROOT = Path(
-    __import__("os").environ.get("GOV_MD_CONVERTER_ROOT", PROJECT_ROOT.parent / "gov-md-converter")
 ).resolve()
 DEFAULT_QC_ROOT = Path(
     __import__("os").environ.get("GOVPRESS_QC_ROOT", DEFAULT_GOV_MD_ROOT / "tests" / "manual_samples" / "policy_briefings")

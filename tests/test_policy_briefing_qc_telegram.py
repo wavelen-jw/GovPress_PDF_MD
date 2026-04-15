@@ -7,7 +7,11 @@ import sys
 import tempfile
 import unittest
 
-from scripts.send_policy_briefing_qc_telegram import build_telegram_message
+GOV_MD_ROOT = Path(__file__).resolve().parents[2] / "gov-md-converter"
+if str(GOV_MD_ROOT) not in sys.path:
+    sys.path.insert(0, str(GOV_MD_ROOT))
+
+from src.qc_telegram import build_telegram_message
 
 
 class PolicyBriefingQcTelegramTests(unittest.TestCase):
@@ -63,7 +67,7 @@ class PolicyBriefingQcTelegramTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable,
-                    "scripts/send_policy_briefing_qc_telegram.py",
+                    str(GOV_MD_ROOT / "scripts" / "send_policy_briefing_qc_telegram.py"),
                     str(report_path),
                     "--print-only",
                 ],

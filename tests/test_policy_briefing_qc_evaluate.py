@@ -7,7 +7,11 @@ import sys
 import tempfile
 import unittest
 
-from scripts.evaluate_policy_briefing_qc_report import build_markdown_summary, evaluate_report
+GOV_MD_ROOT = Path(__file__).resolve().parents[2] / "gov-md-converter"
+if str(GOV_MD_ROOT) not in sys.path:
+    sys.path.insert(0, str(GOV_MD_ROOT))
+
+from src.qc_report import build_markdown_summary, evaluate_report
 
 
 class PolicyBriefingQcEvaluateTests(unittest.TestCase):
@@ -96,7 +100,7 @@ class PolicyBriefingQcEvaluateTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable,
-                    "scripts/evaluate_policy_briefing_qc_report.py",
+                    str(GOV_MD_ROOT / "scripts" / "evaluate_policy_briefing_qc_report.py"),
                     str(report_path),
                     "--summary-markdown",
                     str(summary_path),

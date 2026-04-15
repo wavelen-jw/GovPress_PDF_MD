@@ -7,7 +7,11 @@ import sys
 import tempfile
 import unittest
 
-from scripts.build_policy_briefing_qc_dashboard import build_dashboard_payload, write_dashboard
+GOV_MD_ROOT = Path(__file__).resolve().parents[2] / "gov-md-converter"
+if str(GOV_MD_ROOT) not in sys.path:
+    sys.path.insert(0, str(GOV_MD_ROOT))
+
+from src.qc_dashboard import build_dashboard_payload, write_dashboard
 
 
 class PolicyBriefingQcDashboardTests(unittest.TestCase):
@@ -83,7 +87,7 @@ class PolicyBriefingQcDashboardTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable,
-                    "scripts/build_policy_briefing_qc_dashboard.py",
+                    str(GOV_MD_ROOT / "scripts" / "build_policy_briefing_qc_dashboard.py"),
                     "--root",
                     str(root),
                     "--output-html",

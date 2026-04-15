@@ -7,7 +7,11 @@ import sys
 import tempfile
 import unittest
 
-from scripts.build_policy_briefing_qc_issue import ISSUE_MARKER, build_issue_payload
+GOV_MD_ROOT = Path(__file__).resolve().parents[2] / "gov-md-converter"
+if str(GOV_MD_ROOT) not in sys.path:
+    sys.path.insert(0, str(GOV_MD_ROOT))
+
+from src.qc_issue import ISSUE_MARKER, build_issue_payload
 
 
 class PolicyBriefingQcIssueTests(unittest.TestCase):
@@ -187,7 +191,7 @@ class PolicyBriefingQcIssueTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable,
-                    "scripts/build_policy_briefing_qc_issue.py",
+                    str(GOV_MD_ROOT / "scripts" / "build_policy_briefing_qc_issue.py"),
                     str(report_path),
                     "--output",
                     str(output_path),
