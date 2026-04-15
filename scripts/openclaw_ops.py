@@ -85,6 +85,7 @@ MAX_BATCH_TURNS = 40
 MAX_BATCH_SAMPLES = 8
 AUTO_MAX_ATTEMPTS = 5
 _POLICY_SAMPLE_ID_RE = re.compile(r"^policy_briefing_(\d{4})_(\d{2})_(\d{2})_(\d+)$")
+QC_WORK_BRANCH_PREFIX = "qc"
 
 
 @dataclass(frozen=True)
@@ -249,6 +250,56 @@ def _save_session_state(state_root: Path, sender_id: str, payload: dict[str, Any
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
+
+
+def _run_git(command: list[str], *, cwd: Path) -> str:
+    result = subprocess.run(command, cwd=cwd, check=True, capture_output=True, text=True)
+    return result.stdout.strip()
+
+
+def _qc_work_branch_name(target_day: date | None = None) -> str:
+    branch_day = target_day or date.today()
+    return f"{QC_WORK_BRANCH_PREFIX}/{branch_day.isoformat()}"
+
+
+def _ensure_qc_work_branch(
+    *,
+    gov_md_root: Path,
+    state_root: Path,
+    sender_id: str,
+    target_day: date | None = None,
+) -> str:
+    branch_name = _qc_work_branch_name(target_day)
+    state = _load_session_state(state_root, sender_id)
+    current_branch = _run_git(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=gov_md_root)
+    dirty = any(
+        subprocess.run(command, cwd=gov_md_root, check=False).returncode != 0
+        for command in (
+            ["git", "diff", "--quiet"],
+            ["git", "diff", "--cached", "--quiet"],
+        )
+    )
+    if current_branch != branch_name:
+        if dirty:
+            raise RuntimeError(
+                f"QC 작업 브랜치 전환이 필요하지만 현재 브랜치({current_branch})에 미커밋 변경이 있습니다."
+            )
+        branch_exists = (
+            subprocess.run(
+                ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch_name}"],
+                cwd=gov_md_root,
+                check=False,
+            ).returncode
+            == 0
+        )
+        if branch_exists:
+            subprocess.run(["git", "switch", branch_name], cwd=gov_md_root, check=True)
+        else:
+            subprocess.run(["git", "switch", "-c", branch_name], cwd=gov_md_root, check=True)
+    state["qc_work_branch"] = branch_name
+    state["qc_work_branch_date"] = branch_name.removeprefix(f"{QC_WORK_BRANCH_PREFIX}/")
+    _save_session_state(state_root, sender_id, state)
+    return branch_name
 
 
 def _now_iso() -> str:
@@ -957,6 +1008,7 @@ def _spawn_background_fix(
     remote_qc_root: Path,
     state_root: Path,
 ) -> dict[str, Any]:
+    branch_name = _ensure_qc_work_branch(gov_md_root=gov_md_root, state_root=state_root, sender_id=sender_id)
     log_path = _background_fix_log_dir(state_root) / f"{sample.sample_id}-{int(time.time())}.log"
     command = [
         sys.executable,
@@ -994,6 +1046,7 @@ def _spawn_background_fix(
         "command": "remote-qc-fix-queued",
         "ok": True,
         "sample_id": sample.sample_id,
+        "qc_work_branch": branch_name,
         "pid": process.pid,
         "log_path": str(log_path),
     }
@@ -2313,6 +2366,7 @@ def _handle_fix_request(
     announce_start: bool = True,
     send_result_files: bool = True,
 ) -> dict[str, Any]:
+    qc_work_branch = _ensure_qc_work_branch(gov_md_root=gov_md_root, state_root=state_root, sender_id=sender_id)
     state = _load_session_state(state_root, sender_id)
     reset_batch = _should_reset_batch(state, sample)
     batch_id = str(state.get("active_batch_id") or _default_batch_id(remote_qc_root))
@@ -2399,6 +2453,8 @@ def _handle_fix_request(
             "batch_turn_count": int(state.get("batch_turn_count", 0) or 0) + 1,
             "batch_sample_ids": sample_ids,
             "last_action": "fix",
+            "qc_work_branch": qc_work_branch,
+            "qc_work_branch_date": date.today().isoformat(),
         }
     )
     _save_session_state(state_root, sender_id, state)
@@ -2452,6 +2508,7 @@ def _handle_fix_request(
         "model": DEFAULT_CODEX_MODEL,
         "thread_id": thread_id,
         "batch_id": batch_id,
+        "qc_work_branch": qc_work_branch,
         "resumed": bool(not reset_batch and state.get("batch_turn_count", 0) > 1),
         "sent_files": sent_files,
     }
@@ -2542,6 +2599,7 @@ def _build_auto_start_payload(
     state_root: Path,
     limit: int,
 ) -> dict[str, Any]:
+    branch_name = _ensure_qc_work_branch(gov_md_root=gov_md_root, state_root=state_root, sender_id=sender_id)
     entries = _auto_queue_entries(
         export_root=export_root,
         gov_md_root=gov_md_root,
@@ -2570,6 +2628,8 @@ def _build_auto_start_payload(
         auto_batch_finished_at="",
         auto_batch_metrics={"sample_count": len(queue), "completed_count": 0},
         auto_sample_metrics={},
+        qc_work_branch=branch_name,
+        qc_work_branch_date=date.today().isoformat(),
         last_action="auto-start",
     )
     if queue:
@@ -2584,6 +2644,7 @@ def _build_auto_start_payload(
         "queue_count": len(queue),
         "queue_sample_ids": queue,
         "current_sample_id": queue[0] if queue else "",
+        "qc_work_branch": branch_name,
         "queue_preview": [
             {
                 "sample_id": entry.sample.sample_id,
@@ -2632,6 +2693,7 @@ def _auto_status_payload(*, sender_id: str, state_root: Path) -> dict[str, Any]:
         "current_title": current_title,
         "current_attempt": int(state.get("auto_current_attempt", 0) or 0),
         "current_status": str(state.get("auto_current_status", "")),
+        "qc_work_branch": str(state.get("qc_work_branch", "")),
         "results": list(state.get("auto_results", [])),
         "result_counts": counts,
         "auto_batch_started_at": str(state.get("auto_batch_started_at", "")),
@@ -2740,7 +2802,10 @@ def _run_auto_current(
     remote_qc_root: Path,
     state_root: Path,
 ) -> dict[str, Any]:
+    qc_work_branch = _ensure_qc_work_branch(gov_md_root=gov_md_root, state_root=state_root, sender_id=sender_id)
     state = _apply_auto_state(_load_session_state(state_root, sender_id))
+    state["qc_work_branch"] = qc_work_branch
+    state["qc_work_branch_date"] = date.today().isoformat()
     if not state.get("auto_mode"):
         return {"command": "remote-qc-auto-run-current", "ok": False, "message": "auto batch가 활성화되어 있지 않습니다."}
     while state.get("auto_mode") and not _auto_batch_finished(state):
@@ -3446,6 +3511,8 @@ def format_human(payload: dict[str, Any]) -> str:
             f"review_queue={payload.get('queue_count', 0)} candidates={payload.get('candidate_count', 0)}",
             "note=`통과`는 사용자 승인 후만 집계됩니다. `iteration 5/5`는 통과가 아니라 마지막 자동 수정 시도입니다.",
         ]
+        if payload.get("qc_work_branch"):
+            lines.append(f"branch={payload.get('qc_work_branch')}")
         if payload.get("current_sample_id"):
             lines.append(f"current={payload.get('current_sample_id')}")
         for item in payload.get("queue_preview", [])[:3]:
@@ -3468,6 +3535,8 @@ def format_human(payload: dict[str, Any]) -> str:
             f"queue={payload.get('queue_index')}/{payload.get('queue_count')}",
             f"current={payload.get('current_sample_id')} status={payload.get('current_status')} attempt={payload.get('current_attempt')}",
         ]
+        if payload.get("qc_work_branch"):
+            lines.append(f"branch={payload.get('qc_work_branch')}")
         if payload.get("current_title"):
             lines.append(f"title={_shorten(payload.get('current_title'), limit=80)}")
         counts = payload.get("result_counts") or {}
@@ -3533,6 +3602,8 @@ def format_human(payload: dict[str, Any]) -> str:
         return str(payload.get("message", "")).strip()
     if command == "remote-qc-fix-queued":
         lines = [f"[QC Fix Queued] sample={payload.get('sample_id')}"]
+        if payload.get("qc_work_branch"):
+            lines.append(f"branch={payload.get('qc_work_branch')}")
         if payload.get("golden_upload"):
             lines.append("golden.md 저장 및 review 갱신 완료")
         if payload.get("used_existing_golden"):

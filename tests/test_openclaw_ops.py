@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from datetime import date
 from pathlib import Path
 import subprocess
 import sys
@@ -10,6 +11,7 @@ import unittest
 from unittest import mock
 
 from scripts.openclaw_ops import (
+    _ensure_qc_work_branch,
     _format_codex_stream_line,
     _load_session_state,
     _run_auto_current,
@@ -26,6 +28,14 @@ from scripts.openclaw_ops import (
 
 class OpenClawOpsTests(unittest.TestCase):
     repo_root = Path(__file__).resolve().parents[1]
+
+    def _init_git_repo(self, root: Path) -> None:
+        subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True, text=True)
+        subprocess.run(["git", "config", "user.name", "QC Test"], cwd=root, check=True, capture_output=True, text=True)
+        subprocess.run(["git", "config", "user.email", "qc@example.com"], cwd=root, check=True, capture_output=True, text=True)
+        (root / "README.md").write_text("init\n", encoding="utf-8")
+        subprocess.run(["git", "add", "README.md"], cwd=root, check=True, capture_output=True, text=True)
+        subprocess.run(["git", "commit", "-m", "init"], cwd=root, check=True, capture_output=True, text=True)
 
     def test_format_codex_stream_line_ignores_event_noise(self) -> None:
         self.assertIsNone(_format_codex_stream_line("codex event: turn.started"))
@@ -133,6 +143,37 @@ class OpenClawOpsTests(unittest.TestCase):
         self.assertEqual(primary_key, "serverH")
         self.assertEqual(presets[0].key, "serverH")
         self.assertEqual(presets[0].url, "https://api.govpress.cloud")
+
+    def test_ensure_qc_work_branch_creates_and_reuses_daily_branch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            gov_md_root = Path(tmpdir) / "gov-md"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root.mkdir(parents=True)
+            self._init_git_repo(gov_md_root)
+
+            branch = _ensure_qc_work_branch(
+                gov_md_root=gov_md_root,
+                state_root=state_root,
+                sender_id="6475698942",
+            )
+            current = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=gov_md_root,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            self.assertEqual(branch, current)
+            self.assertEqual(branch, f"qc/{date.today().isoformat()}")
+
+            branch2 = _ensure_qc_work_branch(
+                gov_md_root=gov_md_root,
+                state_root=state_root,
+                sender_id="6475698942",
+            )
+            self.assertEqual(branch2, branch)
+            state = _load_session_state(state_root, "6475698942")
+            self.assertEqual(state["qc_work_branch"], branch)
 
     def test_build_server_status_reports_failover_candidate(self) -> None:
         with mock.patch("scripts.openclaw_ops._fetch_health") as mocked_fetch:
@@ -833,6 +874,8 @@ class OpenClawOpsTests(unittest.TestCase):
             remote_root = Path(tmpdir) / "storage_batch"
             state_root = Path(tmpdir) / "state"
             gov_md_root = Path(tmpdir) / "gov-md"
+            gov_md_root.mkdir(parents=True)
+            self._init_git_repo(gov_md_root)
             sample_dir = remote_root / "storage_job_abc123"
             sample_dir.mkdir(parents=True)
             (sample_dir / "source.hwpx").write_bytes(b"hwpx")
@@ -1036,6 +1079,8 @@ class OpenClawOpsTests(unittest.TestCase):
             remote_root = Path(tmpdir) / "policy"
             state_root = Path(tmpdir) / "state"
             gov_md_root = Path(tmpdir) / "gov-md"
+            gov_md_root.mkdir(parents=True)
+            self._init_git_repo(gov_md_root)
             s1 = remote_root / "policy_briefing_2026_04_15_1"
             s2 = remote_root / "policy_briefing_2026_04_15_2"
             s1.mkdir(parents=True)
@@ -1085,10 +1130,12 @@ class OpenClawOpsTests(unittest.TestCase):
             self.assertEqual(payload["command"], "remote-qc-auto-start")
             self.assertEqual(payload["queue_count"], 2)
             self.assertEqual(payload["current_sample_id"], "policy_briefing_2026_04_15_2")
+            self.assertEqual(payload["qc_work_branch"], f"qc/{date.today().isoformat()}")
             self.assertEqual(payload["queue_preview"][0]["title"], "둘째 제목")
             state = _load_session_state(state_root, "6475698942")
             self.assertTrue(state["auto_mode"])
             self.assertEqual(state["auto_queue_sample_ids"][0], "policy_briefing_2026_04_15_2")
+            self.assertEqual(state["qc_work_branch"], payload["qc_work_branch"])
 
     def test_remote_qc_auto_status_reports_current_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1129,6 +1176,8 @@ class OpenClawOpsTests(unittest.TestCase):
             remote_root = Path(tmpdir) / "policy"
             state_root = Path(tmpdir) / "state"
             gov_md_root = Path(tmpdir) / "gov-md"
+            gov_md_root.mkdir(parents=True)
+            self._init_git_repo(gov_md_root)
             sample_dir = remote_root / "policy_briefing_2026_04_15_1"
             sample_dir.mkdir(parents=True)
             (sample_dir / "source.hwpx").write_bytes(b"hwpx")
@@ -1255,6 +1304,8 @@ class OpenClawOpsTests(unittest.TestCase):
             remote_root = Path(tmpdir) / "policy"
             state_root = Path(tmpdir) / "state"
             gov_md_root = Path(tmpdir) / "gov-md"
+            gov_md_root.mkdir(parents=True)
+            self._init_git_repo(gov_md_root)
             existing_sample = remote_root / "policy_briefing_2026_04_15_813"
             existing_sample.mkdir(parents=True)
             (existing_sample / "source.hwpx").write_bytes(b"hwpx")
