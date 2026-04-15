@@ -82,7 +82,7 @@ DEFAULT_STORAGE_ROOT = (PROJECT_ROOT / "deploy" / "wsl" / "data" / "storage").re
 AUTO_JUDGE_TEMPLATE_PATH = DEFAULT_GOV_MD_ROOT / ".agents" / "skills" / "hwpx-md-qc-autopilot" / "auto_judge_template.md"
 MAX_BATCH_TURNS = 40
 MAX_BATCH_SAMPLES = 8
-AUTO_MAX_ATTEMPTS = 3
+AUTO_MAX_ATTEMPTS = 5
 _POLICY_SAMPLE_ID_RE = re.compile(r"^policy_briefing_(\d{4})_(\d{2})_(\d{2})_(\d+)$")
 
 
@@ -2487,7 +2487,7 @@ def _complete_auto_result(
         message = (
             "[QC Auto Complete]\n"
             f"last={sample.sample_id} outcome={outcome}\n"
-            f"pass={counts['pass']} defer={counts['defer']} total={len(state.get('auto_results', []))}"
+            f"user_approved_pass={counts['pass']} auto_deferred={counts['defer']} total={len(state.get('auto_results', []))}"
         )
         runner = None
     else:
@@ -2503,9 +2503,9 @@ def _complete_auto_result(
         )
         counts = _auto_result_counts(state)
         message = (
-            f"[QC Auto Advance] {sample.sample_id} {('통과' if outcome == 'pass' else '보류')}\n"
+            f"[QC Auto Advance] {sample.sample_id} {('사용자승인 통과' if outcome == 'pass' else '자동보류')}\n"
             f"progress={int(state.get('auto_queue_index', 0)) + 1}/{len(state.get('auto_queue_sample_ids', []))}\n"
-            f"pass={counts['pass']} defer={counts['defer']}\n"
+            f"user_approved_pass={counts['pass']} auto_deferred={counts['defer']}\n"
             f"next={_current_auto_sample_id(state) or '-'}"
         )
     state["last_action"] = f"auto-{outcome}"
@@ -2630,6 +2630,7 @@ def _run_auto_current(
                         f"[QC Auto Ready] sample={sample.sample_id}\n"
                         f"title={_shorten(sample_title, limit=120)}\n"
                         f"attempts={attempt}/{state.get('auto_max_attempts', AUTO_MAX_ATTEMPTS)}\n"
+                        "status=AI self-check PASS / 사용자 승인 대기\n"
                         f"{judge.user_summary or 'AI self-check 통과'}\n"
                         "응답: `통과` 또는 `보류`"
                     ),
@@ -2657,6 +2658,7 @@ def _run_auto_current(
                 f"[QC Auto Deferred] sample={sample.sample_id}\n"
                 f"title={_shorten(sample_title, limit=120)}\n"
                 f"attempts={attempt}\n"
+                "status=자동보류\n"
                 f"reason={next_fix_instruction or 'ai defer / max attempts'}"
             ),
         )
@@ -2670,7 +2672,7 @@ def _run_auto_current(
         message_id=message_id,
         message=(
             "[QC Auto Complete]\n"
-            f"pass={_auto_result_counts(state)['pass']} defer={_auto_result_counts(state)['defer']} "
+            f"user_approved_pass={_auto_result_counts(state)['pass']} auto_deferred={_auto_result_counts(state)['defer']} "
             f"total={len(state.get('auto_results', []))}"
         ),
     )
@@ -3135,6 +3137,7 @@ def format_human(payload: dict[str, Any]) -> str:
         lines = [
             f"[QC Auto Start] requested={payload.get('requested_count')}",
             f"review_queue={payload.get('queue_count', 0)} candidates={payload.get('candidate_count', 0)}",
+            "note=`통과`는 사용자 승인 후만 집계됩니다. `iteration 5/5`는 통과가 아니라 마지막 자동 수정 시도입니다.",
         ]
         if payload.get("current_sample_id"):
             lines.append(f"current={payload.get('current_sample_id')}")
@@ -3162,7 +3165,9 @@ def format_human(payload: dict[str, Any]) -> str:
             lines.append(f"title={_shorten(payload.get('current_title'), limit=80)}")
         counts = payload.get("result_counts") or {}
         if isinstance(counts, dict):
-            lines.append(f"pass={counts.get('pass', 0)} defer={counts.get('defer', 0)} other={counts.get('other', 0)}")
+            lines.append(
+                f"user_approved_pass={counts.get('pass', 0)} auto_deferred={counts.get('defer', 0)} other={counts.get('other', 0)}"
+            )
         results = payload.get("results", [])
         if results:
             last = results[-1]

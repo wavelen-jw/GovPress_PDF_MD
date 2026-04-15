@@ -1146,7 +1146,7 @@ class OpenClawOpsTests(unittest.TestCase):
                         "auto_current_sample_id": sample_dir.name,
                         "auto_current_attempt": 0,
                         "auto_current_status": "queued",
-                        "auto_max_attempts": 3,
+                        "auto_max_attempts": 5,
                     },
                     ensure_ascii=False,
                 ),
