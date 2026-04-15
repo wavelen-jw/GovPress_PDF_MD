@@ -287,54 +287,64 @@ def export_policy_briefings_for_qc(
     resolved_root = Path(output_root).resolve() / target_date.isoformat()
     resolved_root.mkdir(parents=True, exist_ok=True)
     exported: list[ExportedPolicyBriefingArtifact] = []
+    failed_items: list[dict[str, str]] = []
 
     for item in items:
-        hwpx_download = client.download_item_hwpx(item)
-        export_dir = resolved_root / item.news_item_id
-        export_dir.mkdir(parents=True, exist_ok=True)
-        hwpx_path = export_dir / "source.hwpx"
-        hwpx_path.write_bytes(hwpx_download.content)
+        try:
+            hwpx_download = client.download_item_hwpx(item)
+            export_dir = resolved_root / item.news_item_id
+            export_dir.mkdir(parents=True, exist_ok=True)
+            hwpx_path = export_dir / "source.hwpx"
+            hwpx_path.write_bytes(hwpx_download.content)
 
-        pdf_attachment, pdf_content = _download_pdf(client, item, include_pdf=include_pdf)
-        pdf_path: Path | None = None
-        if pdf_content is not None:
-            pdf_path = export_dir / "source.pdf"
-            pdf_path.write_bytes(pdf_content)
+            pdf_attachment, pdf_content = _download_pdf(client, item, include_pdf=include_pdf)
+            pdf_path: Path | None = None
+            if pdf_content is not None:
+                pdf_path = export_dir / "source.pdf"
+                pdf_path.write_bytes(pdf_content)
 
-        metadata_path = _write_export_metadata(
-            export_dir,
-            item=item,
-            hwpx_attachment=hwpx_download.attachment,
-            pdf_attachment=pdf_attachment,
-            target_date=target_date,
-        )
-
-        scaffold_sample_dir: str | None = None
-        if scaffold_runner is not None:
-            if gov_md_converter_root is None or qc_root is None:
-                raise ValueError("gov_md_converter_root and qc_root are required when scaffold_runner is used")
-            scaffold_sample_dir = scaffold_runner(
-                gov_md_converter_root=gov_md_converter_root,
-                source_path=hwpx_path,
-                pdf_path=pdf_path,
-                qc_root=qc_root,
-                sample_id=f"policy_briefing_{target_date:%Y_%m_%d}_{item.news_item_id}",
-                autofill=autofill,
-                force=force,
-                sample_status=sample_status,
+            metadata_path = _write_export_metadata(
+                export_dir,
+                item=item,
+                hwpx_attachment=hwpx_download.attachment,
+                pdf_attachment=pdf_attachment,
+                target_date=target_date,
             )
 
-        exported.append(
-            ExportedPolicyBriefingArtifact(
-                news_item_id=item.news_item_id,
-                title=item.title,
-                export_dir=str(export_dir),
-                hwpx_path=str(hwpx_path),
-                pdf_path=str(pdf_path) if pdf_path is not None else None,
-                metadata_path=str(metadata_path),
-                scaffold_sample_dir=scaffold_sample_dir,
+            scaffold_sample_dir: str | None = None
+            if scaffold_runner is not None:
+                if gov_md_converter_root is None or qc_root is None:
+                    raise ValueError("gov_md_converter_root and qc_root are required when scaffold_runner is used")
+                scaffold_sample_dir = scaffold_runner(
+                    gov_md_converter_root=gov_md_converter_root,
+                    source_path=hwpx_path,
+                    pdf_path=pdf_path,
+                    qc_root=qc_root,
+                    sample_id=f"policy_briefing_{target_date:%Y_%m_%d}_{item.news_item_id}",
+                    autofill=autofill,
+                    force=force,
+                    sample_status=sample_status,
+                )
+
+            exported.append(
+                ExportedPolicyBriefingArtifact(
+                    news_item_id=item.news_item_id,
+                    title=item.title,
+                    export_dir=str(export_dir),
+                    hwpx_path=str(hwpx_path),
+                    pdf_path=str(pdf_path) if pdf_path is not None else None,
+                    metadata_path=str(metadata_path),
+                    scaffold_sample_dir=scaffold_sample_dir,
+                )
             )
-        )
+        except Exception as exc:
+            failed_items.append(
+                {
+                    "news_item_id": item.news_item_id,
+                    "title": item.title,
+                    "error": str(exc).strip() or exc.__class__.__name__,
+                }
+            )
 
     return {
         "date": target_date.isoformat(),
@@ -348,6 +358,7 @@ def export_policy_briefings_for_qc(
         "exported_count": len(exported),
         "scaffolded_count": sum(1 for item in exported if item.scaffold_sample_dir),
         "items": [item.to_dict() for item in exported],
+        "failed_items": failed_items,
     }
 
 

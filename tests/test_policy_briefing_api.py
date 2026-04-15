@@ -18,7 +18,9 @@ from server.app.adapters.policy_briefing import (
     PolicyBriefingAttachment,
     PolicyBriefingClient,
     PolicyBriefingItem,
+    _build_attachment_request_headers,
     _inject_policy_briefing_department,
+    _looks_like_html_error,
 )
 from server.app.main import create_app
 
@@ -430,6 +432,53 @@ class PolicyBriefingClientTests(unittest.TestCase):
 
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0].title, "정부, 쉰들러 ISDS 소송비용 약 96억 원 전액 환수")
+
+    def test_build_attachment_request_headers_uses_original_url_as_referer(self) -> None:
+        item = PolicyBriefingItem(
+            news_item_id="156755793",
+            title="테스트",
+            department="부처",
+            approve_date="04/15/2026 17:00:00",
+            original_url="https://www.korea.kr/briefing/pressReleaseView.do?newsId=156755793",
+            attachments=(),
+        )
+        headers = _build_attachment_request_headers(item)
+        self.assertIn("Mozilla/5.0", headers["User-Agent"])
+        self.assertEqual(headers["Referer"], item.original_url)
+
+    def test_looks_like_html_error_detects_error_document(self) -> None:
+        self.assertTrue(_looks_like_html_error(b'<!DOCTYPE html><html lang="ko"><title>Error</title>'))
+        self.assertFalse(_looks_like_html_error(_build_minimal_hwpx_bytes()))
+
+    def test_download_attachment_rejects_html_error_page(self) -> None:
+        item = PolicyBriefingItem(
+            news_item_id="156755793",
+            title="테스트",
+            department="부처",
+            approve_date="04/15/2026 17:00:00",
+            original_url="https://www.korea.kr/briefing/pressReleaseView.do?newsId=156755793",
+            attachments=(
+                PolicyBriefingAttachment(
+                    file_name="sample.hwpx",
+                    file_url="https://www.korea.kr/common/download.do?tblKey=GMN&fileId=198427528",
+                ),
+            ),
+        )
+
+        class _FakeResponse:
+            def read(self) -> bytes:
+                return b'<!DOCTYPE html><html lang="ko"><title>Error</title></html>'
+
+            def __enter__(self) -> "_FakeResponse":
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+        client = PolicyBriefingClient(service_key="dummy")
+        with patch("server.app.adapters.policy_briefing.urllib.request.urlopen", return_value=_FakeResponse()):
+            with self.assertRaisesRegex(ValueError, "HTML 에러 페이지"):
+                client.download_attachment(item, item.attachments[0])
 
 
 def _build_minimal_hwpx_bytes() -> bytes:

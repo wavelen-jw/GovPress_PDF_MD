@@ -17,10 +17,31 @@ PRESS_RELEASE_LIST_URL = "https://apis.data.go.kr/1371000/pressReleaseService/pr
 _APPENDIX_PREFIXES = ("붙임", "별첨", "첨부")
 _PRESS_LABEL_RE = re.compile(r"^(보도자료|보도참고자료)\s*$")
 _CATALOG_REFRESH_INTERVAL_SECONDS = 3600
+_ATTACHMENT_HTML_PREFIXES = (b"<!doctype html", b"<html", b"<?xml")
 
 
 def _normalize_policy_briefing_title(text: str) -> str:
     return re.sub(r"\s+", " ", unescape(text or "")).strip()
+
+
+def _build_attachment_request_headers(item: "PolicyBriefingItem") -> dict[str, str]:
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": item.original_url or "https://www.korea.kr/",
+    }
+    return headers
+
+
+def _looks_like_html_error(content: bytes) -> bool:
+    head = content[:256].lstrip().lower()
+    if not head:
+        return False
+    return any(head.startswith(prefix) for prefix in _ATTACHMENT_HTML_PREFIXES)
 
 
 @dataclass(frozen=True)
@@ -193,33 +214,42 @@ class PolicyBriefingClient:
         if not attachment.file_url:
             raise ValueError("첨부파일 URL이 비어 있습니다.")
 
+        headers = _build_attachment_request_headers(item)
         request = urllib.request.Request(
             attachment.file_url,
-            headers={"User-Agent": "GovPress/1.0"},
+            headers=headers,
         )
         try:
             with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
                 content = response.read()
         except Exception:
-            content = self._download_attachment_with_curl(attachment.file_url)
+            content = self._download_attachment_with_curl(attachment.file_url, headers=headers)
         if not content:
             raise ValueError("첨부파일 다운로드 결과가 비어 있습니다.")
+        if _looks_like_html_error(content):
+            raise ValueError("첨부파일 다운로드 결과가 실제 문서가 아니라 HTML 에러 페이지입니다.")
         return DownloadedPolicyBriefingFile(item=item, attachment=attachment, content=content)
 
-    def _download_attachment_with_curl(self, file_url: str) -> bytes:
+    def _download_attachment_with_curl(self, file_url: str, *, headers: dict[str, str] | None = None) -> bytes:
+        command = [
+            "curl",
+            "-L",
+            "--fail",
+            "--silent",
+            "--show-error",
+            "--max-time",
+            str(self._timeout_seconds),
+            file_url,
+        ]
+        header_values = dict(headers or {})
+        user_agent = header_values.pop("User-Agent", "").strip()
+        if user_agent:
+            command.extend(["-A", user_agent])
+        for key, value in header_values.items():
+            if value.strip():
+                command.extend(["-H", f"{key}: {value}"])
         result = subprocess.run(
-            [
-                "curl",
-                "-L",
-                "--fail",
-                "--silent",
-                "--show-error",
-                "--max-time",
-                str(self._timeout_seconds),
-                "-A",
-                "GovPress/1.0",
-                file_url,
-            ],
+            command,
             check=False,
             capture_output=True,
         )

@@ -119,6 +119,45 @@ class PolicyBriefingQcExportTests(unittest.TestCase):
             self.assertTrue(Path(scaffold_calls[0]["source_path"]).exists())
             self.assertTrue(Path(scaffold_calls[0]["pdf_path"]).exists())
 
+    def test_export_policy_briefings_for_qc_records_failures_and_continues(self) -> None:
+        client = PolicyBriefingQcClientStub()
+        failing_item = PolicyBriefingItem(
+            news_item_id="156700002",
+            title="실패 문서",
+            department="행정안전부",
+            approve_date="04/09/2026 01:00:00",
+            original_url="https://example.test/briefing/156700002",
+            attachments=(
+                PolicyBriefingAttachment(
+                    file_name="broken.hwpx",
+                    file_url="https://example.test/files/broken.hwpx",
+                ),
+            ),
+        )
+        client.items.append(failing_item)
+        catalog = PolicyBriefingQcCatalogStub(client.items)
+
+        original_download = client.download_item_hwpx
+
+        def flaky_download(item: PolicyBriefingItem) -> DownloadedPolicyBriefingFile:
+            if item.news_item_id == "156700002":
+                raise ValueError("첨부파일 다운로드 결과가 실제 문서가 아니라 HTML 에러 페이지입니다.")
+            return original_download(item)
+
+        client.download_item_hwpx = flaky_download  # type: ignore[method-assign]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report = export_policy_briefings_for_qc(
+                client=client,
+                catalog=catalog,
+                target_date=date(2026, 4, 9),
+                output_root=tmpdir,
+            )
+
+            self.assertEqual(report["exported_count"], 1)
+            self.assertEqual(len(report["failed_items"]), 1)
+            self.assertEqual(report["failed_items"][0]["news_item_id"], "156700002")
+
     def test_run_policy_briefing_qc_pipeline_aggregates_gov_md_reports(self) -> None:
         client = PolicyBriefingQcClientStub()
         catalog = PolicyBriefingQcCatalogStub(client.items)
