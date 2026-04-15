@@ -11,6 +11,18 @@ type ServerProbeResult = {
   detail: string;
 };
 
+function isRetryableProbeFailure(detail: string): boolean {
+  const lowered = detail.toLowerCase();
+  return (
+    lowered.includes("timeout") ||
+    lowered.includes("timed out") ||
+    lowered.includes("abort") ||
+    lowered.includes("fetch") ||
+    lowered.includes("load failed") ||
+    lowered.includes("network")
+  );
+}
+
 function formatProbeError(error: unknown): string {
   if (error instanceof DOMException && error.name === "AbortError") {
     return "timeout";
@@ -20,6 +32,26 @@ function formatProbeError(error: unknown): string {
     return message || error.name || "fetch failed";
   }
   return String(error || "fetch failed");
+}
+
+async function probeServerApiReachability(url: string, apiKey: string, timeoutMs: number): Promise<ServerProbeResult> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${url}/v1/policy-briefings/today?date=2026-04-08&_t=${Date.now()}`, {
+      signal: controller.signal,
+      cache: "no-store",
+      headers: apiKey.trim() ? { "X-API-Key": apiKey.trim() } : undefined,
+    });
+    if (response.ok) {
+      return { ok: true, detail: `API HTTP ${response.status}` };
+    }
+    return { ok: false, detail: `API HTTP ${response.status}` };
+  } catch (error) {
+    return { ok: false, detail: formatProbeError(error) };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export function SettingsModal({
@@ -52,8 +84,9 @@ export function SettingsModal({
     return SERVER_PRESETS.find((preset) => preset.url === draft.baseUrl)?.key || PRIMARY_SERVER_KEY;
   }, [draft.baseUrl]);
 
-  async function probeServerHealth(url: string, timeoutMs: number): Promise<ServerProbeResult> {
-    const attempts = 2;
+  async function probeServerHealth(url: string, apiKey: string, timeoutMs: number): Promise<ServerProbeResult> {
+    const attempts = 3;
+    let lastFailure = "unknown";
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -65,18 +98,26 @@ export function SettingsModal({
         if (response.ok) {
           return { ok: true, detail: `HTTP ${response.status}` };
         }
+        lastFailure = `HTTP ${response.status}`;
         if (attempt === attempts - 1) {
-          return { ok: false, detail: `HTTP ${response.status}` };
+          return { ok: false, detail: lastFailure };
         }
       } catch (error) {
+        lastFailure = formatProbeError(error);
         if (attempt === attempts - 1) {
-          return { ok: false, detail: formatProbeError(error) };
+          break;
         }
       } finally {
         clearTimeout(timeout);
       }
     }
-    return { ok: false, detail: "unknown" };
+    if (isRetryableProbeFailure(lastFailure)) {
+      const apiResult = await probeServerApiReachability(url, apiKey, timeoutMs);
+      if (apiResult.ok) {
+        return apiResult;
+      }
+    }
+    return { ok: false, detail: lastFailure };
   }
 
   async function refreshServerStatuses(cancelledRef?: { current: boolean }) {
@@ -93,7 +134,7 @@ export function SettingsModal({
     });
     const results = await Promise.all(
       SERVER_PRESETS.map(async (preset) => {
-        const result = await probeServerHealth(preset.url, SERVER_FALLBACK_TIMEOUT_MS);
+        const result = await probeServerHealth(preset.url, draft.apiKey, SERVER_FALLBACK_TIMEOUT_MS);
         return { key: preset.key, ...result };
       }),
     );
