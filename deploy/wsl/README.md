@@ -412,7 +412,7 @@ GovPress 작업 파일:
 
 - `serverW`는 API 안정성 우선이라 direct SSH `443`을 즉시 제거하지 않습니다.
 - 다만 direct `443` SSH는 임시 운영 경로로만 두고, 최종 목표는 Cloudflare SSH 전환입니다.
-- 현재 tunnel ingress에는 `ssh-h.govpress.cloud -> tcp://host.docker.internal:443`가 연결되어 있습니다.
+- 현재 serverW tunnel ingress에는 `ssh-work.govpress.cloud -> tcp://host.docker.internal:443`가 연결되어 있습니다.
 - direct `443`을 닫기 전에 반드시 Cloudflare SSH 접속을 실제 운영 단말에서 검증합니다.
 - `sshd`는 최소 설정만 허용합니다.
   - `PasswordAuthentication no`
@@ -424,7 +424,7 @@ GovPress 작업 파일:
 Cloudflare SSH 검증 예:
 
 ```bash
-cloudflared access ssh --hostname ssh-h.govpress.cloud
+cloudflared access ssh --hostname ssh-work.govpress.cloud
 ```
 
 ## 작업 접근 모델
