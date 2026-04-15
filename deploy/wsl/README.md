@@ -295,7 +295,62 @@ sudo systemctl daemon-reload
 
 그 다음 Cloudflare에서 stale connector를 지우면 public health가 즉시 복구됩니다.
 
-### 3. 원격배포는 되는데 원격복구가 안 됨
+### 3. 로컬도 public도 번갈아 흔들리고 `pgrep -af cloudflared`에 2개가 뜸
+
+증상:
+
+- `pgrep -af cloudflared`에 정상 unit 프로세스 외에
+  - `cloudflared --no-autoupdate tunnel --no-autoupdate run --token ...`
+  가 하나 더 뜸
+- public `https://api.govpress.cloud/health`가 `200/502`를 오가거나 stale connector가 다시 생김
+- Docker CLI에는 안 보이는데 `ctr -n moby containers list`에는 `cloudflared` 컨테이너가 남아 있음
+
+실제 재발 원인:
+
+- 예전 compose 기반 `govpress-cloudflared` 컨테이너가 Docker/containerd에 ghost 상태로 남아 재기동됨
+- 이 ghost 컨테이너가 host-level `govpress-cloudflared.service`와 동시에 tunnel에 붙으면서 stale connector를 다시 만듦
+
+확인:
+
+```bash
+pgrep -af cloudflared
+sudo ctr -n moby containers list | grep cloudflared || true
+sudo ctr -n moby tasks list | grep cloudflared || true
+```
+
+복구:
+
+```bash
+sudo systemctl stop docker.service
+sudo rm -rf /var/lib/docker/containers/<ghost-container-id>
+sudo rm -rf /var/run/docker/containerd/<ghost-container-id>
+sudo rm -rf /var/run/docker/runtime-runc/moby/<ghost-container-id>
+sudo systemctl start docker.service
+sudo systemctl restart govpress-caddy.service
+sudo systemctl restart govpress-cloudflared.service
+```
+
+검증:
+
+```bash
+pgrep -af cloudflared
+curl -sS -i http://127.0.0.1:8013/health
+curl -sS -i http://127.0.0.1:8080/health
+curl -sS -i https://api.govpress.cloud/health
+```
+
+정상 기준:
+
+- `cloudflared` 프로세스가 `govpress-cloudflared.service` 1개만 남음
+- 로컬 `8013`, `8080`, public health가 모두 `200`
+
+이번 serverH 실사례:
+
+- ghost container id: `9f341e0003bff94cd73ab5b12e66b3ea8460a72a0d438dbdd0c8b91abe2a06ba`
+- 정상 프로세스만 남은 최종 형태:
+  - `cloudflared tunnel --config /dev/null --no-autoupdate --protocol http2 --url http://127.0.0.1:8080 run --token ...`
+
+### 4. 원격배포는 되는데 원격복구가 안 됨
 
 증상:
 

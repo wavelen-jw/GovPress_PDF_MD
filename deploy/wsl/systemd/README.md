@@ -79,6 +79,8 @@ curl -sS http://127.0.0.1:8080/health
 - `govpress-cloudflared.service`는 token 기반 `cloudflared` 하나만 `active (running)`
 - `8080` listener는 `python3 ... host_proxy.py`
 - `docker-proxy`가 `8080`을 잡고 있으면 비정상
+- `pgrep -af cloudflared`에 legacy token 프로세스가 하나 더 뜨면 비정상
+- Docker CLI에 안 보여도 `sudo ctr -n moby containers list | grep cloudflared`로 ghost container 잔존 여부를 확인
 
 ## 금지 상태
 
@@ -87,6 +89,7 @@ curl -sS http://127.0.0.1:8080/health
 - `/etc/systemd/system/cloudflared.service` 존재
 - `~/.cloudflared/config.yml`을 읽는 별도 `cloudflared tunnel --config ... run` 프로세스 존재
 - `docker-proxy`가 `127.0.0.1:8080`을 점유
+- Docker/containerd에 ghost `govpress-cloudflared` container가 잔존
 
 확인:
 
