@@ -146,10 +146,11 @@ jobs:
         run: |
           set -euo pipefail
           KEY_FILE=~/.ssh/deploy_key
+          SSH_BASE_OPTS=(-T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes)
           preflight_exit=1
           for attempt in 1 2 3 4; do
             set +e
-            ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "exit 0" > ssh-preflight.log 2>&1
+            ssh "${SSH_BASE_OPTS[@]}" "$USER@$SSH_HOST" "exit 0" > ssh-preflight.log 2>&1
             preflight_exit=$?
             set -e
             if [ "$preflight_exit" -eq 0 ]; then
@@ -204,6 +205,10 @@ jobs:
         run: |
           set -euo pipefail
           KEY_FILE=~/.ssh/deploy_key
+          SSH_BASE_OPTS=(-T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes)
+          # CF access tcp on localhost can occasionally reset a reused multiplexed
+          # control socket. Polling/fetching are more stable on fresh sessions.
+          SSH_FRESH_OPTS=(-T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes -o ControlMaster=no -o ControlPath=none -o ConnectionAttempts=3 -o ConnectTimeout=20)
           LOCAL_SCRIPT=deploy/common/remote-deploy-cf.sh
           REMOTE_DIR="/tmp/govpress-remote-deploy-${GITHUB_RUN_ID:-manual}"
           REMOTE_PATH="${REMOTE_DIR}/remote-deploy.sh"
@@ -217,7 +222,7 @@ jobs:
             : > remote-launch.log
             wc -c "$LOCAL_SCRIPT" | tee remote-deploy-script-size.log >> remote-launch.log
             set +e
-            ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "$LAUNCH_CMD" > remote-launch.log 2>&1 < "$LOCAL_SCRIPT"
+            ssh "${SSH_BASE_OPTS[@]}" "$USER@$SSH_HOST" "$LAUNCH_CMD" > remote-launch.log 2>&1 < "$LOCAL_SCRIPT"
             launch_exit=$?
             set -e
             printf 'ssh_exit_code=%s\n' "$launch_exit" >> remote-launch.log
@@ -238,7 +243,7 @@ jobs:
           for attempt in $(seq 1 "${DEPLOY_POLL_ATTEMPTS}"); do
             : > remote-deploy.log
             set +e
-            ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "$POLL_CMD" > remote-deploy.log 2>&1
+            ssh "${SSH_FRESH_OPTS[@]}" "$USER@$SSH_HOST" "$POLL_CMD" > remote-deploy.log 2>&1
             poll_exit=$?
             set -e
             printf 'ssh_poll_exit=%s\n' "$poll_exit" >> remote-deploy.log
@@ -265,7 +270,7 @@ jobs:
           if [ "$launch_exit" -eq 0 ]; then
             for attempt in 1 2 3 4; do
               set +e
-              ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" "$FETCH_CMD" > remote-deploy.log 2>&1
+              ssh "${SSH_FRESH_OPTS[@]}" "$USER@$SSH_HOST" "$FETCH_CMD" > remote-deploy.log 2>&1
               fetch_exit=$?
               set -e
               printf 'ssh_fetch_exit=%s\n' "$fetch_exit" >> remote-deploy.log
