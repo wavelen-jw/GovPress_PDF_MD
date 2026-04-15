@@ -322,6 +322,25 @@ class PolicyBriefingApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["run_count"], 1)
 
+    def test_get_policy_briefing_qc_curated_rendered_returns_markdown(self) -> None:
+        curated_root = Path(self.temp_dir.name) / "gov-md-converter" / "tests" / "qc_samples"
+        sample_dir = curated_root / "policy_briefing_2026_04_15_156755790"
+        sample_dir.mkdir(parents=True, exist_ok=True)
+        (sample_dir / "rendered.md").write_text("# 샘플 제목\n", encoding="utf-8")
+        previous_curated_root = os.environ.get("GOVPRESS_CURATED_QC_ROOT")
+        os.environ["GOVPRESS_CURATED_QC_ROOT"] = str(curated_root)
+        try:
+            response = self.client.get("/v1/policy-briefings/qc/curated/policy_briefing_2026_04_15_156755790/rendered.md")
+        finally:
+            if previous_curated_root is None:
+                os.environ.pop("GOVPRESS_CURATED_QC_ROOT", None)
+            else:
+                os.environ["GOVPRESS_CURATED_QC_ROOT"] = previous_curated_root
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("# 샘플 제목", response.text)
+        self.assertIn("text/markdown", response.headers["content-type"])
+
     def test_get_policy_briefing_qc_dashboard_returns_404_when_missing(self) -> None:
         response = self.client.get("/v1/policy-briefings/qc/dashboard")
 

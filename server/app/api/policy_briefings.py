@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+import os
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -32,6 +34,16 @@ def _describe_policy_briefing_error(exc: Exception) -> str:
     ):
         return _UPSTREAM_POLICY_BRIEFING_TIMEOUT_DETAIL
     return message
+
+
+def _default_curated_qc_root() -> Path:
+    env_root = os.environ.get("GOVPRESS_CURATED_QC_ROOT")
+    if env_root:
+        return Path(env_root).resolve()
+    gov_md_root = os.environ.get("GOV_MD_CONVERTER_ROOT")
+    if gov_md_root:
+        return (Path(gov_md_root).resolve() / "tests" / "qc_samples").resolve()
+    return (Path(__file__).resolve().parents[4] / "gov-md-converter" / "tests" / "qc_samples").resolve()
 
 
 def build_router(
@@ -170,5 +182,17 @@ def build_router(
         if not json_path.exists():
             raise HTTPException(status_code=404, detail="QC dashboard JSON is not available yet.")
         return FileResponse(json_path, media_type="application/json; charset=utf-8")
+
+    @router.get("/qc/curated/{sample_id}/rendered.md")
+    def get_policy_briefing_qc_curated_rendered(sample_id: str) -> FileResponse:
+        if Path(sample_id).name != sample_id:
+            raise HTTPException(status_code=404, detail="Curated sample not found.")
+        sample_dir = (_default_curated_qc_root() / sample_id).resolve()
+        if not sample_dir.exists() or not sample_dir.is_dir():
+            raise HTTPException(status_code=404, detail="Curated sample not found.")
+        rendered_path = sample_dir / "rendered.md"
+        if not rendered_path.exists():
+            raise HTTPException(status_code=404, detail="Curated sample markdown is not available.")
+        return FileResponse(rendered_path, media_type="text/markdown; charset=utf-8")
 
     return router
