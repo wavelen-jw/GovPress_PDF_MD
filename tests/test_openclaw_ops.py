@@ -12,6 +12,7 @@ from unittest import mock
 from scripts.openclaw_ops import (
     _format_codex_stream_line,
     _load_session_state,
+    _run_auto_current,
     _sample_record,
     build_server_status,
     dispatch_telegram_message,
@@ -1029,6 +1030,219 @@ class OpenClawOpsTests(unittest.TestCase):
                 )
             self.assertEqual(payload["command"], "remote-qc-fix-queued")
             self.assertIn("pid", payload)
+
+    def test_remote_qc_auto_start_builds_review_required_queue(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "policy"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            s1 = remote_root / "policy_briefing_2026_04_15_1"
+            s2 = remote_root / "policy_briefing_2026_04_15_2"
+            s1.mkdir(parents=True)
+            s2.mkdir(parents=True)
+            for sample_dir in (s1, s2):
+                (sample_dir / "source.hwpx").write_bytes(b"hwpx")
+                (sample_dir / "review.md").write_text("review", encoding="utf-8")
+                (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
+                (sample_dir / "meta.json").write_text(json.dumps({"sample_status": "scratch"}, ensure_ascii=False), encoding="utf-8")
+
+            entries = [
+                mock.Mock(
+                    sample=_sample_record(s2),
+                    news_item_id="2",
+                    review_required=True,
+                    risk_score=9,
+                    finding_count=4,
+                    hard_finding_count=1,
+                    defect_classes=("title",),
+                    title="둘째 제목",
+                ),
+                mock.Mock(
+                    sample=_sample_record(s1),
+                    news_item_id="1",
+                    review_required=True,
+                    risk_score=7,
+                    finding_count=2,
+                    hard_finding_count=0,
+                    defect_classes=("table",),
+                    title="첫째 제목",
+                ),
+            ]
+            with mock.patch("scripts.openclaw_ops._auto_queue_entries", return_value=entries), \
+                 mock.patch(
+                     "scripts.openclaw_ops._spawn_background_auto_run",
+                     return_value={"command": "remote-qc-auto-queued", "pid": 222, "ok": True},
+                 ):
+                payload = dispatch_telegram_message(
+                    'Conversation info (untrusted metadata): {"message_id":"20","sender_id":"6475698942"}\n최근 10건 job 뽑아서 qc 시작',
+                    chat_scope="dm",
+                    export_root=Path(tmpdir),
+                    gov_md_root=gov_md_root,
+                    qc_root=remote_root,
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
+            self.assertEqual(payload["command"], "remote-qc-auto-start")
+            self.assertEqual(payload["queue_count"], 2)
+            self.assertEqual(payload["current_sample_id"], "policy_briefing_2026_04_15_2")
+            self.assertEqual(payload["queue_preview"][0]["title"], "둘째 제목")
+            state = _load_session_state(state_root, "6475698942")
+            self.assertTrue(state["auto_mode"])
+            self.assertEqual(state["auto_queue_sample_ids"][0], "policy_briefing_2026_04_15_2")
+
+    def test_remote_qc_auto_status_reports_current_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_root = Path(tmpdir) / "state"
+            (state_root / "telegram_qc_sessions").mkdir(parents=True, exist_ok=True)
+            (state_root / "telegram_qc_sessions" / "6475698942.json").write_text(
+                json.dumps(
+                    {
+                        "auto_mode": True,
+                        "auto_batch_id": "batch-1",
+                        "auto_queue_sample_ids": ["policy_briefing_2026_04_15_1"],
+                        "auto_queue_index": 0,
+                        "auto_current_sample_id": "policy_briefing_2026_04_15_1",
+                        "auto_current_attempt": 2,
+                        "auto_current_status": "awaiting_user",
+                        "auto_results": [],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            payload = dispatch_telegram_message(
+                'Conversation info (untrusted metadata): {"message_id":"21","sender_id":"6475698942"}\n현재 qc 상태',
+                chat_scope="dm",
+                export_root=Path(tmpdir),
+                gov_md_root=Path(tmpdir),
+                qc_root=Path(tmpdir),
+                remote_qc_root=Path(tmpdir),
+                state_root=state_root,
+            )
+            self.assertEqual(payload["command"], "remote-qc-auto-status")
+            self.assertEqual(payload["current_status"], "awaiting_user")
+            self.assertIn("pass=0", format_human(payload))
+            self.assertIn("awaiting_user", format_human(payload))
+
+    def test_remote_qc_auto_run_current_stops_on_ai_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "policy"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            sample_dir = remote_root / "policy_briefing_2026_04_15_1"
+            sample_dir.mkdir(parents=True)
+            (sample_dir / "source.hwpx").write_bytes(b"hwpx")
+            (sample_dir / "review.md").write_text("review", encoding="utf-8")
+            (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
+            (sample_dir / "meta.json").write_text(json.dumps({"sample_status": "scratch"}, ensure_ascii=False), encoding="utf-8")
+            (state_root / "telegram_qc_sessions").mkdir(parents=True, exist_ok=True)
+            (state_root / "telegram_qc_sessions" / "6475698942.json").write_text(
+                json.dumps(
+                    {
+                        "auto_mode": True,
+                        "auto_batch_id": "batch-1",
+                        "auto_queue_sample_ids": [sample_dir.name],
+                        "auto_queue_index": 0,
+                        "auto_current_sample_id": sample_dir.name,
+                        "auto_current_attempt": 0,
+                        "auto_current_status": "queued",
+                        "auto_max_attempts": 3,
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            with mock.patch("scripts.openclaw_ops._send_telegram_text") as mocked_send, \
+                 mock.patch("scripts.openclaw_ops._send_requested_files", return_value=[]), \
+                 mock.patch(
+                     "scripts.openclaw_ops._handle_fix_request",
+                     return_value={"worker_text": "implementation result", "returncode": 0},
+                 ), \
+                 mock.patch(
+                     "scripts.openclaw_ops._run_hwpx_qc_inspect",
+                     side_effect=[
+                         {"returncode": 0, "payload": {"passed": False, "findings": [{"message": "title"}]}},
+                         {"returncode": 0, "payload": {"passed": True, "findings": []}},
+                     ],
+                 ), \
+                 mock.patch(
+                     "scripts.openclaw_ops._run_auto_judge",
+                     return_value={
+                         "returncode": 0,
+                         "judge": mock.Mock(
+                             decision="pass",
+                             confidence="high",
+                             user_summary="AI pass",
+                             next_fix_instruction="",
+                             blocking_findings=(),
+                         ),
+                     },
+                 ):
+                payload = _run_auto_current(
+                    sender_id="6475698942",
+                    message_id="22",
+                    export_root=Path(tmpdir),
+                    gov_md_root=gov_md_root,
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
+            self.assertEqual(payload["status"], "awaiting_user")
+            state = _load_session_state(state_root, "6475698942")
+            self.assertEqual(state["auto_current_status"], "awaiting_user")
+            self.assertEqual(state["auto_current_attempt"], 1)
+            joined_messages = "\n".join(call.kwargs.get("message", "") for call in mocked_send.call_args_list)
+            self.assertIn("[QC Auto] 1/1", joined_messages)
+            self.assertIn("deterministic gate: inspect=PASS", joined_messages)
+            self.assertIn("[QC Auto Ready]", joined_messages)
+
+    def test_remote_qc_auto_pass_advances_to_next_sample(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "policy"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            for sample_id in ("policy_briefing_2026_04_15_1", "policy_briefing_2026_04_15_2"):
+                sample_dir = remote_root / sample_id
+                sample_dir.mkdir(parents=True)
+                (sample_dir / "source.hwpx").write_bytes(b"hwpx")
+                (sample_dir / "review.md").write_text("review", encoding="utf-8")
+                (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
+                (sample_dir / "meta.json").write_text(json.dumps({"sample_status": "scratch"}, ensure_ascii=False), encoding="utf-8")
+            (state_root / "telegram_qc_sessions").mkdir(parents=True, exist_ok=True)
+            (state_root / "telegram_qc_sessions" / "6475698942.json").write_text(
+                json.dumps(
+                    {
+                        "auto_mode": True,
+                        "auto_batch_id": "batch-1",
+                        "auto_queue_sample_ids": ["policy_briefing_2026_04_15_1", "policy_briefing_2026_04_15_2"],
+                        "auto_queue_index": 0,
+                        "auto_current_sample_id": "policy_briefing_2026_04_15_1",
+                        "auto_current_attempt": 2,
+                        "auto_current_status": "awaiting_user",
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch("scripts.openclaw_ops.qc_promote") as mocked_promote, \
+                 mock.patch(
+                     "scripts.openclaw_ops._spawn_background_auto_run",
+                     return_value={"command": "remote-qc-auto-queued", "pid": 777, "ok": True},
+                 ):
+                payload = dispatch_telegram_message(
+                    'Conversation info (untrusted metadata): {"message_id":"23","sender_id":"6475698942"}\n통과',
+                    chat_scope="dm",
+                    export_root=Path(tmpdir),
+                    gov_md_root=gov_md_root,
+                    qc_root=remote_root,
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
+            self.assertEqual(payload["command"], "remote-qc-auto-advance")
+            mocked_promote.assert_called_once()
+            state = _load_session_state(state_root, "6475698942")
+            self.assertEqual(state["auto_queue_index"], 1)
+            self.assertEqual(state["auto_current_sample_id"], "policy_briefing_2026_04_15_2")
 
 
 if __name__ == "__main__":

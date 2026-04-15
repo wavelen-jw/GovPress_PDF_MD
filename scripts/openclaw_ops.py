@@ -79,8 +79,10 @@ DEFAULT_QC_WORKER_AGENT = "govpress_qc_worker"
 DEFAULT_CODEX_MODEL = "gpt-5.4"
 DEFAULT_QC_MEMORY_ROOT = "tests/manual_samples/qc_memory"
 DEFAULT_STORAGE_ROOT = (PROJECT_ROOT / "deploy" / "wsl" / "data" / "storage").resolve()
+AUTO_JUDGE_TEMPLATE_PATH = DEFAULT_GOV_MD_ROOT / ".agents" / "skills" / "hwpx-md-qc-autopilot" / "auto_judge_template.md"
 MAX_BATCH_TURNS = 40
 MAX_BATCH_SAMPLES = 8
+AUTO_MAX_ATTEMPTS = 3
 _POLICY_SAMPLE_ID_RE = re.compile(r"^policy_briefing_(\d{4})_(\d{2})_(\d{2})_(\d+)$")
 
 
@@ -119,6 +121,15 @@ class PolicyQueueEntry:
     finding_count: int
     hard_finding_count: int
     defect_classes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class AutoJudgeResult:
+    decision: str
+    confidence: str
+    blocking_findings: tuple[str, ...]
+    next_fix_instruction: str
+    user_summary: str
 
 
 def _load_deploy_env_value(key: str) -> str:
@@ -457,6 +468,114 @@ def _scaffold_latest_policy_queue(
         )
     )
     return entries
+
+
+def _auto_queue_entries(
+    *,
+    export_root: Path,
+    gov_md_root: Path,
+    remote_qc_root: Path,
+    storage_root: Path,
+    limit: int,
+) -> list[PolicyQueueEntry]:
+    entries = _scaffold_latest_policy_queue(
+        export_root=export_root,
+        gov_md_root=gov_md_root,
+        remote_qc_root=remote_qc_root,
+        storage_root=storage_root,
+        limit=limit,
+    )
+    return [entry for entry in entries if entry.review_required]
+
+
+def _auto_state_defaults() -> dict[str, Any]:
+    return {
+        "auto_mode": False,
+        "auto_source": "policy_briefing",
+        "auto_requested_count": 0,
+        "auto_candidate_news_ids": [],
+        "auto_queue_sample_ids": [],
+        "auto_queue_index": 0,
+        "auto_current_sample_id": "",
+        "auto_current_attempt": 0,
+        "auto_current_status": "",
+        "auto_pass_gate": "code+ai",
+        "auto_max_attempts": AUTO_MAX_ATTEMPTS,
+        "auto_results": [],
+    }
+
+
+def _apply_auto_state(state: dict[str, Any], **updates: Any) -> dict[str, Any]:
+    merged = {**_auto_state_defaults(), **state}
+    merged.update(updates)
+    return merged
+
+
+def _current_auto_sample_id(state: dict[str, Any]) -> str:
+    queue = [str(item) for item in state.get("auto_queue_sample_ids", []) if isinstance(item, str)]
+    index = int(state.get("auto_queue_index", 0) or 0)
+    if 0 <= index < len(queue):
+        return queue[index]
+    return ""
+
+
+def _append_auto_result(
+    state: dict[str, Any],
+    *,
+    sample_id: str,
+    outcome: str,
+    attempts: int,
+    note: str = "",
+) -> None:
+    results = list(state.get("auto_results", []))
+    results.append(
+        {
+            "sample_id": sample_id,
+            "outcome": outcome,
+            "attempts": attempts,
+            "note": note.strip(),
+        }
+    )
+    state["auto_results"] = results
+
+
+def _auto_result_counts(state: dict[str, Any]) -> dict[str, int]:
+    counts = {"pass": 0, "defer": 0, "other": 0}
+    for item in state.get("auto_results", []):
+        if not isinstance(item, dict):
+            continue
+        outcome = str(item.get("outcome", "")).strip()
+        if outcome == "pass":
+            counts["pass"] += 1
+        elif outcome == "defer":
+            counts["defer"] += 1
+        else:
+            counts["other"] += 1
+    return counts
+
+
+def _advance_auto_queue(state: dict[str, Any]) -> None:
+    state["auto_queue_index"] = int(state.get("auto_queue_index", 0) or 0) + 1
+    state["auto_current_attempt"] = 0
+    state["auto_current_sample_id"] = _current_auto_sample_id(state)
+    state["selected_sample_id"] = state["auto_current_sample_id"]
+    state["auto_current_status"] = "queued" if state["auto_current_sample_id"] else "finished"
+
+
+def _auto_batch_finished(state: dict[str, Any]) -> bool:
+    queue = [str(item) for item in state.get("auto_queue_sample_ids", []) if isinstance(item, str)]
+    index = int(state.get("auto_queue_index", 0) or 0)
+    return index >= len(queue)
+
+
+def _load_auto_judge_template() -> str:
+    if AUTO_JUDGE_TEMPLATE_PATH.exists():
+        return AUTO_JUDGE_TEMPLATE_PATH.read_text(encoding="utf-8")
+    return (
+        "You are the final AI judge for an autonomous policy briefing QC loop.\n"
+        "Return JSON with keys: decision, confidence, blocking_findings, next_fix_instruction, user_summary.\n"
+        "Decisions: pass|retry|defer.\n"
+    )
 
 
 def _find_sample(sample_id: str, remote_qc_root: Path, curated_qc_root: Path | None = None) -> SampleRecord:
@@ -908,6 +1027,172 @@ def _run_subprocess(command: list[str], *, cwd: Path, extra_env: dict[str, str] 
     }
 
 
+def _run_hwpx_qc_inspect(sample_dir: Path, *, gov_md_root: Path) -> dict[str, Any]:
+    command = [
+        sys.executable,
+        str(gov_md_root / "scripts" / "run_hwpx_qc.py"),
+        "inspect",
+        str(sample_dir),
+        "--json",
+    ]
+    result = _run_subprocess(command, cwd=gov_md_root)
+    payload: dict[str, Any] = {}
+    stdout = str(result.get("stdout", "")).strip()
+    if stdout:
+        try:
+            parsed = json.loads(stdout)
+            if isinstance(parsed, dict):
+                payload = parsed
+        except json.JSONDecodeError:
+            payload = {"passed": False, "findings": [{"message": stdout[:500], "category": "inspect_parse"}]}
+    return {
+        "returncode": result["returncode"],
+        "payload": payload,
+        "stdout": result["stdout"],
+        "stderr": result["stderr"],
+        "command": command,
+    }
+
+
+def _summarize_inspect_payload(payload: dict[str, Any]) -> str:
+    if not payload:
+        return "inspect 결과 없음"
+    findings = payload.get("findings") if isinstance(payload.get("findings"), list) else []
+    if payload.get("passed") is True:
+        return "inspect=PASS findings=0"
+    categories = []
+    for item in findings[:3]:
+        if isinstance(item, dict):
+            category = str(item.get("category") or item.get("assertion_id") or item.get("message") or "").strip()
+            if category:
+                categories.append(category)
+    suffix = f" top={','.join(categories)}" if categories else ""
+    return f"inspect=FAIL findings={len(findings)}{suffix}"
+
+
+def _inspect_finding_preview(payload: dict[str, Any], *, limit: int = 3) -> str:
+    findings = payload.get("findings") if isinstance(payload.get("findings"), list) else []
+    previews: list[str] = []
+    for item in findings[:limit]:
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get("message") or item.get("category") or item.get("assertion_id") or "").strip()
+        if text:
+            previews.append(_shorten(text, limit=80))
+    return " / ".join(previews)
+
+
+def _load_sample_title(sample: SampleRecord) -> str:
+    meta = _load_policy_meta(sample.sample_dir)
+    return str(meta.get("title", "")).strip() or sample.sample_id
+
+
+def _build_auto_fix_instruction(
+    *,
+    sample: SampleRecord,
+    inspect_payload: dict[str, Any],
+    next_fix_instruction: str = "",
+) -> str:
+    if next_fix_instruction.strip():
+        return f"수정: {next_fix_instruction.strip()}"
+    if inspect_payload.get("passed") is True:
+        return (
+            f"수정: {sample.sample_id}는 deterministic QC는 통과했지만 "
+            "rendered/review를 다시 검토해 남은 구조적 결함이 없는지 확인하고 필요한 마무리 수정만 수행해."
+        )
+    findings = inspect_payload.get("findings") if isinstance(inspect_payload.get("findings"), list) else []
+    hints: list[str] = []
+    for item in findings[:3]:
+        if isinstance(item, dict):
+            message = str(item.get("message") or item.get("assertion_id") or item.get("category") or "").strip()
+            if message:
+                hints.append(message)
+    hint_text = " / ".join(hints) if hints else "inspect findings를 반영"
+    return (
+        f"수정: {sample.sample_id}의 deterministic QC를 통과할 때까지 "
+        f"현재 결함({hint_text})을 ground rule 기준으로 수정해줘."
+    )
+
+
+def _parse_auto_judge_output(text: str) -> AutoJudgeResult:
+    payload: dict[str, Any] = {}
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            payload = parsed
+    except json.JSONDecodeError:
+        payload = {}
+    decision = str(payload.get("decision", "retry")).strip() or "retry"
+    if decision not in {"pass", "retry", "defer"}:
+        decision = "retry"
+    confidence = str(payload.get("confidence", "medium")).strip() or "medium"
+    blocking = payload.get("blocking_findings")
+    if not isinstance(blocking, list):
+        blocking = []
+    return AutoJudgeResult(
+        decision=decision,
+        confidence=confidence,
+        blocking_findings=tuple(str(item).strip() for item in blocking if str(item).strip()),
+        next_fix_instruction=str(payload.get("next_fix_instruction", "")).strip(),
+        user_summary=str(payload.get("user_summary", "")).strip(),
+    )
+
+
+def _run_auto_judge(
+    *,
+    sample: SampleRecord,
+    inspect_payload: dict[str, Any],
+    worker_text: str,
+    gov_md_root: Path,
+) -> dict[str, Any]:
+    rendered = _read_text(sample.sample_dir / "rendered.md")
+    review = _read_text(sample.sample_dir / "review.md")
+    template = _load_auto_judge_template()
+    prompt = "\n\n".join(
+        [
+            template.strip(),
+            f"sample_id: {sample.sample_id}",
+            f"inspect_summary: {_summarize_inspect_payload(inspect_payload)}",
+            f"worker_summary: {_shorten(worker_text, limit=1200)}",
+            "rendered_excerpt:",
+            rendered[:5000],
+            "review_excerpt:",
+            review[:4000],
+            "inspect_json:",
+            json.dumps(inspect_payload, ensure_ascii=False)[:4000],
+        ]
+    )
+    with tempfile.NamedTemporaryFile(prefix="codex-auto-judge-", suffix=".json", delete=False) as tmp:
+        output_path = Path(tmp.name)
+    command = [
+        "codex",
+        "exec",
+        "-m",
+        DEFAULT_CODEX_MODEL,
+        "-C",
+        str(gov_md_root),
+        "--json",
+        "-o",
+        str(output_path),
+        prompt,
+    ]
+    try:
+        result = _run_subprocess(command, cwd=gov_md_root)
+        output = output_path.read_text(encoding="utf-8").strip() if output_path.exists() else ""
+    finally:
+        if output_path.exists():
+            output_path.unlink()
+    judge = _parse_auto_judge_output(output)
+    return {
+        "returncode": result["returncode"],
+        "output": output,
+        "judge": judge,
+        "command": command,
+        "stdout": result["stdout"],
+        "stderr": result["stderr"],
+    }
+
+
 def _format_codex_stream_line(line: str) -> str | None:
     text = line.strip()
     if not text:
@@ -1206,8 +1491,33 @@ def _requested_recent_job_count(text: str) -> int | None:
     return None
 
 
+def _requested_auto_qc_count(text: str) -> int | None:
+    lowered = text.lower()
+    if "qc" not in lowered or "시작" not in text:
+        return None
+    match = re.search(r"최근\s*(\d+)\s*건", text)
+    if match:
+        try:
+            return max(1, min(50, int(match.group(1))))
+        except ValueError:
+            return None
+    return 10 if "최근" in text or "자동 시작" in text else None
+
+
 def _wants_next_job(text: str) -> bool:
     return "다음 job" in text or "다음 샘플" in text
+
+
+def _wants_auto_status(text: str) -> bool:
+    return "현재 qc 상태" in text
+
+
+def _wants_auto_stop(text: str) -> bool:
+    return "현재 batch 중지" in text
+
+
+def _wants_current_job_defer(text: str) -> bool:
+    return "현재 job 보류" in text or "현재 job 건너뛰기" in text
 
 
 def _wants_open_sample(text: str) -> bool:
@@ -1810,6 +2120,8 @@ def _handle_fix_request(
     gov_md_root: Path,
     remote_qc_root: Path,
     state_root: Path,
+    announce_start: bool = True,
+    send_result_files: bool = True,
 ) -> dict[str, Any]:
     state = _load_session_state(state_root, sender_id)
     reset_batch = _should_reset_batch(state, sample)
@@ -1820,14 +2132,15 @@ def _handle_fix_request(
         state["batch_turn_count"] = 0
         state["codex_thread_id"] = ""
         state["batch_started_at"] = date.today().isoformat()
-    _send_telegram_text(
-        sender_id=sender_id,
-        message_id=message_id,
-        message=(
-            f"수정 작업 시작: {sample.sample_id}\n"
-            f"batch={batch_id} mode={'resume' if state.get('codex_thread_id') and not reset_batch else 'new'}"
-        ),
-    )
+    if announce_start:
+        _send_telegram_text(
+            sender_id=sender_id,
+            message_id=message_id,
+            message=(
+                f"수정 작업 시작: {sample.sample_id}\n"
+                f"batch={batch_id} mode={'resume' if state.get('codex_thread_id') and not reset_batch else 'new'}"
+            ),
+        )
     prompt = _build_fix_prompt(sample=sample, user_text=user_text, gov_md_root=gov_md_root, batch_id=batch_id, state=state)
     with tempfile.NamedTemporaryFile(prefix="codex-qc-fix-", suffix=".txt", delete=False) as tmp:
         output_path = Path(tmp.name)
@@ -1916,7 +2229,7 @@ def _handle_fix_request(
         )
         _append_global_ground_rules(gov_md_root, worker_text)
     sent_files: list[dict[str, Any]] = []
-    if result["returncode"] == 0:
+    if send_result_files and result["returncode"] == 0:
         try:
             sent_files = _send_requested_files(
                 sender_id=sender_id,
@@ -1976,6 +2289,394 @@ def _run_fix_subcommand(
     )
 
 
+def _background_auto_log_dir(state_root: Path) -> Path:
+    path = state_root / "background_auto_logs"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _spawn_background_auto_run(
+    *,
+    sender_id: str,
+    message_id: str | None,
+    export_root: Path,
+    gov_md_root: Path,
+    qc_root: Path,
+    remote_qc_root: Path,
+    state_root: Path,
+) -> dict[str, Any]:
+    log_path = _background_auto_log_dir(state_root) / f"auto-{sender_id}-{int(time.time())}.log"
+    command = [
+        sys.executable,
+        str(PROJECT_ROOT / "scripts" / "openclaw_ops.py"),
+        "--export-root",
+        str(export_root),
+        "--gov-md-root",
+        str(gov_md_root),
+        "--qc-root",
+        str(qc_root),
+        "--remote-qc-root",
+        str(remote_qc_root),
+        "--state-root",
+        str(state_root),
+        "remote-qc-auto-run-current",
+        "--sender-id",
+        sender_id,
+    ]
+    if message_id:
+        command.extend(["--message-id", message_id])
+    log_handle = log_path.open("ab")
+    process = subprocess.Popen(
+        command,
+        cwd=str(PROJECT_ROOT),
+        stdout=log_handle,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    log_handle.close()
+    return {
+        "command": "remote-qc-auto-queued",
+        "ok": True,
+        "pid": process.pid,
+        "log_path": str(log_path),
+    }
+
+
+def _build_auto_start_payload(
+    *,
+    sender_id: str,
+    message_id: str | None,
+    export_root: Path,
+    gov_md_root: Path,
+    remote_qc_root: Path,
+    state_root: Path,
+    limit: int,
+) -> dict[str, Any]:
+    entries = _auto_queue_entries(
+        export_root=export_root,
+        gov_md_root=gov_md_root,
+        remote_qc_root=remote_qc_root,
+        storage_root=DEFAULT_STORAGE_ROOT,
+        limit=limit,
+    )
+    candidate_ids = [entry.news_item_id for entry in entries]
+    queue = [entry.sample.sample_id for entry in entries]
+    state = _apply_auto_state(
+        _load_session_state(state_root, sender_id),
+        auto_mode=bool(queue),
+        auto_batch_id=f"{date.today().isoformat()}:{sender_id}:policy_briefing",
+        auto_source="policy_briefing",
+        auto_requested_count=limit,
+        auto_candidate_news_ids=candidate_ids,
+        auto_queue_sample_ids=queue,
+        auto_queue_index=0,
+        auto_current_sample_id=queue[0] if queue else "",
+        auto_current_attempt=0,
+        auto_current_status="queued" if queue else "idle",
+        auto_pass_gate="code+ai",
+        auto_max_attempts=AUTO_MAX_ATTEMPTS,
+        auto_results=[],
+        last_action="auto-start",
+    )
+    if queue:
+        state["selected_sample_id"] = queue[0]
+    _save_session_state(state_root, sender_id, state)
+    payload: dict[str, Any] = {
+        "command": "remote-qc-auto-start",
+        "ok": True,
+        "requested_count": limit,
+        "candidate_count": len(candidate_ids),
+        "queue_count": len(queue),
+        "queue_sample_ids": queue,
+        "current_sample_id": queue[0] if queue else "",
+        "queue_preview": [
+            {
+                "sample_id": entry.sample.sample_id,
+                "title": entry.title,
+                "risk_score": entry.risk_score,
+                "finding_count": entry.finding_count,
+                "hard_finding_count": entry.hard_finding_count,
+                "defect_classes": list(entry.defect_classes[:3]),
+            }
+            for entry in entries[:5]
+        ],
+    }
+    if queue:
+        payload["runner"] = _spawn_background_auto_run(
+            sender_id=sender_id,
+            message_id=message_id,
+            export_root=export_root,
+            gov_md_root=gov_md_root,
+            qc_root=DEFAULT_QC_ROOT,
+            remote_qc_root=remote_qc_root,
+            state_root=state_root,
+        )
+    return payload
+
+
+def _auto_status_payload(*, sender_id: str, state_root: Path) -> dict[str, Any]:
+    state = _load_session_state(state_root, sender_id)
+    state = _apply_auto_state(state)
+    queue = [str(item) for item in state.get("auto_queue_sample_ids", []) if isinstance(item, str)]
+    current_sample_id = _current_auto_sample_id(state)
+    current_title = ""
+    if current_sample_id:
+        try:
+            current_title = _load_sample_title(_find_sample(current_sample_id, DEFAULT_REMOTE_QC_ROOT, DEFAULT_CURATED_QC_ROOT))
+        except FileNotFoundError:
+            current_title = current_sample_id
+    counts = _auto_result_counts(state)
+    return {
+        "command": "remote-qc-auto-status",
+        "ok": True,
+        "auto_mode": bool(state.get("auto_mode")),
+        "batch_id": state.get("auto_batch_id", ""),
+        "queue_count": len(queue),
+        "queue_index": int(state.get("auto_queue_index", 0) or 0),
+        "current_sample_id": current_sample_id,
+        "current_title": current_title,
+        "current_attempt": int(state.get("auto_current_attempt", 0) or 0),
+        "current_status": str(state.get("auto_current_status", "")),
+        "results": list(state.get("auto_results", [])),
+        "result_counts": counts,
+    }
+
+
+def _auto_stop_payload(*, sender_id: str, state_root: Path) -> dict[str, Any]:
+    state = _apply_auto_state(_load_session_state(state_root, sender_id), auto_mode=False, auto_current_status="stopped", last_action="auto-stop")
+    _save_session_state(state_root, sender_id, state)
+    return {
+        "command": "remote-qc-auto-stop",
+        "ok": True,
+        "message": "현재 자동 QC batch를 중지했습니다.",
+    }
+
+
+def _complete_auto_result(
+    *,
+    sender_id: str,
+    message_id: str | None,
+    export_root: Path,
+    gov_md_root: Path,
+    remote_qc_root: Path,
+    state_root: Path,
+    outcome: str,
+) -> dict[str, Any]:
+    state = _apply_auto_state(_load_session_state(state_root, sender_id))
+    sample_id = _current_auto_sample_id(state)
+    if not sample_id:
+        return {
+            "command": "remote-qc-auto-advance",
+            "ok": True,
+            "message": "진행 중인 자동 QC sample이 없습니다.",
+        }
+    sample = _find_sample(sample_id, remote_qc_root, DEFAULT_CURATED_QC_ROOT)
+    if outcome == "pass":
+        qc_promote(sample.sample_id, qc_root=sample.sample_dir.parent, gov_md_root=gov_md_root)
+    _append_auto_result(
+        state,
+        sample_id=sample.sample_id,
+        outcome=outcome,
+        attempts=int(state.get("auto_current_attempt", 0) or 0),
+    )
+    _advance_auto_queue(state)
+    if _auto_batch_finished(state):
+        state["auto_mode"] = False
+        state["auto_current_status"] = "finished"
+        counts = _auto_result_counts(state)
+        message = (
+            "[QC Auto Complete]\n"
+            f"last={sample.sample_id} outcome={outcome}\n"
+            f"pass={counts['pass']} defer={counts['defer']} total={len(state.get('auto_results', []))}"
+        )
+        runner = None
+    else:
+        state["auto_mode"] = True
+        runner = _spawn_background_auto_run(
+            sender_id=sender_id,
+            message_id=message_id,
+            export_root=export_root,
+            gov_md_root=gov_md_root,
+            qc_root=DEFAULT_QC_ROOT,
+            remote_qc_root=remote_qc_root,
+            state_root=state_root,
+        )
+        counts = _auto_result_counts(state)
+        message = (
+            f"[QC Auto Advance] {sample.sample_id} {('통과' if outcome == 'pass' else '보류')}\n"
+            f"progress={int(state.get('auto_queue_index', 0)) + 1}/{len(state.get('auto_queue_sample_ids', []))}\n"
+            f"pass={counts['pass']} defer={counts['defer']}\n"
+            f"next={_current_auto_sample_id(state) or '-'}"
+        )
+    state["last_action"] = f"auto-{outcome}"
+    _save_session_state(state_root, sender_id, state)
+    payload = {
+        "command": "remote-qc-auto-advance",
+        "ok": True,
+        "outcome": outcome,
+        "sample_id": sample.sample_id,
+        "message": message,
+    }
+    if runner:
+        payload["runner"] = runner
+    return payload
+
+
+def _run_auto_current(
+    *,
+    sender_id: str,
+    message_id: str | None,
+    export_root: Path,
+    gov_md_root: Path,
+    remote_qc_root: Path,
+    state_root: Path,
+) -> dict[str, Any]:
+    state = _apply_auto_state(_load_session_state(state_root, sender_id))
+    if not state.get("auto_mode"):
+        return {"command": "remote-qc-auto-run-current", "ok": False, "message": "auto batch가 활성화되어 있지 않습니다."}
+    while state.get("auto_mode") and not _auto_batch_finished(state):
+        sample_id = _current_auto_sample_id(state)
+        sample = _find_sample(sample_id, remote_qc_root, DEFAULT_CURATED_QC_ROOT)
+        sample_title = _load_sample_title(sample)
+        queue_total = len([str(item) for item in state.get("auto_queue_sample_ids", []) if isinstance(item, str)])
+        queue_index = int(state.get("auto_queue_index", 0) or 0) + 1
+        _select_sample(sample, sender_id=sender_id, state_root=state_root, gov_md_root=gov_md_root)
+        attempt = int(state.get("auto_current_attempt", 0) or 0)
+        next_fix_instruction = ""
+        while attempt < int(state.get("auto_max_attempts", AUTO_MAX_ATTEMPTS) or AUTO_MAX_ATTEMPTS):
+            attempt += 1
+            state["auto_current_attempt"] = attempt
+            state["auto_current_status"] = "running"
+            _save_session_state(state_root, sender_id, state)
+            _send_telegram_text(
+                sender_id=sender_id,
+                message_id=message_id,
+                message=(
+                    f"[QC Auto] {queue_index}/{queue_total}\n"
+                    f"sample={sample.sample_id}\n"
+                    f"title={_shorten(sample_title, limit=120)}\n"
+                    f"iteration={attempt}/{state.get('auto_max_attempts', AUTO_MAX_ATTEMPTS)}"
+                ),
+            )
+            pre_inspect = _run_hwpx_qc_inspect(sample.sample_dir, gov_md_root=gov_md_root)
+            fix_result = _handle_fix_request(
+                sender_id=sender_id,
+                message_id=message_id,
+                sample=sample,
+                user_text=_build_auto_fix_instruction(
+                    sample=sample,
+                    inspect_payload=pre_inspect.get("payload", {}),
+                    next_fix_instruction=next_fix_instruction,
+                ),
+                gov_md_root=gov_md_root,
+                remote_qc_root=remote_qc_root,
+                state_root=state_root,
+                announce_start=False,
+                send_result_files=False,
+            )
+            inspect_result = _run_hwpx_qc_inspect(sample.sample_dir, gov_md_root=gov_md_root)
+            inspect_payload = inspect_result.get("payload", {})
+            _send_telegram_text(
+                sender_id=sender_id,
+                message_id=message_id,
+                message=(
+                    f"[QC Auto] deterministic gate: {_summarize_inspect_payload(inspect_payload)}\n"
+                    f"top={_inspect_finding_preview(inspect_payload) or '-'}"
+                ),
+            )
+            if inspect_result["returncode"] != 0 or inspect_payload.get("passed") is not True:
+                next_fix_instruction = _build_auto_fix_instruction(sample=sample, inspect_payload=inspect_payload)
+                _send_telegram_text(
+                    sender_id=sender_id,
+                    message_id=message_id,
+                    message=(
+                        "[QC Auto] retry scheduled\n"
+                        f"reason={_summarize_inspect_payload(inspect_payload)}\n"
+                        f"next={_shorten(next_fix_instruction.removeprefix('수정:').strip(), limit=220)}"
+                    ),
+                )
+                continue
+            judge_result = _run_auto_judge(
+                sample=sample,
+                inspect_payload=inspect_payload,
+                worker_text=str(fix_result.get("worker_text", "")),
+                gov_md_root=gov_md_root,
+            )
+            judge: AutoJudgeResult = judge_result["judge"]
+            _send_telegram_text(
+                sender_id=sender_id,
+                message_id=message_id,
+                message=(
+                    f"[QC Auto] ai judge={judge.decision} confidence={judge.confidence}\n"
+                    f"blocking={len(judge.blocking_findings)}\n"
+                    f"summary={_shorten(judge.user_summary or '요약 없음', limit=500)}\n"
+                    f"next={_shorten(judge.next_fix_instruction or '-', limit=220)}"
+                ),
+            )
+            if judge.decision == "pass":
+                state["auto_current_status"] = "awaiting_user"
+                state["auto_current_attempt"] = attempt
+                _save_session_state(state_root, sender_id, state)
+                _send_requested_files(
+                    sender_id=sender_id,
+                    message_id=message_id,
+                    sample=sample,
+                    file_keys=["rendered", "review"],
+                )
+                _send_telegram_text(
+                    sender_id=sender_id,
+                    message_id=message_id,
+                    message=(
+                        f"[QC Auto Ready] sample={sample.sample_id}\n"
+                        f"title={_shorten(sample_title, limit=120)}\n"
+                        f"attempts={attempt}/{state.get('auto_max_attempts', AUTO_MAX_ATTEMPTS)}\n"
+                        f"{judge.user_summary or 'AI self-check 통과'}\n"
+                        "응답: `통과` 또는 `보류`"
+                    ),
+                )
+                return {
+                    "command": "remote-qc-auto-run-current",
+                    "ok": True,
+                    "sample_id": sample.sample_id,
+                    "status": "awaiting_user",
+                }
+            if judge.decision == "defer":
+                break
+            next_fix_instruction = judge.next_fix_instruction
+        _append_auto_result(
+            state,
+            sample_id=sample.sample_id,
+            outcome="deferred",
+            attempts=attempt,
+            note="max attempts reached" if attempt >= int(state.get("auto_max_attempts", AUTO_MAX_ATTEMPTS) or AUTO_MAX_ATTEMPTS) else "ai defer",
+        )
+        _send_telegram_text(
+            sender_id=sender_id,
+            message_id=message_id,
+            message=(
+                f"[QC Auto Deferred] sample={sample.sample_id}\n"
+                f"title={_shorten(sample_title, limit=120)}\n"
+                f"attempts={attempt}\n"
+                f"reason={next_fix_instruction or 'ai defer / max attempts'}"
+            ),
+        )
+        _advance_auto_queue(state)
+        _save_session_state(state_root, sender_id, state)
+    state["auto_mode"] = False
+    state["auto_current_status"] = "finished"
+    _save_session_state(state_root, sender_id, state)
+    _send_telegram_text(
+        sender_id=sender_id,
+        message_id=message_id,
+        message=(
+            "[QC Auto Complete]\n"
+            f"pass={_auto_result_counts(state)['pass']} defer={_auto_result_counts(state)['defer']} "
+            f"total={len(state.get('auto_results', []))}"
+        ),
+    )
+    return {"command": "remote-qc-auto-run-current", "ok": True, "status": "finished"}
+
+
 def _dispatch_remote_qc_message(
     *,
     message: str,
@@ -1997,6 +2698,24 @@ def _dispatch_remote_qc_message(
         implicit_title_open = True
     sample_id = _resolve_sample_id_from_text(text, storage_root=DEFAULT_STORAGE_ROOT)
     recent_job_count = _requested_recent_job_count(text)
+    auto_qc_count = _requested_auto_qc_count(text)
+
+    if auto_qc_count is not None:
+        return _build_auto_start_payload(
+            sender_id=sender_id,
+            message_id=ctx.message_id,
+            export_root=export_root,
+            gov_md_root=gov_md_root,
+            remote_qc_root=remote_qc_root,
+            state_root=state_root,
+            limit=auto_qc_count,
+        )
+
+    if _wants_auto_status(text):
+        return _auto_status_payload(sender_id=sender_id, state_root=state_root)
+
+    if _wants_auto_stop(text):
+        return _auto_stop_payload(sender_id=sender_id, state_root=state_root)
 
     if recent_job_count is not None:
         return _build_recent_storage_jobs_payload(
@@ -2054,6 +2773,26 @@ def _dispatch_remote_qc_message(
             review_only=False,
         )
     if _wants_next_job(text):
+        auto_state = _apply_auto_state(_load_session_state(state_root, sender_id))
+        if auto_state.get("auto_mode") and str(auto_state.get("auto_current_status", "")) == "awaiting_user":
+            return _complete_auto_result(
+                sender_id=sender_id,
+                message_id=ctx.message_id,
+                export_root=export_root,
+                gov_md_root=gov_md_root,
+                remote_qc_root=remote_qc_root,
+                state_root=state_root,
+                outcome="defer",
+            )
+    if _wants_next_job(text):
+        auto_state = _apply_auto_state(_load_session_state(state_root, sender_id))
+        if auto_state.get("auto_mode"):
+            return {
+                "command": "remote-qc-auto-advance",
+                "ok": False,
+                "message": "현재 자동 QC가 승인 대기 상태가 아닙니다.",
+            }
+    if _wants_next_job(text):
         return _build_next_sample_payload(
             export_root=export_root,
             remote_qc_root=remote_qc_root,
@@ -2062,6 +2801,70 @@ def _dispatch_remote_qc_message(
             state_root=state_root,
             gov_md_root=gov_md_root,
         )
+
+    if _is_pass_message(text):
+        auto_state = _apply_auto_state(_load_session_state(state_root, sender_id))
+        if auto_state.get("auto_mode") and str(auto_state.get("auto_current_status", "")) == "awaiting_user":
+            return _complete_auto_result(
+                sender_id=sender_id,
+                message_id=ctx.message_id,
+                export_root=export_root,
+                gov_md_root=gov_md_root,
+                remote_qc_root=remote_qc_root,
+                state_root=state_root,
+                outcome="pass",
+            )
+        sample = (
+            _resolve_remote_sample(
+                sample_id,
+                gov_md_root=gov_md_root,
+                remote_qc_root=remote_qc_root,
+                storage_root=DEFAULT_STORAGE_ROOT,
+            )
+            if sample_id
+            else _ensure_selected_sample(state_root, sender_id, remote_qc_root)
+        )
+        return _handle_pass(sender_id=sender_id, sample=sample, state_root=state_root, gov_md_root=gov_md_root)
+    if _is_defer_message(text):
+        auto_state = _apply_auto_state(_load_session_state(state_root, sender_id))
+        if auto_state.get("auto_mode") and str(auto_state.get("auto_current_status", "")) == "awaiting_user":
+            return _complete_auto_result(
+                sender_id=sender_id,
+                message_id=ctx.message_id,
+                export_root=export_root,
+                gov_md_root=gov_md_root,
+                remote_qc_root=remote_qc_root,
+                state_root=state_root,
+                outcome="defer",
+            )
+        sample = (
+            _resolve_remote_sample(
+                sample_id,
+                gov_md_root=gov_md_root,
+                remote_qc_root=remote_qc_root,
+                storage_root=DEFAULT_STORAGE_ROOT,
+            )
+            if sample_id
+            else _ensure_selected_sample(state_root, sender_id, remote_qc_root)
+        )
+        return _handle_defer(sender_id=sender_id, sample=sample, state_root=state_root, gov_md_root=gov_md_root)
+    if _wants_current_job_defer(text):
+        auto_state = _apply_auto_state(_load_session_state(state_root, sender_id))
+        if auto_state.get("auto_mode") and str(auto_state.get("auto_current_status", "")) == "awaiting_user":
+            return _complete_auto_result(
+                sender_id=sender_id,
+                message_id=ctx.message_id,
+                export_root=export_root,
+                gov_md_root=gov_md_root,
+                remote_qc_root=remote_qc_root,
+                state_root=state_root,
+                outcome="defer",
+            )
+        return {
+            "command": "remote-qc-auto-advance",
+            "ok": False,
+                "message": "현재 건너뛸 자동 QC job이 없습니다.",
+            }
 
     sample = (
         _resolve_remote_sample(
@@ -2103,11 +2906,6 @@ def _dispatch_remote_qc_message(
         )
         fix_payload["golden_upload"] = upload_payload
         return fix_payload
-
-    if _is_pass_message(text):
-        return _handle_pass(sender_id=sender_id, sample=sample, state_root=state_root, gov_md_root=gov_md_root)
-    if _is_defer_message(text):
-        return _handle_defer(sender_id=sender_id, sample=sample, state_root=state_root, gov_md_root=gov_md_root)
     if _is_fix_message(text):
         return _spawn_background_fix(
             sender_id=sender_id,
@@ -2157,7 +2955,7 @@ def _dispatch_remote_qc_message(
     return {
         "command": "remote-qc-unsupported",
         "ok": False,
-        "message": "지원: job 목록 보여줘 | review 필요한 job만 보여줘 | <sample-id> 열어줘 | 국정브리핑 보도자료 '<제목>' 열어줘 | source/rendered/review/golden 보내줘 | golden.md 업로드 | 통과 | 보류 | 수정: ...",
+        "message": "지원: 최근 10건 job 뽑아서 qc 시작 | 현재 qc 상태 | 현재 batch 중지 | job 목록 보여줘 | review 필요한 job만 보여줘 | <sample-id> 열어줘 | 국정브리핑 보도자료 '<제목>' 열어줘 | source/rendered/review/golden 보내줘 | golden.md 업로드 | 통과 | 보류 | 수정: ...",
     }
 
 
@@ -2333,6 +3131,47 @@ def format_human(payload: dict[str, Any]) -> str:
             )
         lines.append("다음: `review 필요한 job만 보여줘` 또는 `<sample-id> 열어줘`")
         return "\n".join(lines)
+    if command == "remote-qc-auto-start":
+        lines = [
+            f"[QC Auto Start] requested={payload.get('requested_count')}",
+            f"review_queue={payload.get('queue_count', 0)} candidates={payload.get('candidate_count', 0)}",
+        ]
+        if payload.get("current_sample_id"):
+            lines.append(f"current={payload.get('current_sample_id')}")
+        for item in payload.get("queue_preview", [])[:3]:
+            if not isinstance(item, dict):
+                continue
+            defects = ",".join(item.get("defect_classes") or []) or "-"
+            lines.append(
+                f"- {item.get('sample_id')} risk={item.get('risk_score')} findings={item.get('finding_count')} "
+                f"hard={item.get('hard_finding_count')} title={_shorten(item.get('title'), limit=60)} defects={defects}"
+            )
+        if payload.get("queue_sample_ids"):
+            lines.append("queue=" + ", ".join(payload.get("queue_sample_ids", [])[:5]))
+        if payload.get("runner"):
+            lines.append(f"pid={payload['runner'].get('pid')}")
+        return "\n".join(lines)
+    if command == "remote-qc-auto-status":
+        lines = [
+            f"[QC Auto Status] active={payload.get('auto_mode')}",
+            f"batch={payload.get('batch_id')}",
+            f"queue={payload.get('queue_index')}/{payload.get('queue_count')}",
+            f"current={payload.get('current_sample_id')} status={payload.get('current_status')} attempt={payload.get('current_attempt')}",
+        ]
+        if payload.get("current_title"):
+            lines.append(f"title={_shorten(payload.get('current_title'), limit=80)}")
+        counts = payload.get("result_counts") or {}
+        if isinstance(counts, dict):
+            lines.append(f"pass={counts.get('pass', 0)} defer={counts.get('defer', 0)} other={counts.get('other', 0)}")
+        results = payload.get("results", [])
+        if results:
+            last = results[-1]
+            lines.append(f"last={last.get('sample_id')} outcome={last.get('outcome')} attempts={last.get('attempts')}")
+        return "\n".join(lines)
+    if command == "remote-qc-auto-stop":
+        return str(payload.get("message", "")).strip()
+    if command == "remote-qc-auto-advance":
+        return str(payload.get("message", "")).strip()
     if command == "remote-qc-open":
         return "\n".join(
             [
@@ -2457,6 +3296,26 @@ def build_parser() -> argparse.ArgumentParser:
     fix_runner.add_argument("--user-text", required=True)
     fix_runner.add_argument("--message-id")
 
+    auto_start = subparsers.add_parser("remote-qc-auto-start")
+    auto_start.add_argument("--sender-id", required=True)
+    auto_start.add_argument("--limit", type=int, default=10)
+    auto_start.add_argument("--message-id")
+
+    auto_status = subparsers.add_parser("remote-qc-auto-status")
+    auto_status.add_argument("--sender-id", required=True)
+
+    auto_run = subparsers.add_parser("remote-qc-auto-run-current")
+    auto_run.add_argument("--sender-id", required=True)
+    auto_run.add_argument("--message-id")
+
+    auto_advance = subparsers.add_parser("remote-qc-auto-advance")
+    auto_advance.add_argument("--sender-id", required=True)
+    auto_advance.add_argument("--outcome", choices=["pass", "defer"], required=True)
+    auto_advance.add_argument("--message-id")
+
+    auto_stop = subparsers.add_parser("remote-qc-auto-stop")
+    auto_stop.add_argument("--sender-id", required=True)
+
     return parser
 
 
@@ -2503,6 +3362,39 @@ def main() -> int:
                 remote_qc_root=remote_qc_root,
                 state_root=state_root,
             )
+        elif args.subcommand == "remote-qc-auto-start":
+            payload = _build_auto_start_payload(
+                sender_id=args.sender_id,
+                message_id=args.message_id,
+                export_root=export_root,
+                gov_md_root=gov_md_root,
+                remote_qc_root=remote_qc_root,
+                state_root=state_root,
+                limit=args.limit,
+            )
+        elif args.subcommand == "remote-qc-auto-status":
+            payload = _auto_status_payload(sender_id=args.sender_id, state_root=state_root)
+        elif args.subcommand == "remote-qc-auto-run-current":
+            payload = _run_auto_current(
+                sender_id=args.sender_id,
+                message_id=args.message_id,
+                export_root=export_root,
+                gov_md_root=gov_md_root,
+                remote_qc_root=remote_qc_root,
+                state_root=state_root,
+            )
+        elif args.subcommand == "remote-qc-auto-advance":
+            payload = _complete_auto_result(
+                sender_id=args.sender_id,
+                message_id=args.message_id,
+                export_root=export_root,
+                gov_md_root=gov_md_root,
+                remote_qc_root=remote_qc_root,
+                state_root=state_root,
+                outcome=args.outcome,
+            )
+        elif args.subcommand == "remote-qc-auto-stop":
+            payload = _auto_stop_payload(sender_id=args.sender_id, state_root=state_root)
         else:  # pragma: no cover
             raise AssertionError(f"Unhandled subcommand {args.subcommand}")
     except Exception as exc:
@@ -2513,6 +3405,15 @@ def main() -> int:
                     sender_id=args.sender_id,
                     message_id=args.message_id,
                     message=f"[QC Fix Handoff Failed] sample={args.sample_id}\n{str(exc).strip()}",
+                )
+            except Exception:
+                pass
+        if args.subcommand == "remote-qc-auto-run-current":
+            try:
+                _send_telegram_text(
+                    sender_id=args.sender_id,
+                    message_id=args.message_id,
+                    message=f"[QC Auto Failed]\n{str(exc).strip()}",
                 )
             except Exception:
                 pass
