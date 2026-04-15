@@ -786,6 +786,28 @@ def _resolve_remote_sample(
             sample_status="scratch",
         )
         return _find_sample(sample_id, remote_qc_root, DEFAULT_CURATED_QC_ROOT)
+    policy_match = re.fullmatch(r"policy_briefing_(\d{4})_(\d{2})_(\d{2})_(\d+)", sample_id)
+    if policy_match:
+        year, month, day, news_item_id = policy_match.groups()
+        target_date = date(int(year), int(month), int(day))
+        catalog = _build_policy_catalog(storage_root)
+        report = export_policy_briefings_for_qc(
+            client=PolicyBriefingClient(service_key=os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY")),
+            catalog=catalog,
+            target_date=target_date,
+            output_root=PROJECT_ROOT / "exports" / "policy_briefing_qc",
+            news_item_ids=[news_item_id],
+            include_pdf=True,
+            ensure_fresh=False,
+            scaffold_runner=run_gov_md_scaffold,
+            gov_md_converter_root=gov_md_root,
+            qc_root=remote_qc_root,
+            autofill=True,
+            force=False,
+            sample_status="scratch",
+        )
+        if int(report.get("scaffolded_count", 0) or 0) > 0:
+            return _find_sample(sample_id, remote_qc_root, DEFAULT_CURATED_QC_ROOT)
     raise FileNotFoundError(f"Unknown QC sample: {sample_id}")
 
 
@@ -2723,7 +2745,34 @@ def _run_auto_current(
         return {"command": "remote-qc-auto-run-current", "ok": False, "message": "auto batch가 활성화되어 있지 않습니다."}
     while state.get("auto_mode") and not _auto_batch_finished(state):
         sample_id = _current_auto_sample_id(state)
-        sample = _find_sample(sample_id, remote_qc_root, DEFAULT_CURATED_QC_ROOT)
+        try:
+            sample = _resolve_remote_sample(
+                sample_id,
+                gov_md_root=gov_md_root,
+                remote_qc_root=remote_qc_root,
+                storage_root=DEFAULT_STORAGE_ROOT,
+            )
+        except FileNotFoundError:
+            _append_auto_result(
+                state,
+                sample_id=sample_id,
+                outcome="deferred",
+                attempts=int(state.get("auto_current_attempt", 0) or 0),
+                note="sample missing",
+            )
+            _send_telegram_text(
+                sender_id=sender_id,
+                message_id=message_id,
+                message=(
+                    f"[QC Auto Deferred] sample={sample_id}\n"
+                    "status=자동보류\n"
+                    "reason=QC sample을 찾지 못해 다음 job으로 진행합니다."
+                ),
+            )
+            _advance_auto_queue(state)
+            _save_session_state(state_root, sender_id, state)
+            _write_auto_batch_report(state_root, sender_id, state)
+            continue
         sample_title = _load_sample_title(sample)
         queue_total = len([str(item) for item in state.get("auto_queue_sample_ids", []) if isinstance(item, str)])
         queue_index = int(state.get("auto_queue_index", 0) or 0) + 1

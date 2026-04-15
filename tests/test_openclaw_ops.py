@@ -1250,6 +1250,80 @@ class OpenClawOpsTests(unittest.TestCase):
             self.assertEqual(state["auto_queue_index"], 1)
             self.assertEqual(state["auto_current_sample_id"], "policy_briefing_2026_04_15_2")
 
+    def test_remote_qc_auto_run_current_defers_missing_sample_and_continues(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "policy"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            existing_sample = remote_root / "policy_briefing_2026_04_15_813"
+            existing_sample.mkdir(parents=True)
+            (existing_sample / "source.hwpx").write_bytes(b"hwpx")
+            (existing_sample / "review.md").write_text("review", encoding="utf-8")
+            (existing_sample / "rendered.md").write_text("rendered", encoding="utf-8")
+            (existing_sample / "meta.json").write_text(json.dumps({"sample_status": "scratch"}, ensure_ascii=False), encoding="utf-8")
+            (state_root / "telegram_qc_sessions").mkdir(parents=True, exist_ok=True)
+            (state_root / "telegram_qc_sessions" / "6475698942.json").write_text(
+                json.dumps(
+                    {
+                        "auto_mode": True,
+                        "auto_batch_id": "batch-1",
+                        "auto_queue_sample_ids": ["policy_briefing_2026_04_15_797", existing_sample.name],
+                        "auto_queue_index": 0,
+                        "auto_current_sample_id": "policy_briefing_2026_04_15_797",
+                        "auto_current_attempt": 0,
+                        "auto_current_status": "queued",
+                        "auto_max_attempts": 5,
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            with mock.patch("scripts.openclaw_ops._send_telegram_text") as mocked_send, \
+                 mock.patch(
+                     "scripts.openclaw_ops._handle_fix_request",
+                     return_value={"worker_text": "implementation result", "returncode": 0},
+                 ), \
+                 mock.patch(
+                     "scripts.openclaw_ops._run_hwpx_qc_inspect",
+                     side_effect=[
+                         {"returncode": 0, "payload": {"passed": False, "findings": [{"message": "title"}]}},
+                         {"returncode": 0, "payload": {"passed": True, "findings": []}},
+                     ],
+                 ), \
+                 mock.patch(
+                     "scripts.openclaw_ops._run_auto_judge",
+                     return_value={
+                         "returncode": 0,
+                         "judge": mock.Mock(
+                             decision="pass",
+                             confidence="high",
+                             user_summary="AI pass",
+                             next_fix_instruction="",
+                             blocking_findings=(),
+                         ),
+                     },
+                 ), \
+                 mock.patch("scripts.openclaw_ops._send_requested_files", return_value=[]), \
+                 mock.patch("scripts.openclaw_ops.export_policy_briefings_for_qc", return_value={"scaffolded_count": 0}):
+                payload = _run_auto_current(
+                    sender_id="6475698942",
+                    message_id="24",
+                    export_root=Path(tmpdir),
+                    gov_md_root=gov_md_root,
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
+
+            self.assertEqual(payload["status"], "awaiting_user")
+            state = _load_session_state(state_root, "6475698942")
+            self.assertEqual(state["auto_results"][0]["sample_id"], "policy_briefing_2026_04_15_797")
+            self.assertEqual(state["auto_results"][0]["outcome"], "deferred")
+            self.assertEqual(state["auto_current_sample_id"], existing_sample.name)
+            joined_messages = "\n".join(call.kwargs.get("message", "") for call in mocked_send.call_args_list)
+            self.assertIn("[QC Auto Deferred] sample=policy_briefing_2026_04_15_797", joined_messages)
+            self.assertIn(f"[QC Auto Ready] sample={existing_sample.name}", joined_messages)
+
 
 if __name__ == "__main__":
     unittest.main()
