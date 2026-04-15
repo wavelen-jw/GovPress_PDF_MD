@@ -65,6 +65,44 @@ run_compose() {
   fi
 }
 
+build_dashboard_assets_compose() {
+  local dashboard_root="/app/exports/policy_briefing_qc"
+  local curated_root="/app/tests/qc_samples"
+  docker exec govpress-api python - "$dashboard_root" "$dashboard_root/dashboard/index.html" "$dashboard_root/dashboard/dashboard.json" "$curated_root" <<'PY'
+from pathlib import Path
+import sys
+
+from src.qc_dashboard import write_dashboard
+
+root = Path(sys.argv[1])
+output_html = Path(sys.argv[2])
+output_json = Path(sys.argv[3])
+curated_root = Path(sys.argv[4]) if len(sys.argv) > 4 and Path(sys.argv[4]).exists() else None
+write_dashboard(root, output_html=output_html, output_json=output_json, curated_root=curated_root)
+print(f"dashboard_html={output_html}")
+print(f"dashboard_json={output_json}")
+PY
+}
+
+build_dashboard_assets_baremetal() {
+  local dashboard_root="$DEPLOY_DIR/exports/policy_briefing_qc"
+  local curated_root="$DEPLOY_DIR/tests/qc_samples"
+  "$DEPLOY_DIR/.venv/bin/python" - "$dashboard_root" "$dashboard_root/dashboard/index.html" "$dashboard_root/dashboard/dashboard.json" "$curated_root" <<'PY'
+from pathlib import Path
+import sys
+
+from src.qc_dashboard import write_dashboard
+
+root = Path(sys.argv[1])
+output_html = Path(sys.argv[2])
+output_json = Path(sys.argv[3])
+curated_root = Path(sys.argv[4]) if len(sys.argv) > 4 and Path(sys.argv[4]).exists() else None
+write_dashboard(root, output_html=output_html, output_json=output_json, curated_root=curated_root)
+print(f"dashboard_html={output_html}")
+print(f"dashboard_json={output_json}")
+PY
+}
+
 cleanup_host_proxy_orphans() {
   docker rm -f govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
   echo "host_proxy_orphan_cleanup=1"
@@ -242,6 +280,7 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
   fi
   run_compose ps
   sleep 3
+  build_dashboard_assets_compose
 else
   export XDG_RUNTIME_DIR="/run/user/$(id -u)"
   ENV_PATH="$DEPLOY_DIR/deploy/vps/.env"
@@ -274,6 +313,7 @@ else
   fi
   systemctl --user restart "$SERVICE"
   sleep 3
+  build_dashboard_assets_baremetal
 fi
 
 # WSL rebuilds can take noticeably longer than VPS restarts.
