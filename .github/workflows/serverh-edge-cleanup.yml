@@ -107,6 +107,9 @@ jobs:
           echo "=== remediation ==="
           sudo -n pkill -f 'cloudflared --no-autoupdate tunnel --no-autoupdate run --token' || true
           sudo -n pkill -f 'cloudflared tunnel --config /dev/null --no-autoupdate --protocol http2 --url http://127.0.0.1:8080 run --token' || true
+          for pid in $(sudo -n ss -ltnp 'sport = :8080' 2>/dev/null | sed -n 's/.*users:(("docker-proxy",pid=\([0-9]\+\).*/\1/p' | sort -u); do
+            sudo -n kill "$pid" || true
+          done
           sleep 2
 
           # Kill any legacy user-owned cloudflared process that does not match the managed host-level unit.
@@ -138,6 +141,7 @@ jobs:
           systemctl status --no-pager govpress-caddy.service || true
           systemctl status --no-pager govpress-cloudflared.service || true
           pgrep -af cloudflared || true
+          sudo -n ss -ltnp 'sport = :8080' || true
           curl -sS http://127.0.0.1:8013/health || true
           curl -sS http://127.0.0.1:8080/health || true
           BASH
@@ -145,7 +149,9 @@ jobs:
       - name: Verify public health from runner
         run: |
           set -euo pipefail
-          curl -sS -i --max-time 10 https://api.govpress.cloud/health
+          http_code="$(curl -sS -o /tmp/serverh-health.txt -w '%{http_code}' --max-time 10 https://api.govpress.cloud/health || true)"
+          cat /tmp/serverh-health.txt
+          test "$http_code" = "200"
 
       - name: Summary
         run: |
