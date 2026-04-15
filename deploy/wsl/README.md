@@ -409,6 +409,8 @@ GovPress 작업 파일:
 - 현재 운영 기본값은 `Turnstile` 없이 `API key + 서버 rate limit + Cloudflare rate limit`입니다.
 - `GOVPRESS_POLICY_BRIEFING_SERVICE_KEY`는 각 서버 `.env`에 명시합니다.
 - fallback 제거 전환 준비가 끝나면 `GOVPRESS_ALLOW_DEFAULT_POLICY_BRIEFING_SERVICE_KEY_FALLBACK=false`로 두고 배포합니다.
+- 현재 API 배포 워크플로는 `GOVPRESS_ADMIN_API_KEY`와 `GOVPRESS_POLICY_BRIEFING_SERVICE_KEY`를 서버 `.env`에 자동 반영합니다.
+- `GOVPRESS_POLICY_BRIEFING_SERVICE_KEY`가 배포 시 주입되면 fallback 플래그도 자동으로 `0`으로 내려갑니다.
 - CORS는 예시값 그대로 두지 말고 실제 프론트 주소만 허용합니다.
 
 ### SSH 운영 원칙

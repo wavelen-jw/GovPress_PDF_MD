@@ -27,6 +27,10 @@ on:
         required: true
       converter_spec:
         required: false
+      admin_api_key:
+        required: false
+      policy_briefing_service_key:
+        required: false
 
 permissions:
   contents: read
@@ -75,6 +79,8 @@ jobs:
           SERVICE: ${{ inputs.service }}
           HEALTHCHECK_URL: ${{ inputs.healthcheck_url }}
           CONVERTER_SPEC: ${{ secrets.converter_spec }}
+          ADMIN_API_KEY: ${{ secrets.admin_api_key }}
+          POLICY_BRIEFING_SERVICE_KEY: ${{ secrets.policy_briefing_service_key }}
         run: |
           set -euo pipefail
           KEY_FILE=~/.ssh/deploy_key
@@ -106,6 +112,12 @@ jobs:
           touch "\$ENV_FILE"
           if [ -n "${CONVERTER_SPEC}" ]; then
             python3 -c 'from pathlib import Path; import sys; env_path = Path(sys.argv[1]); spec = sys.argv[2]; lines = env_path.read_text().splitlines() if env_path.exists() else []; updated = []; seen_spec = False; seen_fallback = False; [updated.append(f"GOVPRESS_CONVERTER_SPEC={spec}") or (seen_spec := True) if line.startswith("GOVPRESS_CONVERTER_SPEC=") else updated.append("GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=0") or (seen_fallback := True) if line.startswith("GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=") else updated.append(line) for line in lines]; updated.append(f"GOVPRESS_CONVERTER_SPEC={spec}") if not seen_spec else None; updated.append("GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=0") if not seen_fallback else None; env_path.write_text("\n".join(updated).rstrip() + "\n")' "\$ENV_FILE" "$CONVERTER_SPEC"
+          fi
+          if [ -n "${ADMIN_API_KEY}" ]; then
+            python3 -c 'from pathlib import Path; import sys; env_path = Path(sys.argv[1]); key = sys.argv[2]; lines = env_path.read_text().splitlines() if env_path.exists() else []; updated = []; seen = False; [updated.append(f"GOVPRESS_ADMIN_API_KEY={key}") or (seen := True) if line.startswith("GOVPRESS_ADMIN_API_KEY=") else updated.append(line) for line in lines]; updated.append(f"GOVPRESS_ADMIN_API_KEY={key}") if not seen else None; env_path.write_text("\n".join(updated).rstrip() + "\n")' "\$ENV_FILE" "$ADMIN_API_KEY"
+          fi
+          if [ -n "${POLICY_BRIEFING_SERVICE_KEY}" ]; then
+            python3 -c 'from pathlib import Path; import sys; env_path = Path(sys.argv[1]); key = sys.argv[2]; lines = env_path.read_text().splitlines() if env_path.exists() else []; updated = []; seen_key = False; seen_flag = False; [updated.append(f"GOVPRESS_POLICY_BRIEFING_SERVICE_KEY={key}") or (seen_key := True) if line.startswith("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY=") else updated.append("GOVPRESS_ALLOW_DEFAULT_POLICY_BRIEFING_SERVICE_KEY_FALLBACK=0") or (seen_flag := True) if line.startswith("GOVPRESS_ALLOW_DEFAULT_POLICY_BRIEFING_SERVICE_KEY_FALLBACK=") else updated.append(line) for line in lines]; updated.append(f"GOVPRESS_POLICY_BRIEFING_SERVICE_KEY={key}") if not seen_key else None; updated.append("GOVPRESS_ALLOW_DEFAULT_POLICY_BRIEFING_SERVICE_KEY_FALLBACK=0") if not seen_flag else None; env_path.write_text("\n".join(updated).rstrip() + "\n")' "\$ENV_FILE" "$POLICY_BRIEFING_SERVICE_KEY"
           fi
           if [ ! -x "$DEPLOY_DIR/.venv/bin/python" ]; then
             python3 -m venv "$DEPLOY_DIR/.venv"

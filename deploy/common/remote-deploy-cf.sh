@@ -207,6 +207,13 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
   if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
   fi
+  if [ -n "${ADMIN_API_KEY:-}" ]; then
+    upsert_env_value "$ENV_PATH" "GOVPRESS_ADMIN_API_KEY" "$ADMIN_API_KEY"
+  fi
+  if [ -n "${POLICY_BRIEFING_SERVICE_KEY:-}" ]; then
+    upsert_env_value "$ENV_PATH" "GOVPRESS_POLICY_BRIEFING_SERVICE_KEY" "$POLICY_BRIEFING_SERVICE_KEY"
+    upsert_env_value "$ENV_PATH" "GOVPRESS_ALLOW_DEFAULT_POLICY_BRIEFING_SERVICE_KEY_FALLBACK" "0"
+  fi
   if [ "${DEPLOY_MODE:-compose_proxy}" = "host_proxy" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_DEPLOY_MODE" "host_proxy"
     install_host_proxy_services

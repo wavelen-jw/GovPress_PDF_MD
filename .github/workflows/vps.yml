@@ -65,6 +65,8 @@ jobs:
       user:    ${{ secrets.GOVPRESS_VPS_USER }}
       ssh_key: ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
       converter_spec: ${{ secrets.GOVPRESS_CONVERTER_SPEC }}
+      admin_api_key: ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
+      policy_briefing_service_key: ${{ secrets.GOVPRESS_POLICY_BRIEFING_SERVICE_KEY }}
 
   deploy-h:
     name: "서버H (WSL, CF Tunnel)"
@@ -87,6 +89,8 @@ jobs:
       cf_client_id:     ${{ secrets.CF_ACCESS_CLIENT_ID }}
       cf_client_secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
       converter_spec:   ${{ secrets.GOVPRESS_CONVERTER_SPEC }}
+      admin_api_key:    ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
+      policy_briefing_service_key: ${{ secrets.GOVPRESS_POLICY_BRIEFING_SERVICE_KEY }}
 
   deploy-w:
     name: "서버W (WSL, CF Tunnel)"
@@ -105,3 +109,5 @@ jobs:
       cf_client_id:     ${{ secrets.CF_ACCESS_CLIENT_ID }}
       cf_client_secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
       converter_spec:   ${{ secrets.GOVPRESS_CONVERTER_SPEC }}
+      admin_api_key:    ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
+      policy_briefing_service_key: ${{ secrets.GOVPRESS_POLICY_BRIEFING_SERVICE_KEY }}
