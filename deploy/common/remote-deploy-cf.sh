@@ -103,6 +103,16 @@ print(f"dashboard_json={output_json}")
 PY
 }
 
+verify_dashboard_assets() {
+  local dashboard_root="$1"
+  local html_path="$dashboard_root/dashboard/index.html"
+  local json_path="$dashboard_root/dashboard/dashboard.json"
+  test -s "$html_path"
+  test -s "$json_path"
+  echo "dashboard_html=$html_path"
+  echo "dashboard_json=$json_path"
+}
+
 cleanup_host_proxy_orphans() {
   docker rm -f govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
   echo "host_proxy_orphan_cleanup=1"
@@ -281,6 +291,7 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
   run_compose ps
   sleep 3
   build_dashboard_assets_compose
+  verify_dashboard_assets "$DEPLOY_DIR/exports/policy_briefing_qc"
 else
   export XDG_RUNTIME_DIR="/run/user/$(id -u)"
   ENV_PATH="$DEPLOY_DIR/deploy/vps/.env"
@@ -314,6 +325,7 @@ else
   systemctl --user restart "$SERVICE"
   sleep 3
   build_dashboard_assets_baremetal
+  verify_dashboard_assets "$DEPLOY_DIR/exports/policy_briefing_qc"
 fi
 
 # WSL rebuilds can take noticeably longer than VPS restarts.
