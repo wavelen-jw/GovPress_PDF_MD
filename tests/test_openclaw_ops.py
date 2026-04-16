@@ -939,6 +939,20 @@ class OpenClawOpsTests(unittest.TestCase):
 
             self.assertEqual(first_id, second_id)
 
+    def test_remote_qc_rejects_unsupported_freeform_in_strict_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = dispatch_telegram_message(
+                'Conversation info (untrusted metadata): {"message_id":"77","sender_id":"6475698942"}\n안녕',
+                chat_scope="dm",
+                export_root=Path(tmpdir),
+                gov_md_root=Path(tmpdir),
+                qc_root=Path(tmpdir),
+                remote_qc_root=Path(tmpdir) / "storage_batch",
+                state_root=Path(tmpdir) / "state",
+            )
+        self.assertEqual(payload["command"], "remote-qc-unsupported")
+        self.assertFalse(payload["ok"])
+
     def test_remote_qc_falls_back_to_default_sender_when_metadata_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             remote_root = Path(tmpdir) / "storage_batch"

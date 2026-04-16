@@ -35,6 +35,7 @@ from src.qc_command_queue import (
     consume_latest_qc_media as converter_consume_latest_qc_media,
     enqueue_qc_command as converter_enqueue_qc_command,
     finish_qc_command as converter_finish_qc_command,
+    load_qc_command as converter_load_qc_command,
     qc_command_db_path as converter_qc_command_db_path,
     record_qc_media as converter_record_qc_media,
 )
@@ -314,6 +315,10 @@ def _finish_qc_command(
         status=status,
         result_payload=result_payload,
     )
+
+
+def _load_qc_command(state_root: Path, *, command_id: int) -> dict[str, Any] | None:
+    return converter_load_qc_command(state_root, command_id=command_id)
 
 
 def _record_qc_media(
@@ -2003,13 +2008,14 @@ def _normalize_qc_command(
         return {"command_type": "pass_sample", "sample_id": sample_id}
     if _is_defer_message(text) or _wants_current_job_defer(text):
         return {"command_type": "defer_sample", "sample_id": sample_id}
-    if ctx.media_paths or _wants_golden_upload_fix(text):
+    has_markdown_media = any(path.suffix.lower() == ".md" for path in ctx.media_paths)
+    if has_markdown_media or _wants_golden_upload_fix(text):
         return {
             "command_type": "upload_golden",
             "sample_id": sample_id,
             "user_text": text.strip(),
             "message_id": ctx.message_id,
-            "has_media_paths": bool(ctx.media_paths),
+            "has_media_paths": has_markdown_media,
         }
     if _is_fix_message(text):
         return {"command_type": "run_fix", "sample_id": sample_id, "user_text": text}
@@ -2367,6 +2373,15 @@ def _run_qc_command_once(
 ) -> dict[str, Any]:
     row = _claim_qc_command(state_root, sender_id=sender_id, command_id=command_id)
     if row is None:
+        if command_id is not None:
+            existing = _load_qc_command(state_root, command_id=command_id)
+            if existing is not None:
+                result_json = str(existing.get("result_json") or "").strip()
+                if result_json:
+                    payload = json.loads(result_json)
+                    if isinstance(payload, dict):
+                        payload.setdefault("queued_command_id", int(existing["id"]))
+                        return payload
         return {"command": "remote-qc-command-run-next", "ok": False, "message": "queued QC command가 없습니다."}
     try:
         payload = _execute_structured_qc_command(
@@ -4107,14 +4122,15 @@ def dispatch_telegram_message(
                 command_id=queued_id,
             )
         else:
-            payload = _dispatch_remote_qc_message(
-                message=normalized,
-                ctx=ctx,
-                export_root=export_root,
-                gov_md_root=gov_md_root,
-                remote_qc_root=remote_qc_root,
-                state_root=state_root,
-            )
+            payload = {
+                "command": "remote-qc-unsupported",
+                "ok": False,
+                "message": (
+                    "지원: <sample-id> job 열어줘 | open <newsId> | job 번호 <제목 일부> 찾아줘 | "
+                    "review/rendered/source/golden 보내줘 | 수정: ... | 통과 | 보류 | 다음 job | "
+                    "md 파일 첨부(=golden 저장 후 즉시 수정 큐)"
+                ),
+            }
         if payload.get("command") == "remote-qc-open" and ctx.sender_id:
             sample = _find_sample(str(payload.get("sample_id")), remote_qc_root, DEFAULT_CURATED_QC_ROOT)
             file_keys = [key for key in ["review", "rendered", "source"] if (sample.sample_dir / {"review": "review.md", "rendered": "rendered.md", "source": "source.hwpx"}[key]).exists()]
@@ -4126,6 +4142,9 @@ def dispatch_telegram_message(
                 sample=sample,
                 file_keys=file_keys,
             )
+            payload["_suppress_telegram_text"] = True
+        if payload.get("command") == "remote-qc-send-files":
+            payload["_suppress_telegram_text"] = True
         payload["ok"] = payload.get("ok", True)
         return payload
     if command == "qc-status":
@@ -4611,7 +4630,7 @@ def main() -> int:
         return 1
 
     human_text = format_human(payload)
-    if args.subcommand == "telegram-dispatch" and args.chat_scope == "dm":
+    if args.subcommand == "telegram-dispatch" and args.chat_scope == "dm" and not payload.get("_suppress_telegram_text"):
         try:
             ctx = build_telegram_context(args.message, state_root=state_root)
             if ctx.sender_id:
