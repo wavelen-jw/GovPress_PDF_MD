@@ -13,6 +13,7 @@ QC_ROOT="${GOVPRESS_QC_ROOT:-$GOV_MD_ROOT/tests/manual_samples/policy_briefings}
 WRAPPER="$REPO_ROOT/scripts/openclaw_ops.py"
 EXPORT_ROOT="${GOVPRESS_QC_EXPORT_ROOT:-$GOV_MD_ROOT/exports/policy_briefing_qc}"
 AGENT_WORKSPACE="${AGENT_WORKSPACE:-$GOV_MD_ROOT/ops/openclaw_qc_ops}"
+OPENCLAW_WORKSPACE_ROOT="${OPENCLAW_WORKSPACE_ROOT:-$HOME/.openclaw/workspace}"
 
 if ! command -v openclaw >/dev/null 2>&1; then
   echo "openclaw CLI not found"
@@ -28,6 +29,13 @@ if [ ! -d "$AGENT_WORKSPACE" ]; then
   echo "agent workspace missing: $AGENT_WORKSPACE"
   exit 1
 fi
+
+mkdir -p "$OPENCLAW_WORKSPACE_ROOT"
+for file in AGENTS.md TOOLS.md; do
+  if [ -f "$AGENT_WORKSPACE/$file" ]; then
+    cp "$AGENT_WORKSPACE/$file" "$OPENCLAW_WORKSPACE_ROOT/$file"
+  fi
+done
 
 if [ ! -d "$HOME/.openclaw/agents/$AGENT_NAME" ]; then
   openclaw agents add "$AGENT_NAME" \
