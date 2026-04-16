@@ -2287,8 +2287,6 @@ def _execute_structured_qc_command(
                 sample=sample,
                 gov_md_root=gov_md_root,
             )
-            if has_media_paths:
-                return upload_payload
             user_text = str(payload.get("user_text") or "").strip()
             fix_text = (
                 user_text

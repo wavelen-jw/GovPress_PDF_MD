@@ -1086,7 +1086,7 @@ class OpenClawOpsTests(unittest.TestCase):
                 )
             self.assertEqual(payload["command"], "remote-qc-fix-queued")
 
-    def test_remote_qc_golden_upload_only_saves_golden(self) -> None:
+    def test_remote_qc_golden_upload_triggers_fix_flow(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             remote_root = Path(tmpdir) / "storage_batch"
             state_root = Path(tmpdir) / "state"
@@ -1120,6 +1120,7 @@ class OpenClawOpsTests(unittest.TestCase):
             with mock.patch("scripts.openclaw_ops._rewrite_sample_review") as mocked_rewrite, \
                  mock.patch("scripts.openclaw_ops._run_subprocess", side_effect=fake_run), \
                  mock.patch("scripts.openclaw_ops._spawn_background_fix") as mocked_fix:
+                mocked_fix.return_value = {"command": "remote-qc-fix-queued", "ok": True, "pid": 123}
                 payload = dispatch_telegram_message(
                     f'[media attached: {uploaded}]\nConversation info (untrusted metadata): {{"message_id":"14","sender_id":"6475698942"}}',
                     chat_scope="dm",
@@ -1129,10 +1130,11 @@ class OpenClawOpsTests(unittest.TestCase):
                     remote_qc_root=remote_root,
                     state_root=state_root,
                 )
-            self.assertEqual(payload["command"], "remote-qc-upload-golden")
+            self.assertEqual(payload["command"], "remote-qc-fix-queued")
+            self.assertEqual(payload["golden_upload"]["command"], "remote-qc-upload-golden")
             self.assertEqual((sample_dir / "golden.md").read_text(encoding="utf-8"), "# golden")
             mocked_rewrite.assert_called_once()
-            mocked_fix.assert_not_called()
+            mocked_fix.assert_called_once()
 
     def test_remote_qc_pass_uses_promote(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
