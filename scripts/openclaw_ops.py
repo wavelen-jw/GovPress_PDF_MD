@@ -195,12 +195,7 @@ def _parse_message_id(message: str) -> str | None:
 
 def _extract_media_paths(message: str) -> tuple[Path, ...]:
     matches = re.findall(r"\[media attached:\s*([^\]\n|]+?)(?:\s+\([^)]+\))?(?:\s*\|\s*[^\]]+)?\]", message)
-    paths: list[Path] = []
-    for raw in matches:
-        candidate = Path(raw.strip())
-        if candidate.exists():
-            paths.append(candidate)
-    return tuple(paths)
+    return tuple(Path(raw.strip()) for raw in matches if raw.strip())
 
 
 def _find_recent_inbound_markdown(
@@ -2286,6 +2281,11 @@ def _execute_structured_qc_command(
             sender_id=sender_id,
             message_id=str(payload.get("message_id") or "").strip() or message_id,
         )
+        # DB 소비 실패 시 inbound directory fallback
+        if media_path is None and has_media_paths:
+            inbound = _find_recent_inbound_markdown()
+            if inbound:
+                media_path = inbound[0]
         if media_path is not None:
             upload_payload = _handle_golden_upload(
                 ctx=TelegramContext(sender_id=sender_id, message_id=message_id, media_paths=(media_path,)),
@@ -4087,6 +4087,17 @@ def dispatch_telegram_message(
         ctx = build_telegram_context(message, state_root=state_root)
         if not ctx.sender_id:
             raise ValueError("Telegram sender_id를 찾지 못했습니다.")
+        # .md 경로가 언급됐지만 존재하지 않는 경우 inbound directory에서 최신 .md 파일로 보완
+        _mentioned_md = [p for p in ctx.media_paths if p.suffix.lower() == ".md"]
+        if _mentioned_md and not any(p.exists() for p in _mentioned_md):
+            inbound = _find_recent_inbound_markdown()
+            if inbound:
+                _other = tuple(p for p in ctx.media_paths if p.suffix.lower() != ".md")
+                ctx = TelegramContext(
+                    sender_id=ctx.sender_id,
+                    message_id=ctx.message_id,
+                    media_paths=_other + inbound,
+                )
         _record_qc_media(
             state_root=state_root,
             sender_id=ctx.sender_id,

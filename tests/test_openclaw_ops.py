@@ -1628,5 +1628,78 @@ class OpenClawOpsTests(unittest.TestCase):
             self.assertIn(f"[QC Auto Ready] sample={existing_sample.name}", joined_messages)
 
 
+    def test_remote_qc_md_upload_uses_inbound_fallback(self) -> None:
+        """메시지의 .md 경로가 존재하지 않을 때 inbound directory fallback으로 golden 업로드 + fix 큐잉이 이뤄지는지 검증."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "storage_batch"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            inbound_root = Path(tmpdir) / "inbound"
+            inbound_root.mkdir(parents=True)
+
+            # 실제로 존재하는 inbound .md 파일 준비
+            inbound_md = inbound_root / "golden_candidate.md"
+            inbound_md.write_text("# golden content\n", encoding="utf-8")
+
+            # sample 디렉토리 준비 (golden.md 없음)
+            sample_dir = remote_root / "policy_briefing_2026_04_16_999001"
+            sample_dir.mkdir(parents=True)
+            (sample_dir / "source.hwpx").write_bytes(b"PK\x03\x04fake")
+            (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
+            (sample_dir / "review.md").write_text("review", encoding="utf-8")
+            (sample_dir / "meta.json").write_text(
+                json.dumps({"sample_status": "scratch", "source_hwpx": "source.hwpx"}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            # 세션에 sample 선택 상태 기록
+            session_dir = state_root / "telegram_qc_sessions"
+            session_dir.mkdir(parents=True, exist_ok=True)
+            (session_dir / "6475698942.json").write_text(
+                json.dumps({"selected_sample_id": sample_dir.name, "selected_sample_dir": str(sample_dir)}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            # 메시지에 존재하지 않는 경로 포함 — _extract_media_paths는 경로를 캡처하지만 파일은 없음
+            nonexistent_path = Path(tmpdir) / "nonexistent" / "golden.md"
+            message = (
+                f'Conversation info (untrusted metadata): {{"message_id":"55","sender_id":"6475698942"}}\n'
+                f"[media attached: {nonexistent_path}]\n"
+            )
+
+            with mock.patch("scripts.openclaw_ops._find_recent_inbound_markdown", return_value=(inbound_md,)), \
+                 mock.patch("scripts.openclaw_ops._rewrite_sample_review"), \
+                 mock.patch(
+                     "scripts.openclaw_ops._spawn_background_fix",
+                     return_value={"command": "remote-qc-fix-queued", "ok": True},
+                 ) as mocked_fix:
+                payload = dispatch_telegram_message(
+                    message,
+                    chat_scope="dm",
+                    export_root=Path(tmpdir),
+                    gov_md_root=gov_md_root,
+                    qc_root=Path(tmpdir),
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
+
+            self.assertEqual(payload["command"], "remote-qc-fix-queued")
+            self.assertIn("golden_upload", payload)
+            self.assertEqual(payload["golden_upload"]["command"], "remote-qc-upload-golden")
+            mocked_fix.assert_called_once()
+            # golden.md 가 inbound 파일 내용으로 저장됐는지 확인
+            golden_written = (sample_dir / "golden.md").read_text(encoding="utf-8")
+            self.assertEqual(golden_written, "# golden content\n")
+
+    def test_extract_media_paths_captures_nonexistent_md(self) -> None:
+        """_extract_media_paths가 존재하지 않는 경로도 캡처하는지 검증 (Bug 1 수정 확인)."""
+        from scripts.openclaw_ops import _extract_media_paths
+
+        nonexistent = "/tmp/this_file_does_not_exist_12345.md"
+        message = f"[media attached: {nonexistent}]\n텍스트"
+        paths = _extract_media_paths(message)
+        self.assertEqual(len(paths), 1)
+        self.assertEqual(paths[0].suffix, ".md")
+
+
 if __name__ == "__main__":
     unittest.main()
