@@ -194,16 +194,19 @@ def build_router(
             raise HTTPException(status_code=404, detail="QC dashboard JSON is not available yet.")
         return FileResponse(json_path, media_type="application/json; charset=utf-8")
 
-    @router.get("/qc/curated/{sample_id}/rendered.md")
-    def get_policy_briefing_qc_curated_rendered(sample_id: str) -> FileResponse:
+    @router.get("/qc/curated/{sample_id}/{asset_name}")
+    def get_policy_briefing_qc_curated_rendered(sample_id: str, asset_name: str) -> FileResponse:
         if Path(sample_id).name != sample_id:
             raise HTTPException(status_code=404, detail="Curated sample not found.")
         sample_dir = (_default_curated_qc_root() / sample_id).resolve()
         if not sample_dir.exists() or not sample_dir.is_dir():
             raise HTTPException(status_code=404, detail="Curated sample not found.")
-        rendered_path = sample_dir / "rendered.md"
+        if Path(asset_name).name != asset_name:
+            raise HTTPException(status_code=404, detail="Curated sample asset not found.")
+        rendered_path = sample_dir / asset_name
         if not rendered_path.exists():
-            raise HTTPException(status_code=404, detail="Curated sample markdown is not available.")
-        return FileResponse(rendered_path, media_type="text/markdown; charset=utf-8")
+            raise HTTPException(status_code=404, detail="Curated sample asset is not available.")
+        media_type = "application/json; charset=utf-8" if rendered_path.suffix == ".json" else "text/markdown; charset=utf-8"
+        return FileResponse(rendered_path, media_type=media_type)
 
     return router
