@@ -192,7 +192,7 @@ class OpenClawOpsTests(unittest.TestCase):
         self.assertTrue(payload["mismatch"])
         self.assertEqual(payload["recommended_url"], "https://api.govpress.cloud")
 
-    def test_cli_telegram_dispatch_prints_summary(self) -> None:
+    def test_cli_telegram_dispatch_suppresses_stdout_for_dm(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             self._write_report(
@@ -222,8 +222,39 @@ class OpenClawOpsTests(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(result.returncode, 0, msg=result.stderr)
-            self.assertIn("[QC] 2026-04-12", result.stdout)
-            self.assertIn("regression_failures=0", result.stdout)
+            self.assertEqual(result.stdout.strip(), "")
+
+    def test_cli_telegram_dispatch_dm_with_sender_suppresses_stdout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            self._write_report(
+                root,
+                "2026-04-12",
+                {
+                    "date": "2026-04-12",
+                    "summary": {"exported_count": 2, "review_required_count": 1, "proposal_count": 1, "draft_count": 0},
+                    "qc_commands": [],
+                },
+            )
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/openclaw_ops.py",
+                    "--export-root",
+                    str(root),
+                    "telegram-dispatch",
+                    "--chat-scope",
+                    "dm",
+                    "--message",
+                    'Conversation info (untrusted metadata): {"message_id":"12","sender_id":"6475698942"}\n/qc today',
+                ],
+                cwd=self.repo_root,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            self.assertEqual(result.stdout.strip(), "")
 
     def test_cli_qc_failures_explains_review_queue_when_regression_is_clean(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

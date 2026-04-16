@@ -4630,10 +4630,11 @@ def main() -> int:
         return 1
 
     human_text = format_human(payload)
-    if args.subcommand == "telegram-dispatch" and args.chat_scope == "dm" and not payload.get("_suppress_telegram_text"):
+    ctx = None
+    if args.subcommand == "telegram-dispatch" and args.chat_scope == "dm":
         try:
             ctx = build_telegram_context(args.message, state_root=state_root)
-            if ctx.sender_id:
+            if ctx.sender_id and not payload.get("_suppress_telegram_text"):
                 _send_telegram_text(
                     sender_id=ctx.sender_id,
                     message_id=ctx.message_id,
@@ -4644,6 +4645,8 @@ def main() -> int:
 
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
+    elif args.subcommand == "telegram-dispatch" and args.chat_scope == "dm" and ctx and ctx.sender_id:
+        pass
     else:
         print(human_text)
     if payload.get("returncode") not in (None, 0):
