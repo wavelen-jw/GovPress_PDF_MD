@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import select
+import sqlite3
 import subprocess
 import sys
 import time
@@ -34,6 +35,7 @@ from server.app.adapters.policy_briefing import (
     PolicyBriefingCatalog,
     PolicyBriefingClient,
     find_cached_policy_briefing_by_title,
+    normalize_policy_briefing_title_key,
 )
 from server.app.adapters.policy_briefing_qc import (
     export_policy_briefings_for_qc,
@@ -86,6 +88,7 @@ MAX_BATCH_SAMPLES = 8
 AUTO_MAX_ATTEMPTS = 5
 _POLICY_SAMPLE_ID_RE = re.compile(r"^policy_briefing_(\d{4})_(\d{2})_(\d{2})_(\d+)$")
 QC_WORK_BRANCH_PREFIX = "qc"
+QC_MEDIA_MARKDOWN = "markdown"
 
 
 @dataclass(frozen=True)
@@ -250,6 +253,239 @@ def _save_session_state(state_root: Path, sender_id: str, payload: dict[str, Any
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
+
+
+def _qc_command_db_path(state_root: Path) -> Path:
+    return state_root / "qc_command_queue.sqlite3"
+
+
+def _connect_qc_command_db(state_root: Path) -> sqlite3.Connection:
+    state_root.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(_qc_command_db_path(state_root), check_same_thread=False)
+    connection.row_factory = sqlite3.Row
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS qc_commands (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender_id TEXT NOT NULL,
+            message_id TEXT,
+            chat_scope TEXT NOT NULL,
+            command_type TEXT NOT NULL,
+            sample_id TEXT,
+            news_id TEXT,
+            payload_json TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'queued',
+            dedupe_key TEXT,
+            created_at TEXT NOT NULL,
+            started_at TEXT,
+            finished_at TEXT,
+            result_json TEXT
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS qc_media_inbox (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender_id TEXT NOT NULL,
+            message_id TEXT,
+            sample_id TEXT,
+            file_path TEXT NOT NULL,
+            media_type TEXT NOT NULL,
+            original_name TEXT NOT NULL,
+            received_at TEXT NOT NULL,
+            consumed_at TEXT,
+            consume_status TEXT NOT NULL DEFAULT 'pending'
+        )
+        """
+    )
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_qc_commands_status ON qc_commands(status, created_at)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_qc_commands_sender ON qc_commands(sender_id, status, created_at)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_qc_media_sender ON qc_media_inbox(sender_id, consume_status, received_at)")
+    connection.commit()
+    return connection
+
+
+def _enqueue_qc_command(
+    *,
+    state_root: Path,
+    sender_id: str,
+    message_id: str | None,
+    chat_scope: str,
+    command_type: str,
+    payload: dict[str, Any],
+    sample_id: str | None = None,
+    news_id: str | None = None,
+    dedupe_key: str | None = None,
+) -> int:
+    connection = _connect_qc_command_db(state_root)
+    try:
+        cursor = connection.execute(
+            """
+            INSERT INTO qc_commands (
+                sender_id, message_id, chat_scope, command_type, sample_id, news_id,
+                payload_json, status, dedupe_key, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)
+            """,
+            (
+                sender_id,
+                message_id,
+                chat_scope,
+                command_type,
+                sample_id,
+                news_id,
+                json.dumps(payload, ensure_ascii=False),
+                dedupe_key,
+                _now_iso(),
+            ),
+        )
+        connection.commit()
+        return int(cursor.lastrowid)
+    finally:
+        connection.close()
+
+
+def _claim_qc_command(state_root: Path, *, sender_id: str | None = None, command_id: int | None = None) -> dict[str, Any] | None:
+    connection = _connect_qc_command_db(state_root)
+    try:
+        if command_id is not None:
+            row = connection.execute(
+                "SELECT * FROM qc_commands WHERE id = ? AND status = 'queued'",
+                (command_id,),
+            ).fetchone()
+        elif sender_id is not None:
+            row = connection.execute(
+                "SELECT * FROM qc_commands WHERE sender_id = ? AND status = 'queued' ORDER BY id LIMIT 1",
+                (sender_id,),
+            ).fetchone()
+        else:
+            row = connection.execute(
+                "SELECT * FROM qc_commands WHERE status = 'queued' ORDER BY id LIMIT 1"
+            ).fetchone()
+        if row is None:
+            return None
+        started_at = _now_iso()
+        connection.execute(
+            "UPDATE qc_commands SET status = 'running', started_at = ? WHERE id = ? AND status = 'queued'",
+            (started_at, int(row["id"])),
+        )
+        connection.commit()
+        refreshed = connection.execute("SELECT * FROM qc_commands WHERE id = ?", (int(row["id"]),)).fetchone()
+        return dict(refreshed) if refreshed is not None else None
+    finally:
+        connection.close()
+
+
+def _finish_qc_command(
+    state_root: Path,
+    *,
+    command_id: int,
+    status: str,
+    result_payload: dict[str, Any],
+) -> None:
+    connection = _connect_qc_command_db(state_root)
+    try:
+        connection.execute(
+            "UPDATE qc_commands SET status = ?, finished_at = ?, result_json = ? WHERE id = ?",
+            (
+                status,
+                _now_iso(),
+                json.dumps(result_payload, ensure_ascii=False),
+                command_id,
+            ),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def _record_qc_media(
+    *,
+    state_root: Path,
+    sender_id: str,
+    message_id: str | None,
+    media_paths: tuple[Path, ...],
+    sample_id: str | None = None,
+) -> list[int]:
+    if not media_paths:
+        return []
+    connection = _connect_qc_command_db(state_root)
+    created_ids: list[int] = []
+    try:
+        for media_path in media_paths:
+            media_type = QC_MEDIA_MARKDOWN if media_path.suffix.lower() == ".md" else media_path.suffix.lower().lstrip(".") or "file"
+            cursor = connection.execute(
+                """
+                INSERT INTO qc_media_inbox (
+                    sender_id, message_id, sample_id, file_path, media_type, original_name, received_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    sender_id,
+                    message_id,
+                    sample_id,
+                    str(media_path),
+                    media_type,
+                    media_path.name,
+                    _now_iso(),
+                ),
+            )
+            created_ids.append(int(cursor.lastrowid))
+        connection.commit()
+        return created_ids
+    finally:
+        connection.close()
+
+
+def _consume_latest_qc_media(
+    state_root: Path,
+    *,
+    sender_id: str,
+    message_id: str | None,
+    media_type: str = QC_MEDIA_MARKDOWN,
+) -> Path | None:
+    connection = _connect_qc_command_db(state_root)
+    try:
+        if message_id:
+            row = connection.execute(
+                """
+                SELECT * FROM qc_media_inbox
+                WHERE sender_id = ? AND message_id = ? AND media_type = ? AND consume_status = 'pending'
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (sender_id, message_id, media_type),
+            ).fetchone()
+        else:
+            row = None
+        if row is None:
+            row = connection.execute(
+                """
+                SELECT * FROM qc_media_inbox
+                WHERE sender_id = ? AND media_type = ? AND consume_status = 'pending'
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (sender_id, media_type),
+            ).fetchone()
+        if row is None:
+            return None
+        candidate = Path(str(row["file_path"]))
+        if not candidate.exists():
+            connection.execute(
+                "UPDATE qc_media_inbox SET consume_status = 'missing', consumed_at = ? WHERE id = ?",
+                (_now_iso(), int(row["id"])),
+            )
+            connection.commit()
+            return None
+        connection.execute(
+            "UPDATE qc_media_inbox SET consume_status = 'consumed', consumed_at = ? WHERE id = ?",
+            (_now_iso(), int(row["id"])),
+        )
+        connection.commit()
+        return candidate
+    finally:
+        connection.close()
 
 
 def _run_git(command: list[str], *, cwd: Path) -> str:
@@ -1759,6 +1995,552 @@ def _wants_auto_stop(text: str) -> bool:
     return "현재 batch 중지" in text
 
 
+def _extract_news_item_id_from_text(text: str) -> str | None:
+    match = re.search(r"\b(156\d{6,})\b", text)
+    return match.group(1) if match else None
+
+
+def _requested_job_search_query(text: str) -> str | None:
+    lowered = text.lower()
+    patterns = [
+        r"job 번호\s+(.+?)\s+찾아줘",
+        r"job 번호\s+(.+?)\s+알려줘",
+        r"기사 제목\s+(.+?)\s+찾아줘",
+        r"제목 일부\s+(.+?)\s+찾아줘",
+        r"국정브리핑\s+(.+?)\s+찾아줘",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            candidate = match.group(1).strip()
+            if candidate:
+                return candidate.strip("'\"“”‘’ ").strip()
+    if lowered.startswith("find "):
+        candidate = text[5:].strip()
+        return candidate or None
+    if "찾아줘" in text and ("job 번호" in text or "기사 제목" in text or "제목 일부" in text):
+        candidate = text.replace("찾아줘", " ")
+        candidate = candidate.replace("job 번호", " ")
+        candidate = candidate.replace("기사 제목", " ")
+        candidate = candidate.replace("제목 일부", " ")
+        candidate = re.sub(r"\s+", " ", candidate).strip()
+        return candidate or None
+    return None
+
+
+def _search_policy_briefing_titles(
+    query: str,
+    *,
+    storage_root: Path,
+    remote_qc_root: Path,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    catalog = _build_policy_catalog(storage_root)
+    normalized_query = normalize_policy_briefing_title_key(query)
+    if not normalized_query:
+        return []
+
+    matches: list[tuple[tuple[int, float], dict[str, Any]]] = []
+    for item in catalog.iter_cached_items():
+        normalized_title = normalize_policy_briefing_title_key(item.title)
+        if not normalized_title:
+            continue
+        if normalized_query == normalized_title:
+            rank = 0
+        elif normalized_query in normalized_title:
+            rank = 1
+        else:
+            continue
+        approve_at = _approve_datetime(item.approve_date)
+        sample_id = f"policy_briefing_{approve_at:%Y_%m_%d}_{item.news_item_id}"
+        sample_exists = (remote_qc_root / sample_id).exists() or (DEFAULT_CURATED_QC_ROOT / sample_id).exists()
+        matches.append(
+            (
+                (rank, -approve_at.timestamp()),
+                {
+                    "news_item_id": str(item.news_item_id),
+                    "title": str(item.title),
+                    "approve_date": str(item.approve_date),
+                    "department": str(getattr(item, "department", "") or "").strip(),
+                    "sample_id": sample_id,
+                    "sample_exists": sample_exists,
+                },
+            )
+        )
+    matches.sort(key=lambda item: item[0])
+    return [payload for _, payload in matches[:limit]]
+
+
+def _normalize_qc_command(
+    *,
+    text: str,
+    ctx: TelegramContext,
+    sender_id: str,
+    state_root: Path,
+) -> dict[str, Any] | None:
+    sample_id = _resolve_sample_id_from_text(text, storage_root=DEFAULT_STORAGE_ROOT)
+    search_query = _requested_job_search_query(text)
+    title_open_requested = _wants_open_storage_title(text)
+    title_query = _extract_title_query_from_text(text) if title_open_requested else None
+    if title_query is None and _should_try_implicit_title_open(text):
+        title_query = text.strip()
+    news_item_id = None if sample_id else _extract_news_item_id_from_text(text)
+    file_keys = _requested_file_keys(text)
+
+    if _requested_auto_qc_count(text) is not None:
+        return {"command_type": "auto_start", "limit": int(_requested_auto_qc_count(text) or 10)}
+    if _wants_auto_status(text):
+        return {"command_type": "auto_status"}
+    if _wants_auto_stop(text):
+        return {"command_type": "auto_stop"}
+    if _requested_recent_job_count(text) is not None:
+        return {"command_type": "generate_recent_jobs", "limit": int(_requested_recent_job_count(text) or 10)}
+    if search_query:
+        return {"command_type": "search_jobs", "query": search_query}
+    if title_query:
+        return {"command_type": "open_title", "title_query": title_query}
+    if sample_id and (_wants_open_sample(text) or text.strip() == sample_id):
+        return {"command_type": "open_sample", "sample_id": sample_id}
+    if news_item_id and (_wants_open_sample(text) or text.strip() == news_item_id or "job" in text.lower() or "열어줘" in text):
+        return {"command_type": "open_news_id", "news_id": news_item_id}
+    if _wants_review_queue(text):
+        return {"command_type": "review_queue"}
+    if _wants_job_list(text):
+        return {"command_type": "job_list"}
+    if _wants_next_job(text):
+        return {"command_type": "next_job"}
+    if _is_pass_message(text):
+        return {"command_type": "pass_sample", "sample_id": sample_id}
+    if _is_defer_message(text) or _wants_current_job_defer(text):
+        return {"command_type": "defer_sample", "sample_id": sample_id}
+    if ctx.media_paths or _wants_golden_upload_fix(text):
+        return {
+            "command_type": "upload_golden",
+            "sample_id": sample_id,
+            "user_text": text.strip(),
+            "message_id": ctx.message_id,
+        }
+    if _is_fix_message(text):
+        return {"command_type": "run_fix", "sample_id": sample_id, "user_text": text}
+    if file_keys:
+        return {"command_type": "send_files", "sample_id": sample_id, "file_keys": file_keys}
+    if "요약" in text or "차이" in text or "review" in text:
+        return {"command_type": "summary", "sample_id": sample_id}
+    return None
+
+
+def _approve_date_to_date(approve_date: str) -> date | None:
+    raw = (approve_date or "").strip()
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw[:10])
+    except ValueError:
+        pass
+    for fmt in ("%m/%d/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(raw, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _maybe_export_policy_briefing_sample_by_news_id(
+    news_item_id: str,
+    *,
+    export_root: Path,
+    gov_md_root: Path,
+    remote_qc_root: Path,
+    storage_root: Path,
+) -> SampleRecord | None:
+    policy_qc_root = DEFAULT_QC_ROOT if remote_qc_root == DEFAULT_REMOTE_QC_ROOT else remote_qc_root
+    catalog = PolicyBriefingCatalog(
+        client=PolicyBriefingClient(service_key=os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY")),
+        cache_path=storage_root / "policy_briefing_catalog.json",
+    )
+    item = catalog.get_cached_item(news_item_id)
+    if item is None:
+        return None
+    target_date = _approve_date_to_date(item.approve_date)
+    if target_date is None:
+        return None
+    sample_id = f"policy_briefing_{target_date:%Y_%m_%d}_{item.news_item_id}"
+    try:
+        return _find_sample(sample_id, policy_qc_root, DEFAULT_CURATED_QC_ROOT)
+    except FileNotFoundError:
+        pass
+    report = export_policy_briefings_for_qc(
+        client=PolicyBriefingClient(service_key=os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY")),
+        catalog=catalog,
+        target_date=target_date,
+        output_root=export_root,
+        news_item_ids=[item.news_item_id],
+        include_pdf=True,
+        ensure_fresh=False,
+        scaffold_runner=run_gov_md_scaffold,
+        gov_md_converter_root=gov_md_root,
+        qc_root=policy_qc_root,
+        autofill=True,
+        force=False,
+        sample_status="scratch",
+    )
+    if int(report.get("scaffolded_count", 0) or 0) <= 0:
+        try:
+            return _find_sample(sample_id, policy_qc_root, DEFAULT_CURATED_QC_ROOT)
+        except FileNotFoundError:
+            return None
+    return _find_sample(sample_id, policy_qc_root, DEFAULT_CURATED_QC_ROOT)
+
+
+def _resolve_sample_from_payload(
+    payload: dict[str, Any],
+    *,
+    gov_md_root: Path,
+    remote_qc_root: Path,
+    storage_root: Path,
+    sender_id: str,
+    state_root: Path,
+    export_root: Path,
+) -> SampleRecord:
+    raw_sample_id = payload.get("sample_id")
+    sample_id = str(raw_sample_id).strip() if isinstance(raw_sample_id, str) else ""
+    if sample_id:
+        return _resolve_remote_sample(
+            sample_id,
+            gov_md_root=gov_md_root,
+            remote_qc_root=remote_qc_root,
+            storage_root=storage_root,
+        )
+    raw_news_id = payload.get("news_id")
+    news_id = str(raw_news_id).strip() if isinstance(raw_news_id, str) else ""
+    if news_id:
+        sample = _maybe_export_policy_briefing_sample_by_news_id(
+            news_id,
+            export_root=export_root,
+            gov_md_root=gov_md_root,
+            remote_qc_root=remote_qc_root,
+            storage_root=storage_root,
+        )
+        if sample is None:
+            raise ValueError(f"해당 newsId로 매칭되는 국정브리핑 문서를 찾지 못했습니다: {news_id}")
+        return sample
+    raw_title_query = payload.get("title_query")
+    title_query = str(raw_title_query).strip() if isinstance(raw_title_query, str) else ""
+    if title_query:
+        sample = _maybe_export_policy_briefing_sample(
+            title_query,
+            export_root=export_root,
+            gov_md_root=gov_md_root,
+            remote_qc_root=remote_qc_root,
+            storage_root=storage_root,
+        )
+        if sample is None:
+            raise ValueError(f"해당 제목으로 매칭되는 국정브리핑 문서를 찾지 못했습니다: {title_query}")
+        return sample
+    return _ensure_selected_sample(state_root, sender_id, remote_qc_root)
+
+
+def _execute_structured_qc_command(
+    *,
+    command_row: dict[str, Any],
+    export_root: Path,
+    gov_md_root: Path,
+    qc_root: Path,
+    remote_qc_root: Path,
+    state_root: Path,
+) -> dict[str, Any]:
+    sender_id = str(command_row.get("sender_id", "")).strip()
+    message_id = str(command_row.get("message_id") or "").strip() or None
+    payload = json.loads(str(command_row.get("payload_json", "{}") or "{}"))
+    command_type = str(command_row.get("command_type", "")).strip()
+
+    if command_type == "auto_start":
+        return _build_auto_start_payload(
+            sender_id=sender_id,
+            message_id=message_id,
+            export_root=export_root,
+            gov_md_root=gov_md_root,
+            remote_qc_root=remote_qc_root,
+            state_root=state_root,
+            limit=int(payload.get("limit", 10) or 10),
+        )
+    if command_type == "auto_status":
+        return _auto_status_payload(sender_id=sender_id, state_root=state_root)
+    if command_type == "auto_stop":
+        return _auto_stop_payload(sender_id=sender_id, state_root=state_root)
+    if command_type == "generate_recent_jobs":
+        return _build_recent_storage_jobs_payload(
+            export_root=export_root,
+            gov_md_root=gov_md_root,
+            remote_qc_root=remote_qc_root,
+            storage_root=DEFAULT_STORAGE_ROOT,
+            limit=int(payload.get("limit", 10) or 10),
+        )
+    if command_type == "search_jobs":
+        return _build_job_search_payload(
+            query=str(payload.get("query", "")).strip(),
+            remote_qc_root=remote_qc_root,
+            storage_root=DEFAULT_STORAGE_ROOT,
+            limit=int(payload.get("limit", 10) or 10),
+        )
+    if command_type == "review_queue":
+        return _build_job_list_payload(
+            export_root=export_root,
+            gov_md_root=gov_md_root,
+            remote_qc_root=remote_qc_root,
+            storage_root=DEFAULT_STORAGE_ROOT,
+            review_only=True,
+        )
+    if command_type == "job_list":
+        return _build_job_list_payload(
+            export_root=export_root,
+            gov_md_root=gov_md_root,
+            remote_qc_root=remote_qc_root,
+            storage_root=DEFAULT_STORAGE_ROOT,
+            review_only=False,
+        )
+    if command_type == "next_job":
+        auto_state = _apply_auto_state(_load_session_state(state_root, sender_id))
+        if auto_state.get("auto_mode") and str(auto_state.get("auto_current_status", "")) == "awaiting_user":
+            return _complete_auto_result(
+                sender_id=sender_id,
+                message_id=message_id,
+                export_root=export_root,
+                gov_md_root=gov_md_root,
+                remote_qc_root=remote_qc_root,
+                state_root=state_root,
+                outcome="defer",
+            )
+        if auto_state.get("auto_mode"):
+            return {
+                "command": "remote-qc-auto-advance",
+                "ok": False,
+                "message": "현재 자동 QC가 승인 대기 상태가 아닙니다.",
+            }
+        return _build_next_sample_payload(
+            export_root=export_root,
+            remote_qc_root=remote_qc_root,
+            storage_root=DEFAULT_STORAGE_ROOT,
+            sender_id=sender_id,
+            state_root=state_root,
+            gov_md_root=gov_md_root,
+        )
+    if command_type == "pass_sample":
+        auto_state = _apply_auto_state(_load_session_state(state_root, sender_id))
+        if auto_state.get("auto_mode") and str(auto_state.get("auto_current_status", "")) == "awaiting_user":
+            return _complete_auto_result(
+                sender_id=sender_id,
+                message_id=message_id,
+                export_root=export_root,
+                gov_md_root=gov_md_root,
+                remote_qc_root=remote_qc_root,
+                state_root=state_root,
+                outcome="pass",
+            )
+    if command_type == "defer_sample":
+        auto_state = _apply_auto_state(_load_session_state(state_root, sender_id))
+        if auto_state.get("auto_mode") and str(auto_state.get("auto_current_status", "")) == "awaiting_user":
+            return _complete_auto_result(
+                sender_id=sender_id,
+                message_id=message_id,
+                export_root=export_root,
+                gov_md_root=gov_md_root,
+                remote_qc_root=remote_qc_root,
+                state_root=state_root,
+                outcome="defer",
+            )
+
+    sample = _resolve_sample_from_payload(
+        payload,
+        gov_md_root=gov_md_root,
+        remote_qc_root=remote_qc_root,
+        storage_root=DEFAULT_STORAGE_ROOT,
+        sender_id=sender_id,
+        state_root=state_root,
+        export_root=export_root,
+    )
+
+    if command_type in {"open_sample", "open_title", "open_news_id"}:
+        return _select_sample(sample, sender_id=sender_id, state_root=state_root, gov_md_root=gov_md_root)
+    if command_type == "pass_sample":
+        result = _handle_pass(sender_id=sender_id, sample=sample, state_root=state_root, gov_md_root=gov_md_root)
+        _reconcile_manual_auto_result(
+            state_root=state_root,
+            sender_id=sender_id,
+            sample_id=sample.sample_id,
+            outcome="pass",
+            note="manually approved after batch completion",
+        )
+        return result
+    if command_type == "defer_sample":
+        result = _handle_defer(sender_id=sender_id, sample=sample, state_root=state_root, gov_md_root=gov_md_root)
+        _reconcile_manual_auto_result(
+            state_root=state_root,
+            sender_id=sender_id,
+            sample_id=sample.sample_id,
+            outcome="defer",
+            note="manually deferred after batch completion",
+        )
+        return result
+    if command_type == "upload_golden":
+        media_path = _consume_latest_qc_media(
+            state_root,
+            sender_id=sender_id,
+            message_id=str(payload.get("message_id") or "").strip() or message_id,
+        )
+        if media_path is None:
+            media_path = next(iter(_find_recent_inbound_markdown()), None)
+        if media_path is None:
+            raise ValueError("최근 업로드된 golden markdown 파일을 찾지 못했습니다.")
+        upload_payload = _handle_golden_upload(
+            ctx=TelegramContext(sender_id=sender_id, message_id=message_id, media_paths=(media_path,)),
+            sender_id=sender_id,
+            sample=sample,
+            gov_md_root=gov_md_root,
+        )
+        user_text = str(payload.get("user_text") or "").strip()
+        fix_text = user_text if user_text and user_text != "golden.md 업로드" else _build_default_fix_message_after_golden(sample)
+        fix_payload = _spawn_background_fix(
+            sender_id=sender_id,
+            message_id=message_id,
+            sample=sample,
+            user_text=fix_text,
+            export_root=export_root,
+            gov_md_root=gov_md_root,
+            qc_root=DEFAULT_QC_ROOT,
+            remote_qc_root=remote_qc_root,
+            state_root=state_root,
+        )
+        fix_payload["golden_upload"] = upload_payload
+        return fix_payload
+    if command_type == "run_fix":
+        return _spawn_background_fix(
+            sender_id=sender_id,
+            message_id=message_id,
+            sample=sample,
+            user_text=str(payload.get("user_text") or ""),
+            export_root=export_root,
+            gov_md_root=gov_md_root,
+            qc_root=DEFAULT_QC_ROOT,
+            remote_qc_root=remote_qc_root,
+            state_root=state_root,
+        )
+    if command_type == "send_files":
+        results = _send_requested_files(
+            sender_id=sender_id,
+            message_id=message_id,
+            sample=sample,
+            file_keys=[str(item) for item in payload.get("file_keys", []) if isinstance(item, str)],
+        )
+        return {
+            "command": "remote-qc-send-files",
+            "sample_id": sample.sample_id,
+            "results": results,
+        }
+    if command_type == "summary":
+        return _build_sample_summary(sample)
+    return {
+        "command": "remote-qc-unsupported",
+        "ok": False,
+        "message": "지원되지 않는 QC command입니다.",
+    }
+
+
+def _run_qc_command_once(
+    *,
+    state_root: Path,
+    export_root: Path,
+    gov_md_root: Path,
+    qc_root: Path,
+    remote_qc_root: Path,
+    sender_id: str | None = None,
+    command_id: int | None = None,
+) -> dict[str, Any]:
+    row = _claim_qc_command(state_root, sender_id=sender_id, command_id=command_id)
+    if row is None:
+        return {"command": "remote-qc-command-run-next", "ok": False, "message": "queued QC command가 없습니다."}
+    try:
+        payload = _execute_structured_qc_command(
+            command_row=row,
+            export_root=export_root,
+            gov_md_root=gov_md_root,
+            qc_root=qc_root,
+            remote_qc_root=remote_qc_root,
+            state_root=state_root,
+        )
+        payload["queued_command_id"] = int(row["id"])
+        _finish_qc_command(state_root, command_id=int(row["id"]), status="done", result_payload=payload)
+        return payload
+    except Exception as exc:
+        payload = {
+            "command": "remote-qc-command-run-next",
+            "ok": False,
+            "queued_command_id": int(row["id"]),
+            "message": str(exc),
+        }
+        _finish_qc_command(state_root, command_id=int(row["id"]), status="failed", result_payload=payload)
+        raise
+
+
+def _drain_qc_command_queue(
+    *,
+    state_root: Path,
+    export_root: Path,
+    gov_md_root: Path,
+    qc_root: Path,
+    remote_qc_root: Path,
+    sender_id: str | None = None,
+    max_commands: int = 10,
+) -> dict[str, Any]:
+    processed: list[dict[str, Any]] = []
+    for _ in range(max(1, int(max_commands or 1))):
+        row = _claim_qc_command(state_root, sender_id=sender_id)
+        if row is None:
+            break
+        try:
+            payload = _execute_structured_qc_command(
+                command_row=row,
+                export_root=export_root,
+                gov_md_root=gov_md_root,
+                qc_root=qc_root,
+                remote_qc_root=remote_qc_root,
+                state_root=state_root,
+            )
+            payload["queued_command_id"] = int(row["id"])
+            _finish_qc_command(state_root, command_id=int(row["id"]), status="done", result_payload=payload)
+            processed.append(
+                {
+                    "id": int(row["id"]),
+                    "status": "done",
+                    "command_type": str(row["command_type"]),
+                    "result_command": str(payload.get("command", "")),
+                    "ok": bool(payload.get("ok", True)),
+                }
+            )
+        except Exception as exc:
+            payload = {
+                "command": "remote-qc-command-run-next",
+                "ok": False,
+                "queued_command_id": int(row["id"]),
+                "message": str(exc),
+            }
+            _finish_qc_command(state_root, command_id=int(row["id"]), status="failed", result_payload=payload)
+            processed.append(
+                {
+                    "id": int(row["id"]),
+                    "status": "failed",
+                    "command_type": str(row["command_type"]),
+                    "message": str(exc),
+                    "ok": False,
+                }
+            )
+    return {
+        "command": "remote-qc-command-drain",
+        "ok": True,
+        "sender_id": sender_id,
+        "processed_count": len(processed),
+        "results": processed,
+    }
 def _wants_current_job_defer(text: str) -> bool:
     return "현재 job 보류" in text or "현재 job 건너뛰기" in text
 
@@ -2032,6 +2814,27 @@ def _build_recent_storage_jobs_payload(
             }
             for entry in entries
         ],
+    }
+
+
+def _build_job_search_payload(
+    *,
+    query: str,
+    remote_qc_root: Path,
+    storage_root: Path,
+    limit: int = 10,
+) -> dict[str, Any]:
+    matches = _search_policy_briefing_titles(
+        query,
+        storage_root=storage_root,
+        remote_qc_root=remote_qc_root,
+        limit=limit,
+    )
+    return {
+        "command": "remote-qc-search-jobs",
+        "query": query,
+        "match_count": len(matches),
+        "matches": matches,
     }
 
 
@@ -3354,14 +4157,51 @@ def dispatch_telegram_message(
         command, args = parse_telegram_command(normalized)
     else:
         ctx = build_telegram_context(message, state_root=state_root)
-        payload = _dispatch_remote_qc_message(
-            message=normalized,
+        if not ctx.sender_id:
+            raise ValueError("Telegram sender_id를 찾지 못했습니다.")
+        _record_qc_media(
+            state_root=state_root,
+            sender_id=ctx.sender_id,
+            message_id=ctx.message_id,
+            media_paths=ctx.media_paths,
+        )
+        structured = _normalize_qc_command(
+            text=normalized,
             ctx=ctx,
-            export_root=export_root,
-            gov_md_root=gov_md_root,
-            remote_qc_root=remote_qc_root,
+            sender_id=ctx.sender_id,
             state_root=state_root,
         )
+        if structured is not None:
+            payload_for_queue = dict(structured)
+            command_type = str(payload_for_queue.pop("command_type"))
+            queued_id = _enqueue_qc_command(
+                state_root=state_root,
+                sender_id=ctx.sender_id,
+                message_id=ctx.message_id,
+                chat_scope=chat_scope,
+                command_type=command_type,
+                sample_id=str(payload_for_queue.get("sample_id", "")).strip() or None,
+                news_id=str(payload_for_queue.get("news_id", "")).strip() or None,
+                payload=payload_for_queue,
+                dedupe_key=f"{ctx.sender_id}:{ctx.message_id}:{command_type}" if ctx.message_id else None,
+            )
+            payload = _run_qc_command_once(
+                state_root=state_root,
+                export_root=export_root,
+                gov_md_root=gov_md_root,
+                qc_root=qc_root,
+                remote_qc_root=remote_qc_root,
+                command_id=queued_id,
+            )
+        else:
+            payload = _dispatch_remote_qc_message(
+                message=normalized,
+                ctx=ctx,
+                export_root=export_root,
+                gov_md_root=gov_md_root,
+                remote_qc_root=remote_qc_root,
+                state_root=state_root,
+            )
         if payload.get("command") == "remote-qc-open" and ctx.sender_id:
             sample = _find_sample(str(payload.get("sample_id")), remote_qc_root, DEFAULT_CURATED_QC_ROOT)
             file_keys = [key for key in ["review", "rendered", "source"] if (sample.sample_dir / {"review": "review.md", "rendered": "rendered.md", "source": "source.hwpx"}[key]).exists()]
@@ -3505,6 +4345,19 @@ def format_human(payload: dict[str, Any]) -> str:
             )
         lines.append("다음: `review 필요한 job만 보여줘` 또는 `<sample-id> 열어줘`")
         return "\n".join(lines)
+    if command == "remote-qc-search-jobs":
+        lines = [
+            f"[QC Job Search] query={payload.get('query')}",
+            f"matches={payload.get('match_count', 0)}",
+        ]
+        for item in payload.get("matches", [])[:10]:
+            exists = "sample=yes" if item.get("sample_exists") else "sample=no"
+            lines.append(
+                f"- newsId={item.get('news_item_id')} title={_shorten(item.get('title'), limit=72)} "
+                f"sample_id={item.get('sample_id')} {exists}"
+            )
+        lines.append("다음: `open <newsId>` 또는 `<newsId> 열어줘`")
+        return "\n".join(lines)
     if command == "remote-qc-auto-start":
         lines = [
             f"[QC Auto Start] requested={payload.get('requested_count')}",
@@ -3624,6 +4477,13 @@ def format_human(payload: dict[str, Any]) -> str:
         if payload.get("sample_id"):
             return format_human(payload)
         return str(payload.get("message", "")).strip()
+    if command == "remote-qc-command-run-next" and payload.get("ok") is False:
+        return str(payload.get("message", "")).strip()
+    if command == "remote-qc-command-drain":
+        return (
+            f"[QC Command Drain] processed={payload.get('processed_count', 0)}"
+            + (f" sender={payload.get('sender_id')}" if payload.get("sender_id") else "")
+        )
     if command in {"server-status", "server-failover-check"}:
         lines = [
             f"[Server Status] primary={payload.get('primary_key')} healthy={payload.get('primary_healthy')}",
@@ -3698,6 +4558,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     auto_stop = subparsers.add_parser("remote-qc-auto-stop")
     auto_stop.add_argument("--sender-id", required=True)
+
+    queue_run = subparsers.add_parser("remote-qc-command-run-next")
+    queue_run.add_argument("--sender-id")
+    queue_run.add_argument("--command-id", type=int)
+
+    queue_drain = subparsers.add_parser("remote-qc-command-drain")
+    queue_drain.add_argument("--sender-id")
+    queue_drain.add_argument("--max-commands", type=int, default=10)
 
     return parser
 
@@ -3778,6 +4646,26 @@ def main() -> int:
             )
         elif args.subcommand == "remote-qc-auto-stop":
             payload = _auto_stop_payload(sender_id=args.sender_id, state_root=state_root)
+        elif args.subcommand == "remote-qc-command-run-next":
+            payload = _run_qc_command_once(
+                state_root=state_root,
+                export_root=export_root,
+                gov_md_root=gov_md_root,
+                qc_root=qc_root,
+                remote_qc_root=remote_qc_root,
+                sender_id=args.sender_id,
+                command_id=args.command_id,
+            )
+        elif args.subcommand == "remote-qc-command-drain":
+            payload = _drain_qc_command_queue(
+                state_root=state_root,
+                export_root=export_root,
+                gov_md_root=gov_md_root,
+                qc_root=qc_root,
+                remote_qc_root=remote_qc_root,
+                sender_id=args.sender_id,
+                max_commands=args.max_commands,
+            )
         else:  # pragma: no cover
             raise AssertionError(f"Unhandled subcommand {args.subcommand}")
     except Exception as exc:
