@@ -913,6 +913,32 @@ class OpenClawOpsTests(unittest.TestCase):
             state = _load_session_state(state_root, "6475698942")
             self.assertEqual(state["selected_sample_id"], "storage_job_abc123")
 
+    def test_qc_command_enqueue_dedupes_same_message_and_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_root = Path(tmpdir) / "state"
+            first_id = _enqueue_qc_command(
+                state_root=state_root,
+                sender_id="6475698942",
+                message_id="42",
+                chat_scope="dm",
+                command_type="open_sample",
+                sample_id="storage_job_abc123",
+                payload={"sample_id": "storage_job_abc123"},
+                dedupe_key="6475698942:42:open_sample",
+            )
+            second_id = _enqueue_qc_command(
+                state_root=state_root,
+                sender_id="6475698942",
+                message_id="42",
+                chat_scope="dm",
+                command_type="open_sample",
+                sample_id="storage_job_abc123",
+                payload={"sample_id": "storage_job_abc123"},
+                dedupe_key="6475698942:42:open_sample",
+            )
+
+            self.assertEqual(first_id, second_id)
+
     def test_remote_qc_falls_back_to_default_sender_when_metadata_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             remote_root = Path(tmpdir) / "storage_batch"
