@@ -18,6 +18,9 @@ from scripts.openclaw_ops import (
     _ensure_qc_work_branch,
     _format_codex_stream_line,
     _load_session_state,
+    _parse_message_id,
+    _parse_sender_id,
+    build_telegram_context,
     _run_auto_current,
     _sample_record,
     build_server_status,
@@ -289,6 +292,28 @@ class OpenClawOpsTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, msg=result.stderr)
             self.assertIn("regression_failures=0", result.stdout)
             self.assertIn("scratch-sample review", result.stdout)
+
+    def test_parse_telegram_metadata_prefers_inner_conversation_block(self) -> None:
+        message = """{"type":"message","id":"bbba1443","message":{"role":"user","content":[{"type":"text","text":"[media attached: /tmp/example.md (text/markdown) | /tmp/example.md]\nConversation info (untrusted metadata):\n```json\n{\n  \\"message_id\\": \\"1659\\",\n  \\"sender_id\\": \\"6475698942\\",\n  \\"sender\\": \\"준우 정\\"\n}\n```\n\nSender (untrusted metadata):\n```json\n{\n  \\"label\\": \\"준우 정 (6475698942)\\",\n  \\"id\\": \\"6475698942\\"\n}\n```\n\n<media:document>"}}]}"""
+        self.assertEqual(_parse_sender_id(message), "6475698942")
+        self.assertEqual(_parse_message_id(message), "1659")
+
+    def test_build_telegram_context_resolves_message_scoped_markdown_attachment(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            uploaded = Path(tmpdir) / "example-upload.md"
+            uploaded.write_text("# golden\n", encoding="utf-8")
+            message = (
+                f'{{"type":"message","id":"bbba1443","message":{{"role":"user","content":[{{"type":"text","text":"'
+                f'[media attached: {uploaded} (text/markdown) | {uploaded}]\\n'
+                'Conversation info (untrusted metadata):\\n```json\\n{\\n'
+                '  \\"message_id\\": \\"1659\\",\\n'
+                '  \\"sender_id\\": \\"6475698942\\"\\n'
+                '}\\n```"}}]}}}'
+            )
+            ctx = build_telegram_context(message)
+            self.assertEqual(ctx.sender_id, "6475698942")
+            self.assertEqual(ctx.message_id, "1659")
+            self.assertEqual(ctx.media_paths, (uploaded,))
 
     def test_remote_qc_job_list_and_open(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

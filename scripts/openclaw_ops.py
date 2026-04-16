@@ -179,18 +179,55 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 
 def _parse_sender_id(message: str) -> str | None:
+    metadata = _extract_telegram_metadata(message)
+    if metadata:
+        sender_id = str(metadata.get("sender_id", "")).strip()
+        if sender_id:
+            return sender_id
     match = re.search(r'"sender_id"\s*:\s*"([^"]+)"', message)
-    if match:
-        return match.group(1)
-    match = re.search(r'"id"\s*:\s*"([^"]+)"', message)
-    if match:
-        return match.group(1)
-    return None
+    return match.group(1) if match else None
 
 
 def _parse_message_id(message: str) -> str | None:
+    metadata = _extract_telegram_metadata(message)
+    if metadata:
+        message_id = str(metadata.get("message_id", "")).strip()
+        if message_id:
+            return message_id
     match = re.search(r'"message_id"\s*:\s*"([^"]+)"', message)
     return match.group(1) if match else None
+
+
+def _extract_telegram_metadata(message: str) -> dict[str, Any] | None:
+    for candidate_message in (message, _unescape_embedded_message_text(message)):
+        match = re.search(
+            r"Conversation info \(untrusted metadata\):\s*```json\s*(\{.*?\})\s*```",
+            candidate_message,
+            re.DOTALL,
+        )
+        if match:
+            try:
+                payload = json.loads(match.group(1))
+            except json.JSONDecodeError:
+                payload = None
+            if isinstance(payload, dict):
+                return payload
+        match = re.search(r"Conversation info \(untrusted metadata\):\s*(\{.*?\})", candidate_message, re.DOTALL)
+        if match:
+            try:
+                payload = json.loads(match.group(1))
+            except json.JSONDecodeError:
+                payload = None
+            if isinstance(payload, dict):
+                return payload
+    return None
+
+
+def _unescape_embedded_message_text(message: str) -> str:
+    try:
+        return bytes(message, "utf-8").decode("unicode_escape")
+    except UnicodeDecodeError:
+        return message
 
 
 def _is_markdown_attachment(path: Path) -> bool:
