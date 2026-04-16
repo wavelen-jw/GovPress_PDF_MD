@@ -66,18 +66,21 @@ run_compose() {
 }
 
 build_dashboard_assets_compose() {
+  local converter_root="${GOV_MD_CONVERTER_ROOT:-/gov-md-converter}"
   local dashboard_root="${GOVPRESS_QC_EXPORT_ROOT:-/gov-md-converter/exports/policy_briefing_qc}"
   local curated_root="${GOVPRESS_CURATED_QC_ROOT:-/gov-md-converter/tests/qc_samples}"
-  docker exec -u "$(id -u):$(id -g)" govpress-api python - "$dashboard_root" "$dashboard_root/dashboard/index.html" "$dashboard_root/dashboard/dashboard.json" "$curated_root" <<'PY'
+  docker exec -u "$(id -u):$(id -g)" govpress-api python - "$converter_root" "$dashboard_root" "$dashboard_root/dashboard/index.html" "$dashboard_root/dashboard/dashboard.json" "$curated_root" <<'PY'
 from pathlib import Path
 import sys
 
-from src.qc_dashboard import write_dashboard
+converter_root = Path(sys.argv[1])
+sys.path.insert(0, str(converter_root / "src"))
+from qc_dashboard import write_dashboard
 
-root = Path(sys.argv[1])
-output_html = Path(sys.argv[2])
-output_json = Path(sys.argv[3])
-curated_root = Path(sys.argv[4]) if len(sys.argv) > 4 and Path(sys.argv[4]).exists() else None
+root = Path(sys.argv[2])
+output_html = Path(sys.argv[3])
+output_json = Path(sys.argv[4])
+curated_root = Path(sys.argv[5]) if len(sys.argv) > 5 and Path(sys.argv[5]).exists() else None
 write_dashboard(root, output_html=output_html, output_json=output_json, curated_root=curated_root)
 print(f"dashboard_html={output_html}")
 print(f"dashboard_json={output_json}")
@@ -88,16 +91,18 @@ build_dashboard_assets_baremetal() {
   local converter_root="${GOV_MD_CONVERTER_ROOT:-$(cd "$DEPLOY_DIR/.." && pwd)/gov-md-converter}"
   local dashboard_root="${GOVPRESS_QC_EXPORT_ROOT:-$converter_root/exports/policy_briefing_qc}"
   local curated_root="${GOVPRESS_CURATED_QC_ROOT:-$converter_root/tests/qc_samples}"
-  "$DEPLOY_DIR/.venv/bin/python" - "$dashboard_root" "$dashboard_root/dashboard/index.html" "$dashboard_root/dashboard/dashboard.json" "$curated_root" <<'PY'
+  "$DEPLOY_DIR/.venv/bin/python" - "$converter_root" "$dashboard_root" "$dashboard_root/dashboard/index.html" "$dashboard_root/dashboard/dashboard.json" "$curated_root" <<'PY'
 from pathlib import Path
 import sys
 
-from src.qc_dashboard import write_dashboard
+converter_root = Path(sys.argv[1])
+sys.path.insert(0, str(converter_root / "src"))
+from qc_dashboard import write_dashboard
 
-root = Path(sys.argv[1])
-output_html = Path(sys.argv[2])
-output_json = Path(sys.argv[3])
-curated_root = Path(sys.argv[4]) if len(sys.argv) > 4 and Path(sys.argv[4]).exists() else None
+root = Path(sys.argv[2])
+output_html = Path(sys.argv[3])
+output_json = Path(sys.argv[4])
+curated_root = Path(sys.argv[5]) if len(sys.argv) > 5 and Path(sys.argv[5]).exists() else None
 write_dashboard(root, output_html=output_html, output_json=output_json, curated_root=curated_root)
 print(f"dashboard_html={output_html}")
 print(f"dashboard_json={output_json}")
