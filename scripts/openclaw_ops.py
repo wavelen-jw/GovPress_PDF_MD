@@ -9,7 +9,6 @@ import os
 from pathlib import Path
 import re
 import select
-import sqlite3
 import subprocess
 import sys
 import time
@@ -29,6 +28,16 @@ if str(DEFAULT_GOV_MD_ROOT) not in sys.path:
 DEFAULT_GOV_MD_EXPORT_ROOT = DEFAULT_GOV_MD_ROOT / "exports" / "policy_briefing_qc"
 
 from src.qc_dashboard import build_dashboard_payload
+from src.qc_command_queue import (
+    QC_MEDIA_MARKDOWN,
+    claim_qc_command as converter_claim_qc_command,
+    connect_qc_command_db as converter_connect_qc_command_db,
+    consume_latest_qc_media as converter_consume_latest_qc_media,
+    enqueue_qc_command as converter_enqueue_qc_command,
+    finish_qc_command as converter_finish_qc_command,
+    qc_command_db_path as converter_qc_command_db_path,
+    record_qc_media as converter_record_qc_media,
+)
 from src.qc_issue import build_issue_payload, load_report as load_issue_report
 from src.qc_report import build_markdown_summary
 from server.app.adapters.policy_briefing import (
@@ -88,7 +97,6 @@ MAX_BATCH_SAMPLES = 8
 AUTO_MAX_ATTEMPTS = 5
 _POLICY_SAMPLE_ID_RE = re.compile(r"^policy_briefing_(\d{4})_(\d{2})_(\d{2})_(\d+)$")
 QC_WORK_BRANCH_PREFIX = "qc"
-QC_MEDIA_MARKDOWN = "markdown"
 
 
 @dataclass(frozen=True)
@@ -113,6 +121,7 @@ class SampleRecord:
     source_name: str
     has_golden: bool
     has_review: bool
+    title: str = ""
 
 
 @dataclass(frozen=True)
@@ -256,54 +265,11 @@ def _save_session_state(state_root: Path, sender_id: str, payload: dict[str, Any
 
 
 def _qc_command_db_path(state_root: Path) -> Path:
-    return state_root / "qc_command_queue.sqlite3"
+    return converter_qc_command_db_path(state_root)
 
 
-def _connect_qc_command_db(state_root: Path) -> sqlite3.Connection:
-    state_root.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(_qc_command_db_path(state_root), check_same_thread=False)
-    connection.row_factory = sqlite3.Row
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS qc_commands (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sender_id TEXT NOT NULL,
-            message_id TEXT,
-            chat_scope TEXT NOT NULL,
-            command_type TEXT NOT NULL,
-            sample_id TEXT,
-            news_id TEXT,
-            payload_json TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'queued',
-            dedupe_key TEXT,
-            created_at TEXT NOT NULL,
-            started_at TEXT,
-            finished_at TEXT,
-            result_json TEXT
-        )
-        """
-    )
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS qc_media_inbox (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sender_id TEXT NOT NULL,
-            message_id TEXT,
-            sample_id TEXT,
-            file_path TEXT NOT NULL,
-            media_type TEXT NOT NULL,
-            original_name TEXT NOT NULL,
-            received_at TEXT NOT NULL,
-            consumed_at TEXT,
-            consume_status TEXT NOT NULL DEFAULT 'pending'
-        )
-        """
-    )
-    connection.execute("CREATE INDEX IF NOT EXISTS idx_qc_commands_status ON qc_commands(status, created_at)")
-    connection.execute("CREATE INDEX IF NOT EXISTS idx_qc_commands_sender ON qc_commands(sender_id, status, created_at)")
-    connection.execute("CREATE INDEX IF NOT EXISTS idx_qc_media_sender ON qc_media_inbox(sender_id, consume_status, received_at)")
-    connection.commit()
-    return connection
+def _connect_qc_command_db(state_root: Path):
+    return converter_connect_qc_command_db(state_root)
 
 
 def _enqueue_qc_command(
@@ -318,62 +284,21 @@ def _enqueue_qc_command(
     news_id: str | None = None,
     dedupe_key: str | None = None,
 ) -> int:
-    connection = _connect_qc_command_db(state_root)
-    try:
-        cursor = connection.execute(
-            """
-            INSERT INTO qc_commands (
-                sender_id, message_id, chat_scope, command_type, sample_id, news_id,
-                payload_json, status, dedupe_key, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)
-            """,
-            (
-                sender_id,
-                message_id,
-                chat_scope,
-                command_type,
-                sample_id,
-                news_id,
-                json.dumps(payload, ensure_ascii=False),
-                dedupe_key,
-                _now_iso(),
-            ),
-        )
-        connection.commit()
-        return int(cursor.lastrowid)
-    finally:
-        connection.close()
+    return converter_enqueue_qc_command(
+        state_root=state_root,
+        sender_id=sender_id,
+        message_id=message_id,
+        chat_scope=chat_scope,
+        command_type=command_type,
+        payload=payload,
+        sample_id=sample_id,
+        news_id=news_id,
+        dedupe_key=dedupe_key,
+    )
 
 
 def _claim_qc_command(state_root: Path, *, sender_id: str | None = None, command_id: int | None = None) -> dict[str, Any] | None:
-    connection = _connect_qc_command_db(state_root)
-    try:
-        if command_id is not None:
-            row = connection.execute(
-                "SELECT * FROM qc_commands WHERE id = ? AND status = 'queued'",
-                (command_id,),
-            ).fetchone()
-        elif sender_id is not None:
-            row = connection.execute(
-                "SELECT * FROM qc_commands WHERE sender_id = ? AND status = 'queued' ORDER BY id LIMIT 1",
-                (sender_id,),
-            ).fetchone()
-        else:
-            row = connection.execute(
-                "SELECT * FROM qc_commands WHERE status = 'queued' ORDER BY id LIMIT 1"
-            ).fetchone()
-        if row is None:
-            return None
-        started_at = _now_iso()
-        connection.execute(
-            "UPDATE qc_commands SET status = 'running', started_at = ? WHERE id = ? AND status = 'queued'",
-            (started_at, int(row["id"])),
-        )
-        connection.commit()
-        refreshed = connection.execute("SELECT * FROM qc_commands WHERE id = ?", (int(row["id"]),)).fetchone()
-        return dict(refreshed) if refreshed is not None else None
-    finally:
-        connection.close()
+    return converter_claim_qc_command(state_root, sender_id=sender_id, command_id=command_id)
 
 
 def _finish_qc_command(
@@ -383,20 +308,12 @@ def _finish_qc_command(
     status: str,
     result_payload: dict[str, Any],
 ) -> None:
-    connection = _connect_qc_command_db(state_root)
-    try:
-        connection.execute(
-            "UPDATE qc_commands SET status = ?, finished_at = ?, result_json = ? WHERE id = ?",
-            (
-                status,
-                _now_iso(),
-                json.dumps(result_payload, ensure_ascii=False),
-                command_id,
-            ),
-        )
-        connection.commit()
-    finally:
-        connection.close()
+    converter_finish_qc_command(
+        state_root,
+        command_id=command_id,
+        status=status,
+        result_payload=result_payload,
+    )
 
 
 def _record_qc_media(
@@ -407,34 +324,13 @@ def _record_qc_media(
     media_paths: tuple[Path, ...],
     sample_id: str | None = None,
 ) -> list[int]:
-    if not media_paths:
-        return []
-    connection = _connect_qc_command_db(state_root)
-    created_ids: list[int] = []
-    try:
-        for media_path in media_paths:
-            media_type = QC_MEDIA_MARKDOWN if media_path.suffix.lower() == ".md" else media_path.suffix.lower().lstrip(".") or "file"
-            cursor = connection.execute(
-                """
-                INSERT INTO qc_media_inbox (
-                    sender_id, message_id, sample_id, file_path, media_type, original_name, received_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    sender_id,
-                    message_id,
-                    sample_id,
-                    str(media_path),
-                    media_type,
-                    media_path.name,
-                    _now_iso(),
-                ),
-            )
-            created_ids.append(int(cursor.lastrowid))
-        connection.commit()
-        return created_ids
-    finally:
-        connection.close()
+    return converter_record_qc_media(
+        state_root=state_root,
+        sender_id=sender_id,
+        message_id=message_id,
+        media_paths=media_paths,
+        sample_id=sample_id,
+    )
 
 
 def _consume_latest_qc_media(
@@ -444,48 +340,12 @@ def _consume_latest_qc_media(
     message_id: str | None,
     media_type: str = QC_MEDIA_MARKDOWN,
 ) -> Path | None:
-    connection = _connect_qc_command_db(state_root)
-    try:
-        if message_id:
-            row = connection.execute(
-                """
-                SELECT * FROM qc_media_inbox
-                WHERE sender_id = ? AND message_id = ? AND media_type = ? AND consume_status = 'pending'
-                ORDER BY id DESC
-                LIMIT 1
-                """,
-                (sender_id, message_id, media_type),
-            ).fetchone()
-        else:
-            row = None
-        if row is None:
-            row = connection.execute(
-                """
-                SELECT * FROM qc_media_inbox
-                WHERE sender_id = ? AND media_type = ? AND consume_status = 'pending'
-                ORDER BY id DESC
-                LIMIT 1
-                """,
-                (sender_id, media_type),
-            ).fetchone()
-        if row is None:
-            return None
-        candidate = Path(str(row["file_path"]))
-        if not candidate.exists():
-            connection.execute(
-                "UPDATE qc_media_inbox SET consume_status = 'missing', consumed_at = ? WHERE id = ?",
-                (_now_iso(), int(row["id"])),
-            )
-            connection.commit()
-            return None
-        connection.execute(
-            "UPDATE qc_media_inbox SET consume_status = 'consumed', consumed_at = ? WHERE id = ?",
-            (_now_iso(), int(row["id"])),
-        )
-        connection.commit()
-        return candidate
-    finally:
-        connection.close()
+    return converter_consume_latest_qc_media(
+        state_root,
+        sender_id=sender_id,
+        message_id=message_id,
+        media_type=media_type,
+    )
 
 
 def _run_git(command: list[str], *, cwd: Path) -> str:
@@ -719,6 +579,15 @@ def _read_text(path: Path) -> str:
 def _sample_record(sample_dir: Path) -> SampleRecord:
     meta = _load_json(sample_dir / "meta.json") if (sample_dir / "meta.json").exists() else {}
     status = str(meta.get("sample_status", "")).strip() or ("curated" if (sample_dir / "golden_slices.json").exists() else "scratch")
+    title = str(meta.get("title", "")).strip()
+    if not title:
+        rendered_path = sample_dir / "rendered.md"
+        if rendered_path.exists():
+            for line in rendered_path.read_text(encoding="utf-8").splitlines():
+                stripped = line.strip()
+                if stripped.startswith("#"):
+                    title = stripped.lstrip("#").strip()
+                    break
     return SampleRecord(
         sample_id=sample_dir.name,
         sample_dir=sample_dir,
@@ -726,6 +595,7 @@ def _sample_record(sample_dir: Path) -> SampleRecord:
         source_name=str(meta.get("source_hwpx", "source.hwpx")),
         has_golden=(sample_dir / "golden.md").exists(),
         has_review=(sample_dir / "review.md").exists(),
+        title=title,
     )
 
 
@@ -2655,6 +2525,7 @@ def _select_sample(sample: SampleRecord, *, sender_id: str, state_root: Path, go
     return {
         "command": "remote-qc-open",
         "sample_id": refreshed.sample_id,
+        "title": refreshed.title,
         "sample_dir": str(refreshed.sample_dir),
         "status": refreshed.status,
         "state_path": str(state_path),
@@ -2877,6 +2748,7 @@ def _build_sample_summary(sample: SampleRecord) -> dict[str, Any]:
     return {
         "command": "remote-qc-summary",
         "sample_id": sample.sample_id,
+        "title": sample.title,
         "sample_dir": str(sample.sample_dir),
         "status": sample.status,
         "has_golden": sample.has_golden,
@@ -2907,6 +2779,7 @@ def _handle_golden_upload(
     return {
         "command": "remote-qc-upload-golden",
         "sample_id": sample.sample_id,
+        "title": sample.title,
         "golden_path": str(target),
         "uploaded_from": str(uploaded),
         "review_path": str(sample.sample_dir / "review.md"),
@@ -2931,6 +2804,7 @@ def _handle_pass(
     payload = qc_promote(sample.sample_id, qc_root=sample.sample_dir.parent, gov_md_root=gov_md_root)
     payload["command"] = "remote-qc-pass"
     payload["selected_sample_id"] = sample.sample_id
+    payload["title"] = sample.title
     state = _load_session_state(state_root, sender_id)
     state["selected_sample_id"] = sample.sample_id
     state["selected_sample_dir"] = str(sample.sample_dir)
@@ -4407,19 +4281,26 @@ def format_human(payload: dict[str, Any]) -> str:
     if command == "remote-qc-auto-advance":
         return str(payload.get("message", "")).strip()
     if command == "remote-qc-open":
-        return "\n".join(
+        lines = [f"[QC Job Open] {payload.get('sample_id')}"]
+        if payload.get("title"):
+            lines.append(f"title={payload.get('title')}")
+        lines.extend(
             [
-                f"[QC Job Open] {payload.get('sample_id')}",
                 f"status={payload.get('status')} golden={payload.get('has_golden')} review={payload.get('has_review')}",
                 f"sample_dir={payload.get('sample_dir')}",
                 "다음: `review 보내줘` 또는 `source 보내줘` 또는 `통과` 또는 `수정: ...`",
             ]
         )
+        return "\n".join(lines)
     if command == "remote-qc-summary":
         lines = [
             f"[QC Summary] {payload.get('sample_id')}",
-            f"status={payload.get('status')} golden={payload.get('has_golden')}",
         ]
+        if payload.get("title"):
+            lines.append(f"title={payload.get('title')}")
+        lines.append(
+            f"status={payload.get('status')} golden={payload.get('has_golden')}"
+        )
         preview = str(payload.get("review_preview", "")).strip()
         if preview:
             lines.append(preview)
@@ -4428,33 +4309,39 @@ def format_human(payload: dict[str, Any]) -> str:
         ok_count = len([item for item in payload.get("results", []) if item.get("ok")])
         lines = [
             f"[QC Files] {payload.get('sample_id')}",
-            f"sent={ok_count}/{len(payload.get('results', []))}",
         ]
+        if payload.get("title"):
+            lines.append(f"title={payload.get('title')}")
+        lines.append(f"sent={ok_count}/{len(payload.get('results', []))}")
         for item in payload.get("results", []):
             status = "ok" if item.get("ok") else "failed"
             lines.append(f"- {item.get('file')}: {status}")
         return "\n".join(lines)
     if command == "remote-qc-upload-golden":
-        return "\n".join(
+        lines = [f"[QC Golden Uploaded] {payload.get('sample_id')}"]
+        if payload.get("title"):
+            lines.append(f"title={payload.get('title')}")
+        lines.extend(
             [
-                f"[QC Golden Uploaded] {payload.get('sample_id')}",
                 f"golden={payload.get('golden_path')}",
                 f"review={payload.get('review_path')}",
                 "다음: `review 보내줘` 또는 `통과` 또는 `수정: ...`",
             ]
         )
+        return "\n".join(lines)
     if command == "remote-qc-pass":
         status = "ok" if payload.get("returncode") == 0 else "failed"
-        return "\n".join(
-            [
-                f"[QC Pass] sample={payload.get('selected_sample_id')} status={status}",
-                _shorten(payload.get("stderr") or payload.get("stdout"), limit=500),
-            ]
-        ).strip()
+        lines = [f"[QC Pass] sample={payload.get('selected_sample_id')} status={status}"]
+        if payload.get("title"):
+            lines.append(f"title={payload.get('title')}")
+        lines.append(_shorten(payload.get("stderr") or payload.get("stdout"), limit=500))
+        return "\n".join(lines).strip()
     if command == "remote-qc-defer":
         return str(payload.get("message", "")).strip()
     if command == "remote-qc-fix-queued":
         lines = [f"[QC Fix Queued] sample={payload.get('sample_id')}"]
+        if payload.get("title"):
+            lines.append(f"title={payload.get('title')}")
         if payload.get("qc_work_branch"):
             lines.append(f"branch={payload.get('qc_work_branch')}")
         if payload.get("golden_upload"):

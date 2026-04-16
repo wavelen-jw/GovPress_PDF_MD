@@ -66,7 +66,7 @@ run_compose() {
 }
 
 build_dashboard_assets_compose() {
-  local dashboard_root="/app/exports/policy_briefing_qc"
+  local dashboard_root="${GOVPRESS_QC_EXPORT_ROOT:-/gov-md-converter/exports/policy_briefing_qc}"
   local curated_root="${GOVPRESS_CURATED_QC_ROOT:-/gov-md-converter/tests/qc_samples}"
   docker exec -u "$(id -u):$(id -g)" govpress-api python - "$dashboard_root" "$dashboard_root/dashboard/index.html" "$dashboard_root/dashboard/dashboard.json" "$curated_root" <<'PY'
 from pathlib import Path
@@ -85,8 +85,9 @@ PY
 }
 
 build_dashboard_assets_baremetal() {
-  local dashboard_root="$DEPLOY_DIR/exports/policy_briefing_qc"
-  local curated_root="$DEPLOY_DIR/tests/qc_samples"
+  local converter_root="${GOV_MD_CONVERTER_ROOT:-$(cd "$DEPLOY_DIR/.." && pwd)/gov-md-converter}"
+  local dashboard_root="${GOVPRESS_QC_EXPORT_ROOT:-$converter_root/exports/policy_briefing_qc}"
+  local curated_root="${GOVPRESS_CURATED_QC_ROOT:-$converter_root/tests/qc_samples}"
   "$DEPLOY_DIR/.venv/bin/python" - "$dashboard_root" "$dashboard_root/dashboard/index.html" "$dashboard_root/dashboard/dashboard.json" "$curated_root" <<'PY'
 from pathlib import Path
 import sys
@@ -297,7 +298,7 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
   run_compose ps
   sleep 3
   build_dashboard_assets_compose
-  verify_dashboard_assets "$DEPLOY_DIR/exports/policy_briefing_qc"
+  verify_dashboard_assets "${GOVPRESS_QC_EXPORT_ROOT:-$DEPLOY_DIR/../gov-md-converter/exports/policy_briefing_qc}"
 else
   export XDG_RUNTIME_DIR="/run/user/$(id -u)"
   ENV_PATH="$DEPLOY_DIR/deploy/vps/.env"
@@ -331,7 +332,7 @@ else
   systemctl --user restart "$SERVICE"
   sleep 3
   build_dashboard_assets_baremetal
-  verify_dashboard_assets "$DEPLOY_DIR/exports/policy_briefing_qc"
+  verify_dashboard_assets "${GOVPRESS_QC_EXPORT_ROOT:-$DEPLOY_DIR/../gov-md-converter/exports/policy_briefing_qc}"
 fi
 
 # WSL rebuilds can take noticeably longer than VPS restarts.

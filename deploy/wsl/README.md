@@ -437,10 +437,10 @@ cloudflared access ssh --hostname ssh-work.govpress.cloud
 - 작업 생성 시 `job_id`와 `edit_token`이 함께 발급됩니다.
 - 상태 조회, 결과 조회, 수정 저장, 재시도는 `X-Edit-Token`이 있어야만 가능합니다.
 - 공개 최근 작업 목록은 제공하지 않습니다.
-- 정책브리핑 QC dashboard는 외부 공개하지 않습니다.
+- 정책브리핑 QC dashboard는 현재 공개 읽기 링크로 운영합니다.
   - `GET /v1/policy-briefings/qc/dashboard`
   - `GET /v1/policy-briefings/qc/dashboard.json`
-  - 두 경로 모두 `X-Admin-Key`가 필요합니다.
+  - dashboard 산출물과 curated sample root는 `gov-md-converter` 기준 경로를 사용합니다.
 
 ## Cloudflare 권장 규칙
 

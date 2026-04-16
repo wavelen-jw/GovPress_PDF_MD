@@ -40,6 +40,9 @@ jobs:
     env:
       GOVPRESS_POLICY_BRIEFING_SERVICE_KEY: ${{ secrets.GOVPRESS_POLICY_BRIEFING_SERVICE_KEY }}
       GOVPRESS_STORAGE_ROOT: ${{ github.workspace }}/storage
+      GOV_MD_CONVERTER_ROOT: ${{ github.workspace }}/gov-md-converter
+      GOVPRESS_QC_EXPORT_ROOT: ${{ github.workspace }}/gov-md-converter/exports/policy_briefing_qc
+      GOVPRESS_CURATED_QC_ROOT: ${{ github.workspace }}/gov-md-converter/tests/qc_samples
       TARGET_DATE: ${{ inputs.target_date }}
       EXPORT_LIMIT: ${{ inputs.limit || '5' }}
       QC_ROOT: ${{ inputs.qc_root || 'tests/manual_samples/policy_briefings' }}
@@ -90,18 +93,18 @@ jobs:
         run: |
           python scripts/run_policy_briefing_qc_pipeline.py \
             --date "${{ steps.resolve-date.outputs.target_date }}" \
-            --output-root exports/policy_briefing_qc \
+            --output-root "${GOVPRESS_QC_EXPORT_ROOT}" \
             --limit "${EXPORT_LIMIT}" \
-            --gov-md-converter-root ./gov-md-converter \
+            --gov-md-converter-root "${GOV_MD_CONVERTER_ROOT}" \
             --qc-root "${QC_ROOT}"
 
       - name: Evaluate pipeline report
         id: evaluate
         run: |
-          REPORT_PATH="exports/policy_briefing_qc/${{ steps.resolve-date.outputs.target_date }}/pipeline_report.json"
-          SUMMARY_PATH="exports/policy_briefing_qc/${{ steps.resolve-date.outputs.target_date }}/qc_summary.md"
+          REPORT_PATH="${GOVPRESS_QC_EXPORT_ROOT}/${{ steps.resolve-date.outputs.target_date }}/pipeline_report.json"
+          SUMMARY_PATH="${GOVPRESS_QC_EXPORT_ROOT}/${{ steps.resolve-date.outputs.target_date }}/qc_summary.md"
           set +e
-          python scripts/evaluate_policy_briefing_qc_report.py \
+          python "${GOV_MD_CONVERTER_ROOT}/scripts/evaluate_policy_briefing_qc_report.py" \
             "$REPORT_PATH" \
             --summary-markdown "$SUMMARY_PATH"
           EXIT_CODE=$?
@@ -120,10 +123,11 @@ jobs:
       - name: Build QC dashboard
         if: always()
         run: |
-          python scripts/build_policy_briefing_qc_dashboard.py \
-            --root exports/policy_briefing_qc \
-            --output-html exports/policy_briefing_qc/dashboard/index.html \
-            --output-json exports/policy_briefing_qc/dashboard/dashboard.json
+          python "${GOV_MD_CONVERTER_ROOT}/scripts/build_policy_briefing_qc_dashboard.py" \
+            --root "${GOVPRESS_QC_EXPORT_ROOT}" \
+            --output-html "${GOVPRESS_QC_EXPORT_ROOT}/dashboard/index.html" \
+            --output-json "${GOVPRESS_QC_EXPORT_ROOT}/dashboard/dashboard.json" \
+            --curated-root "${GOVPRESS_CURATED_QC_ROOT}"
 
       - name: Upload QC artifacts
         if: always()
@@ -131,20 +135,20 @@ jobs:
         with:
           name: policy-briefing-qc-${{ steps.resolve-date.outputs.target_date }}
           path: |
-            exports/policy_briefing_qc/${{ steps.resolve-date.outputs.target_date }}/pipeline_report.json
-            exports/policy_briefing_qc/${{ steps.resolve-date.outputs.target_date }}/qc_summary.md
-            exports/policy_briefing_qc/${{ steps.resolve-date.outputs.target_date }}/issue_payload.json
-            exports/policy_briefing_qc/${{ steps.resolve-date.outputs.target_date }}/gov_md_reports/**
-            exports/policy_briefing_qc/dashboard/**
+            gov-md-converter/exports/policy_briefing_qc/${{ steps.resolve-date.outputs.target_date }}/pipeline_report.json
+            gov-md-converter/exports/policy_briefing_qc/${{ steps.resolve-date.outputs.target_date }}/qc_summary.md
+            gov-md-converter/exports/policy_briefing_qc/${{ steps.resolve-date.outputs.target_date }}/issue_payload.json
+            gov-md-converter/exports/policy_briefing_qc/${{ steps.resolve-date.outputs.target_date }}/gov_md_reports/**
+            gov-md-converter/exports/policy_briefing_qc/dashboard/**
           if-no-files-found: warn
 
       - name: Build issue payload
         if: always() && steps.evaluate.outputs.exit_code != '0'
         run: |
-          python scripts/build_policy_briefing_qc_issue.py \
+          python "${GOV_MD_CONVERTER_ROOT}/scripts/build_policy_briefing_qc_issue.py" \
             "${{ steps.evaluate.outputs.report_path }}" \
             --summary-markdown "${{ steps.evaluate.outputs.summary_path }}" \
-            --output "exports/policy_briefing_qc/${{ steps.resolve-date.outputs.target_date }}/issue_payload.json"
+            --output "${GOVPRESS_QC_EXPORT_ROOT}/${{ steps.resolve-date.outputs.target_date }}/issue_payload.json"
 
       - name: Create or update QC issue
         id: create-or-update-qc-issue
@@ -153,7 +157,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const payloadPath = 'exports/policy_briefing_qc/${{ steps.resolve-date.outputs.target_date }}/issue_payload.json';
+            const payloadPath = 'gov-md-converter/exports/policy_briefing_qc/${{ steps.resolve-date.outputs.target_date }}/issue_payload.json';
             const payload = JSON.parse(fs.readFileSync(payloadPath, 'utf8'));
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -190,7 +194,7 @@ jobs:
       - name: Send Telegram alert
         if: always() && steps.evaluate.outputs.exit_code != '0' && env.SEND_TELEGRAM_ON_FAILURE == 'true' && env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
         run: |
-          python scripts/send_policy_briefing_qc_telegram.py \
+          python "${GOV_MD_CONVERTER_ROOT}/scripts/send_policy_briefing_qc_telegram.py" \
             "${{ steps.evaluate.outputs.report_path }}" \
             --dashboard-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --issue-url "${{ steps.create-or-update-qc-issue.outputs.issue_url }}"
