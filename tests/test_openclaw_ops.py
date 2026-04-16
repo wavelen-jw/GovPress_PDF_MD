@@ -690,7 +690,7 @@ class OpenClawOpsTests(unittest.TestCase):
             self.assertEqual(opened["refresh"]["command"][0], "skip-policy-briefing-refresh")
             self.assertNotIn("telegram_notification", opened)
 
-    def test_remote_qc_golden_text_uses_existing_golden_and_queues_fix(self) -> None:
+    def test_remote_qc_golden_text_is_rejected_in_strict_mode(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             remote_root = Path(tmpdir) / "storage_batch"
             state_root = Path(tmpdir) / "state"
@@ -711,24 +711,18 @@ class OpenClawOpsTests(unittest.TestCase):
                 json.dumps({"selected_sample_id": sample_dir.name}, ensure_ascii=False),
                 encoding="utf-8",
             )
-            with mock.patch("scripts.openclaw_ops._rewrite_sample_review"), \
-                 mock.patch(
-                     "scripts.openclaw_ops._spawn_background_fix",
-                     return_value={"command": "remote-qc-fix-queued", "ok": True},
-                 ) as mocked_fix:
-                payload = dispatch_telegram_message(
-                    "golden",
-                    chat_scope="dm",
-                    export_root=Path(tmpdir),
-                    gov_md_root=gov_md_root,
-                    qc_root=Path(tmpdir),
-                    remote_qc_root=remote_root,
-                    state_root=state_root,
-                )
+            payload = dispatch_telegram_message(
+                "golden",
+                chat_scope="dm",
+                export_root=Path(tmpdir),
+                gov_md_root=gov_md_root,
+                qc_root=Path(tmpdir),
+                remote_qc_root=remote_root,
+                state_root=state_root,
+            )
 
-            self.assertEqual(payload["command"], "remote-qc-fix-queued")
-            self.assertTrue(payload["used_existing_golden"])
-            mocked_fix.assert_called_once()
+            self.assertEqual(payload["command"], "remote-qc-unsupported")
+            self.assertFalse(payload["ok"])
 
     def test_remote_qc_recent_job_generation_uses_storage_pipeline(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1256,7 +1250,11 @@ class OpenClawOpsTests(unittest.TestCase):
             self.assertEqual(payload["command"], "remote-qc-fix-queued")
             self.assertEqual(payload["pid"], 12345)
             mocked_spawn.assert_called_once()
-            mocked_run.assert_not_called()
+            mocked_run.assert_called_once()
+            sent_command = mocked_run.call_args.args[0]
+            self.assertIn("--message", sent_command)
+            sent_message = sent_command[sent_command.index("--message") + 1]
+            self.assertIn("[QC Fix Queued] sample=storage_job_abc123", sent_message)
 
     def test_remote_qc_fix_handoff_resumes_existing_batch_session(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

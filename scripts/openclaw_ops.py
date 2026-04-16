@@ -1163,6 +1163,50 @@ def _spawn_background_fix(
     }
 
 
+def _spawn_qc_command_drain(
+    *,
+    sender_id: str,
+    export_root: Path,
+    gov_md_root: Path,
+    qc_root: Path,
+    remote_qc_root: Path,
+    state_root: Path,
+    max_commands: int = 10,
+) -> dict[str, Any]:
+    command = [
+        sys.executable,
+        str(PROJECT_ROOT / "scripts" / "openclaw_ops.py"),
+        "--export-root",
+        str(export_root),
+        "--gov-md-root",
+        str(gov_md_root),
+        "--qc-root",
+        str(qc_root),
+        "--remote-qc-root",
+        str(remote_qc_root),
+        "--state-root",
+        str(state_root),
+        "remote-qc-command-drain",
+        "--sender-id",
+        sender_id,
+        "--max-commands",
+        str(max_commands),
+    ]
+    process = subprocess.Popen(
+        command,
+        cwd=str(PROJECT_ROOT),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    return {
+        "command": "remote-qc-command-drain-queued",
+        "ok": True,
+        "sender_id": sender_id,
+        "pid": process.pid,
+    }
+
+
 def _send_requested_files(
     *,
     sender_id: str,
@@ -1812,13 +1856,7 @@ def _is_fix_message(text: str) -> bool:
 
 
 def _wants_golden_upload_fix(text: str) -> bool:
-    normalized = text.strip().lower()
-    return (
-        "golden.md 업로드" in normalized
-        or "golden 업로드" in normalized
-        or normalized == "golden.md"
-        or normalized == "golden"
-    )
+    return False
 
 
 def _wants_job_list(text: str) -> bool:
@@ -2009,9 +2047,9 @@ def _normalize_qc_command(
     if _is_defer_message(text) or _wants_current_job_defer(text):
         return {"command_type": "defer_sample", "sample_id": sample_id}
     has_markdown_media = any(path.suffix.lower() == ".md" for path in ctx.media_paths)
-    if has_markdown_media or _wants_golden_upload_fix(text):
+    if has_markdown_media:
         return {
-            "command_type": "upload_golden",
+            "command_type": "upload_golden_and_fix",
             "sample_id": sample_id,
             "user_text": text.strip(),
             "message_id": ctx.message_id,
@@ -2279,54 +2317,37 @@ def _execute_structured_qc_command(
             note="manually deferred after batch completion",
         )
         return result
-    if command_type == "upload_golden":
+    if command_type in {"upload_golden", "upload_golden_and_fix"}:
         has_media_paths = bool(payload.get("has_media_paths"))
+        if not has_media_paths:
+            raise ValueError("golden.md 파일을 첨부하면 바로 수정 큐로 진행합니다.")
         media_path = _consume_latest_qc_media(
             state_root,
             sender_id=sender_id,
             message_id=str(payload.get("message_id") or "").strip() or message_id,
         )
-        if media_path is not None:
-            upload_payload = _handle_golden_upload(
-                ctx=TelegramContext(sender_id=sender_id, message_id=message_id, media_paths=(media_path,)),
-                sender_id=sender_id,
-                sample=sample,
-                gov_md_root=gov_md_root,
-            )
-            user_text = str(payload.get("user_text") or "").strip()
-            fix_text = (
-                user_text
-                if user_text and user_text not in {"golden", "golden.md 업로드"}
-                else _build_default_fix_message_after_golden(sample)
-            )
-            fix_payload = _spawn_background_fix(
-                sender_id=sender_id,
-                message_id=message_id,
-                sample=sample,
-                user_text=fix_text,
-                export_root=export_root,
-                gov_md_root=gov_md_root,
-                qc_root=DEFAULT_QC_ROOT,
-                remote_qc_root=remote_qc_root,
-                state_root=state_root,
-            )
-            fix_payload["golden_upload"] = upload_payload
-            return fix_payload
-        golden_path = sample.sample_dir / "golden.md"
-        if not golden_path.exists():
-            raise ValueError("최근 업로드된 golden markdown 파일을 찾지 못했습니다. 파일을 먼저 보내고 `golden`을 다시 입력해주세요.")
+        if media_path is None:
+            raise ValueError("현재 메시지에 첨부된 golden markdown 파일을 찾지 못했습니다. md 파일을 다시 첨부해주세요.")
+        upload_payload = _handle_golden_upload(
+            ctx=TelegramContext(sender_id=sender_id, message_id=message_id, media_paths=(media_path,)),
+            sender_id=sender_id,
+            sample=sample,
+            gov_md_root=gov_md_root,
+        )
+        user_text = str(payload.get("user_text") or "").strip()
+        fix_text = user_text if user_text and not user_text.lower().endswith(".md") else _build_default_fix_message_after_golden(sample)
         fix_payload = _spawn_background_fix(
             sender_id=sender_id,
             message_id=message_id,
             sample=sample,
-            user_text=_build_default_fix_message_after_golden(sample),
+            user_text=fix_text or _build_default_fix_message_after_golden(sample),
             export_root=export_root,
             gov_md_root=gov_md_root,
             qc_root=DEFAULT_QC_ROOT,
             remote_qc_root=remote_qc_root,
             state_root=state_root,
         )
-        fix_payload["used_existing_golden"] = True
+        fix_payload["golden_upload"] = upload_payload
         return fix_payload
     if command_type == "run_fix":
         return _spawn_background_fix(
@@ -2341,16 +2362,10 @@ def _execute_structured_qc_command(
             state_root=state_root,
         )
     if command_type == "send_files":
-        results = _send_requested_files(
-            sender_id=sender_id,
-            message_id=message_id,
-            sample=sample,
-            file_keys=[str(item) for item in payload.get("file_keys", []) if isinstance(item, str)],
-        )
         return {
             "command": "remote-qc-send-files",
             "sample_id": sample.sample_id,
-            "results": results,
+            "file_keys": [str(item) for item in payload.get("file_keys", []) if isinstance(item, str)],
         }
     if command_type == "summary":
         return _build_sample_summary(sample)
@@ -2393,6 +2408,12 @@ def _run_qc_command_once(
             state_root=state_root,
         )
         payload["queued_command_id"] = int(row["id"])
+        _emit_qc_command_side_effects(
+            payload=payload,
+            sender_id=str(row.get("sender_id") or "").strip(),
+            message_id=str(row.get("message_id") or "").strip() or None,
+            remote_qc_root=remote_qc_root,
+        )
         _finish_qc_command(state_root, command_id=int(row["id"]), status="done", result_payload=payload)
         return payload
     except Exception as exc:
@@ -2431,6 +2452,12 @@ def _drain_qc_command_queue(
                 state_root=state_root,
             )
             payload["queued_command_id"] = int(row["id"])
+            _emit_qc_command_side_effects(
+                payload=payload,
+                sender_id=str(row.get("sender_id") or "").strip(),
+                message_id=str(row.get("message_id") or "").strip() or None,
+                remote_qc_root=remote_qc_root,
+            )
             _finish_qc_command(state_root, command_id=int(row["id"]), status="done", result_payload=payload)
             processed.append(
                 {
@@ -2465,6 +2492,52 @@ def _drain_qc_command_queue(
         "processed_count": len(processed),
         "results": processed,
     }
+
+
+def _emit_qc_command_side_effects(
+    *,
+    payload: dict[str, Any],
+    sender_id: str,
+    message_id: str | None,
+    remote_qc_root: Path,
+) -> None:
+    if not sender_id:
+        return
+    command = str(payload.get("command") or "").strip()
+    if command == "remote-qc-open":
+        sample = _find_sample(str(payload.get("sample_id")), remote_qc_root, DEFAULT_CURATED_QC_ROOT)
+        file_keys = [
+            key
+            for key in ["review", "rendered", "source"]
+            if (
+                sample.sample_dir
+                / {"review": "review.md", "rendered": "rendered.md", "source": "source.hwpx"}[key]
+            ).exists()
+        ]
+        if sample.has_golden:
+            file_keys.append("golden")
+        payload["results"] = _send_requested_files(
+            sender_id=sender_id,
+            message_id=message_id,
+            sample=sample,
+            file_keys=file_keys,
+        )
+        return
+    if command == "remote-qc-send-files":
+        sample = _find_sample(str(payload.get("sample_id")), remote_qc_root, DEFAULT_CURATED_QC_ROOT)
+        results = _send_requested_files(
+            sender_id=sender_id,
+            message_id=message_id,
+            sample=sample,
+            file_keys=[str(item) for item in payload.get("file_keys", []) if isinstance(item, str)],
+        )
+        payload["results"] = results
+        return
+    _send_telegram_text(
+        sender_id=sender_id,
+        message_id=message_id,
+        message=format_human(payload),
+    )
 def _wants_current_job_defer(text: str) -> bool:
     return "현재 job 보류" in text or "현재 job 건너뛰기" in text
 
@@ -2512,7 +2585,7 @@ def _requested_file_keys(text: str) -> list[str]:
         keys.append("rendered")
     if "review" in lowered or "리뷰" in text:
         keys.append("review")
-    if "golden" in lowered:
+    if "golden" in lowered and any(token in text for token in ("보내", "다운", "파일")):
         keys.append("golden")
     deduped: list[str] = []
     for key in keys:
@@ -4073,6 +4146,7 @@ def dispatch_telegram_message(
     qc_root: Path,
     remote_qc_root: Path,
     state_root: Path,
+    run_immediately: bool = True,
 ) -> dict[str, Any]:
     if chat_scope != "dm":
         return {
@@ -4113,14 +4187,33 @@ def dispatch_telegram_message(
                 payload=payload_for_queue,
                 dedupe_key=f"{ctx.sender_id}:{ctx.message_id}:{command_type}" if ctx.message_id else None,
             )
-            payload = _run_qc_command_once(
-                state_root=state_root,
-                export_root=export_root,
-                gov_md_root=gov_md_root,
-                qc_root=qc_root,
-                remote_qc_root=remote_qc_root,
-                command_id=queued_id,
-            )
+            if run_immediately:
+                payload = _run_qc_command_once(
+                    state_root=state_root,
+                    export_root=export_root,
+                    gov_md_root=gov_md_root,
+                    qc_root=qc_root,
+                    remote_qc_root=remote_qc_root,
+                    command_id=queued_id,
+                )
+            else:
+                drain = _spawn_qc_command_drain(
+                    sender_id=ctx.sender_id,
+                    export_root=export_root,
+                    gov_md_root=gov_md_root,
+                    qc_root=qc_root,
+                    remote_qc_root=remote_qc_root,
+                    state_root=state_root,
+                    max_commands=10,
+                )
+                payload = {
+                    "command": "telegram-dispatch",
+                    "ok": True,
+                    "queued_command_id": queued_id,
+                    "queued_command_type": command_type,
+                    "drain": drain,
+                    "_suppress_telegram_text": True,
+                }
         else:
             payload = {
                 "command": "remote-qc-unsupported",
@@ -4131,20 +4224,6 @@ def dispatch_telegram_message(
                     "md 파일 첨부(=golden 저장 후 즉시 수정 큐)"
                 ),
             }
-        if payload.get("command") == "remote-qc-open" and ctx.sender_id:
-            sample = _find_sample(str(payload.get("sample_id")), remote_qc_root, DEFAULT_CURATED_QC_ROOT)
-            file_keys = [key for key in ["review", "rendered", "source"] if (sample.sample_dir / {"review": "review.md", "rendered": "rendered.md", "source": "source.hwpx"}[key]).exists()]
-            if sample.has_golden:
-                file_keys.append("golden")
-            payload["results"] = _send_requested_files(
-                sender_id=ctx.sender_id,
-                message_id=ctx.message_id,
-                sample=sample,
-                file_keys=file_keys,
-            )
-            payload["_suppress_telegram_text"] = True
-        if payload.get("command") == "remote-qc-send-files":
-            payload["_suppress_telegram_text"] = True
         payload["ok"] = payload.get("ok", True)
         return payload
     if command == "qc-status":
@@ -4540,6 +4619,7 @@ def main() -> int:
                 qc_root=qc_root,
                 remote_qc_root=remote_qc_root,
                 state_root=state_root,
+                run_immediately=False,
             )
         elif args.subcommand == "remote-qc-run-fix":
             payload = _run_fix_subcommand(
