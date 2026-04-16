@@ -694,10 +694,11 @@ def _collect_latest_policy_briefing_items(
     lookback_days: int = 14,
 ) -> list[Any]:
     catalog = _build_policy_catalog(storage_root)
+    ensure_fresh = bool(os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY", "").strip())
     items_by_id: dict[str, Any] = {}
     for offset in range(lookback_days):
         target_date = date.today() - timedelta(days=offset)
-        result = catalog.list_cached_items_with_status(target_date=target_date, ensure_fresh=True)
+        result = catalog.list_cached_items_with_status(target_date=target_date, ensure_fresh=ensure_fresh)
         for item in result.items:
             if item.news_item_id not in items_by_id:
                 items_by_id[item.news_item_id] = item
