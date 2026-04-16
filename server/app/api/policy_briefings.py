@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
-from ..adapters.policy_briefing_qc import resolve_dashboard_asset_path
+from ..adapters.policy_briefing_qc import ensure_dashboard_assets, resolve_dashboard_asset_path
 from ..schemas.policy_briefings import (
     PolicyBriefingCacheResetResponse,
     PolicyBriefingImportRequest,
@@ -174,12 +174,22 @@ def build_router(
     def get_policy_briefing_qc_dashboard() -> FileResponse:
         html_path = resolve_dashboard_asset_path(qc_export_root, "index.html")
         if not html_path.exists():
+            try:
+                html_path, _ = ensure_dashboard_assets(qc_export_root)
+            except Exception:
+                raise HTTPException(status_code=404, detail="QC dashboard is not available yet.")
+        if not html_path.exists():
             raise HTTPException(status_code=404, detail="QC dashboard is not available yet.")
         return FileResponse(html_path, media_type="text/html; charset=utf-8")
 
     @router.get("/qc/dashboard.json")
     def get_policy_briefing_qc_dashboard_json() -> FileResponse:
         json_path = resolve_dashboard_asset_path(qc_export_root, "dashboard.json")
+        if not json_path.exists():
+            try:
+                _, json_path = ensure_dashboard_assets(qc_export_root)
+            except Exception:
+                raise HTTPException(status_code=404, detail="QC dashboard JSON is not available yet.")
         if not json_path.exists():
             raise HTTPException(status_code=404, detail="QC dashboard JSON is not available yet.")
         return FileResponse(json_path, media_type="application/json; charset=utf-8")

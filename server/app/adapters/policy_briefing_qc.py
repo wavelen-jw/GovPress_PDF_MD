@@ -21,6 +21,7 @@ _QC_PIPELINE_MODULES: tuple[
     Callable[..., dict[str, object]],
     Callable[..., dict[str, object]],
 ] | None = None
+_QC_DASHBOARD_WRITER: Callable[..., dict[str, object]] | None = None
 
 
 def _load_gov_md_converter_qc_pipeline() -> tuple[Callable[..., dict[str, object]], Callable[..., dict[str, object]], Callable[..., dict[str, object]], Callable[..., dict[str, object]]]:
@@ -51,6 +52,31 @@ def _get_gov_md_converter_qc_pipeline() -> tuple[Callable[..., dict[str, object]
     if _QC_PIPELINE_MODULES is None:
         _QC_PIPELINE_MODULES = _load_gov_md_converter_qc_pipeline()
     return _QC_PIPELINE_MODULES
+
+
+def _load_gov_md_converter_dashboard_writer() -> Callable[..., dict[str, object]]:
+    candidates = []
+    env_root = os.environ.get("GOV_MD_CONVERTER_ROOT")
+    if env_root:
+        candidates.append(Path(env_root).resolve())
+    candidates.append(Path(__file__).resolve().parents[4] / "gov-md-converter")
+    for root in candidates:
+        module_path = root / "src" / "qc_dashboard.py"
+        if not module_path.exists():
+            continue
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
+        from src.qc_dashboard import write_dashboard
+
+        return write_dashboard
+    raise ModuleNotFoundError("gov-md-converter QC dashboard module not found")
+
+
+def _get_gov_md_converter_dashboard_writer() -> Callable[..., dict[str, object]]:
+    global _QC_DASHBOARD_WRITER
+    if _QC_DASHBOARD_WRITER is None:
+        _QC_DASHBOARD_WRITER = _load_gov_md_converter_dashboard_writer()
+    return _QC_DASHBOARD_WRITER
 
 
 ScaffoldRunner = Callable[..., str]
@@ -125,6 +151,19 @@ def resolve_dashboard_paths(qc_export_root: str | Path) -> tuple[Path, Path]:
     html_path = resolve_dashboard_asset_path(qc_export_root, "index.html")
     json_path = resolve_dashboard_asset_path(qc_export_root, "dashboard.json")
     return html_path, json_path
+
+
+def ensure_dashboard_assets(qc_export_root: str | Path) -> tuple[Path, Path]:
+    html_path, json_path = resolve_dashboard_paths(qc_export_root)
+    if html_path.exists() and json_path.exists():
+        return html_path, json_path
+    write_dashboard = _get_gov_md_converter_dashboard_writer()
+    root = Path(qc_export_root).resolve()
+    output_html = root / "dashboard" / "index.html"
+    output_json = root / "dashboard" / "dashboard.json"
+    curated_root = Path(os.environ.get("GOVPRESS_CURATED_QC_ROOT", "")).resolve() if os.environ.get("GOVPRESS_CURATED_QC_ROOT") else None
+    write_dashboard(root, output_html=output_html, output_json=output_json, curated_root=curated_root)
+    return output_html, output_json
 
 
 def resolve_dashboard_asset_path(qc_export_root: str | Path, asset_name: str) -> Path:
