@@ -198,8 +198,7 @@ def _extract_media_paths(message: str) -> tuple[Path, ...]:
     paths: list[Path] = []
     for raw in matches:
         candidate = Path(raw.strip())
-        if candidate.exists():
-            paths.append(candidate)
+        paths.append(candidate)
     return tuple(paths)
 
 
@@ -240,10 +239,22 @@ def build_telegram_context(message: str, *, state_root: Path | None = None) -> T
     sender_id = _parse_sender_id(message) or DEFAULT_TELEGRAM_SENDER_ID
     if not sender_id and state_root is not None:
         sender_id = _fallback_sender_id_from_state_root(state_root)
+    media_paths = list(_extract_media_paths(message))
+    resolved_media_paths: list[Path] = []
+    for candidate in media_paths:
+        if candidate.exists():
+            resolved_media_paths.append(candidate)
+            continue
+        if candidate.suffix.lower() == ".md":
+            fallback = _find_recent_inbound_markdown()
+            if fallback:
+                resolved_media_paths.append(fallback[0])
+                continue
+        resolved_media_paths.append(candidate)
     return TelegramContext(
         sender_id=sender_id or None,
         message_id=_parse_message_id(message),
-        media_paths=_extract_media_paths(message),
+        media_paths=tuple(dict.fromkeys(resolved_media_paths)),
     )
 
 
@@ -2321,10 +2332,13 @@ def _execute_structured_qc_command(
         has_media_paths = bool(payload.get("has_media_paths"))
         if not has_media_paths:
             raise ValueError("golden.md 파일을 첨부하면 바로 수정 큐로 진행합니다.")
+        effective_message_id = str(payload.get("message_id") or "").strip() or message_id
+        if not effective_message_id:
+            raise ValueError("현재 메시지의 첨부 파일 식별자가 없습니다. md 파일을 다시 첨부해주세요.")
         media_path = _consume_latest_qc_media(
             state_root,
             sender_id=sender_id,
-            message_id=str(payload.get("message_id") or "").strip() or message_id,
+            message_id=effective_message_id,
         )
         if media_path is None:
             raise ValueError("현재 메시지에 첨부된 golden markdown 파일을 찾지 못했습니다. md 파일을 다시 첨부해주세요.")
@@ -4726,6 +4740,8 @@ def main() -> int:
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     elif args.subcommand == "telegram-dispatch" and args.chat_scope == "dm" and ctx and ctx.sender_id:
+        pass
+    elif args.subcommand in {"remote-qc-command-drain", "remote-qc-command-run-next"}:
         pass
     else:
         print(human_text)

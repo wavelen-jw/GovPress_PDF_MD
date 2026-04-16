@@ -1175,6 +1175,57 @@ class OpenClawOpsTests(unittest.TestCase):
             mocked_rewrite.assert_called_once()
             mocked_fix.assert_called_once()
 
+    def test_remote_qc_golden_upload_uses_recent_inbound_when_attachment_path_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "storage_batch"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            gov_md_root.mkdir(parents=True)
+            self._init_git_repo(gov_md_root)
+            sample_dir = remote_root / "storage_job_abc123"
+            sample_dir.mkdir(parents=True)
+            (sample_dir / "source.hwpx").write_bytes(b"hwpx")
+            (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
+            (sample_dir / "review.md").write_text("review", encoding="utf-8")
+            (sample_dir / "meta.json").write_text(json.dumps({"sample_status": "scratch"}, ensure_ascii=False), encoding="utf-8")
+            (state_root / "telegram_qc_sessions").mkdir(parents=True, exist_ok=True)
+            (state_root / "telegram_qc_sessions" / "6475698942.json").write_text(
+                json.dumps({"selected_sample_id": "storage_job_abc123", "selected_sample_dir": str(sample_dir)}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            uploaded = Path(tmpdir) / "actual-inbound.md"
+            uploaded.write_text("# golden inbound", encoding="utf-8")
+            missing_ref = Path(tmpdir) / "telegram-placeholder.md"
+
+            def fake_run(command, *, cwd, extra_env=None):
+                if command[:3] == ["openclaw", "message", "send"]:
+                    return {
+                        "returncode": 0,
+                        "stdout": '{"payload":{"ok":true,"messageId":"m1"}}',
+                        "stderr": "",
+                        "command": command,
+                    }
+                raise AssertionError("unexpected command")
+
+            with mock.patch("scripts.openclaw_ops._find_recent_inbound_markdown", return_value=(uploaded,)), \
+                 mock.patch("scripts.openclaw_ops._rewrite_sample_review") as mocked_rewrite, \
+                 mock.patch("scripts.openclaw_ops._run_subprocess", side_effect=fake_run), \
+                 mock.patch("scripts.openclaw_ops._spawn_background_fix") as mocked_fix:
+                mocked_fix.return_value = {"command": "remote-qc-fix-queued", "ok": True, "pid": 123}
+                payload = dispatch_telegram_message(
+                    f'[media attached: {missing_ref}]\nConversation info (untrusted metadata): {{"message_id":"15","sender_id":"6475698942"}}',
+                    chat_scope="dm",
+                    export_root=Path(tmpdir),
+                    gov_md_root=gov_md_root,
+                    qc_root=Path(tmpdir),
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
+            self.assertEqual(payload["command"], "remote-qc-fix-queued")
+            self.assertEqual((sample_dir / "golden.md").read_text(encoding="utf-8"), "# golden inbound")
+            mocked_rewrite.assert_called_once()
+            mocked_fix.assert_called_once()
+
     def test_remote_qc_pass_uses_promote(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             remote_root = Path(tmpdir) / "storage_batch"
