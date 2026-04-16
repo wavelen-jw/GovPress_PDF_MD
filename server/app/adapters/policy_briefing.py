@@ -542,10 +542,31 @@ def _serialize_item(item: PolicyBriefingItem) -> dict[str, object]:
 
 def normalize_policy_briefing_title_key(text: str) -> str:
     normalized = text.strip().lower()
+    normalized = normalized.replace("ai", "인공지능")
+    normalized = normalized.replace("a.i.", "인공지능")
     normalized = normalized.replace("_", " ")
     normalized = re.sub(r"\s+", " ", normalized)
     normalized = re.sub(r"[^\w\s()-]", "", normalized)
     return normalized.strip()
+
+
+def _tokenize_policy_briefing_title_key(text: str) -> list[str]:
+    normalized = normalize_policy_briefing_title_key(text)
+    if not normalized:
+        return []
+    compact = normalized.replace(" ", "")
+    raw_tokens = re.split(r"[\s()/-]+", normalized)
+    tokens: list[str] = []
+    for token in raw_tokens:
+        token = token.strip()
+        if len(token) < 2:
+            continue
+        if token in {"보도자료", "보도참고", "보도참고자료", "국정브리핑"}:
+            continue
+        tokens.append(token)
+    if compact and compact not in tokens:
+        tokens.append(compact)
+    return tokens
 
 
 def find_cached_policy_briefing_by_title(catalog: PolicyBriefingCatalog, query: str) -> PolicyBriefingItem | None:
@@ -553,8 +574,10 @@ def find_cached_policy_briefing_by_title(catalog: PolicyBriefingCatalog, query: 
     if not normalized_query:
         return None
 
+    query_tokens = _tokenize_policy_briefing_title_key(query)
     exact_matches: list[PolicyBriefingItem] = []
     partial_matches: list[PolicyBriefingItem] = []
+    token_matches: list[tuple[int, PolicyBriefingItem]] = []
     for item in catalog.iter_cached_items():
         normalized_title = normalize_policy_briefing_title_key(item.title)
         if not normalized_title:
@@ -563,10 +586,21 @@ def find_cached_policy_briefing_by_title(catalog: PolicyBriefingCatalog, query: 
             exact_matches.append(item)
         elif normalized_query in normalized_title:
             partial_matches.append(item)
+        elif query_tokens:
+            compact_title = normalized_title.replace(" ", "")
+            matched = sum(1 for token in query_tokens if token in normalized_title or token in compact_title)
+            if matched:
+                token_matches.append((matched, item))
     if exact_matches:
         return exact_matches[0]
     if partial_matches:
         return partial_matches[0]
+    if token_matches:
+        token_matches.sort(key=lambda entry: entry[0], reverse=True)
+        best_score, best_item = token_matches[0]
+        threshold = max(2, min(len(query_tokens), 3))
+        if best_score >= threshold:
+            return best_item
     return None
 
 

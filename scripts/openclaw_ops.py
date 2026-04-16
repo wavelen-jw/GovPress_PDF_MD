@@ -1754,7 +1754,7 @@ def _extract_title_query_from_text(text: str) -> str | None:
         if match:
             candidate = match.group(1).strip()
             if candidate:
-                return candidate.strip("'\"“”‘’ ").strip()
+                return candidate.strip("'\"“”‘’ ,").strip()
 
     quoted = re.findall(r"'([^']+)'|\"([^\"]+)\"", text)
     parts = [left or right for left, right in quoted if (left or right)]
@@ -1768,7 +1768,7 @@ def _extract_title_query_from_text(text: str) -> str | None:
     cleaned = cleaned.replace("열어줘", " ")
     cleaned = cleaned.replace("로", " ")
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return cleaned or None
+    return cleaned.strip("'\"“”‘’ ,").strip() or None
 
 
 def _should_try_implicit_title_open(text: str) -> bool:
@@ -1909,16 +1909,29 @@ def _search_policy_briefing_titles(
     normalized_query = normalize_policy_briefing_title_key(query)
     if not normalized_query:
         return []
+    query_tokens = [token for token in re.split(r"[\s()/-]+", normalized_query) if len(token.strip()) >= 2]
+    compact_query = normalized_query.replace(" ", "")
+    if compact_query and compact_query not in query_tokens:
+        query_tokens.append(compact_query)
 
     matches: list[tuple[tuple[int, float], dict[str, Any]]] = []
     for item in catalog.iter_cached_items():
         normalized_title = normalize_policy_briefing_title_key(item.title)
         if not normalized_title:
             continue
+        compact_title = normalized_title.replace(" ", "")
         if normalized_query == normalized_title:
             rank = 0
         elif normalized_query in normalized_title:
             rank = 1
+        elif compact_query and compact_query in compact_title:
+            rank = 2
+        elif query_tokens:
+            matched = sum(1 for token in query_tokens if token in normalized_title or token in compact_title)
+            threshold = max(2, min(len(query_tokens), 3))
+            if matched < threshold:
+                continue
+            rank = 10 - min(matched, 9)
         else:
             continue
         approve_at = _approve_datetime(item.approve_date)
@@ -1967,12 +1980,19 @@ def _normalize_qc_command(
         return {"command_type": "generate_recent_jobs", "limit": int(_requested_recent_job_count(text) or 10)}
     if search_query:
         return {"command_type": "search_jobs", "query": search_query}
-    if title_query:
-        return {"command_type": "open_title", "title_query": title_query}
     if sample_id and (_wants_open_sample(text) or text.strip() == sample_id):
         return {"command_type": "open_sample", "sample_id": sample_id}
-    if news_item_id and (_wants_open_sample(text) or text.strip() == news_item_id or "job" in text.lower() or "열어줘" in text):
+    if news_item_id and (
+        _wants_open_sample(text)
+        or text.strip() == news_item_id
+        or "job" in text.lower()
+        or "열어줘" in text
+        or "korea.kr/briefing/pressreleaseview.do" in text.lower()
+        or "newsid=" in text.lower()
+    ):
         return {"command_type": "open_news_id", "news_id": news_item_id}
+    if title_query:
+        return {"command_type": "open_title", "title_query": title_query}
     if _wants_review_queue(text):
         return {"command_type": "review_queue"}
     if _wants_job_list(text):
