@@ -30,6 +30,54 @@ echo "target_sha=$(git -C "$DEPLOY_DIR" rev-parse HEAD)"
 echo "git_origin=$(git -C "$DEPLOY_DIR" remote get-url origin)"
 HOME_DIR="${HOME:-$(getent passwd $(id -u) | cut -d: -f6)}"
 
+ensure_converter_checkout() {
+  local converter_root="${GOV_MD_CONVERTER_ROOT:-$(cd "$DEPLOY_DIR/.." && pwd)/gov-md-converter}"
+  local parse_output
+  local repo_url=""
+  local repo_ref=""
+
+  if [ -z "${CONVERTER_SPEC:-}" ]; then
+    echo "converter_checkout=skipped_no_spec"
+    return
+  fi
+
+  parse_output="$(python3 - <<'PY' "${CONVERTER_SPEC}"
+import sys
+spec = sys.argv[1].strip()
+if spec.startswith("git+"):
+    spec = spec[4:]
+repo = spec
+ref = ""
+marker = ".git@"
+idx = spec.rfind(marker)
+if idx != -1:
+    repo = spec[: idx + 4]
+    ref = spec[idx + len(marker):]
+print(repo)
+print(ref)
+PY
+)"
+  repo_url="$(printf '%s\n' "$parse_output" | sed -n '1p')"
+  repo_ref="$(printf '%s\n' "$parse_output" | sed -n '2p')"
+  if [ -z "$repo_url" ]; then
+    echo "converter_checkout=skipped_parse_error"
+    return
+  fi
+
+  if [ ! -d "$converter_root/.git" ]; then
+    rm -rf "$converter_root"
+    git clone "$repo_url" "$converter_root"
+  fi
+  git -C "$converter_root" fetch --tags origin
+  if [ -n "$repo_ref" ]; then
+    git -C "$converter_root" checkout -f "$repo_ref"
+  else
+    git -C "$converter_root" checkout -f origin/main
+  fi
+  echo "converter_checkout_root=$converter_root"
+  echo "converter_checkout_ref=${repo_ref:-origin/main}"
+}
+
 upsert_env_value() {
   local env_file="$1"
   local key="$2"
@@ -250,6 +298,7 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
   COMPOSE_PATH="$DEPLOY_DIR/$COMPOSE_FILE"
   ENV_PATH="$(dirname "$COMPOSE_PATH")/.env"
   restart_tunnel_after_compose=0
+  ensure_converter_checkout
   if [ ! -f "$ENV_PATH" ]; then
     if docker inspect govpress-api >/dev/null 2>&1; then
       mkdir -p "$(dirname "$ENV_PATH")"
