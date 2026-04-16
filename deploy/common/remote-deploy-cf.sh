@@ -167,6 +167,26 @@ verify_dashboard_assets() {
   echo "dashboard_json=$json_path"
 }
 
+build_and_verify_dashboard_assets() {
+  local mode="$1"
+  local dashboard_root="$2"
+  if [ "$mode" = "compose" ]; then
+    if ! build_dashboard_assets_compose; then
+      echo "dashboard_build_status=failed"
+      return 0
+    fi
+  else
+    if ! build_dashboard_assets_baremetal; then
+      echo "dashboard_build_status=failed"
+      return 0
+    fi
+  fi
+  if ! verify_dashboard_assets "$dashboard_root"; then
+    echo "dashboard_verify_status=failed"
+    return 0
+  fi
+}
+
 cleanup_host_proxy_orphans() {
   docker rm -f govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
   echo "host_proxy_orphan_cleanup=1"
@@ -351,8 +371,7 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
   fi
   run_compose ps
   sleep 3
-  build_dashboard_assets_compose
-  verify_dashboard_assets "${GOVPRESS_QC_EXPORT_ROOT:-$DEPLOY_DIR/../gov-md-converter/exports/policy_briefing_qc}"
+  build_and_verify_dashboard_assets compose "${GOVPRESS_QC_EXPORT_ROOT:-$DEPLOY_DIR/../gov-md-converter/exports/policy_briefing_qc}"
 else
   export XDG_RUNTIME_DIR="/run/user/$(id -u)"
   ENV_PATH="$DEPLOY_DIR/deploy/vps/.env"
@@ -385,8 +404,7 @@ else
   fi
   systemctl --user restart "$SERVICE"
   sleep 3
-  build_dashboard_assets_baremetal
-  verify_dashboard_assets "${GOVPRESS_QC_EXPORT_ROOT:-$DEPLOY_DIR/../gov-md-converter/exports/policy_briefing_qc}"
+  build_and_verify_dashboard_assets baremetal "${GOVPRESS_QC_EXPORT_ROOT:-$DEPLOY_DIR/../gov-md-converter/exports/policy_briefing_qc}"
 fi
 
 # WSL rebuilds can take noticeably longer than VPS restarts.
