@@ -2009,6 +2009,7 @@ def _normalize_qc_command(
             "sample_id": sample_id,
             "user_text": text.strip(),
             "message_id": ctx.message_id,
+            "has_media_paths": bool(ctx.media_paths),
         }
     if _is_fix_message(text):
         return {"command_type": "run_fix", "sample_id": sample_id, "user_text": text}
@@ -2273,35 +2274,55 @@ def _execute_structured_qc_command(
         )
         return result
     if command_type == "upload_golden":
+        has_media_paths = bool(payload.get("has_media_paths"))
         media_path = _consume_latest_qc_media(
             state_root,
             sender_id=sender_id,
             message_id=str(payload.get("message_id") or "").strip() or message_id,
         )
-        if media_path is None:
-            media_path = next(iter(_find_recent_inbound_markdown()), None)
-        if media_path is None:
-            raise ValueError("최근 업로드된 golden markdown 파일을 찾지 못했습니다.")
-        upload_payload = _handle_golden_upload(
-            ctx=TelegramContext(sender_id=sender_id, message_id=message_id, media_paths=(media_path,)),
-            sender_id=sender_id,
-            sample=sample,
-            gov_md_root=gov_md_root,
-        )
-        user_text = str(payload.get("user_text") or "").strip()
-        fix_text = user_text if user_text and user_text != "golden.md 업로드" else _build_default_fix_message_after_golden(sample)
+        if media_path is not None:
+            upload_payload = _handle_golden_upload(
+                ctx=TelegramContext(sender_id=sender_id, message_id=message_id, media_paths=(media_path,)),
+                sender_id=sender_id,
+                sample=sample,
+                gov_md_root=gov_md_root,
+            )
+            if has_media_paths:
+                return upload_payload
+            user_text = str(payload.get("user_text") or "").strip()
+            fix_text = (
+                user_text
+                if user_text and user_text not in {"golden", "golden.md 업로드"}
+                else _build_default_fix_message_after_golden(sample)
+            )
+            fix_payload = _spawn_background_fix(
+                sender_id=sender_id,
+                message_id=message_id,
+                sample=sample,
+                user_text=fix_text,
+                export_root=export_root,
+                gov_md_root=gov_md_root,
+                qc_root=DEFAULT_QC_ROOT,
+                remote_qc_root=remote_qc_root,
+                state_root=state_root,
+            )
+            fix_payload["golden_upload"] = upload_payload
+            return fix_payload
+        golden_path = sample.sample_dir / "golden.md"
+        if not golden_path.exists():
+            raise ValueError("최근 업로드된 golden markdown 파일을 찾지 못했습니다. 파일을 먼저 보내고 `golden`을 다시 입력해주세요.")
         fix_payload = _spawn_background_fix(
             sender_id=sender_id,
             message_id=message_id,
             sample=sample,
-            user_text=fix_text,
+            user_text=_build_default_fix_message_after_golden(sample),
             export_root=export_root,
             gov_md_root=gov_md_root,
             qc_root=DEFAULT_QC_ROOT,
             remote_qc_root=remote_qc_root,
             state_root=state_root,
         )
-        fix_payload["golden_upload"] = upload_payload
+        fix_payload["used_existing_golden"] = True
         return fix_payload
     if command_type == "run_fix":
         return _spawn_background_fix(
@@ -4107,13 +4128,6 @@ def dispatch_telegram_message(
                 sample=sample,
                 file_keys=file_keys,
             )
-            if sample.sample_id.startswith("policy_briefing_"):
-                payload["telegram_notification"] = _send_policy_briefing_open_telegram(
-                    sample=sample,
-                    export_root=export_root,
-                    gov_md_root=gov_md_root,
-                    qc_root=DEFAULT_QC_ROOT,
-                )
         payload["ok"] = payload.get("ok", True)
         return payload
     if command == "qc-status":

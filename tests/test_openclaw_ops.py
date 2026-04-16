@@ -445,7 +445,7 @@ class OpenClawOpsTests(unittest.TestCase):
                 )
             self.assertEqual(opened["command"], "remote-qc-open")
             self.assertEqual(opened["sample_id"], "policy_briefing_2026_04_13_156754285")
-            self.assertTrue(opened["telegram_notification"]["ok"])
+            self.assertNotIn("telegram_notification", opened)
 
     def test_remote_qc_open_by_policy_briefing_title_exports_when_storage_misses(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -503,7 +503,7 @@ class OpenClawOpsTests(unittest.TestCase):
                 )
             self.assertEqual(opened["command"], "remote-qc-open")
             self.assertEqual(opened["sample_id"], "policy_briefing_2026_04_13_156700001")
-            self.assertTrue(opened["telegram_notification"]["ok"])
+            self.assertNotIn("telegram_notification", opened)
 
     def test_remote_qc_open_by_bare_policy_briefing_title(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -561,7 +561,7 @@ class OpenClawOpsTests(unittest.TestCase):
                 )
             self.assertEqual(opened["command"], "remote-qc-open")
             self.assertEqual(opened["sample_id"], "policy_briefing_2026_04_12_156754095")
-            self.assertTrue(opened["telegram_notification"]["ok"])
+            self.assertNotIn("telegram_notification", opened)
 
     def test_remote_qc_open_existing_policy_briefing_title_reuses_existing_sample(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -612,7 +612,7 @@ class OpenClawOpsTests(unittest.TestCase):
             self.assertEqual(opened["command"], "remote-qc-open")
             self.assertEqual(opened["sample_id"], "policy_briefing_2026_04_12_156754095")
             self.assertEqual(opened["refresh"]["command"][0], "skip-policy-briefing-refresh")
-            self.assertTrue(opened["telegram_notification"]["ok"])
+            self.assertNotIn("telegram_notification", opened)
             mocked_export.assert_not_called()
 
     def test_remote_qc_reopen_policy_briefing_sample_skips_refresh(self) -> None:
@@ -657,19 +657,19 @@ class OpenClawOpsTests(unittest.TestCase):
                 )
             self.assertEqual(opened["command"], "remote-qc-open")
             self.assertEqual(opened["refresh"]["command"][0], "skip-policy-briefing-refresh")
-            self.assertTrue(opened["telegram_notification"]["ok"])
+            self.assertNotIn("telegram_notification", opened)
 
-    def test_remote_qc_golden_text_uses_recent_inbound_markdown_when_attachment_path_is_missing(self) -> None:
+    def test_remote_qc_golden_text_uses_existing_golden_and_queues_fix(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             remote_root = Path(tmpdir) / "storage_batch"
             state_root = Path(tmpdir) / "state"
             gov_md_root = Path(tmpdir) / "gov-md"
-            media_root = Path(tmpdir) / "media" / "inbound"
             sample_dir = remote_root / "policy_briefing_2026_04_13_156754285"
             sample_dir.mkdir(parents=True)
             (sample_dir / "source.hwpx").write_bytes(b"PK\x03\x04fake")
             (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
             (sample_dir / "review.md").write_text("review", encoding="utf-8")
+            (sample_dir / "golden.md").write_text("# golden\n", encoding="utf-8")
             (sample_dir / "meta.json").write_text(
                 json.dumps({"sample_status": "scratch", "source_hwpx": "policy.hwpx"}, ensure_ascii=False),
                 encoding="utf-8",
@@ -680,12 +680,7 @@ class OpenClawOpsTests(unittest.TestCase):
                 json.dumps({"selected_sample_id": sample_dir.name}, ensure_ascii=False),
                 encoding="utf-8",
             )
-            media_root.mkdir(parents=True, exist_ok=True)
-            upload = media_root / "uploaded.md"
-            upload.write_text("# golden\n", encoding="utf-8")
-
-            with mock.patch("scripts.openclaw_ops.DEFAULT_OPENCLAW_MEDIA_INBOUND_ROOT", media_root), \
-                 mock.patch("scripts.openclaw_ops._rewrite_sample_review"), \
+            with mock.patch("scripts.openclaw_ops._rewrite_sample_review"), \
                  mock.patch(
                      "scripts.openclaw_ops._spawn_background_fix",
                      return_value={"command": "remote-qc-fix-queued", "ok": True},
@@ -701,8 +696,7 @@ class OpenClawOpsTests(unittest.TestCase):
                 )
 
             self.assertEqual(payload["command"], "remote-qc-fix-queued")
-            self.assertEqual((sample_dir / "golden.md").read_text(encoding="utf-8"), "# golden\n")
-            self.assertEqual(payload["golden_upload"]["uploaded_from"], str(upload))
+            self.assertTrue(payload["used_existing_golden"])
             mocked_fix.assert_called_once()
 
     def test_remote_qc_recent_job_generation_uses_storage_pipeline(self) -> None:
@@ -1066,7 +1060,7 @@ class OpenClawOpsTests(unittest.TestCase):
                 )
             self.assertEqual(payload["command"], "remote-qc-fix-queued")
 
-    def test_remote_qc_golden_upload_triggers_fix_flow(self) -> None:
+    def test_remote_qc_golden_upload_only_saves_golden(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             remote_root = Path(tmpdir) / "storage_batch"
             state_root = Path(tmpdir) / "state"
@@ -1097,22 +1091,9 @@ class OpenClawOpsTests(unittest.TestCase):
                     }
                 raise AssertionError("unexpected command")
 
-            def fake_codex_stream(command, *, cwd, on_update=None):
-                output_index = command.index("-o") + 1
-                Path(command[output_index]).write_text(
-                    "ground rule\nscope\nimplementation result\nremaining diff",
-                    encoding="utf-8",
-                )
-                return {
-                    "returncode": 0,
-                    "stdout": '{"type":"thread.started","thread_id":"thread-123"}',
-                    "stderr": "",
-                    "command": command,
-                }
-
             with mock.patch("scripts.openclaw_ops._rewrite_sample_review") as mocked_rewrite, \
                  mock.patch("scripts.openclaw_ops._run_subprocess", side_effect=fake_run), \
-                 mock.patch("scripts.openclaw_ops._run_codex_with_streaming", side_effect=fake_codex_stream):
+                 mock.patch("scripts.openclaw_ops._spawn_background_fix") as mocked_fix:
                 payload = dispatch_telegram_message(
                     f'[media attached: {uploaded}]\nConversation info (untrusted metadata): {{"message_id":"14","sender_id":"6475698942"}}',
                     chat_scope="dm",
@@ -1122,11 +1103,10 @@ class OpenClawOpsTests(unittest.TestCase):
                     remote_qc_root=remote_root,
                     state_root=state_root,
                 )
-            self.assertEqual(payload["command"], "remote-qc-fix-queued")
-            self.assertEqual(payload["golden_upload"]["command"], "remote-qc-upload-golden")
+            self.assertEqual(payload["command"], "remote-qc-upload-golden")
             self.assertEqual((sample_dir / "golden.md").read_text(encoding="utf-8"), "# golden")
             mocked_rewrite.assert_called_once()
-            self.assertIn("pid", payload)
+            mocked_fix.assert_not_called()
 
     def test_remote_qc_pass_uses_promote(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
