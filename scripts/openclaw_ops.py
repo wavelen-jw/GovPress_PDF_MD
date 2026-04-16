@@ -185,6 +185,9 @@ def _parse_sender_id(message: str) -> str | None:
         if sender_id:
             return sender_id
     match = re.search(r'"sender_id"\s*:\s*"([^"]+)"', message)
+    if match:
+        return match.group(1)
+    match = re.search(r"\[Telegram .*?\bid:(\d+)\b", message)
     return match.group(1) if match else None
 
 
@@ -238,6 +241,10 @@ def _extract_media_paths(message: str) -> tuple[Path, ...]:
     matches = re.findall(r"\[media attached:\s*([^\]\n|]+?)(?:\s+\([^)]+\))?(?:\s*\|\s*[^\]]+)?\]", message)
     paths: list[Path] = []
     for raw in matches:
+        candidate = Path(raw.strip())
+        paths.append(candidate)
+    file_matches = re.findall(r'<file\s+name="([^"]+)"(?:\s+mime="[^"]+")?\s*>', message)
+    for raw in file_matches:
         candidate = Path(raw.strip())
         paths.append(candidate)
     return tuple(paths)
@@ -1835,7 +1842,10 @@ def _normalize_message(message: str) -> str:
     cleaned = re.sub(r"Sender \(untrusted metadata\):\s*```json.*?```", "", cleaned, flags=re.S)
     cleaned = re.sub(r'Conversation info \(untrusted metadata\):\s*\{.*?\}', "", cleaned, flags=re.S)
     cleaned = re.sub(r'Sender \(untrusted metadata\):\s*\{.*?\}', "", cleaned, flags=re.S)
+    cleaned = re.sub(r"\[Telegram .*?\]", "", cleaned)
     cleaned = re.sub(r"\[media attached:.*?\]", "", cleaned, flags=re.S)
+    cleaned = re.sub(r"<media:[^>]+>", "", cleaned)
+    cleaned = re.sub(r'<file\s+name="[^"]+"(?:\s+mime="[^"]+")?\s*>', "", cleaned)
     cleaned = re.sub(r"To send an image back,.*", "", cleaned)
     return cleaned.strip()
 
@@ -2377,8 +2387,6 @@ def _execute_structured_qc_command(
         if not has_media_paths:
             raise ValueError("golden.md 파일을 첨부하면 바로 수정 큐로 진행합니다.")
         effective_message_id = str(payload.get("message_id") or "").strip() or message_id
-        if not effective_message_id:
-            raise ValueError("현재 메시지의 첨부 파일 식별자가 없습니다. md 파일을 다시 첨부해주세요.")
         media_path = _consume_latest_qc_media(
             state_root,
             sender_id=sender_id,

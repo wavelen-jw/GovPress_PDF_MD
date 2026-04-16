@@ -259,6 +259,10 @@ class OpenClawOpsTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, msg=result.stderr)
             self.assertEqual(result.stdout.strip(), "")
 
+    def test_parse_sender_id_supports_openclaw_telegram_wrapper_header(self) -> None:
+        message = '[Telegram 준우 정 (@wavelen2024) id:6475698942 +1m Thu 2026-04-16 23:28 GMT+9] <media:document>\n\n<file name="answer.md" mime="text/markdown">'
+        self.assertEqual(_parse_sender_id(message), "6475698942")
+
     def test_cli_qc_failures_explains_review_queue_when_regression_is_clean(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -1333,6 +1337,56 @@ class OpenClawOpsTests(unittest.TestCase):
                 )
             self.assertEqual(payload["command"], "remote-qc-fix-queued")
             self.assertEqual((sample_dir / "golden.md").read_text(encoding="utf-8"), "# golden inbound")
+            mocked_rewrite.assert_called_once()
+            mocked_fix.assert_called_once()
+
+    def test_remote_qc_markdown_wrapper_attachment_without_metadata_queues_fix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "storage_batch"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            gov_md_root.mkdir(parents=True)
+            self._init_git_repo(gov_md_root)
+            sample_dir = remote_root / "policy_briefing_2026_04_15_156755814"
+            sample_dir.mkdir(parents=True)
+            (sample_dir / "source.hwpx").write_bytes(b"hwpx")
+            (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
+            (sample_dir / "review.md").write_text("review", encoding="utf-8")
+            (sample_dir / "meta.json").write_text(json.dumps({"sample_status": "scratch"}, ensure_ascii=False), encoding="utf-8")
+            (state_root / "telegram_qc_sessions").mkdir(parents=True, exist_ok=True)
+            (state_root / "telegram_qc_sessions" / "6475698942.json").write_text(
+                json.dumps({"selected_sample_id": sample_dir.name, "selected_sample_dir": str(sample_dir)}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            uploaded = Path(tmpdir) / "260415_upload.md"
+            uploaded.write_text("# golden wrapper\n", encoding="utf-8")
+
+            def fake_run(command, *, cwd, extra_env=None):
+                if command[:3] == ["openclaw", "message", "send"]:
+                    return {
+                        "returncode": 0,
+                        "stdout": '{"payload":{"ok":true,"messageId":"m1"}}',
+                        "stderr": "",
+                        "command": command,
+                    }
+                raise AssertionError("unexpected command")
+
+            with mock.patch("scripts.openclaw_ops._find_recent_inbound_markdown", return_value=(uploaded,)), \
+                 mock.patch("scripts.openclaw_ops._rewrite_sample_review") as mocked_rewrite, \
+                 mock.patch("scripts.openclaw_ops._run_subprocess", side_effect=fake_run), \
+                 mock.patch("scripts.openclaw_ops._spawn_background_fix") as mocked_fix:
+                mocked_fix.return_value = {"command": "remote-qc-fix-queued", "ok": True, "pid": 123}
+                payload = dispatch_telegram_message(
+                    '[Telegram 준우 정 (@wavelen2024) id:6475698942 +1m Thu 2026-04-16 23:28 GMT+9] <media:document>\n\n<file name="260415_upload.md" mime="text/markdown">',
+                    chat_scope="dm",
+                    export_root=Path(tmpdir),
+                    gov_md_root=gov_md_root,
+                    qc_root=Path(tmpdir),
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
+            self.assertEqual(payload["command"], "remote-qc-fix-queued")
+            self.assertEqual((sample_dir / "golden.md").read_text(encoding="utf-8"), "# golden wrapper\n")
             mocked_rewrite.assert_called_once()
             mocked_fix.assert_called_once()
 
