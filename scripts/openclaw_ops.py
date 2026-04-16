@@ -193,6 +193,10 @@ def _parse_message_id(message: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _is_markdown_attachment(path: Path) -> bool:
+    return path.suffix.lower() in {".md", ".markdown"}
+
+
 def _extract_media_paths(message: str) -> tuple[Path, ...]:
     matches = re.findall(r"\[media attached:\s*([^\]\n|]+?)(?:\s+\([^)]+\))?(?:\s*\|\s*[^\]]+)?\]", message)
     paths: list[Path] = []
@@ -245,7 +249,7 @@ def build_telegram_context(message: str, *, state_root: Path | None = None) -> T
         if candidate.exists():
             resolved_media_paths.append(candidate)
             continue
-        if candidate.suffix.lower() == ".md":
+        if _is_markdown_attachment(candidate):
             fallback = _find_recent_inbound_markdown()
             if fallback:
                 resolved_media_paths.append(fallback[0])
@@ -1867,7 +1871,8 @@ def _is_fix_message(text: str) -> bool:
 
 
 def _wants_golden_upload_fix(text: str) -> bool:
-    return False
+    normalized = text.strip().lower()
+    return normalized in {"golden", "golden 시작", "golden으로 시작", "golden start"}
 
 
 def _wants_job_list(text: str) -> bool:
@@ -2057,7 +2062,7 @@ def _normalize_qc_command(
         return {"command_type": "pass_sample", "sample_id": sample_id}
     if _is_defer_message(text) or _wants_current_job_defer(text):
         return {"command_type": "defer_sample", "sample_id": sample_id}
-    has_markdown_media = any(path.suffix.lower() == ".md" for path in ctx.media_paths)
+    has_markdown_media = any(_is_markdown_attachment(path) for path in ctx.media_paths)
     if has_markdown_media:
         return {
             "command_type": "upload_golden_and_fix",
@@ -2066,6 +2071,8 @@ def _normalize_qc_command(
             "message_id": ctx.message_id,
             "has_media_paths": has_markdown_media,
         }
+    if _wants_golden_upload_fix(text):
+        return {"command_type": "run_existing_golden_fix", "sample_id": sample_id}
     if _is_fix_message(text):
         return {"command_type": "run_fix", "sample_id": sample_id, "user_text": text}
     if file_keys:
@@ -2362,6 +2369,23 @@ def _execute_structured_qc_command(
             state_root=state_root,
         )
         fix_payload["golden_upload"] = upload_payload
+        return fix_payload
+    if command_type == "run_existing_golden_fix":
+        golden_path = sample.sample_dir / "golden.md"
+        if not golden_path.exists():
+            raise ValueError("현재 선택된 job에 golden.md가 없습니다. md 파일을 첨부해서 먼저 golden을 업로드해주세요.")
+        fix_payload = _spawn_background_fix(
+            sender_id=sender_id,
+            message_id=message_id,
+            sample=sample,
+            user_text=_build_default_fix_message_after_golden(sample),
+            export_root=export_root,
+            gov_md_root=gov_md_root,
+            qc_root=DEFAULT_QC_ROOT,
+            remote_qc_root=remote_qc_root,
+            state_root=state_root,
+        )
+        fix_payload["used_existing_golden"] = True
         return fix_payload
     if command_type == "run_fix":
         return _spawn_background_fix(
@@ -2904,7 +2928,7 @@ def _handle_golden_upload(
     sample: SampleRecord,
     gov_md_root: Path,
 ) -> dict[str, Any]:
-    media_paths = [path for path in ctx.media_paths if path.suffix.lower() == ".md"]
+    media_paths = [path for path in ctx.media_paths if _is_markdown_attachment(path)]
     if not media_paths:
         raise ValueError("golden 업로드는 markdown 파일(.md)만 지원합니다.")
     uploaded = media_paths[0]

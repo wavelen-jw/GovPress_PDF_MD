@@ -690,11 +690,13 @@ class OpenClawOpsTests(unittest.TestCase):
             self.assertEqual(opened["refresh"]["command"][0], "skip-policy-briefing-refresh")
             self.assertNotIn("telegram_notification", opened)
 
-    def test_remote_qc_golden_text_is_rejected_in_strict_mode(self) -> None:
+    def test_remote_qc_golden_text_starts_fix_when_existing_golden_is_present(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             remote_root = Path(tmpdir) / "storage_batch"
             state_root = Path(tmpdir) / "state"
             gov_md_root = Path(tmpdir) / "gov-md"
+            gov_md_root.mkdir(parents=True)
+            self._init_git_repo(gov_md_root)
             sample_dir = remote_root / "policy_briefing_2026_04_13_156754285"
             sample_dir.mkdir(parents=True)
             (sample_dir / "source.hwpx").write_bytes(b"PK\x03\x04fake")
@@ -711,18 +713,52 @@ class OpenClawOpsTests(unittest.TestCase):
                 json.dumps({"selected_sample_id": sample_dir.name}, ensure_ascii=False),
                 encoding="utf-8",
             )
-            payload = dispatch_telegram_message(
-                "golden",
-                chat_scope="dm",
-                export_root=Path(tmpdir),
-                gov_md_root=gov_md_root,
-                qc_root=Path(tmpdir),
-                remote_qc_root=remote_root,
-                state_root=state_root,
-            )
+            with mock.patch("scripts.openclaw_ops._spawn_background_fix") as mocked_fix:
+                mocked_fix.return_value = {"command": "remote-qc-fix-queued", "ok": True, "pid": 123}
+                payload = dispatch_telegram_message(
+                    "golden",
+                    chat_scope="dm",
+                    export_root=Path(tmpdir),
+                    gov_md_root=gov_md_root,
+                    qc_root=Path(tmpdir),
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
 
-            self.assertEqual(payload["command"], "remote-qc-unsupported")
-            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["command"], "remote-qc-fix-queued")
+            self.assertTrue(payload["used_existing_golden"])
+            mocked_fix.assert_called_once()
+
+    def test_remote_qc_golden_text_requires_existing_golden(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "storage_batch"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            sample_dir = remote_root / "policy_briefing_2026_04_13_156754285"
+            sample_dir.mkdir(parents=True)
+            (sample_dir / "source.hwpx").write_bytes(b"PK\x03\x04fake")
+            (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
+            (sample_dir / "review.md").write_text("review", encoding="utf-8")
+            (sample_dir / "meta.json").write_text(
+                json.dumps({"sample_status": "scratch", "source_hwpx": "policy.hwpx"}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            session_dir = state_root / "telegram_qc_sessions"
+            session_dir.mkdir(parents=True, exist_ok=True)
+            (session_dir / "6475698942.json").write_text(
+                json.dumps({"selected_sample_id": sample_dir.name}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "golden.md가 없습니다"):
+                dispatch_telegram_message(
+                    "golden",
+                    chat_scope="dm",
+                    export_root=Path(tmpdir),
+                    gov_md_root=gov_md_root,
+                    qc_root=Path(tmpdir),
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
 
     def test_remote_qc_recent_job_generation_uses_storage_pipeline(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1172,6 +1208,55 @@ class OpenClawOpsTests(unittest.TestCase):
             self.assertEqual(payload["command"], "remote-qc-fix-queued")
             self.assertEqual(payload["golden_upload"]["command"], "remote-qc-upload-golden")
             self.assertEqual((sample_dir / "golden.md").read_text(encoding="utf-8"), "# golden")
+            mocked_rewrite.assert_called_once()
+            mocked_fix.assert_called_once()
+
+    def test_remote_qc_markdown_named_attachment_also_triggers_fix_flow(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_root = Path(tmpdir) / "storage_batch"
+            state_root = Path(tmpdir) / "state"
+            gov_md_root = Path(tmpdir) / "gov-md"
+            gov_md_root.mkdir(parents=True)
+            self._init_git_repo(gov_md_root)
+            sample_dir = remote_root / "storage_job_abc123"
+            sample_dir.mkdir(parents=True)
+            (sample_dir / "source.hwpx").write_bytes(b"hwpx")
+            (sample_dir / "rendered.md").write_text("rendered", encoding="utf-8")
+            (sample_dir / "review.md").write_text("review", encoding="utf-8")
+            (sample_dir / "meta.json").write_text(json.dumps({"sample_status": "scratch"}, ensure_ascii=False), encoding="utf-8")
+            (state_root / "telegram_qc_sessions").mkdir(parents=True, exist_ok=True)
+            (state_root / "telegram_qc_sessions" / "6475698942.json").write_text(
+                json.dumps({"selected_sample_id": "storage_job_abc123", "selected_sample_dir": str(sample_dir)}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            uploaded = Path(tmpdir) / "compare-result.markdown"
+            uploaded.write_text("# golden alt", encoding="utf-8")
+
+            def fake_run(command, *, cwd, extra_env=None):
+                if command[:3] == ["openclaw", "message", "send"]:
+                    return {
+                        "returncode": 0,
+                        "stdout": '{"payload":{"ok":true,"messageId":"m1"}}',
+                        "stderr": "",
+                        "command": command,
+                    }
+                raise AssertionError("unexpected command")
+
+            with mock.patch("scripts.openclaw_ops._rewrite_sample_review") as mocked_rewrite, \
+                 mock.patch("scripts.openclaw_ops._run_subprocess", side_effect=fake_run), \
+                 mock.patch("scripts.openclaw_ops._spawn_background_fix") as mocked_fix:
+                mocked_fix.return_value = {"command": "remote-qc-fix-queued", "ok": True, "pid": 123}
+                payload = dispatch_telegram_message(
+                    f'[media attached: {uploaded}]\nConversation info (untrusted metadata): {{"message_id":"16","sender_id":"6475698942"}}',
+                    chat_scope="dm",
+                    export_root=Path(tmpdir),
+                    gov_md_root=gov_md_root,
+                    qc_root=Path(tmpdir),
+                    remote_qc_root=remote_root,
+                    state_root=state_root,
+                )
+            self.assertEqual(payload["command"], "remote-qc-fix-queued")
+            self.assertEqual((sample_dir / "golden.md").read_text(encoding="utf-8"), "# golden alt")
             mocked_rewrite.assert_called_once()
             mocked_fix.assert_called_once()
 
