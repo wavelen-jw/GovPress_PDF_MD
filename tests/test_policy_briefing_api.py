@@ -87,6 +87,9 @@ class PolicyBriefingClientStub:
             raise TimeoutError("upstream policy briefing timeout")
         return list(self.items_by_date.get(target_date, []))
 
+    def list_items(self, target_date: date) -> list[PolicyBriefingItem]:
+        return self.list_today_hwpx_items(target_date)
+
     def download_primary_hwpx(self, news_item_id: str, *, target_date: date) -> DownloadedPolicyBriefingFile:
         item = next(entry for entry in self.items if entry.news_item_id == news_item_id)
         return self.download_item_hwpx(item)
@@ -376,7 +379,7 @@ class PolicyBriefingApiTests(unittest.TestCase):
 
         self.assertEqual(injected, "# 제목\n\n행정안전부 보도자료 /\n보도시점: 2026. 4. 9.\n")
 
-    def test_import_policy_briefing_rejects_non_zip_hwpx_payload(self) -> None:
+    def test_import_policy_briefing_renders_notice_for_non_zip_hwpx_payload(self) -> None:
         class NonZipClientStub(PolicyBriefingClientStub):
             def download_item_hwpx(self, item: PolicyBriefingItem) -> DownloadedPolicyBriefingFile:
                 downloaded = super().download_item_hwpx(item)
@@ -393,8 +396,56 @@ class PolicyBriefingApiTests(unittest.TestCase):
             headers=self.headers,
         )
 
-        self.assertEqual(response.status_code, 502)
-        self.assertIn("실제 파일 형식이 HWPX(zip)", response.json()["detail"])
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        result_response = client.get(
+            f"/v1/jobs/{payload['job_id']}/result",
+            headers={**self.headers, "X-Edit-Token": payload["edit_token"]},
+        )
+        self.assertEqual(result_response.status_code, 200)
+        self.assertIn("국정브리핑에 HWPX 파일이 없습니다.", result_response.json()["html_preview"])
+        self.assertIn("실제로는 HWP 형식", result_response.json()["html_preview"])
+
+    def test_import_policy_briefing_renders_notice_when_hwpx_attachment_is_missing(self) -> None:
+        class NoHwpxClientStub(PolicyBriefingClientStub):
+            def __init__(self) -> None:
+                super().__init__()
+                self.items = [
+                    replace(
+                        self.items[0],
+                        attachments=(
+                            PolicyBriefingAttachment(
+                                file_name="today-briefing.pdf",
+                                file_url="https://example.test/files/today-briefing.pdf",
+                            ),
+                        ),
+                    )
+                ]
+                self.items_by_date[date(2026, 4, 9)] = list(self.items)
+
+            def download_item_hwpx(self, item: PolicyBriefingItem) -> DownloadedPolicyBriefingFile:
+                raise ValueError("HWPX 첨부파일이 없는 기사입니다.")
+
+        app = create_app(Path(self.temp_dir.name), policy_briefing_client=NoHwpxClientStub())
+        client = TestClient(app)
+        self.addCleanup(client.close)
+        self.addCleanup(app.state.worker.stop)
+
+        response = client.post(
+            "/v1/policy-briefings/import",
+            json={"news_item_id": "156700001", "date": "2026-04-09"},
+            headers=self.headers,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        result_response = client.get(
+            f"/v1/jobs/{payload['job_id']}/result",
+            headers={**self.headers, "X-Edit-Token": payload["edit_token"]},
+        )
+        self.assertEqual(result_response.status_code, 200)
+        self.assertIn("국정브리핑에 HWPX 파일이 없습니다.", result_response.json()["html_preview"])
+        self.assertIn("변환 가능한 HWPX 원문이 없습니다.", result_response.json()["html_preview"])
 
     def test_import_policy_briefing_maps_timeout_to_provider_api_message(self) -> None:
         class TimeoutClientStub(PolicyBriefingClientStub):

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from html import unescape
+from html import escape, unescape
 import json
 from pathlib import Path
 import re
@@ -284,7 +284,7 @@ class PolicyBriefingCatalog:
         stale_reason: str | None = None
         if should_refresh:
             try:
-                fetched_items = self._client.list_today_hwpx_items(target_date)
+                fetched_items = self._client.list_items(target_date)
             except Exception as exc:
                 if not store.get("items"):
                     raise
@@ -411,10 +411,11 @@ class PolicyBriefingCache:
         title: str | None,
         department: str | None,
         original_content: bytes,
+        file_name: str | None = None,
     ) -> PolicyBriefingCachedDocument:
         cached = PolicyBriefingCachedDocument(
             news_item_id=item.news_item_id,
-            file_name=item.primary_hwpx.file_name if item.primary_hwpx else "",
+            file_name=file_name or (item.primary_hwpx.file_name if item.primary_hwpx else ""),
             markdown_text=markdown_text,
             markdown_html=markdown_html,
             html_preview_text=html_preview_text,
@@ -439,13 +440,63 @@ class PolicyBriefingCache:
         self._save_index(index)
         return cached
 
+    def _build_missing_hwpx_notice(self, item: PolicyBriefingItem, *, file_name: str, detail: str) -> PolicyBriefingCachedDocument:
+        title = item.title.strip() or file_name
+        department = item.department.strip() or None
+        message = "국정브리핑에 HWPX 파일이 없습니다."
+        description = "제공기관 첨부가 HWP 형식이거나 HWPX가 제공되지 않아 자동 변환을 진행할 수 없습니다."
+        detail_line = detail.strip()
+        markdown_lines = [
+            f"# {title}",
+            "",
+            f"> {message}",
+            f"> {description}",
+        ]
+        if detail_line:
+            markdown_lines.append(f"> {detail_line}")
+        markdown = "\n".join(markdown_lines).strip() + "\n"
+        preview_html = "\n".join(
+            [
+                '<div style="min-height:68vh;display:flex;align-items:center;justify-content:center;padding:24px;">',
+                '<div style="max-width:720px;width:100%;text-align:center;border:1px solid #d8d8d8;border-radius:18px;padding:40px 28px;background:#fff;">',
+                f'<div style="font-size:30px;font-weight:700;line-height:1.35;color:#161616;margin-bottom:14px;">{escape(message)}</div>',
+                f'<div style="font-size:18px;line-height:1.7;color:#424242;margin-bottom:10px;">{escape(description)}</div>',
+                (f'<div style="font-size:15px;line-height:1.6;color:#6b6b6b;">{escape(detail_line)}</div>' if detail_line else ""),
+                "</div>",
+                "</div>",
+            ]
+        )
+        return self.save(
+            item=item,
+            file_name=file_name,
+            markdown_text=markdown,
+            markdown_html=markdown,
+            html_preview_text=preview_html,
+            html_preview_html=preview_html,
+            title=title,
+            department=department,
+            original_content=b"",
+        )
+
     def warm_item(self, item: PolicyBriefingItem) -> PolicyBriefingCachedDocument:
         cached = self.get(item.news_item_id)
         if cached is not None and cached.original_content is not None:
             return cached
-        downloaded = self._client.download_item_hwpx(item)
+        try:
+            downloaded = self._client.download_item_hwpx(item)
+        except ValueError:
+            fallback_name = item.primary_hwpx.file_name if item.primary_hwpx else (item.primary_pdf.file_name if item.primary_pdf else f"{item.title}.hwpx")
+            return self._build_missing_hwpx_notice(
+                item,
+                file_name=fallback_name,
+                detail="국정브리핑 제공 첨부에 변환 가능한 HWPX 원문이 없습니다.",
+            )
         if not downloaded.is_zip_container:
-            raise ValueError("첨부파일 확장자는 .hwpx 이지만 실제 파일 형식이 HWPX(zip) 가 아닙니다.")
+            return self._build_missing_hwpx_notice(
+                item,
+                file_name=downloaded.attachment.file_name,
+                detail="국정브리핑 첨부는 .hwpx 확장자이지만 실제로는 HWP 형식입니다.",
+            )
         if cached is not None:
             self._save_original_content(item.news_item_id, cached.file_name, downloaded.content)
             return PolicyBriefingCachedDocument(
