@@ -146,7 +146,7 @@ jobs:
         run: |
           set -euo pipefail
           KEY_FILE=~/.ssh/deploy_key
-          SSH_BASE_OPTS=(-T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes)
+          SSH_BASE_OPTS=(-T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes -o ControlMaster=no -o ControlPath=none -o ConnectionAttempts=3 -o ConnectTimeout=20)
           preflight_exit=1
           for attempt in 1 2 3 4; do
             set +e
@@ -154,7 +154,6 @@ jobs:
             preflight_exit=$?
             set -e
             if [ "$preflight_exit" -eq 0 ]; then
-              ssh -O check -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes "$USER@$SSH_HOST" >> ssh-preflight.log 2>&1 || true
               break
             fi
             if ! grep -Eqi 'websocket: bad handshake|proxy command failed|connection reset|connection closed|kex_exchange_identification|timed out|broken pipe' ssh-preflight.log; then
@@ -205,10 +204,10 @@ jobs:
         run: |
           set -euo pipefail
           KEY_FILE=~/.ssh/deploy_key
-          SSH_BASE_OPTS=(-T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes)
-          # CF access tcp on localhost can occasionally reset a reused multiplexed
-          # control socket. Polling/fetching are more stable on fresh sessions.
-          SSH_FRESH_OPTS=(-T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes -o ControlMaster=no -o ControlPath=none -o ConnectionAttempts=3 -o ConnectTimeout=20)
+          # CF access tcp on localhost can occasionally reset or stall reused
+          # multiplexed SSH sessions. Use fresh sessions for launch/poll/fetch.
+          SSH_BASE_OPTS=(-T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes -o ControlMaster=no -o ControlPath=none -o ConnectionAttempts=3 -o ConnectTimeout=20)
+          SSH_FRESH_OPTS=("${SSH_BASE_OPTS[@]}")
           LOCAL_SCRIPT=deploy/common/remote-deploy-cf.sh
           REMOTE_DIR="/tmp/govpress-remote-deploy-${GITHUB_RUN_ID:-manual}"
           REMOTE_PATH="${REMOTE_DIR}/remote-deploy.sh"
