@@ -21,6 +21,7 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  CLOUDFLARE_WEB_ANALYTICS_SNIPPET: "<!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{\"token\": \"4ed8f833f5354d4d8b630744932bcf98\"}'></script><!-- End Cloudflare Web Analytics -->"
 
 jobs:
   build:
@@ -96,6 +97,26 @@ jobs:
           cp artifacts/policy_briefing_benchmark/corpus_latest100/pdfs/156754095.pdf mobile/dist/comparison-goilyuga/downloads/156754095.pdf
           cp artifacts/policy_briefing_benchmark/corpus_latest100/prediction/readhim/markdown/156754095.md mobile/dist/comparison-goilyuga/downloads/readhim-156754095.md
           cp artifacts/policy_briefing_benchmark/corpus_latest100/prediction/opendataloader/markdown/156754095.md mobile/dist/comparison-goilyuga/downloads/opendataloader-156754095.md
+
+      - name: Inject Cloudflare Web Analytics snippet
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          snippet = os.environ["CLOUDFLARE_WEB_ANALYTICS_SNIPPET"]
+          root = Path("mobile/dist")
+          for path in root.rglob("*.html"):
+              text = path.read_text(encoding="utf-8")
+              if "static.cloudflareinsights.com/beacon.min.js" in text:
+                  continue
+              if "</body>" in text:
+                  text = text.replace("</body>", f"{snippet}\n</body>")
+              else:
+                  text = f"{text}\n{snippet}\n"
+              path.write_text(text, encoding="utf-8")
+              print(path)
+          PY
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
