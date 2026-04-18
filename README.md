@@ -53,9 +53,9 @@
 ## 참고
 
 - 변환 결과는 초안입니다. 공개 전에는 제목, 표, 목록, 숫자, 링크를 한 번 더 확인하는 것이 좋습니다.
-- 정책브리핑 목록은 제공기관 API 상태에 따라 지연되거나 실패할 수 있습니다.
 - 정책브리핑 목록 기능은 공공데이터포털(`data.go.kr`)의 `pressReleaseService` Open API를 사용합니다.
-- 이 서비스의 개발과 개선 과정에는 AI 도구가 활용되었습니다.
+- PDF 변환 과정에서는 [OpenDataLoader PDF](https://github.com/opendataloader-project/opendataloader-pdf)를 PDF → JSON 추출에 활용합니다.
+- 이 서비스의 개발과 개선 과정에는 생성형 AI가 활용되었습니다.
 
 ## 라이선스
 
