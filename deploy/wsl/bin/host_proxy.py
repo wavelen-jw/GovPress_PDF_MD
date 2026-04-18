@@ -24,9 +24,23 @@ HOP_BY_HOP_HEADERS = {
     "upgrade",
 }
 
+CORS_RESPONSE_HEADERS = {
+    "access-control-allow-origin",
+    "access-control-allow-methods",
+    "access-control-allow-headers",
+    "access-control-allow-credentials",
+    "access-control-expose-headers",
+    "access-control-max-age",
+}
+
 
 class ProxyHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+
+    def _send_cors_headers(self) -> None:
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, HEAD, POST, PATCH, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-API-Key, X-Admin-Key, X-Edit-Token")
 
     def do_GET(self) -> None:
         if self.path == "/health":
@@ -50,6 +64,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self._proxy()
 
     def do_OPTIONS(self) -> None:
+        if self.path == "/health" or self.path.startswith("/v1/"):
+            self.send_response(204, "No Content")
+            self._send_cors_headers()
+            self.end_headers()
+            return
         self._proxy()
 
     def _health(self, *, include_body: bool) -> None:
@@ -57,6 +76,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.send_response(200, "OK")
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
+        self._send_cors_headers()
         self.end_headers()
         if payload:
             self.wfile.write(payload)
@@ -90,10 +110,12 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
         self.send_response(upstream_response.status, upstream_response.reason)
         for key, value in upstream_response.getheaders():
-            if key.lower() in HOP_BY_HOP_HEADERS:
+            lower = key.lower()
+            if lower in HOP_BY_HOP_HEADERS or lower in CORS_RESPONSE_HEADERS:
                 continue
             self.send_header(key, value)
         self.send_header("Content-Length", str(len(payload)))
+        self._send_cors_headers()
         self.end_headers()
         if self.command != "HEAD" and payload:
             self.wfile.write(payload)

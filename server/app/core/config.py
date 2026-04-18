@@ -8,6 +8,17 @@ DEFAULT_POLICY_BRIEFING_SERVICE_KEY = (
     "QBvXfTPVvBtw48ic0JvU5iKcvMHFDRZ5Svr/zyzqpUhl+VsJP8vr2uFnX0+XmgqCpHS9sXbI6TYugGmwAvEl8w=="
 )
 
+DEFAULT_CORS_ALLOW_ORIGINS = [
+    "https://govpress.cloud",
+    "https://www.govpress.cloud",
+    "https://ai.govpress.cloud",
+    "https://wavelen-jw.github.io",
+    "http://localhost:19006",
+    "http://127.0.0.1:19006",
+    "http://localhost:8013",
+    "http://127.0.0.1:8013",
+]
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -25,7 +36,7 @@ class Settings:
 
 def _parse_origins(raw: str | None) -> list[str]:
     if not raw:
-        return []
+        return list(DEFAULT_CORS_ALLOW_ORIGINS)
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 

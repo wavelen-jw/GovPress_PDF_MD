@@ -100,10 +100,10 @@ def create_app(
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_allow_origins,
+        allow_origins=["*"],
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type", "X-API-Key", "X-Admin-Key", "X-Edit-Token"],
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     auth_dependency = partial(verify_api_key, settings)
     admin_auth_dependency = partial(verify_admin_api_key, settings)
