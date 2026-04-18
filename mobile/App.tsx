@@ -1180,9 +1180,9 @@ export default function App(): React.JSX.Element {
       !wantsEditor &&
       !queryIntent &&
       !pendingAction &&
-      /^\/GovPress_PDF_MD\/app\/?$/.test(window.location.pathname)
+      /^\/(?:GovPress_PDF_MD\/)?app\/?$/.test(window.location.pathname)
     ) {
-      window.location.replace("/GovPress_PDF_MD/landing.html");
+      window.location.replace(new URL("../landing.html", window.location.href).toString());
       return;
     }
 

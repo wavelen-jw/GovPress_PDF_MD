@@ -20,12 +20,22 @@ export const SERVER_PRESETS = [
 
 export const PRIMARY_SERVER_KEY = "serverW" as const;
 
+const HOSTED_WEB_HOSTNAMES = new Set([
+  "govpress.cloud",
+  "www.govpress.cloud",
+  "ai.govpress.cloud",
+]);
+
 export function primaryServerUrl(): string {
   return SERVER_PRESETS.find((preset) => preset.key === PRIMARY_SERVER_KEY)?.url || SERVER_PRESETS[0].url;
 }
 
 export function isHostedWeb(): boolean {
-  return Platform.OS === "web" && typeof window !== "undefined" && window.location.hostname.endsWith("github.io");
+  return (
+    Platform.OS === "web" &&
+    typeof window !== "undefined" &&
+    (window.location.hostname.endsWith("github.io") || HOSTED_WEB_HOSTNAMES.has(window.location.hostname))
+  );
 }
 
 export function defaultBaseUrl(): string {

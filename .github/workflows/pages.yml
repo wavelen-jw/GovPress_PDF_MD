@@ -56,6 +56,14 @@ jobs:
           mv mobile/dist/_expo mobile/dist/app/_expo
           mv mobile/dist/index.html mobile/dist/app/index.html
           mv mobile/dist/metadata.json mobile/dist/app/metadata.json
+          python - <<'PY'
+          from pathlib import Path
+
+          app_index = Path("mobile/dist/app/index.html")
+          text = app_index.read_text(encoding="utf-8")
+          text = text.replace('src="/GovPress_PDF_MD/app/_expo/', 'src="./_expo/')
+          app_index.write_text(text, encoding="utf-8")
+          PY
 
       - name: Install landing page as root index
         run: cp ui/landing.html mobile/dist/index.html
