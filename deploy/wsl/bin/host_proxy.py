@@ -30,6 +30,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         self._proxy()
 
+    def do_HEAD(self) -> None:
+        self._proxy()
+
     def do_POST(self) -> None:
         self._proxy()
 
@@ -76,7 +79,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.send_header(key, value)
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
-        if payload:
+        if self.command != "HEAD" and payload:
             self.wfile.write(payload)
 
     def log_message(self, fmt: str, *args) -> None:

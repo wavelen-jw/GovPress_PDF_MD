@@ -125,6 +125,10 @@ def create_app(
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.head("/health")
+    def health_head() -> None:
+        return None
+
     app.state.job_service = job_service
     app.state.result_service = result_service
     app.state.worker = worker
