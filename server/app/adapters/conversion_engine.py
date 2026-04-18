@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import os
 from functools import lru_cache
 from pathlib import Path
+import sys
 from typing import Callable
 
 
@@ -53,12 +55,34 @@ def _load_backend() -> tuple[str, Callable[..., str], Callable[..., str]]:
         convert_pdf = getattr(package, "convert_pdf")
         return ("package", convert_hwpx, convert_pdf)
     except Exception as exc:
-        raise RuntimeError(
-            "GovPress conversion engine is not configured. "
-            "Install the private converter package and set "
-            "`GOVPRESS_CONVERTER_SPEC` for builds/deployments. "
-            f"Details: package backend unavailable: {exc}"
-        ) from exc
+        package_exc = exc
+
+    gov_md_root = os.environ.get("GOV_MD_CONVERTER_ROOT")
+    search_roots: list[Path] = []
+    if gov_md_root:
+        root = Path(gov_md_root)
+        search_roots.extend([root, root / "src"])
+
+    for root in search_roots:
+        if not root.exists():
+            continue
+        root_str = str(root)
+        if root_str not in sys.path:
+            sys.path.insert(0, root_str)
+        try:
+            package = importlib.import_module("govpress_converter")
+            convert_hwpx = getattr(package, "convert_hwpx")
+            convert_pdf = getattr(package, "convert_pdf")
+            return ("local-root", convert_hwpx, convert_pdf)
+        except Exception:
+            continue
+
+    raise RuntimeError(
+        "GovPress conversion engine is not configured. "
+        "Install the private converter package and set "
+        "`GOVPRESS_CONVERTER_SPEC` for builds/deployments. "
+        f"Details: package backend unavailable: {package_exc}"
+    ) from package_exc
 
 
 def reset_backend_cache() -> None:
