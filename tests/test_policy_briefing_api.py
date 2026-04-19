@@ -266,7 +266,15 @@ class PolicyBriefingApiTests(unittest.TestCase):
         )
 
         self.assertEqual(second.status_code, 200)
-        self.assertEqual(self.client_stub.download_calls, ["156700001", "156700001"])
+        self.assertEqual(
+            self.client_stub.download_calls,
+            [
+                "156700001",
+                "156700001:today-briefing.pdf",
+                "156700001",
+                "156700001:today-briefing.pdf",
+            ],
+        )
         payload = second.json()
         original_path = next((Path(self.temp_dir.name) / "originals").glob(f"{payload['job_id']}-*.hwpx"))
         self.assertGreater(original_path.stat().st_size, 0)
@@ -369,8 +377,16 @@ class PolicyBriefingApiTests(unittest.TestCase):
     def test_get_policy_briefing_qc_dashboard_returns_404_when_missing(self) -> None:
         response = self.client.get("/v1/policy-briefings/qc/dashboard")
 
-        self.assertEqual(response.status_code, 404)
-        self.assertIn("not available", response.json()["detail"])
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Policy Briefing QC Dashboard", response.text)
+
+    def test_policy_briefing_attachment_treats_date_prefixed_appendix_as_appendix(self) -> None:
+        attachment = PolicyBriefingAttachment(
+            file_name="260417 (붙임2) 설명자료.hwpx",
+            file_url="https://example.test/files/appendix.hwpx",
+        )
+
+        self.assertTrue(attachment.is_appendix)
 
     def test_inject_policy_briefing_department_prefixes_press_label(self) -> None:
         markdown = "# 제목\n\n보도자료\n보도시점: 2026. 4. 9.\n"

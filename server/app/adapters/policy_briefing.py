@@ -15,6 +15,8 @@ import xml.etree.ElementTree as ET
 
 PRESS_RELEASE_LIST_URL = "https://apis.data.go.kr/1371000/pressReleaseService/pressReleaseList"
 _APPENDIX_PREFIXES = ("붙임", "별첨", "첨부")
+_ATTACHMENT_DATE_PREFIX_RE = re.compile(r"^\s*\d{6,8}(?:[\s_-]+)?")
+_ATTACHMENT_APPENDIX_RE = re.compile(r"^(?:[\[<(]\s*)?(?:붙임|별첨|첨부)(?=\b|\d)")
 _PRESS_LABEL_RE = re.compile(r"^(보도자료|보도참고자료)\s*$")
 _CATALOG_REFRESH_INTERVAL_SECONDS = 3600
 _ATTACHMENT_HTML_PREFIXES = (b"<!doctype html", b"<html", b"<?xml")
@@ -44,6 +46,12 @@ def _looks_like_html_error(content: bytes) -> bool:
     return any(head.startswith(prefix) for prefix in _ATTACHMENT_HTML_PREFIXES)
 
 
+def _normalize_attachment_name_for_kind_check(file_name: str) -> str:
+    stripped = file_name.strip()
+    stripped = _ATTACHMENT_DATE_PREFIX_RE.sub("", stripped).lstrip(" _-")
+    return stripped
+
+
 @dataclass(frozen=True)
 class PolicyBriefingAttachment:
     file_name: str
@@ -66,8 +74,8 @@ class PolicyBriefingAttachment:
 
     @property
     def is_appendix(self) -> bool:
-        stripped = self.file_name.strip().lstrip("[").lstrip("<")
-        return stripped.startswith(_APPENDIX_PREFIXES)
+        stripped = _normalize_attachment_name_for_kind_check(self.file_name)
+        return _ATTACHMENT_APPENDIX_RE.match(stripped) is not None
 
 
 @dataclass(frozen=True)
