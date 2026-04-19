@@ -70,6 +70,11 @@ GOVPRESS_CONVERTER_EXTRA_INDEX_URL=
 CLOUDFLARE_TUNNEL_TOKEN=실제-터널-토큰
 ```
 
+주의:
+
+- converter 버전은 서버별 `.env`에서 직접 태그를 바꾸지 말고 저장소의 `deploy/converter.version`을 기준으로 관리합니다.
+- bare-metal 설치/재배포 스크립트는 `GOVPRESS_CONVERTER_SPEC`의 기존 태그를 `deploy/converter.version` 값으로 자동 정규화합니다.
+
 수정 후 재시작:
 
 ```bash

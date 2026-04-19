@@ -14,6 +14,8 @@ CONVERTER_SPEC="${GOVPRESS_CONVERTER_SPEC:-}"
 CONVERTER_EXTRA_INDEX_URL="${GOVPRESS_CONVERTER_EXTRA_INDEX_URL:-}"
 CONVERTER_ALLOW_LOCAL_FALLBACK="${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-1}"
 CONVERTER_MIN_VERSION="${GOVPRESS_CONVERTER_MIN_VERSION:-}"
+CONVERTER_VERSION_FILE="$DEPLOY_DIR/deploy/converter.version"
+CONVERTER_SPEC_RESOLVER="$DEPLOY_DIR/deploy/common/resolve_converter_spec.py"
 
 info()  { echo "[INFO]  $*"; }
 error() { echo "[ERROR] $*" >&2; exit 1; }
@@ -116,6 +118,10 @@ else
   else
     sudo -u "$SERVICE_USER" git clone "$REPO_URL" "$DEPLOY_DIR"
   fi
+fi
+
+if [[ -n "$CONVERTER_SPEC" && -f "$CONVERTER_VERSION_FILE" && -f "$CONVERTER_SPEC_RESOLVER" ]]; then
+  CONVERTER_SPEC="$(python3 "$CONVERTER_SPEC_RESOLVER" --spec "$CONVERTER_SPEC" --version-file "$CONVERTER_VERSION_FILE")"
 fi
 
 # ── 5. Python 가상환경 & 패키지 설치 ─────────────────────────────────────────

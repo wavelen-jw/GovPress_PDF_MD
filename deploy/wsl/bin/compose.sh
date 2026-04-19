@@ -40,6 +40,42 @@ if [[ -z "$DEPLOY_MODE" ]] && [[ -f "$ENV_FILE" ]]; then
   DEPLOY_MODE=$(grep -E '^GOVPRESS_DEPLOY_MODE=' "$ENV_FILE" | tail -n1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || true)
 fi
 
+CONVERTER_VERSION_FILE="$DEPLOY_DIR/../converter.version"
+CONVERTER_SPEC_RESOLVER="$DEPLOY_DIR/../common/resolve_converter_spec.py"
+
+normalize_env_converter_spec() {
+  [[ -f "$ENV_FILE" ]] || return 0
+  [[ -f "$CONVERTER_VERSION_FILE" ]] || return 0
+  [[ -f "$CONVERTER_SPEC_RESOLVER" ]] || return 0
+  python3 - <<'PY' "$ENV_FILE" "$CONVERTER_VERSION_FILE" "$CONVERTER_SPEC_RESOLVER"
+from pathlib import Path
+import subprocess
+import sys
+
+env_path = Path(sys.argv[1])
+version_file = Path(sys.argv[2])
+resolver = Path(sys.argv[3])
+lines = env_path.read_text(encoding="utf-8").splitlines()
+updated: list[str] = []
+changed = False
+for line in lines:
+    if line.startswith("GOVPRESS_CONVERTER_SPEC="):
+        spec = line.split("=", 1)[1]
+        normalized = subprocess.check_output(
+            [sys.executable, str(resolver), "--spec", spec, "--version-file", str(version_file)],
+            text=True,
+        ).strip()
+        updated.append(f"GOVPRESS_CONVERTER_SPEC={normalized}")
+        changed = changed or normalized != spec
+    else:
+        updated.append(line)
+if changed:
+    env_path.write_text("\n".join(updated).rstrip() + "\n", encoding="utf-8")
+PY
+}
+
+normalize_env_converter_spec
+
 if [[ -z "${COMPOSE_FILE_OVERRIDE:-}" ]] && [[ "$DEPLOY_MODE" == "host_proxy" ]] && [[ -f "$HOST_PROXY_COMPOSE_FILE" ]]; then
   COMPOSE_FILE="$HOST_PROXY_COMPOSE_FILE"
 fi

@@ -29,6 +29,23 @@ echo "git_head=$(git -C "$DEPLOY_DIR" rev-parse HEAD)"
 echo "target_sha=$(git -C "$DEPLOY_DIR" rev-parse HEAD)"
 echo "git_origin=$(git -C "$DEPLOY_DIR" remote get-url origin)"
 HOME_DIR="${HOME:-$(getent passwd $(id -u) | cut -d: -f6)}"
+CONVERTER_VERSION_FILE="$DEPLOY_DIR/deploy/converter.version"
+CONVERTER_SPEC_RESOLVER="$DEPLOY_DIR/deploy/common/resolve_converter_spec.py"
+
+normalize_converter_spec() {
+  if [ -z "${CONVERTER_SPEC:-}" ]; then
+    return
+  fi
+  if [ ! -f "$CONVERTER_VERSION_FILE" ] || [ ! -f "$CONVERTER_SPEC_RESOLVER" ]; then
+    return
+  fi
+  CONVERTER_SPEC="$(python3 "$CONVERTER_SPEC_RESOLVER" \
+    --spec "$CONVERTER_SPEC" \
+    --version-file "$CONVERTER_VERSION_FILE")"
+  echo "converter_version=$(cat "$CONVERTER_VERSION_FILE")"
+}
+
+normalize_converter_spec
 
 ensure_converter_checkout() {
   local converter_root="${GOV_MD_CONVERTER_ROOT:-$(cd "$DEPLOY_DIR/.." && pwd)/gov-md-converter}"
