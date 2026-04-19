@@ -209,9 +209,11 @@ function buildHtmlTableDocument(tableHtml: string, isDarkMode: boolean, frameId:
 function HtmlTableFrame({
   html,
   isDarkMode = false,
+  minWidth,
 }: {
   html: string;
   isDarkMode?: boolean;
+  minWidth?: number;
 }) {
   const frameId = useMemo(() => `govpress-table-${Math.random().toString(36).slice(2)}`, []);
   const [height, setHeight] = useState(160);
@@ -247,7 +249,7 @@ function HtmlTableFrame({
         title: frameId,
         srcDoc: buildHtmlTableDocument(html, isDarkMode, frameId),
         style: {
-          width: "100%",
+          width: minWidth ? `${Math.max(minWidth, 320)}px` : "100%",
           height,
           border: "0",
           display: "block",
@@ -1001,12 +1003,29 @@ export function MarkdownPreview({
           const columnWidths = computeTableColumnWidths(block.headers, block.rows, columnCount);
           const tableMinimumWidth = columnWidths.reduce((sum, column) => sum + column.minWidth, 0);
           const needsHorizontalScroll =
-            columnCount >= 5 && containerWidth > 0 && tableMinimumWidth > containerWidth - 12;
+            containerWidth > 0 && tableMinimumWidth > Math.max(0, containerWidth - 12);
 
           if (block.type === "html_table" && Platform.OS === "web") {
+            const HtmlShell = needsHorizontalScroll ? ScrollView : View;
+            const htmlShellProps = needsHorizontalScroll
+              ? {
+                  horizontal: true,
+                  showsHorizontalScrollIndicator: true,
+                  style: styles.markdownTableWrap,
+                  contentContainerStyle: styles.markdownTableScrollContent,
+                }
+              : {
+                  style: styles.markdownTableWrap,
+                };
             return (
               <View key={key} style={blockHighlightStyle} onLayout={(event) => handleBlockLayout(blockIndex, event)}>
-                <HtmlTableFrame html={block.rawHtml} isDarkMode={isDarkMode} />
+                <HtmlShell {...htmlShellProps}>
+                  <HtmlTableFrame
+                    html={block.rawHtml}
+                    isDarkMode={isDarkMode}
+                    minWidth={needsHorizontalScroll ? tableMinimumWidth : undefined}
+                  />
+                </HtmlShell>
               </View>
             );
           }

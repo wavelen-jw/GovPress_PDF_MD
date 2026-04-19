@@ -1512,14 +1512,43 @@ export default function App(): React.JSX.Element {
 
     try {
       if (Platform.OS === "web" && typeof window !== "undefined") {
+        const normalizedName = outputName.endsWith(".md") ? outputName : `${outputName}.md`;
+        const webWindow = window as Window & {
+          showSaveFilePicker?: (options?: {
+            suggestedName?: string;
+            types?: Array<{ description?: string; accept: Record<string, string[]> }>;
+          }) => Promise<{
+            createWritable: () => Promise<{
+              write: (data: Blob | string) => Promise<void>;
+              close: () => Promise<void>;
+            }>;
+          }>;
+        };
+        if (typeof webWindow.showSaveFilePicker === "function") {
+          const handle = await webWindow.showSaveFilePicker({
+            suggestedName: normalizedName,
+            types: [
+              {
+                description: "Markdown",
+                accept: { "text/markdown": [".md"] },
+              },
+            ],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(content);
+          await writable.close();
+          setNotice("Markdown 파일을 저장했습니다.");
+          return;
+        }
+
         const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
         const url = window.URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = url;
-        anchor.download = outputName.endsWith(".md") ? outputName : `${outputName}.md`;
+        anchor.download = normalizedName;
         anchor.click();
         window.URL.revokeObjectURL(url);
-        setNotice("Markdown 파일을 저장했습니다.");
+        setNotice("브라우저 저장 대화상자를 지원하지 않아 다운로드 방식으로 저장했습니다.");
         return;
       }
 

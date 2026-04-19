@@ -8,7 +8,7 @@ export const STORAGE_KEYS = {
   draftPrefix: "govpress.mobile.draft",
 } as const;
 
-export const BUILD_TAG = "mobile-web-2026-04-13-server-health-policy-separation";
+export const BUILD_TAG = "mobile-web-2026-04-20-save-picker-and-table-scroll";
 
 export const SERVER_FALLBACK_TIMEOUT_MS = 8000;
 
