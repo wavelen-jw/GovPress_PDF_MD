@@ -231,6 +231,22 @@ cleanup_host_proxy_port_conflicts() {
   echo "host_proxy_port_conflict_cleanup=1"
 }
 
+wait_for_port_release() {
+  local port="$1"
+  local attempts="${2:-20}"
+  local delay="${3:-1}"
+  local attempt
+  for attempt in $(seq 1 "$attempts"); do
+    if ! (sudo lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | grep -q .); then
+      echo "port_${port}_released=1"
+      return 0
+    fi
+    sleep "$delay"
+  done
+  echo "port_${port}_released=0"
+  return 1
+}
+
 cleanup_split_edge_orphans() {
   docker rm -f govpress-cloudflared >/dev/null 2>&1 || true
   echo "split_edge_orphan_cleanup=1"
@@ -369,6 +385,7 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
     cleanup_host_proxy_orphans
     docker rm -f govpress-api govpress-worker >/dev/null 2>&1 || true
     cleanup_host_proxy_port_conflicts
+    wait_for_port_release 8013 30 1
     restart_tunnel_after_compose=2
     echo "host_proxy_tunnel_origin=http://127.0.0.1:8080"
     echo "host_proxy_caddy_unit=govpress-caddy.service"
