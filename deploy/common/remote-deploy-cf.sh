@@ -204,6 +204,26 @@ build_and_verify_dashboard_assets() {
   fi
 }
 
+run_host_proxy_compose_up() {
+  local log_file="${1:-/tmp/govpress-compose-up.log}"
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    docker rm -f govpress-api govpress-worker >/dev/null 2>&1 || true
+    cleanup_host_proxy_port_conflicts
+    wait_for_port_release 8013 30 1 || true
+    if run_compose up -d --build --remove-orphans api worker >"$log_file" 2>&1; then
+      cat "$log_file"
+      return 0
+    fi
+    cat "$log_file"
+    if ! grep -q "ports are not available" "$log_file"; then
+      return 1
+    fi
+    sleep 5
+  done
+  return 1
+}
+
 cleanup_host_proxy_orphans() {
   docker rm -f govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
   echo "host_proxy_orphan_cleanup=1"
@@ -383,14 +403,11 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_DEPLOY_MODE" "host_proxy"
     install_host_proxy_services
     cleanup_host_proxy_orphans
-    docker rm -f govpress-api govpress-worker >/dev/null 2>&1 || true
-    cleanup_host_proxy_port_conflicts
-    wait_for_port_release 8013 30 1
     restart_tunnel_after_compose=2
     echo "host_proxy_tunnel_origin=http://127.0.0.1:8080"
     echo "host_proxy_caddy_unit=govpress-caddy.service"
     echo "host_proxy_cloudflared_unit=govpress-cloudflared.service"
-    run_compose up -d --build --remove-orphans api worker
+    run_host_proxy_compose_up
   elif [ "${DEPLOY_MODE:-compose_proxy}" = "split_edge" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_DEPLOY_MODE" "split_edge"
     install_split_edge_services
