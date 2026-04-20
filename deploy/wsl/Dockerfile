@@ -20,11 +20,11 @@ RUN apt-get update \
 COPY requirements.txt /app/requirements.txt
 RUN pip install -r /app/requirements.txt \
     && pip install -U opendataloader-pdf \
-    && if [ -n "$GOVPRESS_CONVERTER_SPEC" ]; then pip install "$GOVPRESS_CONVERTER_SPEC"; fi
+    && if [ -n "$GOVPRESS_CONVERTER_SPEC" ] && [ "$GOVPRESS_CONVERTER_SPEC" != "-" ]; then pip install "$GOVPRESS_CONVERTER_SPEC"; fi
 
 COPY . /app
 
-RUN if [ -n "$GOVPRESS_CONVERTER_SPEC" ] || [ "$GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" = "0" ]; then \
+RUN if { [ -n "$GOVPRESS_CONVERTER_SPEC" ] && [ "$GOVPRESS_CONVERTER_SPEC" != "-" ]; } || [ "$GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" = "0" ]; then \
       if [ -n "$GOVPRESS_CONVERTER_MIN_VERSION" ]; then \
         python /app/scripts/check_converter_runtime.py --require-private-engine --min-version "$GOVPRESS_CONVERTER_MIN_VERSION"; \
       else \

@@ -47,6 +47,32 @@ normalize_converter_spec() {
 
 normalize_converter_spec
 
+if [ "${CONVERTER_SPEC:-}" = "-" ]; then
+  CONVERTER_SPEC=""
+fi
+
+normalize_env_placeholder_spec() {
+  local env_file="$1"
+  [ -f "$env_file" ] || return 0
+  python3 - <<'PY' "$env_file"
+from pathlib import Path
+import sys
+
+env_path = Path(sys.argv[1])
+lines = env_path.read_text(encoding="utf-8").splitlines()
+updated = []
+changed = False
+for line in lines:
+    if line.startswith("GOVPRESS_CONVERTER_SPEC=") and line.split("=", 1)[1].strip() == "-":
+        updated.append("GOVPRESS_CONVERTER_SPEC=")
+        changed = True
+    else:
+        updated.append(line)
+if changed:
+    env_path.write_text("\n".join(updated).rstrip() + "\n", encoding="utf-8")
+PY
+}
+
 ensure_converter_checkout() {
   local converter_root="${GOV_MD_CONVERTER_ROOT:-$(cd "$DEPLOY_DIR/.." && pwd)/gov-md-converter}"
   local parse_output
@@ -385,6 +411,7 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
       cp "${ENV_PATH}.example" "$ENV_PATH"
     fi
   fi
+  normalize_env_placeholder_spec "$ENV_PATH"
   if [ -n "${CONVERTER_SPEC:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "0"
@@ -436,6 +463,7 @@ else
   ENV_PATH="$DEPLOY_DIR/deploy/vps/.env"
   mkdir -p "$(dirname "$ENV_PATH")"
   touch "$ENV_PATH"
+  normalize_env_placeholder_spec "$ENV_PATH"
   if [ -n "${CONVERTER_SPEC:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "0"
@@ -449,10 +477,10 @@ else
   "$DEPLOY_DIR/.venv/bin/python" -m pip install -U pip -q
   "$DEPLOY_DIR/.venv/bin/python" -m pip install -r "$DEPLOY_DIR/requirements.txt" -q
   "$DEPLOY_DIR/.venv/bin/python" -m pip install -U opendataloader-pdf -q
-  if [ -n "${CONVERTER_SPEC:-}" ]; then
+  if [ -n "${CONVERTER_SPEC:-}" ] && [ "${CONVERTER_SPEC}" != "-" ]; then
     "$DEPLOY_DIR/.venv/bin/python" -m pip install "$CONVERTER_SPEC" -q
   fi
-  if [ -n "${CONVERTER_SPEC:-}" ]; then
+  if [ -n "${CONVERTER_SPEC:-}" ] && [ "${CONVERTER_SPEC}" != "-" ]; then
     if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
       "$DEPLOY_DIR/.venv/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" \
         --require-private-engine \

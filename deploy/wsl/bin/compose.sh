@@ -61,10 +61,13 @@ changed = False
 for line in lines:
     if line.startswith("GOVPRESS_CONVERTER_SPEC="):
         spec = line.split("=", 1)[1]
-        normalized = subprocess.check_output(
-            [sys.executable, str(resolver), "--spec", spec, "--version-file", str(version_file)],
-            text=True,
-        ).strip()
+        if spec.strip() == "-":
+            normalized = ""
+        else:
+            normalized = subprocess.check_output(
+                [sys.executable, str(resolver), "--spec", spec, "--version-file", str(version_file)],
+                text=True,
+            ).strip()
         updated.append(f"GOVPRESS_CONVERTER_SPEC={normalized}")
         changed = changed or normalized != spec
     else:
