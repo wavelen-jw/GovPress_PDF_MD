@@ -415,6 +415,9 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
   if [ -n "${CONVERTER_SPEC:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "0"
+  else
+    upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" ""
+    upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "1"
   fi
   if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
@@ -467,6 +470,9 @@ else
   if [ -n "${CONVERTER_SPEC:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "0"
+  else
+    upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" ""
+    upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "1"
   fi
   if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
