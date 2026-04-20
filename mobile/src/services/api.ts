@@ -12,6 +12,7 @@ import type {
   Job,
   PolicyBriefingImportResult,
   PolicyBriefingImportPayload,
+  PolicyBriefingItem,
   PolicyBriefingListPayload,
   PolicyBriefingRecentListPayload,
   ResultPayload,
@@ -60,6 +61,14 @@ function buildPolicyBriefingUnavailableMessage(action: "목록" | "불러오기"
   return action === "목록"
     ? "정책브리핑 API 연동에 실패해 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
     : "정책브리핑 API 연동에 실패해 보도자료를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
+}
+
+function isMissingRecentEndpoint(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 404 &&
+    error.message.toLowerCase().includes("not found")
+  );
 }
 
 function buildHeaders(config: AppConfig, contentType?: string, editToken?: string | null): Record<string, string> {
@@ -319,10 +328,48 @@ export async function fetchRecentPolicyBriefings(
       const rawMessage = error instanceof Error ? error.message : String(error);
       const message = normalizePolicyBriefingFailure(rawMessage);
       failures.push(`${baseUrl}: ${message}`);
+      if (isMissingRecentEndpoint(error)) {
+        continue;
+      }
       if (!isRetryableUploadError(error)) {
         throw error;
       }
     }
+  }
+  const today = new Date();
+  const dates = Array.from({ length: days }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    return d.toISOString().slice(0, 10);
+  });
+
+  const dayResults = await Promise.allSettled(dates.map((date) => fetchTodayPolicyBriefings(config, date)));
+  const items: PolicyBriefingItem[] = [];
+  const refreshTimes: string[] = [];
+  let servedStale = false;
+  let warning: string | null = null;
+
+  for (const result of dayResults) {
+    if (result.status === "fulfilled") {
+      items.push(...result.value.items);
+      if (result.value.last_refreshed_at) {
+        refreshTimes.push(result.value.last_refreshed_at);
+      }
+      servedStale = servedStale || !!result.value.served_stale;
+      warning = warning || result.value.warning || null;
+    }
+  }
+
+  if (items.length > 0) {
+    return {
+      start_date: dates[dates.length - 1],
+      end_date: dates[0],
+      days,
+      last_refreshed_at: refreshTimes.sort().at(-1) || null,
+      served_stale: servedStale,
+      warning,
+      items,
+    };
   }
 
   throw new Error(buildPolicyBriefingUnavailableMessage("목록", failures));
