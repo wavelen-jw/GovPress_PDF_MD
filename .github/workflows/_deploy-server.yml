@@ -132,21 +132,7 @@ jobs:
           "$DEPLOY_DIR/.venv/bin/python" -m pip install -r "$DEPLOY_DIR/requirements.txt" -q
           "$DEPLOY_DIR/.venv/bin/python" -m pip install -U opendataloader-pdf -q
           if [ -n "${CONVERTER_SPEC}" ]; then
-            "$DEPLOY_DIR/.venv/bin/python" - "$ENV_FILE" <<'PY'
-from pathlib import Path
-import subprocess
-import sys
-
-env_path = Path(sys.argv[1])
-spec = ""
-for line in env_path.read_text().splitlines():
-    if line.startswith("GOVPRESS_CONVERTER_SPEC="):
-        spec = line.split("=", 1)[1].strip()
-        break
-if not spec:
-    raise SystemExit("GOVPRESS_CONVERTER_SPEC missing from env file")
-subprocess.check_call([sys.executable, "-m", "pip", "install", spec, "-q"])
-PY
+            "$DEPLOY_DIR/.venv/bin/python" -c 'from pathlib import Path; import subprocess, sys; env_path = Path(sys.argv[1]); spec = next((line.split("=", 1)[1].strip() for line in env_path.read_text().splitlines() if line.startswith("GOVPRESS_CONVERTER_SPEC=")), ""); assert spec, "GOVPRESS_CONVERTER_SPEC missing from env file"; subprocess.check_call([sys.executable, "-m", "pip", "install", spec, "-q"])' "$ENV_FILE"
           fi
           sudo -n systemctl restart "$SERVICE"
           health_code=""
