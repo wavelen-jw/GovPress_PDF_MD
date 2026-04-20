@@ -1,7 +1,11 @@
 import { Platform } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 
-import { getFallbackBaseUrls, SERVER_FALLBACK_TIMEOUT_MS } from "../constants";
+import {
+  getFallbackBaseUrls,
+  POLICY_BRIEFING_LIST_TIMEOUT_MS,
+  SERVER_FALLBACK_TIMEOUT_MS,
+} from "../constants";
 import type {
   AppConfig,
   HwpxTableMode,
@@ -304,7 +308,7 @@ export async function fetchRecentPolicyBriefings(
           method: "GET",
           headers: buildHeaders(config),
         },
-        SERVER_FALLBACK_TIMEOUT_MS,
+        POLICY_BRIEFING_LIST_TIMEOUT_MS,
       );
       if (!response.ok) {
         const detail = await response.text();

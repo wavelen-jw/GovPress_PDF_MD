@@ -11,6 +11,7 @@ export const STORAGE_KEYS = {
 export const BUILD_TAG = "mobile-web-2026-04-20-save-picker-and-table-scroll";
 
 export const SERVER_FALLBACK_TIMEOUT_MS = 8000;
+export const POLICY_BRIEFING_LIST_TIMEOUT_MS = 30000;
 
 export const SERVER_PRESETS = [
   { key: "serverH", label: "서버H", shortLabel: "서버H", url: "https://api.govpress.cloud" },
