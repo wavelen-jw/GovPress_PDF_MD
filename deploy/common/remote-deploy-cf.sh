@@ -210,12 +210,17 @@ cleanup_host_proxy_orphans() {
 }
 
 cleanup_host_proxy_port_conflicts() {
-  local pids
-  pids="$(
-    (sudo ss -ltnp 'sport = :8080' 2>/dev/null || true) \
-      | sed -n 's/.*users:(("docker-proxy",pid=\([0-9]\+\).*/\1/p' \
-      | sort -u
-  )"
+  local ports="8080 8013"
+  local pids=""
+  local port
+  for port in $ports; do
+    pids="$pids $(
+      (sudo ss -ltnp "sport = :${port}" 2>/dev/null || true) \
+        | sed -n 's/.*users:(("docker-proxy",pid=\([0-9]\+\).*/\1/p' \
+        | sort -u
+    )"
+  done
+  pids="$(printf '%s\n' "$pids" | tr ' ' '\n' | sed '/^$/d' | sort -u | tr '\n' ' ')"
   if [ -z "$pids" ]; then
     echo "host_proxy_port_conflict_cleanup=0"
     return
@@ -364,6 +369,7 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_DEPLOY_MODE" "host_proxy"
     install_host_proxy_services
     cleanup_host_proxy_orphans
+    docker rm -f govpress-api govpress-worker >/dev/null 2>&1 || true
     cleanup_host_proxy_port_conflicts
     restart_tunnel_after_compose=2
     echo "host_proxy_tunnel_origin=http://127.0.0.1:8080"
