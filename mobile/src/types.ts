@@ -62,6 +62,16 @@ export type PolicyBriefingListPayload = {
   items: PolicyBriefingItem[];
 };
 
+export type PolicyBriefingRecentListPayload = {
+  start_date: string;
+  end_date: string;
+  days: number;
+  last_refreshed_at?: string | null;
+  served_stale?: boolean;
+  warning?: string | null;
+  items: PolicyBriefingItem[];
+};
+
 export type PolicyBriefingImportPayload = JobCreatePayload & {
   news_item_id: string;
   title: string;

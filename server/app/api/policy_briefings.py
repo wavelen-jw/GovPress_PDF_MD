@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 import os
 from pathlib import Path
 
@@ -14,6 +14,7 @@ from ..schemas.policy_briefings import (
     PolicyBriefingImportResponse,
     PolicyBriefingItemResponse,
     PolicyBriefingListResponse,
+    PolicyBriefingRecentListResponse,
 )
 
 _UPSTREAM_POLICY_BRIEFING_TIMEOUT_DETAIL = (
@@ -58,6 +59,21 @@ def build_router(
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/policy-briefings", tags=["policy-briefings"])
 
+    def _serialize_policy_briefing_item(resolved_date: date, item) -> PolicyBriefingItemResponse:
+        return PolicyBriefingItemResponse(
+            date=resolved_date,
+            news_item_id=item.news_item_id,
+            title=item.title,
+            department=item.department,
+            approve_date=item.approve_date,
+            original_url=item.original_url,
+            file_name=item.primary_hwpx.file_name if item.primary_hwpx else "",
+            file_url=item.primary_hwpx.file_url if item.primary_hwpx else "",
+            has_appendix_hwpx=any(
+                attachment.is_hwpx and attachment.is_appendix for attachment in item.attachments
+            ),
+        )
+
     @router.get("/today", response_model=PolicyBriefingListResponse)
     def get_today_policy_briefings(
         target_date: date | None = Query(default=None, alias="date"),
@@ -82,22 +98,61 @@ def build_router(
             last_refreshed_at=catalog_result.last_refreshed_at,
             served_stale=catalog_result.served_stale,
             warning=warning,
-            items=[
-                PolicyBriefingItemResponse(
-                    date=resolved_date,
-                    news_item_id=item.news_item_id,
-                    title=item.title,
-                    department=item.department,
-                    approve_date=item.approve_date,
-                    original_url=item.original_url,
-                    file_name=item.primary_hwpx.file_name if item.primary_hwpx else "",
-                    file_url=item.primary_hwpx.file_url if item.primary_hwpx else "",
-                    has_appendix_hwpx=any(
-                        attachment.is_hwpx and attachment.is_appendix for attachment in item.attachments
-                    ),
+            items=[_serialize_policy_briefing_item(resolved_date, item) for item in catalog_result.items],
+        )
+
+    @router.get("/recent", response_model=PolicyBriefingRecentListResponse)
+    def get_recent_policy_briefings(
+        days: int = Query(default=15, ge=1, le=60),
+        end_date: date | None = Query(default=None, alias="endDate"),
+        _authorized: None = Depends(verify_api_key),
+    ) -> PolicyBriefingRecentListResponse:
+        if not policy_briefing_client.configured:
+            raise HTTPException(status_code=503, detail="정책브리핑 API 서비스키가 설정되지 않았습니다.")
+
+        resolved_end_date = end_date or date.today()
+        target_dates = [resolved_end_date - timedelta(days=offset) for offset in range(days)]
+        all_items: list[PolicyBriefingItemResponse] = []
+        refresh_times: list[str] = []
+        served_stale = False
+        warnings: list[str] = []
+
+        for target_day in target_dates:
+            try:
+                day_result = policy_briefing_catalog.list_cached_items_with_status(
+                    target_date=target_day,
+                    ensure_fresh=(target_day == date.today()),
                 )
-                for item in catalog_result.items
-            ],
+                if not day_result.items and target_day != date.today():
+                    day_result = policy_briefing_catalog.list_cached_items_with_status(
+                        target_date=target_day,
+                        ensure_fresh=True,
+                    )
+            except Exception as exc:
+                if not all_items:
+                    raise HTTPException(status_code=502, detail=_describe_policy_briefing_error(exc)) from exc
+                warnings.append(_describe_policy_briefing_error(exc))
+                continue
+
+            if day_result.served_stale:
+                served_stale = True
+                warnings.append(_describe_policy_briefing_error(RuntimeError(day_result.stale_reason or "stale cache")))
+            if day_result.last_refreshed_at:
+                refresh_times.append(day_result.last_refreshed_at)
+            all_items.extend(_serialize_policy_briefing_item(target_day, item) for item in day_result.items)
+
+        deduped_items = list({item.news_item_id: item for item in all_items}.values())
+        deduped_items.sort(key=lambda item: (item.date, item.approve_date, item.news_item_id), reverse=True)
+        warning = warnings[0] if warnings else None
+
+        return PolicyBriefingRecentListResponse(
+            start_date=target_dates[-1],
+            end_date=resolved_end_date,
+            days=days,
+            last_refreshed_at=sorted(refresh_times).at(-1) if refresh_times else None,
+            served_stale=served_stale,
+            warning=warning,
+            items=deduped_items,
         )
 
     @router.post("/import", response_model=PolicyBriefingImportResponse)

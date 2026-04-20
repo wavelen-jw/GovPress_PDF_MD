@@ -180,6 +180,17 @@ class PolicyBriefingApiTests(unittest.TestCase):
         self.assertTrue(payload["items"][0]["has_appendix_hwpx"])
         self.assertEqual(len(self.client_stub.list_calls), 1)
 
+    def test_list_recent_policy_briefings_returns_combined_items(self) -> None:
+        response = self.client.get("/v1/policy-briefings/recent?days=2&endDate=2026-04-09", headers=self.headers)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["days"], 2)
+        self.assertEqual(payload["start_date"], "2026-04-08")
+        self.assertEqual(payload["end_date"], "2026-04-09")
+        self.assertEqual([item["news_item_id"] for item in payload["items"]], ["156700001", "156700000"])
+        self.assertEqual(self.client_stub.list_calls, [date(2026, 4, 9), date(2026, 4, 8)])
+
     def test_list_today_policy_briefings_uses_daily_cache(self) -> None:
         first = self.client.get("/v1/policy-briefings/today?date=2026-04-09", headers=self.headers)
         second = self.client.get("/v1/policy-briefings/today?date=2026-04-09", headers=self.headers)

@@ -31,9 +31,9 @@ import {
 import {
   ApiError,
   fetchJob,
+  fetchRecentPolicyBriefings,
   fetchResult,
   fetchTodayPolicyBriefingsDirect,
-  fetchTodayPolicyBriefings,
   importPolicyBriefing,
   retryJob,
   saveResult,
@@ -409,7 +409,7 @@ export default function App(): React.JSX.Element {
       return policyBriefingError;
     }
     if (policyBriefingAnyFetchFailure) {
-      return "최근 5일 조회 중 일부 날짜 요청이 실패했습니다.";
+      return "최근 15일 조회 중 일부 날짜 요청이 실패했습니다.";
     }
     if (policyBriefingServedStale) {
       return "캐시된 정책브리핑 목록이 제공되었습니다.";
@@ -1008,11 +1008,12 @@ export default function App(): React.JSX.Element {
     setPolicyBriefingQuery("");
     try {
       const today = new Date();
-      const dates = Array.from({ length: 5 }, (_, i) => {
+      const dates = Array.from({ length: 15 }, (_, i) => {
         const d = new Date(today);
         d.setDate(d.getDate() - i);
         return d.toISOString().slice(0, 10); // YYYY-MM-DD
       });
+      const latestDate = dates[0];
       const [healthStatusResults, directStatusResults] = await Promise.all([
         Promise.all(
           SERVER_PRESETS.map(async (preset) => {
@@ -1028,98 +1029,57 @@ export default function App(): React.JSX.Element {
         ),
         Promise.all(
           SERVER_PRESETS.map(async (preset) => {
-            const results = await Promise.allSettled(
-              dates.map((date) => fetchTodayPolicyBriefingsDirect({ ...config, baseUrl: preset.url }, preset.url, date)),
-            );
-            const failures: string[] = [];
-            const warnings: string[] = [];
-            const refreshTimes: string[] = [];
-            let servedStale = false;
-            for (const r of results) {
-              if (r.status === "fulfilled") {
-                if (r.value.served_stale) {
-                  servedStale = true;
-                }
-                if (r.value.warning) {
-                  warnings.push(normalizePolicyBriefingStatusMessage(r.value.warning));
-                }
-                if (r.value.last_refreshed_at) {
-                  refreshTimes.push(r.value.last_refreshed_at);
-                }
-              } else {
-                failures.push(
-                  normalizePolicyBriefingStatusMessage(r.reason instanceof Error ? r.reason.message : String(r.reason)),
-                );
-              }
+            try {
+              const result = await fetchTodayPolicyBriefingsDirect(
+                { ...config, baseUrl: preset.url },
+                preset.url,
+                latestDate,
+              );
+              const warning = result.warning
+                ? normalizePolicyBriefingStatusMessage(result.warning)
+                : null;
+              const freshest = result.last_refreshed_at || null;
+              return {
+                key: preset.key,
+                label: preset.label,
+                url: preset.url,
+                anyFetchFailure: false,
+                servedStale: !!result.served_stale,
+                warning,
+                error: null,
+                lastRefreshedAt: freshest,
+              } satisfies PolicyBriefingServerStatus;
+            } catch (error) {
+              const normalizedError = normalizePolicyBriefingStatusMessage(
+                error instanceof Error ? error.message : String(error),
+              );
+              const errorMessage = normalizedError || `최근 날짜(${latestDate}) 요청 실패`;
+              return {
+                key: preset.key,
+                label: preset.label,
+                url: preset.url,
+                anyFetchFailure: true,
+                servedStale: false,
+                warning: null,
+                error: errorMessage,
+                lastRefreshedAt: null,
+              } satisfies PolicyBriefingServerStatus;
             }
-            const freshest = refreshTimes.sort().at(-1) || null;
-            const error = failures[0] || null;
-            const warning = warnings[0] || null;
-            return {
-              key: preset.key,
-              label: preset.label,
-              url: preset.url,
-              anyFetchFailure: failures.length > 0,
-              servedStale,
-              warning,
-              error,
-              lastRefreshedAt: freshest,
-            } satisfies PolicyBriefingServerStatus;
           }),
         ),
       ]);
       setPolicyBriefingServerHealthStatuses(healthStatusResults);
       setPolicyBriefingServerStatuses(directStatusResults);
-      const results = await Promise.allSettled(
-        dates.map((date) => fetchTodayPolicyBriefings(config, date)),
-      );
-      const allItems: PolicyBriefingItem[] = [];
-      const failures: string[] = [];
-      const warnings: string[] = [];
-      const refreshTimes: string[] = [];
-      let servedStale = false;
-      for (const r of results) {
-        if (r.status === "fulfilled") {
-          allItems.push(...r.value.items);
-          if (r.value.served_stale) {
-            servedStale = true;
-          }
-          if (r.value.warning) {
-            warnings.push(normalizePolicyBriefingStatusMessage(r.value.warning));
-          }
-          if (r.value.last_refreshed_at) {
-            refreshTimes.push(r.value.last_refreshed_at);
-          }
-        } else {
-          failures.push(
-            normalizePolicyBriefingStatusMessage(r.reason instanceof Error ? r.reason.message : String(r.reason)),
-          );
-        }
-      }
-      const dedupedItems = dedupePolicyBriefings(allItems);
-      setPolicyBriefingAnyFetchFailure(failures.length > 0);
-      if (dedupedItems.length === 0 && failures.length > 0) {
-        const providerIssue = failures.find((message) => message.includes("제공기관 API"));
-        const failureMessage = providerIssue || failures[0];
-        setPolicyBriefings([]);
-        setPolicyBriefingError(failureMessage);
-        setPolicyBriefingServedStale(false);
-        return;
-      }
+      const recentPayload = await fetchRecentPolicyBriefings(config, 15);
+      const dedupedItems = dedupePolicyBriefings(recentPayload.items);
       setPolicyBriefings(dedupedItems);
       setPolicyBriefingError(null);
-      setPolicyBriefingServedStale(servedStale);
-      const freshest = refreshTimes.sort().at(-1) || null;
-      setPolicyBriefingLastRefreshedAt(freshest);
-      const failureWarning =
-        failures.find((message) => message.includes("제공기관 API")) ||
-        failures.find((message) => message.includes("정책브리핑 목록 요청에 실패했습니다.")) ||
-        failures[0] ||
-        null;
-      const warningMessage =
-        warnings.find((message) => message.includes("제공기관 API")) ||
-        warnings[0] ||
-        failureWarning;
+      setPolicyBriefingServedStale(!!recentPayload.served_stale);
+      setPolicyBriefingLastRefreshedAt(recentPayload.last_refreshed_at || null);
+      setPolicyBriefingAnyFetchFailure(false);
+      const warningMessage = recentPayload.warning
+        ? normalizePolicyBriefingStatusMessage(recentPayload.warning)
+        : null;
       setPolicyBriefingWarning(warningMessage);
       setNotice(warningMessage ? null : `정책브리핑 목록 갱신 완료 — ${dedupedItems.length}건`);
     } catch (error) {
@@ -1968,7 +1928,7 @@ export default function App(): React.JSX.Element {
                 onPress={() => setPolicyBriefingStatusVisible(true)}
                 style={styles.policyBriefingStatusInlineRow}
               >
-                <Text style={styles.policyBriefingMetaText}>{policyBriefings.length}건 · 최근 5일</Text>
+                <Text style={styles.policyBriefingMetaText}>{policyBriefings.length}건 · 최근 15일</Text>
                 <Text style={styles.policyBriefingMetaText}>|</Text>
                 <Text style={styles.policyBriefingMetaText}>문체부 API</Text>
                 <View
@@ -2078,7 +2038,7 @@ export default function App(): React.JSX.Element {
               <Text style={styles.resultMetaBody}>{policyBriefingStatusSummary}</Text>
             </View>
             <View style={styles.resultMetaCard}>
-              <Text style={styles.resultMetaEyebrow}>최근 5일 조회</Text>
+              <Text style={styles.resultMetaEyebrow}>최근 15일 조회</Text>
               <Text style={styles.resultMetaBody}>
                 {policyBriefingAnyFetchFailure ? "일부 날짜 요청 실패" : "실패 없음"}
               </Text>
@@ -2127,7 +2087,7 @@ export default function App(): React.JSX.Element {
                         {status.error
                           ? status.error
                           : status.anyFetchFailure
-                            ? "최근 5일 조회 중 일부 날짜 요청 실패"
+                            ? "최근 15일 조회 중 일부 날짜 요청 실패"
                             : status.servedStale
                               ? "캐시 제공됨"
                               : status.warning || "정상"}

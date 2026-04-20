@@ -5,7 +5,7 @@ import os
 import tempfile
 import unittest
 
-from server.app.core.config import DEFAULT_POLICY_BRIEFING_SERVICE_KEY
+from server.app.core.config import DEFAULT_CORS_ALLOW_ORIGINS, DEFAULT_POLICY_BRIEFING_SERVICE_KEY
 from server.app.main import create_app
 
 
@@ -27,6 +27,7 @@ class ServerApiContractTests(unittest.TestCase):
         self.assertIn("/v1/jobs/{job_id}/retry", schema["paths"])
         self.assertIn("/v1/jobs/{job_id}/result", schema["paths"])
         self.assertIn("/v1/policy-briefings/today", schema["paths"])
+        self.assertIn("/v1/policy-briefings/recent", schema["paths"])
         self.assertIn("/v1/policy-briefings/import", schema["paths"])
         self.assertIn("/v1/policy-briefings/qc/dashboard", schema["paths"])
         self.assertIn("/v1/policy-briefings/qc/dashboard.json", schema["paths"])
@@ -58,7 +59,7 @@ class ServerApiContractTests(unittest.TestCase):
 
     def test_app_uses_default_operational_settings(self) -> None:
         self.assertEqual(self.app.state.settings.max_upload_bytes, 25_000_000)
-        self.assertEqual(self.app.state.settings.cors_allow_origins, [])
+        self.assertEqual(self.app.state.settings.cors_allow_origins, DEFAULT_CORS_ALLOW_ORIGINS)
         self.assertEqual(self.app.state.settings.upload_rate_limit_count, 12)
         self.assertEqual(self.app.state.settings.upload_rate_limit_window_seconds, 60)
         self.assertEqual(self.app.state.settings.job_ttl_hours, 72)

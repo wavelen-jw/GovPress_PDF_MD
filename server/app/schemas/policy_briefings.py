@@ -25,6 +25,16 @@ class PolicyBriefingListResponse(BaseModel):
     items: list[PolicyBriefingItemResponse]
 
 
+class PolicyBriefingRecentListResponse(BaseModel):
+    start_date: date_type
+    end_date: date_type
+    days: int
+    last_refreshed_at: str | None = None
+    served_stale: bool = False
+    warning: str | None = None
+    items: list[PolicyBriefingItemResponse]
+
+
 class PolicyBriefingImportRequest(BaseModel):
     news_item_id: str
     date: date_type | None = None

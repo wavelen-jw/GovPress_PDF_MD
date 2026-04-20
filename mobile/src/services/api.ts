@@ -9,6 +9,7 @@ import type {
   PolicyBriefingImportResult,
   PolicyBriefingImportPayload,
   PolicyBriefingListPayload,
+  PolicyBriefingRecentListPayload,
   ResultPayload,
   UploadResult,
 } from "../types";
@@ -274,6 +275,42 @@ export async function fetchTodayPolicyBriefings(config: AppConfig, date?: string
         throw new ApiError(response.status, normalizePolicyBriefingFailure(detail || `Request failed: ${response.status}`));
       }
       return (await response.json()) as PolicyBriefingListPayload;
+    } catch (error) {
+      const rawMessage = error instanceof Error ? error.message : String(error);
+      const message = normalizePolicyBriefingFailure(rawMessage);
+      failures.push(`${baseUrl}: ${message}`);
+      if (!isRetryableUploadError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error(buildPolicyBriefingUnavailableMessage("목록", failures));
+}
+
+export async function fetchRecentPolicyBriefings(
+  config: AppConfig,
+  days: number,
+): Promise<PolicyBriefingRecentListPayload> {
+  const path = `/v1/policy-briefings/recent?days=${days}`;
+  const attempts = getFallbackBaseUrls(config.baseUrl);
+  const failures: string[] = [];
+
+  for (const baseUrl of attempts) {
+    try {
+      const response = await fetchWithTimeout(
+        `${baseUrl}${path}`,
+        {
+          method: "GET",
+          headers: buildHeaders(config),
+        },
+        SERVER_FALLBACK_TIMEOUT_MS,
+      );
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new ApiError(response.status, normalizePolicyBriefingFailure(detail || `Request failed: ${response.status}`));
+      }
+      return (await response.json()) as PolicyBriefingRecentListPayload;
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : String(error);
       const message = normalizePolicyBriefingFailure(rawMessage);
