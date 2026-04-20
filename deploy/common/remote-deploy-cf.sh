@@ -215,9 +215,7 @@ cleanup_host_proxy_port_conflicts() {
   local port
   for port in $ports; do
     pids="$pids $(
-      (sudo ss -ltnp "sport = :${port}" 2>/dev/null || true) \
-        | sed -n 's/.*users:(("docker-proxy",pid=\([0-9]\+\).*/\1/p' \
-        | sort -u
+      sudo lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true
     )"
   done
   pids="$(printf '%s\n' "$pids" | tr ' ' '\n' | sed '/^$/d' | sort -u | tr '\n' ' ')"
