@@ -149,7 +149,7 @@ def build_router(
             start_date=target_dates[-1],
             end_date=resolved_end_date,
             days=days,
-            last_refreshed_at=sorted(refresh_times).at(-1) if refresh_times else None,
+            last_refreshed_at=sorted(refresh_times)[-1] if refresh_times else None,
             served_stale=served_stale,
             warning=warning,
             items=deduped_items,
