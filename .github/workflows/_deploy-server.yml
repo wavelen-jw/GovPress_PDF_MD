@@ -101,9 +101,9 @@ jobs:
           echo "git_origin=\$(git -C "$DEPLOY_DIR" remote get-url origin)"
           CONVERTER_VERSION_FILE="$DEPLOY_DIR/deploy/converter.version"
           CONVERTER_SPEC_RESOLVER="$DEPLOY_DIR/deploy/common/resolve_converter_spec.py"
-          if [ -n "${CONVERTER_SPEC}" ] && [ -f "$CONVERTER_VERSION_FILE" ] && [ -f "$CONVERTER_SPEC_RESOLVER" ]; then
-            CONVERTER_SPEC="$(python3 "$CONVERTER_SPEC_RESOLVER" --spec "$CONVERTER_SPEC" --version-file "$CONVERTER_VERSION_FILE")"
-            echo "converter_version=\$(cat "$CONVERTER_VERSION_FILE")"
+          if [ -n "${CONVERTER_SPEC}" ] && [ -f "\$CONVERTER_VERSION_FILE" ] && [ -f "\$CONVERTER_SPEC_RESOLVER" ]; then
+            CONVERTER_SPEC="$(python3 "\$CONVERTER_SPEC_RESOLVER" --spec "$CONVERTER_SPEC" --version-file "\$CONVERTER_VERSION_FILE")"
+            echo "converter_version=\$(cat "\$CONVERTER_VERSION_FILE")"
           fi
           rm -f \
             "$DEPLOY_DIR"/storage/results/*.md \
