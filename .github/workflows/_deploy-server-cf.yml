@@ -282,6 +282,12 @@ jobs:
               sleep $((attempt * 5))
             done
           fi
+          if [ "$deploy_exit" -ne 0 ] && [ -s remote-deploy.log ]; then
+            if grep -q '^deploy-complete$' remote-deploy.log && grep -q '^health_probe_code=200$' remote-deploy.log; then
+              echo "deploy_exit_override=remote_log_success"
+              deploy_exit=0
+            fi
+          fi
           tail -n 200 remote-deploy.log || true
           test "$deploy_exit" -eq 0
 

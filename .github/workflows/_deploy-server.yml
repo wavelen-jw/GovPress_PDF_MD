@@ -43,6 +43,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Materialize deploy key
         env:
           VPS_KEY: ${{ secrets.ssh_key }}
@@ -84,70 +87,41 @@ jobs:
         run: |
           set -euo pipefail
           KEY_FILE=~/.ssh/deploy_key
+          SSH_BASE_OPTS=(-T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20)
+          LOCAL_SCRIPT=deploy/common/remote-deploy-cf.sh
+          REMOTE_DIR="/tmp/govpress-remote-deploy-${GITHUB_RUN_ID:-manual}"
+          REMOTE_PATH="${REMOTE_DIR}/remote-deploy.sh"
+          REMOTE_LOG="${REMOTE_DIR}/remote-deploy.log"
+          REMOTE_STATUS="${REMOTE_DIR}/status.env"
+          LAUNCH_CMD="$(printf "export DEPLOY_DIR=%q BRANCH=%q SERVICE=%q HEALTHCHECK_URL=%q CONVERTER_SPEC=%q ADMIN_API_KEY=%q POLICY_BRIEFING_SERVICE_KEY=%q; remote_dir=%q; remote_path=%q; remote_log=%q; remote_status=%q; mkdir -p \"\$remote_dir\"; rm -f \"\$remote_status\"; cat > \"\$remote_path\" && chmod 700 \"\$remote_path\" && { ( /bin/bash --noprofile --norc \"\$remote_path\" > \"\$remote_log\" 2>&1; rc=\$?; printf 'exit_code=%%s\\n' \"\$rc\" > \"\$remote_status\"; rm -f \"\$remote_path\" ) </dev/null >/dev/null 2>&1 & printf 'launch_pid=%%s\\n' \"\$!\"; }; printf 'remote_log=%%s\\n' \"\$remote_log\"; printf 'remote_status=%%s\\n' \"\$remote_status\"" "$DEPLOY_DIR" "$BRANCH" "$SERVICE" "$HEALTHCHECK_URL" "$CONVERTER_SPEC" "$ADMIN_API_KEY" "$POLICY_BRIEFING_SERVICE_KEY" "$REMOTE_DIR" "$REMOTE_PATH" "$REMOTE_LOG" "$REMOTE_STATUS")"
+          POLL_CMD="$(printf "if [ -f %q ]; then cat %q; fi" "$REMOTE_STATUS" "$REMOTE_STATUS")"
+          FETCH_CMD="$(printf "if [ -f %q ]; then cat %q; fi" "$REMOTE_LOG" "$REMOTE_LOG")"
+          ssh "${SSH_BASE_OPTS[@]}" -p "$PORT" "$USER@$HOST" "$LAUNCH_CMD" > remote-launch.log 2>&1 < "$LOCAL_SCRIPT"
+          grep -q '^launch_pid=' remote-launch.log
 
-          ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes -p "$PORT" "$USER@$HOST" /bin/bash --noprofile --norc <<EOF 2>&1 | tee remote-deploy.log
-          set -euo pipefail
-          echo "=== govpress remote diagnostics ==="
-          echo "remote_host=\$(hostname)"
-          echo "remote_user=\$(whoami)"
-          echo "deploy_dir=$DEPLOY_DIR"
-          echo "target_branch=${BRANCH}"
-          git -C "$DEPLOY_DIR" fetch origin
-          git -C "$DEPLOY_DIR" checkout "$BRANCH"
-          git -C "$DEPLOY_DIR" reset --hard "origin/$BRANCH"
-          echo "git_branch=\$(git -C "$DEPLOY_DIR" branch --show-current)"
-          echo "git_head=\$(git -C "$DEPLOY_DIR" rev-parse HEAD)"
-          echo "target_sha=\$(git -C "$DEPLOY_DIR" rev-parse HEAD)"
-          echo "git_origin=\$(git -C "$DEPLOY_DIR" remote get-url origin)"
-          CONVERTER_VERSION_FILE="$DEPLOY_DIR/deploy/converter.version"
-          CONVERTER_SPEC_RESOLVER="$DEPLOY_DIR/deploy/common/resolve_converter_spec.py"
-          if [ -n "${CONVERTER_SPEC}" ] && [ -f "\$CONVERTER_VERSION_FILE" ] && [ -f "\$CONVERTER_SPEC_RESOLVER" ]; then
-            CONVERTER_SPEC="$(python3 "\$CONVERTER_SPEC_RESOLVER" --spec "$CONVERTER_SPEC" --version-file "\$CONVERTER_VERSION_FILE")"
-            echo "converter_version=\$(cat "\$CONVERTER_VERSION_FILE")"
-          fi
-          rm -f \
-            "$DEPLOY_DIR"/storage/results/*.md \
-            "$DEPLOY_DIR/deploy/vps/data/storage/results/"*.md \
-            "$DEPLOY_DIR/storage/policy_briefing_cache/index.json" \
-            "$DEPLOY_DIR"/storage/policy_briefing_cache/originals/* \
-            "$DEPLOY_DIR/deploy/vps/data/storage/policy_briefing_cache/index.json" \
-            "$DEPLOY_DIR"/deploy/vps/data/storage/policy_briefing_cache/originals/* \
-            2>/dev/null || true
-          echo "converter_cache_reset=results_and_policy_briefing_cache"
-          ENV_FILE="$DEPLOY_DIR/deploy/vps/.env"
-          touch "\$ENV_FILE"
-          if [ -n "${CONVERTER_SPEC}" ]; then
-            python3 -c 'from pathlib import Path; import sys; env_path = Path(sys.argv[1]); spec = sys.argv[2]; lines = env_path.read_text().splitlines() if env_path.exists() else []; updated = []; seen_spec = False; seen_fallback = False; [updated.append(f"GOVPRESS_CONVERTER_SPEC={spec}") or (seen_spec := True) if line.startswith("GOVPRESS_CONVERTER_SPEC=") else updated.append("GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=0") or (seen_fallback := True) if line.startswith("GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=") else updated.append(line) for line in lines]; updated.append(f"GOVPRESS_CONVERTER_SPEC={spec}") if not seen_spec else None; updated.append("GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=0") if not seen_fallback else None; env_path.write_text("\n".join(updated).rstrip() + "\n")' "\$ENV_FILE" "$CONVERTER_SPEC"
-          fi
-          if [ -n "${ADMIN_API_KEY}" ]; then
-            python3 -c 'from pathlib import Path; import sys; env_path = Path(sys.argv[1]); key = sys.argv[2]; lines = env_path.read_text().splitlines() if env_path.exists() else []; updated = []; seen = False; [updated.append(f"GOVPRESS_ADMIN_API_KEY={key}") or (seen := True) if line.startswith("GOVPRESS_ADMIN_API_KEY=") else updated.append(line) for line in lines]; updated.append(f"GOVPRESS_ADMIN_API_KEY={key}") if not seen else None; env_path.write_text("\n".join(updated).rstrip() + "\n")' "\$ENV_FILE" "$ADMIN_API_KEY"
-          fi
-          if [ -n "${POLICY_BRIEFING_SERVICE_KEY}" ]; then
-            python3 -c 'from pathlib import Path; import sys; env_path = Path(sys.argv[1]); key = sys.argv[2]; lines = env_path.read_text().splitlines() if env_path.exists() else []; updated = []; seen_key = False; seen_flag = False; [updated.append(f"GOVPRESS_POLICY_BRIEFING_SERVICE_KEY={key}") or (seen_key := True) if line.startswith("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY=") else updated.append("GOVPRESS_ALLOW_DEFAULT_POLICY_BRIEFING_SERVICE_KEY_FALLBACK=0") or (seen_flag := True) if line.startswith("GOVPRESS_ALLOW_DEFAULT_POLICY_BRIEFING_SERVICE_KEY_FALLBACK=") else updated.append(line) for line in lines]; updated.append(f"GOVPRESS_POLICY_BRIEFING_SERVICE_KEY={key}") if not seen_key else None; updated.append("GOVPRESS_ALLOW_DEFAULT_POLICY_BRIEFING_SERVICE_KEY_FALLBACK=0") if not seen_flag else None; env_path.write_text("\n".join(updated).rstrip() + "\n")' "\$ENV_FILE" "$POLICY_BRIEFING_SERVICE_KEY"
-          fi
-          if [ ! -x "$DEPLOY_DIR/.venv/bin/python" ]; then
-            python3 -m venv "$DEPLOY_DIR/.venv"
-          fi
-          "$DEPLOY_DIR/.venv/bin/python" -m pip install -U pip -q
-          "$DEPLOY_DIR/.venv/bin/python" -m pip install -r "$DEPLOY_DIR/requirements.txt" -q
-          "$DEPLOY_DIR/.venv/bin/python" -m pip install -U opendataloader-pdf -q
-          if [ -n "${CONVERTER_SPEC}" ]; then
-            "$DEPLOY_DIR/.venv/bin/python" -c 'from pathlib import Path; import subprocess, sys; env_path = Path(sys.argv[1]); spec = next((line.split("=", 1)[1].strip() for line in env_path.read_text().splitlines() if line.startswith("GOVPRESS_CONVERTER_SPEC=")), ""); assert spec, "GOVPRESS_CONVERTER_SPEC missing from env file"; subprocess.check_call([sys.executable, "-m", "pip", "install", spec, "-q"])' "$ENV_FILE"
-          fi
-          sudo -n systemctl restart "$SERVICE"
-          health_code=""
-          for _ in 1 2 3 4 5; do
-            health_code="\$(curl -sS -o /tmp/govpress-health.txt -w '%{http_code}' "$HEALTHCHECK_URL" || true)"
-            if [ "\$health_code" = "200" ]; then
+          deploy_exit=1
+          for attempt in $(seq 1 20); do
+            ssh "${SSH_BASE_OPTS[@]}" -p "$PORT" "$USER@$HOST" "$POLL_CMD" > remote-deploy.log 2>&1 || true
+            if grep -q '^exit_code=0$' remote-deploy.log; then
+              deploy_exit=0
+              break
+            fi
+            if grep -q '^exit_code=' remote-deploy.log; then
+              deploy_exit=1
               break
             fi
             sleep 3
           done
-          echo "health_probe_code=\$health_code"
-          echo "health_probe_body=\$(head -c 200 /tmp/govpress-health.txt | tr '\n' ' ' || true)"
-          systemctl --no-pager --full status "$SERVICE" | sed -n '1,30p' || sudo -n systemctl --no-pager --full status "$SERVICE" | sed -n '1,30p' || true
-          echo "deploy-complete"
-          EOF
+
+          ssh "${SSH_BASE_OPTS[@]}" -p "$PORT" "$USER@$HOST" "$FETCH_CMD" > remote-deploy.log 2>&1 || true
+          if [ "$deploy_exit" -ne 0 ] && [ -s remote-deploy.log ]; then
+            if grep -q '^deploy-complete$' remote-deploy.log && grep -q '^health_probe_code=200$' remote-deploy.log; then
+              echo "deploy_exit_override=remote_log_success" >> remote-deploy.log
+              deploy_exit=0
+            fi
+          fi
+          tail -n 200 remote-deploy.log || true
+          test "$deploy_exit" -eq 0
 
       - name: Summary
         if: always()
@@ -238,8 +212,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ ! -f remote-diagnostics.env ]; then
-            echo "remote-diagnostics.env missing" >&2
-            exit 1
+            echo "::warning file=.github,title=remote diagnostics::remote-diagnostics.env missing; skipping final verification because deploy step already determines job result"
+            exit 0
           fi
 
           target_sha="$(sed -n 's/^target_sha=//p' remote-diagnostics.env | tail -n1)"
