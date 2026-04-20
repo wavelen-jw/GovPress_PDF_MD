@@ -404,6 +404,10 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
     install_host_proxy_services
     cleanup_host_proxy_orphans
     restart_tunnel_after_compose=2
+    if [ -z "${HEALTHCHECK_URL:-}" ] || [ "${HEALTHCHECK_URL}" = "http://127.0.0.1:8013/health" ]; then
+      HEALTHCHECK_URL="http://127.0.0.1:8080/health"
+      echo "healthcheck_url_override=$HEALTHCHECK_URL"
+    fi
     echo "host_proxy_tunnel_origin=http://127.0.0.1:8080"
     echo "host_proxy_caddy_unit=govpress-caddy.service"
     echo "host_proxy_cloudflared_unit=govpress-cloudflared.service"
