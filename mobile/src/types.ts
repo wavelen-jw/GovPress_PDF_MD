@@ -43,6 +43,7 @@ export type AppConfig = {
 };
 
 export type PolicyBriefingItem = {
+  date: string;
   news_item_id: string;
   title: string;
   department: string;

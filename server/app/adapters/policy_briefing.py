@@ -314,8 +314,13 @@ class PolicyBriefingCatalog:
             stale_reason=stale_reason,
         )
 
-    def get_cached_item(self, news_item_id: str) -> PolicyBriefingItem | None:
+    def get_cached_item(self, news_item_id: str, *, target_date: date | None = None) -> PolicyBriefingItem | None:
         self._migrate_legacy_store_if_needed()
+        if target_date is not None:
+            day_store = self._load_day_store(target_date)
+            payload = day_store["items"].get(news_item_id)
+            if payload is not None:
+                return _deserialize_item(payload)
         for path in sorted(self._cache_dir.glob("*.json"), reverse=True):
             payload = self._load_store_file(path)["items"].get(news_item_id)
             if payload is not None:

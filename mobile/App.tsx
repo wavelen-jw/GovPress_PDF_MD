@@ -310,6 +310,17 @@ function dedupePolicyBriefings(items: PolicyBriefingItem[]): PolicyBriefingItem[
   return deduped;
 }
 
+function getPolicyBriefingDate(item: PolicyBriefingItem): string {
+  if (item.date) {
+    return item.date;
+  }
+  const [month = "", day = "", year = ""] = item.approve_date.split(" ")[0]?.split("/") ?? [];
+  if (!year || !month || !day) {
+    return "";
+  }
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
 export default function App(): React.JSX.Element {
   const { width } = useWindowDimensions();
   const isWideLayout = width >= 980;
@@ -1123,7 +1134,11 @@ export default function App(): React.JSX.Element {
     setBusy(true);
     setNotice("정책브리핑 HWPX를 가져오는 중...");
     try {
-      const { payload: imported, resolvedBaseUrl } = await importPolicyBriefing(config, item.news_item_id);
+      const { payload: imported, resolvedBaseUrl } = await importPolicyBriefing(
+        config,
+        item.news_item_id,
+        getPolicyBriefingDate(item),
+      );
       if (resolvedBaseUrl !== config.baseUrl) {
         const nextConfig = { ...config, baseUrl: resolvedBaseUrl };
         invalidateJobRefreshes();

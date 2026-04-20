@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 
 class PolicyBriefingItemResponse(BaseModel):
+    date: date_type
     news_item_id: str
     title: str
     department: str

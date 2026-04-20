@@ -84,6 +84,7 @@ def build_router(
             warning=warning,
             items=[
                 PolicyBriefingItemResponse(
+                    date=resolved_date,
                     news_item_id=item.news_item_id,
                     title=item.title,
                     department=item.department,
@@ -107,11 +108,11 @@ def build_router(
         if not policy_briefing_client.configured:
             raise HTTPException(status_code=503, detail="정책브리핑 API 서비스키가 설정되지 않았습니다.")
         try:
-            item = policy_briefing_catalog.get_cached_item(payload.news_item_id)
+            item = policy_briefing_catalog.get_cached_item(payload.news_item_id, target_date=payload.date)
             if item is None:
                 resolved_date = payload.date or date.today()
                 policy_briefing_catalog.refresh_today(resolved_date)
-                item = policy_briefing_catalog.get_cached_item(payload.news_item_id)
+                item = policy_briefing_catalog.get_cached_item(payload.news_item_id, target_date=resolved_date)
             if item is None:
                 raise KeyError(payload.news_item_id)
             cached = policy_briefing_cache.get(item.news_item_id)

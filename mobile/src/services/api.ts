@@ -308,7 +308,11 @@ export async function fetchTodayPolicyBriefingsDirect(
   return (await response.json()) as PolicyBriefingListPayload;
 }
 
-export async function importPolicyBriefing(config: AppConfig, newsItemId: string): Promise<PolicyBriefingImportResult> {
+export async function importPolicyBriefing(
+  config: AppConfig,
+  newsItemId: string,
+  date?: string,
+): Promise<PolicyBriefingImportResult> {
   const attempts = getFallbackBaseUrls(config.baseUrl);
   const failures: string[] = [];
 
@@ -319,7 +323,7 @@ export async function importPolicyBriefing(config: AppConfig, newsItemId: string
         {
           method: "POST",
           headers: buildHeaders(config, "application/json"),
-          body: JSON.stringify({ news_item_id: newsItemId }),
+          body: JSON.stringify({ news_item_id: newsItemId, ...(date ? { date } : {}) }),
         },
         SERVER_FALLBACK_TIMEOUT_MS,
       );
