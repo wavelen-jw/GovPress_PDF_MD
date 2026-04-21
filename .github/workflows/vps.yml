@@ -156,20 +156,13 @@ jobs:
           USER: ${{ secrets.GOVPRESS_VPS_USER }}
           PORT: ${{ vars.GOVPRESS_VPS_PORT || '22' }}
           DEPLOY_DIR: ${{ vars.GOVPRESS_VPS_DEPLOY_DIR }}
-          API_KEY: ${{ secrets.GOVPRESS_API_KEY }}
-          ADMIN_KEY: ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
         run: |
           set -euo pipefail
           KEY_FILE=~/.ssh/deploy_key
           ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes -p "$PORT" "$USER@$HOST" \
-            "cd '$DEPLOY_DIR' && '$DEPLOY_DIR/.venv/bin/python' '$DEPLOY_DIR/scripts/compare_converter_runtime.py' \
-              --sample '$DEPLOY_DIR/artifacts/policy_briefing_benchmark/corpus_latest100/hwpxs/156754103.hwpx' \
-              --api-key '$API_KEY' \
-              --admin-key '$ADMIN_KEY' \
-              --require-equal-hashes \
-              --server serverH=https://api.govpress.cloud \
-              --server serverW=https://api4.govpress.cloud \
-              --server serverV=https://api2.govpress.cloud" \
+            "cd '$DEPLOY_DIR' && '$DEPLOY_DIR/.venv/bin/python' '$DEPLOY_DIR/scripts/compare_converter_hashes_via_ssh.py' \
+              --deploy-dir '$DEPLOY_DIR' \
+              --sample-rel 'artifacts/policy_briefing_benchmark/corpus_latest100/hwpxs/156754103.hwpx'" \
             | tee converter-drift-smoke.json
 
       - name: Summarize conversion hashes
@@ -186,20 +179,15 @@ jobs:
 
           payload = json.loads(Path("converter-drift-smoke.json").read_text(encoding="utf-8"))
           rows = payload["results"]
-          print("| server | version | backend | module_path | text_sha256 | html_sha256 |")
-          print("| --- | --- | --- | --- | --- | --- |")
+          print("| server | text_sha256 | length |")
+          print("| --- | --- | --- |")
           lines = [
-              "| server | version | backend | module_path | text_sha256 | html_sha256 |",
-              "| --- | --- | --- | --- | --- | --- |",
+              "| server | text_sha256 | length |",
+              "| --- | --- | --- |",
           ]
           for row in rows:
-              runtime = row["runtime"]
-              version = runtime.get("version", runtime.get("probe_error", "unknown"))
-              backend = runtime.get("backend", "unknown")
-              module_path = runtime.get("module_path", runtime.get("probe_body", ""))
               line = (
-                  f"| {row['name']} | {version} | {backend} | `{module_path}` | "
-                  f"`{row['text_sha256']}` | `{row['html_sha256']}` |"
+                  f"| {row['name']} | `{row['text_sha256']}` | `{row['length']}` |"
               )
               print(line)
               lines.append(line)
