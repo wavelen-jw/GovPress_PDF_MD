@@ -126,24 +126,50 @@ jobs:
       - deploy-w
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Compare conversion hashes across servers
+      - name: Materialize deploy key
         env:
-          API_KEY: ${{ secrets.GOVPRESS_API_KEY }}
-          ADMIN_KEY: ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
-          SAMPLE_PATH: artifacts/policy_briefing_benchmark/corpus_latest100/hwpxs/156754103.hwpx
+          VPS_KEY: ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
         run: |
           set -euo pipefail
-          python3 scripts/compare_converter_runtime.py \
-            --sample "$SAMPLE_PATH" \
-            --api-key "$API_KEY" \
-            --admin-key "$ADMIN_KEY" \
-            --require-equal-hashes \
-            --server serverH=https://api.govpress.cloud \
-            --server serverW=https://api4.govpress.cloud \
-            --server serverV=https://api2.govpress.cloud \
+          mkdir -p ~/.ssh
+          KEY_FILE=~/.ssh/deploy_key
+          if printf '%s' "$VPS_KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+            printf '%s\n' "$VPS_KEY" | tr -d '\r' > "$KEY_FILE"
+          else
+            printf '%s' "$VPS_KEY" | tr -d '\r\n ' | base64 -d > "$KEY_FILE"
+          fi
+          chmod 600 "$KEY_FILE"
+          ssh-keygen -y -f "$KEY_FILE" > /dev/null
+
+      - name: Add serverV to known_hosts
+        env:
+          HOST: ${{ secrets.GOVPRESS_VPS_HOST }}
+          PORT: ${{ vars.GOVPRESS_VPS_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${PORT}" -H "$HOST" >> ~/.ssh/known_hosts
+
+      - name: Compare conversion hashes from serverV
+        env:
+          HOST: ${{ secrets.GOVPRESS_VPS_HOST }}
+          USER: ${{ secrets.GOVPRESS_VPS_USER }}
+          PORT: ${{ vars.GOVPRESS_VPS_PORT || '22' }}
+          DEPLOY_DIR: ${{ vars.GOVPRESS_VPS_DEPLOY_DIR }}
+          API_KEY: ${{ secrets.GOVPRESS_API_KEY }}
+          ADMIN_KEY: ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=~/.ssh/deploy_key
+          ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes -p "$PORT" "$USER@$HOST" \
+            "cd '$DEPLOY_DIR' && '$DEPLOY_DIR/.venv/bin/python' '$DEPLOY_DIR/scripts/compare_converter_runtime.py' \
+              --sample '$DEPLOY_DIR/artifacts/policy_briefing_benchmark/corpus_latest100/hwpxs/156754103.hwpx' \
+              --api-key '$API_KEY' \
+              --admin-key '$ADMIN_KEY' \
+              --require-equal-hashes \
+              --server serverH=https://api.govpress.cloud \
+              --server serverW=https://api4.govpress.cloud \
+              --server serverV=https://api2.govpress.cloud" \
             | tee converter-drift-smoke.json
 
       - name: Summarize conversion hashes
