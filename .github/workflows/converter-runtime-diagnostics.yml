@@ -50,8 +50,10 @@ jobs:
           print("| --- | --- | --- | --- | --- |")
           for row in rows:
               runtime = row["runtime"]
+              version = runtime.get("version", runtime.get("probe_error", "unknown"))
+              module_path = runtime.get("module_path", runtime.get("probe_body", ""))
               print(
-                  f"| {row['name']} | {runtime['version']} | `{runtime['module_path']}` | "
+                  f"| {row['name']} | {version} | `{module_path}` | "
                   f"`{row['text_sha256']}` | `{row['html_sha256']}` |"
               )
           distinct_text = {row["text_sha256"] for row in rows}
@@ -61,8 +63,10 @@ jobs:
               handle.write("| --- | --- | --- | --- | --- |\n")
               for row in rows:
                   runtime = row["runtime"]
+                  version = runtime.get("version", runtime.get("probe_error", "unknown"))
+                  module_path = runtime.get("module_path", runtime.get("probe_body", ""))
                   handle.write(
-                      f"| {row['name']} | {runtime['version']} | `{runtime['module_path']}` | "
+                      f"| {row['name']} | {version} | `{module_path}` | "
                       f"`{row['text_sha256']}` | `{row['html_sha256']}` |\n"
                   )
               handle.write("\n")

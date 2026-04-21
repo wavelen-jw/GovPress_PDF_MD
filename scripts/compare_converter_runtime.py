@@ -18,10 +18,18 @@ def _request_json(url: str, *, headers: dict[str, str], data: bytes | None = Non
 
 
 def _runtime_probe(base_url: str, *, admin_key: str) -> dict[str, object]:
-    return _request_json(
-        f"{base_url}/v1/admin/runtime/converter",
-        headers={"X-Admin-Key": admin_key},
-    )
+    try:
+        return _request_json(
+            f"{base_url}/v1/admin/runtime/converter",
+            headers={"X-Admin-Key": admin_key},
+        )
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        return {
+            "available": False,
+            "probe_error": f"HTTP {exc.code}",
+            "probe_body": detail[:500],
+        }
 
 
 def _multipart_body(sample_path: Path, *, boundary: str) -> tuple[bytes, str]:
