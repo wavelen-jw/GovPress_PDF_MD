@@ -50,9 +50,74 @@ concurrency:
 # ────────────────────────────────────────────────────────────────────
 
 jobs:
+  detect-targets:
+    name: "Detect Deploy Targets"
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_v: ${{ steps.detect.outputs.deploy_v }}
+      deploy_hw: ${{ steps.detect.outputs.deploy_hw }}
+      run_drift: ${{ steps.detect.outputs.run_drift }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed deployment scope
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          deploy_v=false
+          deploy_hw=false
+          run_drift=false
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            deploy_v=true
+            deploy_hw=true
+            run_drift=true
+          else
+            before="${{ github.event.before }}"
+            if [[ -z "$before" || "$before" == "0000000000000000000000000000000000000000" ]]; then
+              before="$(git rev-list --max-count=1 HEAD^ || true)"
+            fi
+            if [[ -z "$before" ]]; then
+              before="HEAD^"
+            fi
+
+            while IFS= read -r path; do
+              [[ -n "$path" ]] || continue
+              case "$path" in
+                .github/workflows/_deploy-server.yml)
+                  deploy_v=true
+                  ;;
+                deploy/wsl/*|.github/workflows/_deploy-server-cf.yml)
+                  deploy_hw=true
+                  ;;
+                .github/workflows/vps.yml|deploy/common/*|requirements.txt|server/*|src/*|deploy/converter.version)
+                  deploy_v=true
+                  deploy_hw=true
+                  run_drift=true
+                  ;;
+              esac
+            done < <(git diff --name-only "$before" "$GITHUB_SHA")
+
+            if [[ "$deploy_v" == true && "$deploy_hw" == true ]]; then
+              run_drift=true
+            fi
+          fi
+
+          {
+            echo "deploy_v=$deploy_v"
+            echo "deploy_hw=$deploy_hw"
+            echo "run_drift=$run_drift"
+          } >> "$GITHUB_OUTPUT"
 
   deploy-v:
     name: "서버V (VPS)"
+    needs: detect-targets
+    if: ${{ needs.detect-targets.outputs.deploy_v == 'true' }}
     uses: ./.github/workflows/_deploy-server.yml
     with:
       target_sha:      ${{ github.sha }}
@@ -71,7 +136,8 @@ jobs:
 
   deploy-h:
     name: "서버H (WSL, CF Tunnel)"
-    if: ${{ vars.GOVPRESS_H_DEPLOY_DIR != '' }}
+    needs: detect-targets
+    if: ${{ vars.GOVPRESS_H_DEPLOY_DIR != '' && needs.detect-targets.outputs.deploy_hw == 'true' }}
     uses: ./.github/workflows/_deploy-server-cf.yml
     with:
       target_sha:      ${{ github.sha }}
@@ -96,7 +162,8 @@ jobs:
 
   deploy-w:
     name: "서버W (WSL, CF Tunnel)"
-    if: ${{ vars.GOVPRESS_W_DEPLOY_DIR != '' }}
+    needs: detect-targets
+    if: ${{ vars.GOVPRESS_W_DEPLOY_DIR != '' && needs.detect-targets.outputs.deploy_hw == 'true' }}
     uses: ./.github/workflows/_deploy-server-cf.yml
     with:
       target_sha:      ${{ github.sha }}
@@ -119,8 +186,9 @@ jobs:
 
   converter-drift-smoke:
     name: "Converter Drift Smoke"
-    if: ${{ needs.deploy-v.result == 'success' && needs.deploy-h.result == 'success' && needs.deploy-w.result == 'success' }}
+    if: ${{ needs.detect-targets.outputs.run_drift == 'true' && needs.deploy-v.result == 'success' && needs.deploy-h.result == 'success' && needs.deploy-w.result == 'success' }}
     needs:
+      - detect-targets
       - deploy-v
       - deploy-h
       - deploy-w
@@ -199,6 +267,7 @@ jobs:
     name: "Notify Deploy Failure"
     if: ${{ always() && (needs.deploy-v.result == 'failure' || needs.deploy-h.result == 'failure' || needs.deploy-w.result == 'failure' || needs.converter-drift-smoke.result == 'failure') }}
     needs:
+      - detect-targets
       - deploy-v
       - deploy-h
       - deploy-w
