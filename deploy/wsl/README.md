@@ -198,6 +198,50 @@ curl -i https://api.govpress.cloud/health
 
 ## 안전한 배포 절차
 
+### CI/CD 불변식
+
+다음 규칙은 GitHub Actions `Deploy API To Servers`와 원격 `remote-deploy-cf.sh`가 항상 지켜야 합니다.
+
+- 배포 대상은 `branch tip`이 아니라 workflow를 트리거한 정확한 `github.sha`여야 합니다.
+- `host_proxy` 배포는 기존 `govpress-api`/`govpress-worker`를 새 컨테이너가 검증되기 전에 삭제하면 안 됩니다.
+- `host_proxy` 충돌 정리는 `8080`만 대상으로 하고, `8013`은 cleanup 대상으로 삼지 않습니다.
+- `8080` listener cleanup은 `host_proxy.py` 프로세스를 죽이면 안 됩니다.
+- 성공 판정은 단순 `/health 200`이 아니라 인증된 `policy-briefings/today` API `200`입니다.
+- deploy 실패 시 기존 API 컨테이너를 rollback 또는 유지해야 하며, 실패가 곧 서비스 공백으로 이어지면 안 됩니다.
+
+### Host-proxy 배포 흐름
+
+서버H/W의 정상 흐름은 아래 순서를 따릅니다.
+
+1. 원격 저장소를 workflow의 `github.sha`로 고정 checkout
+2. `api/worker` 이미지만 먼저 `build`
+3. 기존 `govpress-api`/`govpress-worker`를 backup 이름으로 rename 후 stop
+4. 새 `govpress-api`/`govpress-worker`를 `up -d --no-build`로 activate
+5. `govpress-caddy.service`, `govpress-cloudflared.service` 확인
+6. authenticated `policy-briefings/today` smoke test `200`
+7. 성공 시 backup 컨테이너 삭제
+8. 실패 시 새 컨테이너 제거 후 backup 컨테이너를 원래 이름으로 restore/start
+
+이 순서가 깨지면, 오늘 같은 “deploy 실패 = 장시간 API down” 사고가 다시 납니다.
+
+### 다음 패치 전 체크리스트
+
+아래 파일을 건드릴 때는 반드시 위 불변식을 다시 확인합니다.
+
+- `.github/workflows/vps.yml`
+- `.github/workflows/_deploy-server-cf.yml`
+- `.github/workflows/_deploy-server.yml`
+- `deploy/common/remote-deploy-cf.sh`
+- `deploy/wsl/bin/compose.sh`
+
+특히 아래 변화는 위험합니다.
+
+- `docker rm -f govpress-api govpress-worker` 재도입
+- `run_compose up -d --build`를 activate 단계에 직접 사용
+- `health_probe_code=200`만으로 success 처리
+- `git checkout branch && reset --hard origin/branch`로 되돌리기
+- `8013` 포트 cleanup 재도입
+
 1. 배포 전 상태 확인
 
 ```bash

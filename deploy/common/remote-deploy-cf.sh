@@ -6,9 +6,14 @@ echo "remote_host=$(hostname)"
 echo "remote_user=$(whoami)"
 echo "deploy_dir=${DEPLOY_DIR}"
 echo "target_branch=${BRANCH}"
+echo "requested_target_sha=${TARGET_SHA:-}"
 echo "deploy_mode=${DEPLOY_MODE:-compose_proxy}"
 
-git -C "$DEPLOY_DIR" fetch origin
+if [ -n "${TARGET_SHA:-}" ]; then
+  git -C "$DEPLOY_DIR" fetch origin "$TARGET_SHA" || git -C "$DEPLOY_DIR" fetch origin
+else
+  git -C "$DEPLOY_DIR" fetch origin
+fi
 # Deploy targets are treated as disposable working trees.
 # Remove local modifications and untracked build artifacts before switching refs,
 # but preserve runtime data, venvs, and existing env files.
@@ -21,12 +26,17 @@ git -C "$DEPLOY_DIR" clean -fdx \
   -e deploy/wsl/data/ \
   -e deploy/vps/.env \
   -e deploy/vps/data/
-git -C "$DEPLOY_DIR" checkout "$BRANCH"
-git -C "$DEPLOY_DIR" reset --hard "origin/$BRANCH"
+if [ -n "${TARGET_SHA:-}" ]; then
+  git -C "$DEPLOY_DIR" checkout --detach "$TARGET_SHA"
+  git -C "$DEPLOY_DIR" reset --hard "$TARGET_SHA"
+else
+  git -C "$DEPLOY_DIR" checkout "$BRANCH"
+  git -C "$DEPLOY_DIR" reset --hard "origin/$BRANCH"
+fi
 
 echo "git_branch=$(git -C "$DEPLOY_DIR" branch --show-current)"
 echo "git_head=$(git -C "$DEPLOY_DIR" rev-parse HEAD)"
-echo "target_sha=$(git -C "$DEPLOY_DIR" rev-parse HEAD)"
+echo "target_sha=${TARGET_SHA:-$(git -C "$DEPLOY_DIR" rev-parse HEAD)}"
 echo "git_origin=$(git -C "$DEPLOY_DIR" remote get-url origin)"
 HOME_DIR="${HOME:-$(getent passwd $(id -u) | cut -d: -f6)}"
 CONVERTER_VERSION_FILE="$DEPLOY_DIR/deploy/converter.version"
@@ -232,14 +242,19 @@ build_and_verify_dashboard_assets() {
 
 run_host_proxy_compose_up() {
   local log_file="${1:-/tmp/govpress-compose-up.log}"
+  local build_log="${log_file}.build"
   local attempt
-  for attempt in 1 2 3 4 5; do
+  run_compose build api worker >"$build_log" 2>&1
+  cat "$build_log"
+  for attempt in 1 2 3; do
+    host_proxy_stage_backups
     cleanup_host_proxy_port_conflicts
-    if run_compose up -d --build --remove-orphans api worker >"$log_file" 2>&1; then
+    if run_compose up -d --no-build --remove-orphans api worker >"$log_file" 2>&1; then
       cat "$log_file"
       return 0
     fi
     cat "$log_file"
+    host_proxy_restore_backups
     if ! grep -q "ports are not available" "$log_file"; then
       return 1
     fi
@@ -251,6 +266,70 @@ run_host_proxy_compose_up() {
 cleanup_host_proxy_orphans() {
   docker rm -f govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
   echo "host_proxy_orphan_cleanup=1"
+}
+
+HOST_PROXY_BACKUP_ACTIVE=0
+HOST_PROXY_API_BACKUP=""
+HOST_PROXY_WORKER_BACKUP=""
+
+host_proxy_stage_backups() {
+  local suffix
+  suffix="$(date +%s)-$$"
+  HOST_PROXY_BACKUP_ACTIVE=1
+  HOST_PROXY_API_BACKUP=""
+  HOST_PROXY_WORKER_BACKUP=""
+  if docker inspect govpress-api >/dev/null 2>&1; then
+    HOST_PROXY_API_BACKUP="govpress-api-backup-${suffix}"
+    docker rename govpress-api "$HOST_PROXY_API_BACKUP"
+    docker stop "$HOST_PROXY_API_BACKUP" >/dev/null 2>&1 || true
+  fi
+  if docker inspect govpress-worker >/dev/null 2>&1; then
+    HOST_PROXY_WORKER_BACKUP="govpress-worker-backup-${suffix}"
+    docker rename govpress-worker "$HOST_PROXY_WORKER_BACKUP"
+    docker stop "$HOST_PROXY_WORKER_BACKUP" >/dev/null 2>&1 || true
+  fi
+  echo "host_proxy_api_backup=${HOST_PROXY_API_BACKUP:-none}"
+  echo "host_proxy_worker_backup=${HOST_PROXY_WORKER_BACKUP:-none}"
+}
+
+host_proxy_restore_backups() {
+  if [ "${HOST_PROXY_BACKUP_ACTIVE}" != "1" ]; then
+    return 0
+  fi
+  echo "host_proxy_rollback=1"
+  docker rm -f govpress-api govpress-worker >/dev/null 2>&1 || true
+  if [ -n "${HOST_PROXY_API_BACKUP}" ] && docker inspect "${HOST_PROXY_API_BACKUP}" >/dev/null 2>&1; then
+    docker rename "${HOST_PROXY_API_BACKUP}" govpress-api
+    docker start govpress-api >/dev/null 2>&1 || true
+  fi
+  if [ -n "${HOST_PROXY_WORKER_BACKUP}" ] && docker inspect "${HOST_PROXY_WORKER_BACKUP}" >/dev/null 2>&1; then
+    docker rename "${HOST_PROXY_WORKER_BACKUP}" govpress-worker
+    docker start govpress-worker >/dev/null 2>&1 || true
+  fi
+  HOST_PROXY_BACKUP_ACTIVE=0
+  HOST_PROXY_API_BACKUP=""
+  HOST_PROXY_WORKER_BACKUP=""
+}
+
+host_proxy_cleanup_backups() {
+  if [ "${HOST_PROXY_BACKUP_ACTIVE}" != "1" ]; then
+    return 0
+  fi
+  if [ -n "${HOST_PROXY_API_BACKUP}" ] && docker inspect "${HOST_PROXY_API_BACKUP}" >/dev/null 2>&1; then
+    docker rm -f "${HOST_PROXY_API_BACKUP}" >/dev/null 2>&1 || true
+  fi
+  if [ -n "${HOST_PROXY_WORKER_BACKUP}" ] && docker inspect "${HOST_PROXY_WORKER_BACKUP}" >/dev/null 2>&1; then
+    docker rm -f "${HOST_PROXY_WORKER_BACKUP}" >/dev/null 2>&1 || true
+  fi
+  echo "host_proxy_backup_cleanup=1"
+  HOST_PROXY_BACKUP_ACTIVE=0
+  HOST_PROXY_API_BACKUP=""
+  HOST_PROXY_WORKER_BACKUP=""
+}
+
+is_host_proxy_pid() {
+  local pid="$1"
+  sudo -n ps -p "$pid" -o args= 2>/dev/null | grep -q 'host_proxy.py'
 }
 
 cleanup_host_proxy_port_conflicts() {
@@ -278,6 +357,9 @@ cleanup_host_proxy_port_conflicts() {
   fi
   echo "host_proxy_port_conflict_pids=$pids"
   for pid in $pids; do
+    if is_host_proxy_pid "$pid"; then
+      continue
+    fi
     sudo -n kill "$pid" >/dev/null 2>&1 || true
   done
   sleep 1
@@ -292,6 +374,9 @@ cleanup_host_proxy_port_conflicts() {
         } | sort -u | tr '\n' ' '
       )"
       for pid in $stubborn_pids; do
+        if is_host_proxy_pid "$pid"; then
+          continue
+        fi
         sudo -n kill -9 "$pid" >/dev/null 2>&1 || true
       done
     fi
@@ -409,7 +494,7 @@ emit_compose_diagnostics() {
   docker inspect --format 'name={{.Name}} state={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' govpress-api govpress-worker govpress-caddy govpress-caddy-host govpress-cloudflared 2>/dev/null || true
 }
 
-trap 'emit_compose_diagnostics' ERR
+trap 'host_proxy_restore_backups; emit_compose_diagnostics' ERR
 
 # Keep deploy-time cache eviction explicit so converter upgrades do not keep
 # serving stale markdown/results from a previous engine build.
@@ -534,6 +619,7 @@ fi
 
 # WSL rebuilds can take noticeably longer than VPS restarts.
 health_code=""
+policy_probe_code=""
 for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
   health_code="$(curl -sS -o /tmp/govpress-health.txt -w '%{http_code}' "$HEALTHCHECK_URL" || true)"
   echo "health_probe_attempt=${attempt} code=${health_code:-curl_failed}"
@@ -552,7 +638,17 @@ if [ "${RUN_POLICY_PROBE:-1}" = "1" ]; then
       policy_probe_header=(-H "x-api-key: $api_key")
     fi
   fi
-  echo "policy_probe_code=$(curl -sS -o /tmp/govpress-policy.txt -w '%{http_code}' "${policy_probe_header[@]}" 'http://127.0.0.1:8080/v1/policy-briefings/today?date=2026-04-08' || true)"
+  policy_probe_code="$(curl -sS -o /tmp/govpress-policy.txt -w '%{http_code}' "${policy_probe_header[@]}" 'http://127.0.0.1:8080/v1/policy-briefings/today?date=2026-04-08' || true)"
+  echo "policy_probe_code=${policy_probe_code}"
   echo "policy_probe_body=$(head -c 200 /tmp/govpress-policy.txt | tr '\n' ' ' || true)"
+  echo "deploy_probe_name=policy"
+  echo "deploy_probe_code=${policy_probe_code}"
+  test "${policy_probe_code}" = "200"
+else
+  echo "deploy_probe_name=health"
+  echo "deploy_probe_code=${health_code}"
+fi
+if [ "${DEPLOY_MODE:-compose_proxy}" = "host_proxy" ]; then
+  host_proxy_cleanup_backups
 fi
 echo "deploy-complete"

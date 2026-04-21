@@ -3,6 +3,9 @@ name: _Deploy Server (Reusable)
 on:
   workflow_call:
     inputs:
+      target_sha:
+        type: string
+        required: true
       port:
         type: string
         default: "22"
@@ -79,6 +82,7 @@ jobs:
           PORT: ${{ inputs.port }}
           DEPLOY_DIR: ${{ inputs.deploy_dir }}
           BRANCH: ${{ inputs.branch }}
+          TARGET_SHA: ${{ inputs.target_sha }}
           SERVICE: ${{ inputs.service }}
           HEALTHCHECK_URL: ${{ inputs.healthcheck_url }}
           CONVERTER_SPEC: ${{ secrets.converter_spec }}
@@ -93,7 +97,7 @@ jobs:
           REMOTE_PATH="${REMOTE_DIR}/remote-deploy.sh"
           REMOTE_LOG="${REMOTE_DIR}/remote-deploy.log"
           REMOTE_STATUS="${REMOTE_DIR}/status.env"
-          LAUNCH_CMD="$(printf "export DEPLOY_DIR=%q BRANCH=%q COMPOSE_FILE='' DEPLOY_MODE='' SERVICE=%q HEALTHCHECK_URL=%q CONVERTER_SPEC=%q ADMIN_API_KEY=%q POLICY_BRIEFING_SERVICE_KEY=%q; remote_dir=%q; remote_path=%q; remote_log=%q; remote_status=%q; mkdir -p \"\$remote_dir\"; rm -f \"\$remote_status\"; cat > \"\$remote_path\" && chmod 700 \"\$remote_path\" && { ( /bin/bash --noprofile --norc \"\$remote_path\" > \"\$remote_log\" 2>&1; rc=\$?; printf 'exit_code=%%s\\n' \"\$rc\" > \"\$remote_status\"; rm -f \"\$remote_path\" ) </dev/null >/dev/null 2>&1 & printf 'launch_pid=%%s\\n' \"\$!\"; }; printf 'remote_log=%%s\\n' \"\$remote_log\"; printf 'remote_status=%%s\\n' \"\$remote_status\"" "$DEPLOY_DIR" "$BRANCH" "$SERVICE" "$HEALTHCHECK_URL" "$CONVERTER_SPEC" "$ADMIN_API_KEY" "$POLICY_BRIEFING_SERVICE_KEY" "$REMOTE_DIR" "$REMOTE_PATH" "$REMOTE_LOG" "$REMOTE_STATUS")"
+          LAUNCH_CMD="$(printf "export DEPLOY_DIR=%q BRANCH=%q TARGET_SHA=%q COMPOSE_FILE='' DEPLOY_MODE='' SERVICE=%q HEALTHCHECK_URL=%q CONVERTER_SPEC=%q ADMIN_API_KEY=%q POLICY_BRIEFING_SERVICE_KEY=%q; remote_dir=%q; remote_path=%q; remote_log=%q; remote_status=%q; mkdir -p \"\$remote_dir\"; rm -f \"\$remote_status\"; cat > \"\$remote_path\" && chmod 700 \"\$remote_path\" && { ( /bin/bash --noprofile --norc \"\$remote_path\" > \"\$remote_log\" 2>&1; rc=\$?; printf 'exit_code=%%s\\n' \"\$rc\" > \"\$remote_status\"; rm -f \"\$remote_path\" ) </dev/null >/dev/null 2>&1 & printf 'launch_pid=%%s\\n' \"\$!\"; }; printf 'remote_log=%%s\\n' \"\$remote_log\"; printf 'remote_status=%%s\\n' \"\$remote_status\"" "$DEPLOY_DIR" "$BRANCH" "$TARGET_SHA" "$SERVICE" "$HEALTHCHECK_URL" "$CONVERTER_SPEC" "$ADMIN_API_KEY" "$POLICY_BRIEFING_SERVICE_KEY" "$REMOTE_DIR" "$REMOTE_PATH" "$REMOTE_LOG" "$REMOTE_STATUS")"
           POLL_CMD="$(printf "if [ -f %q ]; then cat %q; fi" "$REMOTE_STATUS" "$REMOTE_STATUS")"
           FETCH_CMD="$(printf "if [ -f %q ]; then cat %q; fi" "$REMOTE_LOG" "$REMOTE_LOG")"
           ssh "${SSH_BASE_OPTS[@]}" -p "$PORT" "$USER@$HOST" "$LAUNCH_CMD" > remote-launch.log 2>&1 < "$LOCAL_SCRIPT"
@@ -115,7 +119,7 @@ jobs:
 
           ssh "${SSH_BASE_OPTS[@]}" -p "$PORT" "$USER@$HOST" "$FETCH_CMD" > remote-deploy.log 2>&1 || true
           if [ "$deploy_exit" -ne 0 ] && [ -s remote-deploy.log ]; then
-            if grep -q '^deploy-complete$' remote-deploy.log && grep -q '^health_probe_code=200$' remote-deploy.log; then
+            if grep -q '^deploy-complete$' remote-deploy.log && grep -q '^deploy_probe_code=200$' remote-deploy.log; then
               echo "deploy_exit_override=remote_log_success" >> remote-deploy.log
               deploy_exit=0
             fi
@@ -157,6 +161,8 @@ jobs:
           git_head="$(sed -n 's/^git_head=//p' remote-deploy.log | tail -n1)"
           git_origin="$(sed -n 's/^git_origin=//p' remote-deploy.log | tail -n1)"
           health_probe_code="$(sed -n 's/^health_probe_code=//p' remote-deploy.log | tail -n1)"
+          deploy_probe_name="$(sed -n 's/^deploy_probe_name=//p' remote-deploy.log | tail -n1)"
+          deploy_probe_code="$(sed -n 's/^deploy_probe_code=//p' remote-deploy.log | tail -n1)"
           health_probe_body="$(sed -n 's/^health_probe_body=//p' remote-deploy.log | tail -n1)"
 
           {
@@ -169,6 +175,8 @@ jobs:
             echo "git_head=${git_head}"
             echo "git_origin=${git_origin}"
             echo "health_probe_code=${health_probe_code}"
+            echo "deploy_probe_name=${deploy_probe_name}"
+            echo "deploy_probe_code=${deploy_probe_code}"
             echo "health_probe_body=${health_probe_body}"
           } > remote-diagnostics.env
 
@@ -218,17 +226,21 @@ jobs:
 
           target_sha="$(sed -n 's/^target_sha=//p' remote-diagnostics.env | tail -n1)"
           git_head="$(sed -n 's/^git_head=//p' remote-diagnostics.env | tail -n1)"
-          health_probe_code="$(sed -n 's/^health_probe_code=//p' remote-diagnostics.env | tail -n1)"
+          deploy_probe_code="$(sed -n 's/^deploy_probe_code=//p' remote-diagnostics.env | tail -n1)"
 
           if [ -z "$target_sha" ]; then
             echo "remote deploy revision missing" >&2
+            exit 1
+          fi
+          if [ "$target_sha" != "${{ inputs.target_sha }}" ]; then
+            echo "remote target sha mismatch: ${target_sha} != ${{ inputs.target_sha }}" >&2
             exit 1
           fi
           if [ -n "$git_head" ] && [ "$git_head" != "$target_sha" ]; then
             echo "remote git head mismatch: ${git_head} != ${target_sha}" >&2
             exit 1
           fi
-          if [ -n "$health_probe_code" ] && [ "$health_probe_code" != "200" ]; then
-            echo "remote health probe failed: ${health_probe_code}" >&2
+          if [ -n "$deploy_probe_code" ] && [ "$deploy_probe_code" != "200" ]; then
+            echo "remote deploy probe failed: ${deploy_probe_code}" >&2
             exit 1
           fi

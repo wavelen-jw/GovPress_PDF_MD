@@ -55,6 +55,7 @@ jobs:
     name: "서버V (VPS)"
     uses: ./.github/workflows/_deploy-server.yml
     with:
+      target_sha:      ${{ github.sha }}
       port:            ${{ vars.GOVPRESS_VPS_PORT || '22' }}
       deploy_dir:      ${{ vars.GOVPRESS_VPS_DEPLOY_DIR }}
       branch:          ${{ vars.GOVPRESS_VPS_BRANCH || 'web' }}
@@ -73,6 +74,7 @@ jobs:
     if: ${{ vars.GOVPRESS_H_DEPLOY_DIR != '' }}
     uses: ./.github/workflows/_deploy-server-cf.yml
     with:
+      target_sha:      ${{ github.sha }}
       ssh_host:        ${{ vars.GOVPRESS_H_SSH_HOST }}
       deploy_dir:      ${{ vars.GOVPRESS_H_DEPLOY_DIR }}
       branch:          ${{ vars.GOVPRESS_H_BRANCH || 'web' }}
@@ -82,7 +84,7 @@ jobs:
       deploy_poll_attempts: "120"
       deploy_poll_interval_seconds: "5"
       emit_failure_diagnostics_only: "true"
-      run_policy_probe: "false"
+      run_policy_probe: "true"
     secrets:
       user:             ${{ secrets.GOVPRESS_H_USER }}
       ssh_key:          ${{ secrets.GOVPRESS_H_SSH_KEY }}
@@ -97,6 +99,7 @@ jobs:
     if: ${{ vars.GOVPRESS_W_DEPLOY_DIR != '' }}
     uses: ./.github/workflows/_deploy-server-cf.yml
     with:
+      target_sha:      ${{ github.sha }}
       ssh_host:        ${{ vars.GOVPRESS_W_SSH_HOST }}
       deploy_dir:      ${{ vars.GOVPRESS_W_DEPLOY_DIR }}
       branch:          ${{ vars.GOVPRESS_W_BRANCH || 'web' }}
@@ -104,7 +107,7 @@ jobs:
       deploy_mode:     host_proxy
       healthcheck_url: ${{ vars.GOVPRESS_W_HEALTHCHECK_URL || 'http://127.0.0.1:8080/health' }}
       emit_failure_diagnostics_only: "true"
-      run_policy_probe: "false"
+      run_policy_probe: "true"
     secrets:
       user:             ${{ secrets.GOVPRESS_W_USER }}
       ssh_key:          ${{ secrets.GOVPRESS_W_SSH_KEY }}

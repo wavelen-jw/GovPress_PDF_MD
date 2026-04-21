@@ -92,6 +92,7 @@ cleanup_host_proxy_runtime_conflicts() {
       docker rm -f govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
       if sudo -n true >/dev/null 2>&1; then
         local pids=""
+        local pid=""
         pids="$(
           {
             sudo lsof -tiTCP:8080 -sTCP:LISTEN 2>/dev/null || true
@@ -102,11 +103,17 @@ cleanup_host_proxy_runtime_conflicts() {
         if [[ -n "$pids" ]]; then
           while IFS= read -r pid; do
             [[ -n "$pid" ]] || continue
+            if sudo -n ps -p "$pid" -o args= 2>/dev/null | grep -q 'host_proxy.py'; then
+              continue
+            fi
             sudo kill "$pid" >/dev/null 2>&1 || true
           done <<< "$pids"
           sleep 1
           while IFS= read -r pid; do
             [[ -n "$pid" ]] || continue
+            if sudo -n ps -p "$pid" -o args= 2>/dev/null | grep -q 'host_proxy.py'; then
+              continue
+            fi
             sudo kill -9 "$pid" >/dev/null 2>&1 || true
           done <<< "$pids"
         fi
