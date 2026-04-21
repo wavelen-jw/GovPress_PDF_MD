@@ -261,7 +261,11 @@ cleanup_host_proxy_port_conflicts() {
   local port
   for port in $ports; do
     pids="$pids $(
-      sudo lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true
+      {
+        sudo lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true
+        sudo ss -ltnp "( sport = :${port} )" 2>/dev/null \
+          | sed -n 's/.*pid=\([0-9]\+\).*/\1/p'
+      } | sort -u
     )"
   done
   pids="$(printf '%s\n' "$pids" | tr ' ' '\n' | sed '/^$/d' | sort -u | tr '\n' ' ')"
@@ -272,6 +276,22 @@ cleanup_host_proxy_port_conflicts() {
   echo "host_proxy_port_conflict_pids=$pids"
   for pid in $pids; do
     sudo kill "$pid" >/dev/null 2>&1 || true
+  done
+  sleep 1
+  for port in $ports; do
+    if ! wait_for_port_release "$port" 3 1 >/dev/null 2>&1; then
+      local stubborn_pids=""
+      stubborn_pids="$(
+        {
+          sudo lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true
+          sudo ss -ltnp "( sport = :${port} )" 2>/dev/null \
+            | sed -n 's/.*pid=\([0-9]\+\).*/\1/p'
+        } | sort -u | tr '\n' ' '
+      )"
+      for pid in $stubborn_pids; do
+        sudo kill -9 "$pid" >/dev/null 2>&1 || true
+      done
+    fi
   done
   sleep 1
   echo "host_proxy_port_conflict_cleanup=1"

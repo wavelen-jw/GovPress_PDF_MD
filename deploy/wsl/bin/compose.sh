@@ -89,7 +89,29 @@ cleanup_host_proxy_runtime_conflicts() {
   fi
   case "${1:-}" in
     up|start|restart)
-      docker rm -f govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
+      docker rm -f govpress-api govpress-worker govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
+      if sudo -n true >/dev/null 2>&1; then
+        local pids=""
+        pids="$(
+          {
+            sudo lsof -tiTCP:8013 -sTCP:LISTEN 2>/dev/null || true
+            sudo lsof -tiTCP:8080 -sTCP:LISTEN 2>/dev/null || true
+            sudo ss -ltnp '( sport = :8013 or sport = :8080 )' 2>/dev/null \
+              | sed -n 's/.*pid=\([0-9]\+\).*/\1/p'
+          } | sort -u
+        )"
+        if [[ -n "$pids" ]]; then
+          while IFS= read -r pid; do
+            [[ -n "$pid" ]] || continue
+            sudo kill "$pid" >/dev/null 2>&1 || true
+          done <<< "$pids"
+          sleep 1
+          while IFS= read -r pid; do
+            [[ -n "$pid" ]] || continue
+            sudo kill -9 "$pid" >/dev/null 2>&1 || true
+          done <<< "$pids"
+        fi
+      fi
       ;;
   esac
 }
