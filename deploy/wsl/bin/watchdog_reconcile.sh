@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 DEPLOY_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
+COMPOSE_SH="$DEPLOY_DIR/bin/compose.sh"
 
 export DOCKER_HOST="${DOCKER_HOST:-unix:///var/run/docker.sock}"
 unset DOCKER_CONTEXT
@@ -42,7 +43,7 @@ if [ "$need_reconcile" -eq 0 ]; then
 fi
 
 echo "watchdog_reconcile=run reasons=${reasons[*]}"
-"$DEPLOY_DIR/deploy/wsl/bin/compose.sh" up -d api worker
+"$COMPOSE_SH" up -d api worker
 
 for i in $(seq 1 20); do
   if curl -sf http://127.0.0.1:8013/health >/dev/null 2>&1; then
