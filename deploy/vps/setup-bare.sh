@@ -16,6 +16,11 @@ CONVERTER_ALLOW_LOCAL_FALLBACK="${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-0}"
 CONVERTER_MIN_VERSION="${GOVPRESS_CONVERTER_MIN_VERSION:-}"
 CONVERTER_VERSION_FILE="$DEPLOY_DIR/deploy/converter.version"
 CONVERTER_SPEC_RESOLVER="$DEPLOY_DIR/deploy/common/resolve_converter_spec.py"
+REQUIRED_CORS_ORIGINS=(
+  "https://govpress.cloud"
+  "https://www.govpress.cloud"
+  "https://wavelen-jw.github.io"
+)
 
 info()  { echo "[INFO]  $*"; }
 error() { echo "[ERROR] $*" >&2; exit 1; }
@@ -42,6 +47,34 @@ for line in lines:
         updated.append(line)
 if not seen:
     updated.append(f"{key}={value}")
+env_path.write_text("\n".join(updated).rstrip() + "\n", encoding="utf-8")
+PY
+}
+
+merge_required_origins() {
+  local env_file="$1"
+  python3 - <<'PY' "$env_file" "${REQUIRED_CORS_ORIGINS[@]}"
+from pathlib import Path
+import sys
+
+env_path = Path(sys.argv[1])
+required = [item.strip() for item in sys.argv[2:] if item.strip()]
+lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+updated = []
+seen = False
+for line in lines:
+    if line.startswith("GOVPRESS_CORS_ALLOW_ORIGINS="):
+        current = [item.strip() for item in line.split("=", 1)[1].split(",") if item.strip()]
+        merged = []
+        for item in current + required:
+            if item not in merged:
+                merged.append(item)
+        updated.append("GOVPRESS_CORS_ALLOW_ORIGINS=" + ",".join(merged))
+        seen = True
+    else:
+        updated.append(line)
+if not seen:
+    updated.append("GOVPRESS_CORS_ALLOW_ORIGINS=" + ",".join(required))
 env_path.write_text("\n".join(updated).rstrip() + "\n", encoding="utf-8")
 PY
 }
@@ -206,6 +239,7 @@ upsert_env_value "$ENV_FILE" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "$CONVERT
 if [[ -n "$CONVERTER_MIN_VERSION" ]]; then
   upsert_env_value "$ENV_FILE" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
 fi
+merge_required_origins "$ENV_FILE"
 
 # ── 8. Caddy 설정 ─────────────────────────────────────────────────────────────
 info "Caddy 설정 적용..."

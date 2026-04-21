@@ -63,7 +63,7 @@ nano ~/GovPress_PDF_MD/deploy/vps/.env
 
 ```env
 GOVPRESS_API_KEY=실제-비밀-키
-GOVPRESS_CORS_ALLOW_ORIGINS=https://wavelen-jw.github.io
+GOVPRESS_CORS_ALLOW_ORIGINS=https://govpress.cloud,https://www.govpress.cloud,https://wavelen-jw.github.io
 GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=0
 GOVPRESS_CONVERTER_SPEC=git+https://<TOKEN>@github.com/wavelen-jw/gov-md-converter.git@v0.1.18
 GOVPRESS_CONVERTER_MIN_VERSION=0.1.18
@@ -75,6 +75,7 @@ CLOUDFLARE_TUNNEL_TOKEN=실제-터널-토큰
 
 - converter 버전은 서버별 `.env`에서 직접 태그를 바꾸지 말고 저장소의 `deploy/converter.version`을 기준으로 관리합니다.
 - bare-metal 설치/재배포 스크립트는 `GOVPRESS_CONVERTER_SPEC`의 기존 태그를 `deploy/converter.version` 값으로 자동 정규화합니다.
+- bare-metal 설치/재배포 스크립트는 `https://govpress.cloud`, `https://www.govpress.cloud`, `https://wavelen-jw.github.io`를 `GOVPRESS_CORS_ALLOW_ORIGINS`에 자동 보정합니다.
 - 프로덕션은 `GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=0` 고정입니다.
 - 배포 후 `distribution_version`, `module_path`, `backend`를 검사하고 package backend가 아니면 실패 처리합니다.
 - `serverV`는 bare-metal이라 `127.0.0.1:8013`을 systemd 밖의 수동 `uvicorn`이 점유할 수 있습니다. 재배포 시에는 `govpress-api.service`의 MainPID가 아닌 `8013` listener를 먼저 정리한 뒤 재시작해야 합니다.
