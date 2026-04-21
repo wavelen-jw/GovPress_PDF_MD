@@ -43,7 +43,7 @@ def _remote_payload(alias: str, sample_rel: str) -> dict[str, str]:
     remote_script = """
 set -euo pipefail
 sample_rel={sample_rel}
-docker exec govpress-api python - "$sample_rel" <<'PY'
+docker exec -i govpress-api python - "$sample_rel" <<'PY'
 import hashlib
 import json
 import sys
@@ -59,7 +59,14 @@ print(json.dumps({{
 }}, ensure_ascii=False))
 PY
 """.format(sample_rel=quoted_rel)
-    out = _run(["ssh", alias, "bash", "-lc", remote_script])
+    proc = subprocess.run(
+        ["ssh", alias, "bash", "-s"],
+        input=remote_script,
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    out = proc.stdout.strip()
     return json.loads(out)
 
 
