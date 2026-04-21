@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import json
 import os
 import socket
 from urllib.parse import urlsplit
@@ -72,9 +71,27 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self._proxy()
 
     def _health(self, *, include_body: bool) -> None:
-        payload = json.dumps({"status": "ok"}).encode("utf-8") if include_body else b""
-        self.send_response(200, "OK")
-        self.send_header("Content-Type", "application/json")
+        conn_cls = http.client.HTTPSConnection if UPSTREAM.scheme == "https" else http.client.HTTPConnection
+        conn = conn_cls(UPSTREAM.hostname, UPSTREAM.port, timeout=5)
+        payload = b""
+        status = 200
+        reason = "OK"
+        content_type = "application/json"
+        try:
+            conn.request("GET" if include_body else "HEAD", "/health", headers={"Host": UPSTREAM.netloc})
+            upstream_response = conn.getresponse()
+            payload = upstream_response.read() if include_body else b""
+            status = upstream_response.status
+            reason = upstream_response.reason
+            content_type = upstream_response.getheader("Content-Type", "application/json")
+        except (OSError, socket.timeout) as exc:
+            self.send_error(502, f"upstream unavailable: {exc}")
+            return
+        finally:
+            conn.close()
+
+        self.send_response(status, reason)
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(payload)))
         self._send_cors_headers()
         self.end_headers()

@@ -30,6 +30,7 @@ jobs:
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      GOVPRESS_API_KEY: ${{ secrets.GOVPRESS_API_KEY }}
       SEND_TELEGRAM: ${{ github.event_name != 'workflow_dispatch' || inputs.send_telegram != false }}
       STATE_ISSUE_TITLE: "[bot] Server Health Monitor State"
       STATE_MARKER: "<!-- server-health-monitor-state -->"
@@ -114,6 +115,7 @@ jobs:
             --state-path server-health-state.json \
             --failure-threshold 2 \
             --timeout 5 \
+            --api-key "${GOVPRESS_API_KEY}" \
             --json \
             ${TELEGRAM_FLAG} > server-health-result.json
           python - <<'PY'

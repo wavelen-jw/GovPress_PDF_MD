@@ -78,9 +78,33 @@ def save_monitor_state(path: Path, state: dict[str, Any]) -> None:
     path.write_text(json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def fetch_health(url: str, *, timeout: float = 5.0) -> dict[str, Any]:
+def seoul_today_iso() -> str:
+    return (datetime.now(UTC) + SEOUL_UTC_OFFSET).date().isoformat()
+
+
+def build_probe_request(url: str, *, api_key: str | None = None) -> tuple[str, Request]:
+    if api_key:
+        endpoint = (
+            url.rstrip("/")
+            + f"/v1/policy-briefings/today?date={seoul_today_iso()}"
+        )
+        request = Request(
+            endpoint,
+            headers={
+                "User-Agent": "govpress-server-monitor/1.0",
+                "Accept": "application/json",
+                "X-API-Key": api_key,
+            },
+        )
+        return endpoint, request
+
     endpoint = url.rstrip("/") + "/health"
     request = Request(endpoint, headers={"User-Agent": "govpress-server-monitor/1.0", "Accept": "application/json"})
+    return endpoint, request
+
+
+def fetch_health(url: str, *, timeout: float = 5.0, api_key: str | None = None) -> dict[str, Any]:
+    endpoint, request = build_probe_request(url, api_key=api_key)
     try:
         with urlopen(request, timeout=timeout) as response:
             body = response.read().decode("utf-8", errors="replace")
@@ -141,10 +165,10 @@ def resolve_servers() -> list[dict[str, str]]:
     ]
 
 
-def check_servers(*, timeout: float = 5.0) -> list[dict[str, Any]]:
+def check_servers(*, timeout: float = 5.0, api_key: str | None = None) -> list[dict[str, Any]]:
     statuses = []
     for server in resolve_servers():
-        statuses.append({**server, **fetch_health(server["url"], timeout=timeout)})
+        statuses.append({**server, **fetch_health(server["url"], timeout=timeout, api_key=api_key)})
     return statuses
 
 
@@ -290,6 +314,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--state-path", required=True, help="Path to monitor state JSON")
     parser.add_argument("--failure-threshold", type=int, default=2, help="Consecutive failures required for a down alert")
     parser.add_argument("--timeout", type=float, default=5.0, help="Per-server health request timeout in seconds")
+    parser.add_argument("--api-key", default="", help="Optional API key for authenticated policy probe")
     parser.add_argument("--send-telegram", action="store_true", help="Send Telegram when state transitions exist")
     parser.add_argument("--json", action="store_true", help="Print result JSON")
     return parser
@@ -300,7 +325,7 @@ def main() -> int:
     checked_at = utcnow_iso()
     state_path = Path(args.state_path)
     previous_state = load_monitor_state(state_path)
-    statuses = check_servers(timeout=args.timeout)
+    statuses = check_servers(timeout=args.timeout, api_key=(args.api_key or "").strip() or None)
     next_state, transitions = evaluate_monitor(
         previous_state,
         statuses,

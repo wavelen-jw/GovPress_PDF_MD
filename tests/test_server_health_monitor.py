@@ -6,6 +6,7 @@ import tempfile
 import unittest
 
 from scripts.server_health_monitor import (
+    build_probe_request,
     evaluate_monitor,
     format_transition_message,
     is_quiet_hours_seoul,
@@ -251,3 +252,15 @@ class ServerHealthMonitorTests(unittest.TestCase):
                 checked_at="2026-04-14T17:30:00Z",
             )
         )
+
+    def test_build_probe_request_defaults_to_public_health(self) -> None:
+        endpoint, request = build_probe_request("https://api.govpress.cloud")
+        self.assertEqual(endpoint, "https://api.govpress.cloud/health")
+        self.assertEqual(request.get_full_url(), endpoint)
+        self.assertIsNone(request.get_header("X-API-Key"))
+
+    def test_build_probe_request_uses_authenticated_policy_probe_when_api_key_present(self) -> None:
+        endpoint, request = build_probe_request("https://api.govpress.cloud", api_key="secret-key")
+        self.assertIn("/v1/policy-briefings/today?date=", endpoint)
+        self.assertEqual(request.get_full_url(), endpoint)
+        self.assertEqual(request.get_header("X-api-key"), "secret-key")
