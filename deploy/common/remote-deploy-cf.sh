@@ -257,12 +257,17 @@ cleanup_host_proxy_port_conflicts() {
   local ports="8080"
   local pids=""
   local port
+  if ! sudo -n lsof -tiTCP:8080 -sTCP:LISTEN >/dev/null 2>&1 \
+    && ! sudo -n ss -ltnp "( sport = :8080 )" >/dev/null 2>&1; then
+    echo "host_proxy_port_conflict_cleanup=skipped_no_sudo"
+    return 0
+  fi
   for port in $ports; do
     pids="$pids $(
       {
-        sudo lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true
-        sudo ss -ltnp "( sport = :${port} )" 2>/dev/null \
-          | sed -n 's/.*pid=\([0-9]\+\).*/\1/p'
+        sudo -n lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true
+        sudo -n ss -ltnp "( sport = :${port} )" 2>/dev/null \
+          | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' || true
       } | sort -u
     )"
   done
@@ -273,7 +278,7 @@ cleanup_host_proxy_port_conflicts() {
   fi
   echo "host_proxy_port_conflict_pids=$pids"
   for pid in $pids; do
-    sudo kill "$pid" >/dev/null 2>&1 || true
+    sudo -n kill "$pid" >/dev/null 2>&1 || true
   done
   sleep 1
   for port in $ports; do
@@ -281,13 +286,13 @@ cleanup_host_proxy_port_conflicts() {
       local stubborn_pids=""
       stubborn_pids="$(
         {
-          sudo lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true
-          sudo ss -ltnp "( sport = :${port} )" 2>/dev/null \
-            | sed -n 's/.*pid=\([0-9]\+\).*/\1/p'
+          sudo -n lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true
+          sudo -n ss -ltnp "( sport = :${port} )" 2>/dev/null \
+            | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' || true
         } | sort -u | tr '\n' ' '
       )"
       for pid in $stubborn_pids; do
-        sudo kill -9 "$pid" >/dev/null 2>&1 || true
+        sudo -n kill -9 "$pid" >/dev/null 2>&1 || true
       done
     fi
   done
@@ -301,7 +306,7 @@ wait_for_port_release() {
   local delay="${3:-1}"
   local attempt
   for attempt in $(seq 1 "$attempts"); do
-    if ! (sudo lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | grep -q .); then
+    if ! (sudo -n lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | grep -q .); then
       echo "port_${port}_released=1"
       return 0
     fi
