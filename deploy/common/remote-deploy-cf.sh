@@ -310,6 +310,7 @@ run_host_proxy_compose_up() {
 
 cleanup_host_proxy_orphans() {
   docker rm -f govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
+  cleanup_host_proxy_temp_containers
   echo "host_proxy_orphan_cleanup=1"
 }
 
@@ -317,9 +318,22 @@ HOST_PROXY_BACKUP_ACTIVE=0
 HOST_PROXY_API_BACKUP=""
 HOST_PROXY_WORKER_BACKUP=""
 
+cleanup_host_proxy_temp_containers() {
+  local temp_names=""
+  temp_names="$(
+    docker ps -a --format '{{.Names}}' \
+      | grep -E '^[0-9a-f]{12}_govpress-(api|worker)$' || true
+  )"
+  if [ -n "$temp_names" ]; then
+    echo "host_proxy_temp_cleanup=$(printf '%s' "$temp_names" | tr '\n' ' ')"
+    printf '%s\n' "$temp_names" | xargs -r docker rm -f >/dev/null 2>&1 || true
+  fi
+}
+
 host_proxy_stage_backups() {
   local suffix
   suffix="$(date +%s)-$$"
+  cleanup_host_proxy_temp_containers
   HOST_PROXY_BACKUP_ACTIVE=1
   HOST_PROXY_API_BACKUP=""
   HOST_PROXY_WORKER_BACKUP=""
@@ -351,6 +365,7 @@ host_proxy_restore_backups() {
     docker rename "${HOST_PROXY_WORKER_BACKUP}" govpress-worker
     docker start govpress-worker >/dev/null 2>&1 || true
   fi
+  cleanup_host_proxy_temp_containers
   HOST_PROXY_BACKUP_ACTIVE=0
   HOST_PROXY_API_BACKUP=""
   HOST_PROXY_WORKER_BACKUP=""
