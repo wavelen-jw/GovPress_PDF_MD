@@ -175,8 +175,8 @@ from pathlib import Path
 import sys
 
 converter_root = Path(sys.argv[1])
-sys.path.insert(0, str(converter_root / "src"))
-from qc_dashboard import write_dashboard
+sys.path.insert(0, str(converter_root))
+from src.qc_dashboard import write_dashboard
 
 root = Path(sys.argv[2])
 output_html = Path(sys.argv[3])
@@ -197,8 +197,8 @@ from pathlib import Path
 import sys
 
 converter_root = Path(sys.argv[1])
-sys.path.insert(0, str(converter_root / "src"))
-from qc_dashboard import write_dashboard
+sys.path.insert(0, str(converter_root))
+from src.qc_dashboard import write_dashboard
 
 root = Path(sys.argv[2])
 output_html = Path(sys.argv[3])

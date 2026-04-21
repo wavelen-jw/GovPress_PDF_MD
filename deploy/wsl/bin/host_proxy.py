@@ -5,6 +5,7 @@ import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
 import socket
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit
 
 
@@ -12,6 +13,10 @@ LISTEN_HOST = os.environ.get("GOVPRESS_HOST_PROXY_LISTEN_HOST", "127.0.0.1")
 LISTEN_PORT = int(os.environ.get("GOVPRESS_HOST_PROXY_LISTEN_PORT", "8080"))
 UPSTREAM_BASE = os.environ.get("GOVPRESS_HOST_PROXY_UPSTREAM", "http://127.0.0.1:8013")
 UPSTREAM = urlsplit(UPSTREAM_BASE)
+HEALTHCHECK_API_KEY = (
+    os.environ.get("GOVPRESS_HOST_PROXY_HEALTH_API_KEY", "").strip()
+    or os.environ.get("GOVPRESS_API_KEY", "").strip()
+)
 HOP_BY_HOP_HEADERS = {
     "connection",
     "keep-alive",
@@ -31,6 +36,11 @@ CORS_RESPONSE_HEADERS = {
     "access-control-expose-headers",
     "access-control-max-age",
 }
+SEOUL_UTC_OFFSET = timedelta(hours=9)
+
+
+def seoul_today_iso() -> str:
+    return (datetime.now(UTC) + SEOUL_UTC_OFFSET).date().isoformat()
 
 
 class ProxyHandler(BaseHTTPRequestHandler):
@@ -77,8 +87,14 @@ class ProxyHandler(BaseHTTPRequestHandler):
         status = 200
         reason = "OK"
         content_type = "application/json"
+        request_path = "/health"
+        request_headers = {"Host": UPSTREAM.netloc}
+        if HEALTHCHECK_API_KEY:
+            request_path = f"/v1/policy-briefings/today?date={seoul_today_iso()}"
+            request_headers["X-API-Key"] = HEALTHCHECK_API_KEY
+            request_headers["Accept"] = "application/json"
         try:
-            conn.request("GET" if include_body else "HEAD", "/health", headers={"Host": UPSTREAM.netloc})
+            conn.request("GET", request_path, headers=request_headers)
             upstream_response = conn.getresponse()
             payload = upstream_response.read() if include_body else b""
             status = upstream_response.status

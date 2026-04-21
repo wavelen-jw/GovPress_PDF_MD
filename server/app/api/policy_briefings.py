@@ -227,7 +227,9 @@ def build_router(
         )
 
     @router.get("/qc/dashboard")
-    def get_policy_briefing_qc_dashboard() -> FileResponse:
+    def get_policy_briefing_qc_dashboard(
+        _authorized: None = Depends(verify_admin_api_key),
+    ) -> FileResponse:
         html_path = resolve_dashboard_asset_path(qc_export_root, "index.html")
         if not html_path.exists():
             try:
@@ -239,7 +241,9 @@ def build_router(
         return FileResponse(html_path, media_type="text/html; charset=utf-8")
 
     @router.get("/qc/dashboard.json")
-    def get_policy_briefing_qc_dashboard_json() -> FileResponse:
+    def get_policy_briefing_qc_dashboard_json(
+        _authorized: None = Depends(verify_admin_api_key),
+    ) -> FileResponse:
         json_path = resolve_dashboard_asset_path(qc_export_root, "dashboard.json")
         if not json_path.exists():
             try:

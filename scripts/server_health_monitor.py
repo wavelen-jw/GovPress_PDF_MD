@@ -273,7 +273,7 @@ def evaluate_monitor(
 
 
 def format_transition_message(transitions: list[dict[str, Any]]) -> str:
-    lines = ["[Server Alert]"]
+    lines = ["[Runtime Alert]"]
     for item in transitions:
         if item["type"] == "degraded":
             lines.append(

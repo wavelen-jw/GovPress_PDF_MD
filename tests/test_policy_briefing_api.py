@@ -327,7 +327,7 @@ class PolicyBriefingApiTests(unittest.TestCase):
         (dashboard_dir / "index.html").write_text("<html><body>QC Dashboard</body></html>", encoding="utf-8")
         (dashboard_dir / "dashboard.json").write_text("{\"run_count\":1}", encoding="utf-8")
 
-        response = self.client.get("/v1/policy-briefings/qc/dashboard")
+        response = self.client.get("/v1/policy-briefings/qc/dashboard", headers={"X-Admin-Key": "test-admin-key"})
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("QC Dashboard", response.text)
@@ -339,7 +339,7 @@ class PolicyBriefingApiTests(unittest.TestCase):
         (dashboard_dir / "index.html").write_text("<html><body>QC Dashboard</body></html>", encoding="utf-8")
         (dashboard_dir / "dashboard.json").write_text("{\"run_count\":1}", encoding="utf-8")
 
-        response = self.client.get("/v1/policy-briefings/qc/dashboard.json")
+        response = self.client.get("/v1/policy-briefings/qc/dashboard.json", headers={"X-Admin-Key": "test-admin-key"})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["run_count"], 1)
@@ -353,8 +353,8 @@ class PolicyBriefingApiTests(unittest.TestCase):
         previous_converter_root = os.environ.get("GOV_MD_CONVERTER_ROOT")
         os.environ["GOV_MD_CONVERTER_ROOT"] = str(converter_root)
         try:
-            html_response = self.client.get("/v1/policy-briefings/qc/dashboard")
-            json_response = self.client.get("/v1/policy-briefings/qc/dashboard.json")
+            html_response = self.client.get("/v1/policy-briefings/qc/dashboard", headers={"X-Admin-Key": "test-admin-key"})
+            json_response = self.client.get("/v1/policy-briefings/qc/dashboard.json", headers={"X-Admin-Key": "test-admin-key"})
         finally:
             if previous_converter_root is None:
                 os.environ.pop("GOV_MD_CONVERTER_ROOT", None)
@@ -386,10 +386,15 @@ class PolicyBriefingApiTests(unittest.TestCase):
         self.assertIn("text/markdown", response.headers["content-type"])
 
     def test_get_policy_briefing_qc_dashboard_returns_404_when_missing(self) -> None:
-        response = self.client.get("/v1/policy-briefings/qc/dashboard")
+        response = self.client.get("/v1/policy-briefings/qc/dashboard", headers={"X-Admin-Key": "test-admin-key"})
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Policy Briefing QC Dashboard", response.text)
+
+    def test_get_policy_briefing_qc_dashboard_requires_admin_key(self) -> None:
+        response = self.client.get("/v1/policy-briefings/qc/dashboard", headers=self.headers)
+
+        self.assertEqual(response.status_code, 403)
 
     def test_policy_briefing_attachment_treats_date_prefixed_appendix_as_appendix(self) -> None:
         attachment = PolicyBriefingAttachment(

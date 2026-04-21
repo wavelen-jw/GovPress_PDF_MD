@@ -116,3 +116,36 @@ jobs:
       converter_spec:   ${{ secrets.GOVPRESS_CONVERTER_SPEC }}
       admin_api_key:    ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
       policy_briefing_service_key: ${{ secrets.GOVPRESS_POLICY_BRIEFING_SERVICE_KEY }}
+
+  notify-deploy-failure:
+    name: "Notify Deploy Failure"
+    if: ${{ always() && (needs.deploy-v.result == 'failure' || needs.deploy-h.result == 'failure' || needs.deploy-w.result == 'failure') }}
+    needs:
+      - deploy-v
+      - deploy-h
+      - deploy-w
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Send Telegram alert
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RUN_ID: ${{ github.run_id }}
+          SHA: ${{ github.sha }}
+          BRANCH: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          RESULTS_JSON: >-
+            {"serverV":"${{ needs.deploy-v.result }}","serverH":"${{ needs.deploy-h.result }}","serverW":"${{ needs.deploy-w.result }}"}
+        run: |
+          set -euo pipefail
+          python3 scripts/send_deploy_alert.py \
+            --run-url "$RUN_URL" \
+            --run-id "$RUN_ID" \
+            --sha "$SHA" \
+            --branch "$BRANCH" \
+            --repo "$REPO" \
+            --results-json "$RESULTS_JSON"
