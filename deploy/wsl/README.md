@@ -212,6 +212,7 @@ curl -i https://api.govpress.cloud/health
 - deploy 실패 시 기존 API 컨테이너를 rollback 또는 유지해야 하며, 실패가 곧 서비스 공백으로 이어지면 안 됩니다.
 - 배포 외 원인으로 `govpress-api/worker`가 사라져도 `govpress-watchdog.timer`가 1분 내 reconcile 해야 합니다.
 - `deploy/wsl/bin/watchdog_reconcile.sh`는 반드시 `deploy/wsl/bin/compose.sh`를 직접 가리켜야 하며, 경로가 깨지면 watchdog이 매분 실패하면서 장시간 API down이 발생합니다.
+- 배포 후 converter runtime이 같아도 실제 API 결과가 다를 수 있으므로, H/W/V 동일 샘플 업로드 hash smoke가 통과해야 최종 성공으로 봅니다.
 
 ### Host-proxy 배포 흐름
 
@@ -224,8 +225,9 @@ curl -i https://api.govpress.cloud/health
 5. `govpress-caddy.service`, `govpress-cloudflared.service` 확인
 6. `govpress-watchdog.timer` 활성 확인
 7. authenticated `policy-briefings/today` smoke test `200`
-8. 성공 시 backup 컨테이너 삭제
-9. 실패 시 새 컨테이너 제거 후 backup 컨테이너를 원래 이름으로 restore/start
+8. H/W/V 동일 샘플 변환 hash smoke 일치
+9. 성공 시 backup 컨테이너 삭제
+10. 실패 시 새 컨테이너 제거 후 backup 컨테이너를 원래 이름으로 restore/start
 
 이 순서가 깨지면, 오늘 같은 “deploy 실패 = 장시간 API down” 사고가 다시 납니다.
 

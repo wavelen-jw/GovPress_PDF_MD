@@ -180,6 +180,37 @@ run_compose() {
   fi
 }
 
+list_listening_pids() {
+  local port="$1"
+  {
+    lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true
+    ss -ltnp "( sport = :${port} )" 2>/dev/null | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' || true
+  } | sort -u
+}
+
+cleanup_baremetal_port_owners() {
+  local port="$1"
+  local service_name="$2"
+  local service_pid=""
+  local pid=""
+  service_pid="$(systemctl --user show -p MainPID --value "$service_name" 2>/dev/null || true)"
+  for pid in $(list_listening_pids "$port"); do
+    if [ -n "$service_pid" ] && [ "$service_pid" = "$pid" ]; then
+      continue
+    fi
+    echo "baremetal_port_cleanup port=${port} pid=${pid}"
+    kill "$pid" >/dev/null 2>&1 || true
+  done
+  sleep 1
+  for pid in $(list_listening_pids "$port"); do
+    if [ -n "$service_pid" ] && [ "$service_pid" = "$pid" ]; then
+      continue
+    fi
+    echo "baremetal_port_cleanup_force port=${port} pid=${pid}"
+    kill -9 "$pid" >/dev/null 2>&1 || true
+  done
+}
+
 build_dashboard_assets_compose() {
   local converter_root="${GOV_MD_CONVERTER_ROOT:-/gov-md-converter}"
   local dashboard_root="${GOVPRESS_QC_EXPORT_ROOT:-/gov-md-converter/exports/policy_briefing_qc}"
@@ -618,7 +649,10 @@ else
   else
     "$DEPLOY_DIR/.venv/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" --require-package-backend
   fi
+  cleanup_baremetal_port_owners 8013 "$SERVICE"
   systemctl --user restart "$SERVICE"
+  systemctl --user status --no-pager "$SERVICE" || true
+  systemctl --user is-active --quiet "$SERVICE"
   sleep 3
   build_and_verify_dashboard_assets baremetal "${GOVPRESS_QC_EXPORT_ROOT:-$DEPLOY_DIR/../gov-md-converter/exports/policy_briefing_qc}"
 fi

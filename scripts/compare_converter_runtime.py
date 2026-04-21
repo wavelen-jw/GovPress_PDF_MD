@@ -90,6 +90,11 @@ def main() -> int:
     parser.add_argument("--api-key", required=True, help="GovPress API key")
     parser.add_argument("--admin-key", required=True, help="GovPress admin key")
     parser.add_argument(
+        "--require-equal-hashes",
+        action="store_true",
+        help="Exit non-zero when text/html hashes differ across servers",
+    )
+    parser.add_argument(
         "--server",
         action="append",
         required=True,
@@ -123,6 +128,12 @@ def main() -> int:
                 "title": result_payload.get("meta", {}).get("title"),
             }
         )
+
+    if args.require_equal_hashes:
+        text_hashes = {str(row["text_sha256"]) for row in results}
+        html_hashes = {str(row["html_sha256"]) for row in results}
+        if len(text_hashes) != 1 or len(html_hashes) != 1:
+            raise SystemExit("converter output hash mismatch across servers")
 
     print(json.dumps({"sample": str(sample_path), "results": results}, ensure_ascii=False, indent=2))
     return 0

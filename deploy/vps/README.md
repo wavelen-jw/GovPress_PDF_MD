@@ -77,6 +77,7 @@ CLOUDFLARE_TUNNEL_TOKEN=실제-터널-토큰
 - bare-metal 설치/재배포 스크립트는 `GOVPRESS_CONVERTER_SPEC`의 기존 태그를 `deploy/converter.version` 값으로 자동 정규화합니다.
 - 프로덕션은 `GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=0` 고정입니다.
 - 배포 후 `distribution_version`, `module_path`, `backend`를 검사하고 package backend가 아니면 실패 처리합니다.
+- `serverV`는 bare-metal이라 `127.0.0.1:8013`을 systemd 밖의 수동 `uvicorn`이 점유할 수 있습니다. 재배포 시에는 `govpress-api.service`의 MainPID가 아닌 `8013` listener를 먼저 정리한 뒤 재시작해야 합니다.
 
 수정 후 재시작:
 
@@ -108,6 +109,13 @@ cd ~/GovPress_PDF_MD
 git pull
 docker compose -f deploy/vps/docker-compose.yml up -d --build
 ```
+
+자동배포 성공 기준:
+
+- `govpress-api.service` 재시작 성공
+- `127.0.0.1:8013/health` `200`
+- `deploy/converter.version`과 실제 `distribution_version`, `module_path`, `backend` 일치
+- H/W/V 동일 샘플 변환 결과 hash 일치
 
 ## serverV 운영 점검 지시서
 

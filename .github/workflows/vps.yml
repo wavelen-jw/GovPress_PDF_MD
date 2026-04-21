@@ -117,13 +117,78 @@ jobs:
       admin_api_key:    ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
       policy_briefing_service_key: ${{ secrets.GOVPRESS_POLICY_BRIEFING_SERVICE_KEY }}
 
-  notify-deploy-failure:
-    name: "Notify Deploy Failure"
-    if: ${{ always() && (needs.deploy-v.result == 'failure' || needs.deploy-h.result == 'failure' || needs.deploy-w.result == 'failure') }}
+  converter-drift-smoke:
+    name: "Converter Drift Smoke"
+    if: ${{ needs.deploy-v.result == 'success' && needs.deploy-h.result == 'success' && needs.deploy-w.result == 'success' }}
     needs:
       - deploy-v
       - deploy-h
       - deploy-w
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Compare conversion hashes across servers
+        env:
+          API_KEY: ${{ secrets.GOVPRESS_API_KEY }}
+          ADMIN_KEY: ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
+          SAMPLE_PATH: artifacts/policy_briefing_benchmark/corpus_latest100/hwpxs/156754103.hwpx
+        run: |
+          set -euo pipefail
+          python3 scripts/compare_converter_runtime.py \
+            --sample "$SAMPLE_PATH" \
+            --api-key "$API_KEY" \
+            --admin-key "$ADMIN_KEY" \
+            --require-equal-hashes \
+            --server serverH=https://api.govpress.cloud \
+            --server serverW=https://api4.govpress.cloud \
+            --server serverV=https://api2.govpress.cloud \
+            | tee converter-drift-smoke.json
+
+      - name: Summarize conversion hashes
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ ! -f converter-drift-smoke.json ]; then
+            echo "- converter drift smoke did not produce output" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("converter-drift-smoke.json").read_text(encoding="utf-8"))
+          rows = payload["results"]
+          print("| server | version | backend | module_path | text_sha256 | html_sha256 |")
+          print("| --- | --- | --- | --- | --- | --- |")
+          lines = [
+              "| server | version | backend | module_path | text_sha256 | html_sha256 |",
+              "| --- | --- | --- | --- | --- | --- |",
+          ]
+          for row in rows:
+              runtime = row["runtime"]
+              version = runtime.get("version", runtime.get("probe_error", "unknown"))
+              backend = runtime.get("backend", "unknown")
+              module_path = runtime.get("module_path", runtime.get("probe_body", ""))
+              line = (
+                  f"| {row['name']} | {version} | {backend} | `{module_path}` | "
+                  f"`{row['text_sha256']}` | `{row['html_sha256']}` |"
+              )
+              print(line)
+              lines.append(line)
+          Path("_converter_drift_summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+          cat _converter_drift_summary.md >> "$GITHUB_STEP_SUMMARY"
+
+  notify-deploy-failure:
+    name: "Notify Deploy Failure"
+    if: ${{ always() && (needs.deploy-v.result == 'failure' || needs.deploy-h.result == 'failure' || needs.deploy-w.result == 'failure' || needs.converter-drift-smoke.result == 'failure') }}
+    needs:
+      - deploy-v
+      - deploy-h
+      - deploy-w
+      - converter-drift-smoke
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -139,7 +204,7 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
           RESULTS_JSON: >-
-            {"serverV":"${{ needs.deploy-v.result }}","serverH":"${{ needs.deploy-h.result }}","serverW":"${{ needs.deploy-w.result }}"}
+            {"serverV":"${{ needs.deploy-v.result }}","serverH":"${{ needs.deploy-h.result }}","serverW":"${{ needs.deploy-w.result }}","converterSmoke":"${{ needs.converter-drift-smoke.result }}"}
         run: |
           set -euo pipefail
           python3 scripts/send_deploy_alert.py \
