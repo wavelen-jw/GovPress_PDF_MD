@@ -466,6 +466,9 @@ GovPress 작업 파일:
 - `serverW`는 API 안정성 우선이라 direct SSH `443`을 즉시 제거하지 않습니다.
 - 다만 direct `443` SSH는 임시 운영 경로로만 두고, 최종 목표는 Cloudflare SSH 전환입니다.
 - 현재 serverW tunnel ingress에는 `ssh-work.govpress.cloud -> tcp://host.docker.internal:443`가 연결되어 있습니다.
+- 현재 `serverV -> Cloudflare SSH -> serverH/serverW` 운영 경로가 이미 사용 중이므로, 이 경로를 깨는 변경은 금지합니다.
+- 따라서 `443` direct 노출 제거는 먼저 Cloudflare SSH origin을 `public 443` 의존이 없는 내부 포트/loopback 경로로 옮기고, `serverV`에서 실접속 재검증을 끝낸 뒤에만 진행합니다.
+- `serverW`는 현재 WSL sshd가 `22022`에서 뜨고, Windows 쪽 `443` 포워딩 계층을 통해 외부/Cloudflare SSH가 들어오는 구조일 가능성이 높습니다. 이 계층을 먼저 분리하지 않으면 `443` 차단이 Cloudflare SSH도 함께 끊을 수 있습니다.
 - direct `443`을 닫기 전에 반드시 Cloudflare SSH 접속을 실제 운영 단말에서 검증합니다.
 - `sshd`는 최소 설정만 허용합니다.
   - `PasswordAuthentication no`
