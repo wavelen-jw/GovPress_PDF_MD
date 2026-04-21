@@ -106,6 +106,50 @@ git pull
 docker compose -f deploy/vps/docker-compose.yml up -d --build
 ```
 
+## serverV 운영 점검 지시서
+
+`serverV`는 `serverH`, `serverW` 점검용 jump host로 사용합니다. 원칙은 다음과 같습니다.
+
+- `serverV`에서는 점검/복구 명령만 수행합니다.
+- 코드 수정, 커밋, 푸시는 로컬 작업 저장소에서 계속 수행합니다.
+- `serverV -> Cloudflare SSH -> serverH/serverW` 경로를 깨는 변경은 금지합니다.
+
+기본 접속:
+
+```bash
+ssh h
+ssh w
+```
+
+권장 점검 순서:
+
+1. `serverV`에서 대상 서버 접속
+2. systemd 상태 확인
+3. Docker 컨테이너 상태 확인
+4. 로컬 `8013`, `8080`, public authenticated API 순서로 probe
+5. 필요시 `journalctl`로 직전 오류 확인
+
+예시:
+
+```bash
+ssh h
+systemctl status --no-pager govpress-caddy.service govpress-cloudflared.service govpress-watchdog.timer
+docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+curl -fsS http://127.0.0.1:8013/health
+curl -fsS http://127.0.0.1:8080/health
+API_KEY=$(grep -E '^GOVPRESS_API_KEY=' ~/GovPress_PDF_MD/deploy/wsl/.env | cut -d= -f2-)
+curl -fsS -H "X-API-Key: $API_KEY" "https://api.govpress.cloud/v1/policy-briefings/today?date=2026-04-21"
+journalctl -u govpress-watchdog.service -n 30 --no-pager
+```
+
+`serverW`도 동일하고 public hostname만 `api4.govpress.cloud`로 바꿉니다.
+
+주의:
+
+- `serverV`에서 H/W를 점검할 때도 direct `:443` SSH를 닫는 변경은 하지 않습니다.
+- H/W 장애 시 먼저 `govpress-watchdog.service`, `govpress-watchdog.timer`, `govpress-caddy.service` 순서로 상태를 확인합니다.
+- `govpress-watchdog.service`가 `status=127`이면 스크립트 경로/권한 문제를 먼저 의심합니다.
+
 ## `ai.govpress.cloud` 단축 리다이렉트
 
 구성:

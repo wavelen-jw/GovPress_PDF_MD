@@ -8,6 +8,11 @@ COMPOSE_SH="$DEPLOY_DIR/bin/compose.sh"
 export DOCKER_HOST="${DOCKER_HOST:-unix:///var/run/docker.sock}"
 unset DOCKER_CONTEXT
 
+if [ ! -x "$COMPOSE_SH" ]; then
+  echo "watchdog_reconcile=error reason=compose_missing path=$COMPOSE_SH" >&2
+  exit 127
+fi
+
 container_running() {
   local name="$1"
   local state=""

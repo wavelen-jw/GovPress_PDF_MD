@@ -241,3 +241,16 @@ class ServerServiceTests(unittest.TestCase):
         self.assertIsNone(self.repository.get(record.job_id))
         self.assertFalse((self.storage.results_dir / f"{record.job_id}.md").exists())
         self.assertEqual(list(self.storage.originals_dir.glob(f"{record.job_id}-*")), [])
+
+
+class WatchdogScriptTests(unittest.TestCase):
+    def test_watchdog_reconcile_references_existing_compose_script(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script_path = repo_root / "deploy/wsl/bin/watchdog_reconcile.sh"
+        compose_path = repo_root / "deploy/wsl/bin/compose.sh"
+        content = script_path.read_text(encoding="utf-8")
+
+        self.assertIn('COMPOSE_SH="$DEPLOY_DIR/bin/compose.sh"', content)
+        self.assertIn('watchdog_reconcile=error reason=compose_missing', content)
+        self.assertNotIn("/deploy/wsl/deploy/wsl/bin/compose.sh", content)
+        self.assertTrue(compose_path.exists())

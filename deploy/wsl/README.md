@@ -209,6 +209,7 @@ curl -i https://api.govpress.cloud/health
 - 성공 판정은 단순 `/health 200`이 아니라 인증된 `policy-briefings/today` API `200`입니다.
 - deploy 실패 시 기존 API 컨테이너를 rollback 또는 유지해야 하며, 실패가 곧 서비스 공백으로 이어지면 안 됩니다.
 - 배포 외 원인으로 `govpress-api/worker`가 사라져도 `govpress-watchdog.timer`가 1분 내 reconcile 해야 합니다.
+- `deploy/wsl/bin/watchdog_reconcile.sh`는 반드시 `deploy/wsl/bin/compose.sh`를 직접 가리켜야 하며, 경로가 깨지면 watchdog이 매분 실패하면서 장시간 API down이 발생합니다.
 
 ### Host-proxy 배포 흐름
 
@@ -243,6 +244,7 @@ curl -i https://api.govpress.cloud/health
 - `health_probe_code=200`만으로 success 처리
 - `git checkout branch && reset --hard origin/branch`로 되돌리기
 - `8013` 포트 cleanup 재도입
+- `watchdog_reconcile.sh`에서 `compose.sh` 상대 경로를 다시 조합하는 변경
 
 1. 배포 전 상태 확인
 
