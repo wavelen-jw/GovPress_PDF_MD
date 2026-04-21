@@ -6,7 +6,7 @@ on:
       sample_path:
         description: Sample HWPX/PDF path inside this repository checkout
         required: true
-        default: exports/policy_briefing_qc/2026-04-16/156756095/source.hwpx
+        default: artifacts/policy_briefing_benchmark/corpus_latest100/hwpxs/156754095.hwpx
 
 permissions:
   contents: read
