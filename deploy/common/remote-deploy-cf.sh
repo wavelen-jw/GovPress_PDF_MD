@@ -234,9 +234,7 @@ run_host_proxy_compose_up() {
   local log_file="${1:-/tmp/govpress-compose-up.log}"
   local attempt
   for attempt in 1 2 3 4 5; do
-    docker rm -f govpress-api govpress-worker >/dev/null 2>&1 || true
     cleanup_host_proxy_port_conflicts
-    wait_for_port_release 8013 30 1 || true
     if run_compose up -d --build --remove-orphans api worker >"$log_file" 2>&1; then
       cat "$log_file"
       return 0
@@ -256,7 +254,7 @@ cleanup_host_proxy_orphans() {
 }
 
 cleanup_host_proxy_port_conflicts() {
-  local ports="8080 8013"
+  local ports="8080"
   local pids=""
   local port
   for port in $ports; do
