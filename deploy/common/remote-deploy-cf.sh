@@ -351,7 +351,16 @@ restart_host_proxy_edge() {
   require_passwordless_sudo
   sudo systemctl enable govpress-caddy.service
   sudo systemctl enable govpress-cloudflared.service
-  sudo systemctl restart govpress-caddy.service
+  sudo systemctl restart govpress-caddy.service || true
+  local caddy_attempt
+  for caddy_attempt in 1 2 3 4 5 6 7 8 9 10; do
+    if systemctl is-active --quiet govpress-caddy.service; then
+      break
+    fi
+    sleep 3
+  done
+  sudo systemctl status --no-pager govpress-caddy.service || true
+  systemctl is-active --quiet govpress-caddy.service
   if systemctl is-active --quiet govpress-cloudflared.service; then
     echo "cloudflared_restart=skipped_active"
   else
