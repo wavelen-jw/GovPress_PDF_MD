@@ -434,6 +434,8 @@ install_host_proxy_services() {
   render_systemd_unit "$DEPLOY_DIR/deploy/wsl/systemd/govpress-compose.service" /etc/systemd/system/govpress-compose.service
   render_systemd_unit "$DEPLOY_DIR/deploy/wsl/systemd/govpress-caddy.service" /etc/systemd/system/govpress-caddy.service
   render_systemd_unit "$DEPLOY_DIR/deploy/wsl/systemd/govpress-cloudflared.service" /etc/systemd/system/govpress-cloudflared.service
+  render_systemd_unit "$DEPLOY_DIR/deploy/wsl/systemd/govpress-watchdog.service" /etc/systemd/system/govpress-watchdog.service
+  render_systemd_unit "$DEPLOY_DIR/deploy/wsl/systemd/govpress-watchdog.timer" /etc/systemd/system/govpress-watchdog.timer
   sudo systemctl daemon-reload
 }
 
@@ -441,6 +443,7 @@ restart_host_proxy_edge() {
   require_passwordless_sudo
   sudo systemctl enable govpress-caddy.service
   sudo systemctl enable govpress-cloudflared.service
+  sudo systemctl enable govpress-watchdog.timer
   sudo systemctl restart govpress-caddy.service || true
   local caddy_attempt
   for caddy_attempt in 1 2 3 4 5 6 7 8 9 10; do
@@ -456,10 +459,13 @@ restart_host_proxy_edge() {
   else
     sudo systemctl restart govpress-cloudflared.service
   fi
+  sudo systemctl restart govpress-watchdog.timer || true
   sudo systemctl status --no-pager govpress-caddy.service || true
   sudo systemctl status --no-pager govpress-cloudflared.service || true
+  sudo systemctl status --no-pager govpress-watchdog.timer || true
   sudo journalctl -u govpress-caddy.service -n 30 --no-pager || true
   sudo journalctl -u govpress-cloudflared.service -n 30 --no-pager || true
+  sudo journalctl -u govpress-watchdog.service -n 30 --no-pager || true
 }
 
 restart_split_edge_tunnel() {

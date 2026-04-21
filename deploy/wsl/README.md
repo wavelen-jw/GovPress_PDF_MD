@@ -208,6 +208,7 @@ curl -i https://api.govpress.cloud/health
 - `8080` listener cleanup은 `host_proxy.py` 프로세스를 죽이면 안 됩니다.
 - 성공 판정은 단순 `/health 200`이 아니라 인증된 `policy-briefings/today` API `200`입니다.
 - deploy 실패 시 기존 API 컨테이너를 rollback 또는 유지해야 하며, 실패가 곧 서비스 공백으로 이어지면 안 됩니다.
+- 배포 외 원인으로 `govpress-api/worker`가 사라져도 `govpress-watchdog.timer`가 1분 내 reconcile 해야 합니다.
 
 ### Host-proxy 배포 흐름
 
@@ -218,9 +219,10 @@ curl -i https://api.govpress.cloud/health
 3. 기존 `govpress-api`/`govpress-worker`를 backup 이름으로 rename 후 stop
 4. 새 `govpress-api`/`govpress-worker`를 `up -d --no-build`로 activate
 5. `govpress-caddy.service`, `govpress-cloudflared.service` 확인
-6. authenticated `policy-briefings/today` smoke test `200`
-7. 성공 시 backup 컨테이너 삭제
-8. 실패 시 새 컨테이너 제거 후 backup 컨테이너를 원래 이름으로 restore/start
+6. `govpress-watchdog.timer` 활성 확인
+7. authenticated `policy-briefings/today` smoke test `200`
+8. 성공 시 backup 컨테이너 삭제
+9. 실패 시 새 컨테이너 제거 후 backup 컨테이너를 원래 이름으로 restore/start
 
 이 순서가 깨지면, 오늘 같은 “deploy 실패 = 장시간 API down” 사고가 다시 납니다.
 

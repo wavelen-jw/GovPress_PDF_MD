@@ -1,0 +1,11 @@
+[Unit]
+Description=GovPress API Runtime Watchdog
+Wants=network-online.target docker.service
+After=network-online.target docker.service govpress-compose.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=__DEPLOY_DIR__/deploy/wsl
+Environment=HOME=__HOME_DIR__
+ExecStart=/bin/bash --noprofile --norc -lc '__DEPLOY_DIR__/deploy/wsl/bin/watchdog_reconcile.sh'
+

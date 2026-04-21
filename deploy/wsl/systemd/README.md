@@ -30,6 +30,10 @@ sed -e "s|__DEPLOY_DIR__|$DEPLOY_DIR|g" -e "s|__HOME_DIR__|$HOME_DIR|g" \
   deploy/wsl/systemd/govpress-caddy.service | sudo tee /etc/systemd/system/govpress-caddy.service >/dev/null
 sed -e "s|__DEPLOY_DIR__|$DEPLOY_DIR|g" -e "s|__HOME_DIR__|$HOME_DIR|g" \
   deploy/wsl/systemd/govpress-cloudflared.service | sudo tee /etc/systemd/system/govpress-cloudflared.service >/dev/null
+sed -e "s|__DEPLOY_DIR__|$DEPLOY_DIR|g" -e "s|__HOME_DIR__|$HOME_DIR|g" \
+  deploy/wsl/systemd/govpress-watchdog.service | sudo tee /etc/systemd/system/govpress-watchdog.service >/dev/null
+sed -e "s|__DEPLOY_DIR__|$DEPLOY_DIR|g" -e "s|__HOME_DIR__|$HOME_DIR|g" \
+  deploy/wsl/systemd/govpress-watchdog.timer | sudo tee /etc/systemd/system/govpress-watchdog.timer >/dev/null
 ```
 
 필요하면 `WorkingDirectory`를 현재 경로에 맞게 수정합니다.
@@ -58,14 +62,14 @@ sed -e "s|__DEPLOY_DIR__|$DEPLOY_DIR|g" -e "s|__HOME_DIR__|$HOME_DIR|g" \
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable govpress-compose.service govpress-caddy.service govpress-cloudflared.service
-sudo systemctl start govpress-compose.service govpress-caddy.service govpress-cloudflared.service
+sudo systemctl enable govpress-compose.service govpress-caddy.service govpress-cloudflared.service govpress-watchdog.timer
+sudo systemctl start govpress-compose.service govpress-caddy.service govpress-cloudflared.service govpress-watchdog.timer
 ```
 
 ## 상태 확인
 
 ```bash
-sudo systemctl status --no-pager govpress-compose.service govpress-caddy.service govpress-cloudflared.service
+sudo systemctl status --no-pager govpress-compose.service govpress-caddy.service govpress-cloudflared.service govpress-watchdog.service govpress-watchdog.timer
 /home/wavel/GovPress_PDF_MD/deploy/wsl/bin/compose.sh ps
 sudo lsof -iTCP:8080 -sTCP:LISTEN -n -P
 curl -sS http://127.0.0.1:8013/health
@@ -77,6 +81,8 @@ curl -sS http://127.0.0.1:8080/health
 - `govpress-compose.service`는 `active (exited)` 또는 compose 갱신 직후 정상 종료
 - `govpress-caddy.service`는 `python3 ... host_proxy.py`로 `active (running)`
 - `govpress-cloudflared.service`는 token 기반 `cloudflared` 하나만 `active (running)`
+- `govpress-watchdog.timer`는 `active (waiting)`
+- `govpress-watchdog.service`는 최근 1분 안에 `0/SUCCESS`로 종료
 - `8080` listener는 `python3 ... host_proxy.py`
 - `docker-proxy`가 `8080`을 잡고 있으면 비정상
 - `pgrep -af cloudflared`에 legacy token 프로세스가 하나 더 뜨면 비정상
