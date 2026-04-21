@@ -330,6 +330,25 @@ cleanup_host_proxy_temp_containers() {
   fi
 }
 
+promote_host_proxy_backup_if_needed() {
+  local service_name="$1"
+  local backup_name=""
+  if docker inspect "$service_name" >/dev/null 2>&1; then
+    return 0
+  fi
+  backup_name="$(
+    docker ps -a --format '{{.Names}}' \
+      | grep -E "^${service_name}-backup-" \
+      | sort \
+      | tail -n1 || true
+  )"
+  if [ -z "$backup_name" ]; then
+    return 0
+  fi
+  echo "host_proxy_promote_backup=${backup_name}->${service_name}"
+  docker rename "$backup_name" "$service_name"
+}
+
 host_proxy_stage_backups() {
   local suffix
   suffix="$(date +%s)-$$"
@@ -635,6 +654,8 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
     restart_split_edge_tunnel
   elif [ "$restart_tunnel_after_compose" = "2" ]; then
     restart_host_proxy_edge
+    promote_host_proxy_backup_if_needed govpress-api
+    promote_host_proxy_backup_if_needed govpress-worker
   fi
   run_compose ps
   sleep 3
