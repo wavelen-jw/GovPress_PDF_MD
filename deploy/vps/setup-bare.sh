@@ -12,13 +12,39 @@ VENV="$DEPLOY_DIR/.venv"
 ENV_FILE="$COMPOSE_DIR/.env"
 CONVERTER_SPEC="${GOVPRESS_CONVERTER_SPEC:-}"
 CONVERTER_EXTRA_INDEX_URL="${GOVPRESS_CONVERTER_EXTRA_INDEX_URL:-}"
-CONVERTER_ALLOW_LOCAL_FALLBACK="${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-1}"
+CONVERTER_ALLOW_LOCAL_FALLBACK="${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-0}"
 CONVERTER_MIN_VERSION="${GOVPRESS_CONVERTER_MIN_VERSION:-}"
 CONVERTER_VERSION_FILE="$DEPLOY_DIR/deploy/converter.version"
 CONVERTER_SPEC_RESOLVER="$DEPLOY_DIR/deploy/common/resolve_converter_spec.py"
 
 info()  { echo "[INFO]  $*"; }
 error() { echo "[ERROR] $*" >&2; exit 1; }
+
+upsert_env_value() {
+  local env_file="$1"
+  local key="$2"
+  local value="$3"
+  python3 - <<'PY' "$env_file" "$key" "$value"
+from pathlib import Path
+import sys
+
+env_path = Path(sys.argv[1])
+key = sys.argv[2]
+value = sys.argv[3]
+lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+updated = []
+seen = False
+for line in lines:
+    if line.startswith(f"{key}="):
+        updated.append(f"{key}={value}")
+        seen = True
+    else:
+        updated.append(line)
+if not seen:
+    updated.append(f"{key}={value}")
+env_path.write_text("\n".join(updated).rstrip() + "\n", encoding="utf-8")
+PY
+}
 
 resolve_service_user() {
   if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
@@ -123,6 +149,13 @@ fi
 if [[ -n "$CONVERTER_SPEC" && -f "$CONVERTER_VERSION_FILE" && -f "$CONVERTER_SPEC_RESOLVER" ]]; then
   CONVERTER_SPEC="$(python3 "$CONVERTER_SPEC_RESOLVER" --spec "$CONVERTER_SPEC" --version-file "$CONVERTER_VERSION_FILE")"
 fi
+if [[ -z "$CONVERTER_MIN_VERSION" && -f "$CONVERTER_VERSION_FILE" ]]; then
+  CONVERTER_MIN_VERSION="$(sed -e 's/^v//' "$CONVERTER_VERSION_FILE" | tr -d '\n')"
+fi
+if [[ -z "$CONVERTER_SPEC" || "$CONVERTER_SPEC" = "-" ]]; then
+  error "GOVPRESS_CONVERTER_SPEC is required for package-only production installs"
+fi
+CONVERTER_ALLOW_LOCAL_FALLBACK=0
 
 # ── 5. Python 가상환경 & 패키지 설치 ─────────────────────────────────────────
 info "Python 가상환경 설정..."
@@ -135,24 +168,22 @@ if [[ -n "$CONVERTER_EXTRA_INDEX_URL" ]]; then
     sudo -u "$SERVICE_USER" "$VENV/bin/pip" install --quiet -U opendataloader-pdf
   if [[ -n "$CONVERTER_SPEC" ]]; then
     PIP_EXTRA_INDEX_URL="$CONVERTER_EXTRA_INDEX_URL" \
-      sudo -u "$SERVICE_USER" "$VENV/bin/pip" install --quiet "$CONVERTER_SPEC"
+      sudo -u "$SERVICE_USER" "$VENV/bin/pip" install --quiet --upgrade --force-reinstall "$CONVERTER_SPEC"
   fi
 else
   sudo -u "$SERVICE_USER" "$VENV/bin/pip" install --quiet -r "$DEPLOY_DIR/requirements.txt"
   sudo -u "$SERVICE_USER" "$VENV/bin/pip" install --quiet -U opendataloader-pdf
   if [[ -n "$CONVERTER_SPEC" ]]; then
-    sudo -u "$SERVICE_USER" "$VENV/bin/pip" install --quiet "$CONVERTER_SPEC"
+    sudo -u "$SERVICE_USER" "$VENV/bin/pip" install --quiet --upgrade --force-reinstall "$CONVERTER_SPEC"
   fi
 fi
 info "Python 패키지 설치 완료"
-if [[ -n "$CONVERTER_SPEC" || "$CONVERTER_ALLOW_LOCAL_FALLBACK" = "0" ]]; then
-  if [[ -n "$CONVERTER_MIN_VERSION" ]]; then
-    sudo -u "$SERVICE_USER" "$VENV/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" \
-      --require-private-engine \
-      --min-version "$CONVERTER_MIN_VERSION"
-  else
-    sudo -u "$SERVICE_USER" "$VENV/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" --require-private-engine
-  fi
+if [[ -n "$CONVERTER_MIN_VERSION" ]]; then
+  sudo -u "$SERVICE_USER" "$VENV/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" \
+    --require-package-backend \
+    --expected-version "$CONVERTER_MIN_VERSION"
+else
+  sudo -u "$SERVICE_USER" "$VENV/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" --require-package-backend
 fi
 
 # ── 6. 스토리지 디렉터리 ─────────────────────────────────────────────────────
@@ -170,8 +201,10 @@ else
   info ".env 이미 존재: $ENV_FILE"
 fi
 
-if ! grep -q '^GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=' "$ENV_FILE"; then
-  printf '\nGOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=%s\n' "$CONVERTER_ALLOW_LOCAL_FALLBACK" >> "$ENV_FILE"
+upsert_env_value "$ENV_FILE" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
+upsert_env_value "$ENV_FILE" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "$CONVERTER_ALLOW_LOCAL_FALLBACK"
+if [[ -n "$CONVERTER_MIN_VERSION" ]]; then
+  upsert_env_value "$ENV_FILE" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
 fi
 
 # ── 8. Caddy 설정 ─────────────────────────────────────────────────────────────

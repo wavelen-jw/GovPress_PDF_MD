@@ -10,6 +10,28 @@ from pathlib import Path
 from fastapi import APIRouter, Depends
 
 
+def _normalize_version(raw: str | None) -> str | None:
+    value = (raw or "").strip()
+    if not value:
+        return None
+    if value.startswith("v"):
+        return value[1:]
+    return value
+
+
+def _classify_backend(module_path: Path, distribution_version: str | None) -> str:
+    if any(part in {"site-packages", "dist-packages"} for part in module_path.parts) and distribution_version:
+        return "package"
+    path = module_path.as_posix()
+    if "gov-md-converter" in path:
+        return "local-root"
+    if "packages/govpress-converter" in path:
+        return "bundled-root"
+    if distribution_version:
+        return "package"
+    return "unknown"
+
+
 def build_router(settings, verify_admin_api_key) -> APIRouter:
     router = APIRouter(prefix="/v1/admin/runtime", tags=["admin-runtime"])
 
@@ -32,20 +54,22 @@ def build_router(settings, verify_admin_api_key) -> APIRouter:
             }
 
         module_path = Path(getattr(govpress_converter, "__file__", "")).resolve()
-        version = getattr(govpress_converter, "__version__", "0.0.0")
+        version = _normalize_version(getattr(govpress_converter, "__version__", "0.0.0")) or "0.0.0"
         try:
-            dist_version = metadata.version("govpress-converter")
+            dist_version = _normalize_version(metadata.version("govpress-converter"))
             if dist_version:
                 version = dist_version
         except metadata.PackageNotFoundError:
             dist_version = None
+        backend = _classify_backend(module_path, dist_version)
 
         return {
             "available": True,
             "version": version,
             "distribution_version": dist_version,
             "module_path": str(module_path),
-            "private_engine": "packages/govpress-converter" not in module_path.as_posix(),
+            "backend": backend,
+            "private_engine": backend != "bundled-root",
             "python_version": platform.python_version(),
             "platform": platform.platform(),
             "convert_hwpx_signature": str(inspect.signature(govpress_converter.convert_hwpx)),

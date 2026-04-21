@@ -119,8 +119,9 @@ GOVPRESS_UPLOAD_RATE_LIMIT_COUNT=12
 GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
 GOVPRESS_JOB_TTL_HOURS=72
 GOVPRESS_TURNSTILE_SECRET_KEY=0x4AAAA...
-GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=1
-GOVPRESS_CONVERTER_SPEC=
+GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=0
+GOVPRESS_CONVERTER_SPEC=git+https://<TOKEN>@github.com/wavelen-jw/gov-md-converter.git@v0.1.18
+GOVPRESS_CONVERTER_MIN_VERSION=0.1.18
 GOVPRESS_CONVERTER_EXTRA_INDEX_URL=
 EXPO_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY=0x4AAAA...
 CLOUDFLARE_TUNNEL_TOKEN=eyJh...
@@ -147,16 +148,17 @@ serverW로 연결되는 현재 공개 주소는 `https://api4.govpress.cloud`입
 비공개 `govpress-converter` 패키지를 쓰려면 `.env`에 아래 값을 추가합니다.
 
 - `GOVPRESS_CONVERTER_SPEC`
-  - 예: `git+https://<TOKEN>@github.com/wavelen-jw/gov-md-converter.git@v0.1.14`
+  - 예: `git+https://<TOKEN>@github.com/wavelen-jw/gov-md-converter.git@v0.1.18`
   - 태그는 서버별 `.env`를 직접 수정하지 말고 저장소의 `deploy/converter.version`을 기준으로 관리합니다.
   - local compose와 원격 배포 스크립트가 `.env`의 기존 태그를 자동으로 `deploy/converter.version` 값으로 정규화합니다.
 - `GOVPRESS_CONVERTER_MIN_VERSION`
-  - 예: `0.1.14`
+  - 예: `0.1.18`
 - `GOVPRESS_CONVERTER_EXTRA_INDEX_URL`
   - private registry를 쓸 때만 필요
 - `GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK`
-  - 프로덕션/준프로덕션 권장값은 `0`
-  - private 엔진을 실제로 설치했다면 `scripts/check_converter_runtime.py`가 빌드 중에 버전과 시그니처를 검사합니다.
+  - 프로덕션/준프로덕션은 반드시 `0`
+  - 프로덕션은 `site-packages`에 설치된 package backend만 허용합니다.
+  - `scripts/check_converter_runtime.py`가 `distribution_version`, `module_path`, `backend`를 검사하고 `deploy/converter.version`과 다르면 배포를 실패 처리합니다.
 - converter 버전을 올려 배포할 때는 배포 스크립트가 기존 `storage/results/*.md`와 `storage/policy_briefing_cache/*`를 먼저 비워서 이전 엔진 결과가 재사용되지 않게 합니다.
 - 값이 비어 있으면 기본 허용 origin이 없으므로 브라우저 접근이 막힙니다.
 - 로컬 웹 테스트 중이면 `http://172.25.164.35:8084` 같은 현재 웹 주소를 임시로 추가해야 합니다.

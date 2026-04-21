@@ -9,6 +9,13 @@ import sys
 from typing import Callable
 
 
+def _env_flag(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() not in {"0", "false", "no", "off", ""}
+
+
 def _call_convert_hwpx(
     fn: Callable[..., str],
     path: str,
@@ -56,6 +63,13 @@ def _load_backend() -> tuple[str, Callable[..., str], Callable[..., str]]:
         return ("package", convert_hwpx, convert_pdf)
     except Exception as exc:
         package_exc = exc
+
+    if not _env_flag("GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK", False):
+        raise RuntimeError(
+            "GovPress conversion engine package import failed and local-root fallback is disabled. "
+            "Install the private converter package for this environment. "
+            f"Details: package backend unavailable: {package_exc}"
+        ) from package_exc
 
     gov_md_root = os.environ.get("GOV_MD_CONVERTER_ROOT")
     search_roots: list[Path] = []

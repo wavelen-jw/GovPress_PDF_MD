@@ -156,6 +156,8 @@ class ServerApiContractTests(unittest.TestCase):
         if payload["available"]:
             self.assertEqual(payload["version"], "0.1.18")
             self.assertIn("module_path", payload)
+            self.assertIn("distribution_version", payload)
+            self.assertIn("backend", payload)
             self.assertIn("convert_hwpx_signature", payload)
             self.assertIn("convert_pdf_signature", payload)
         else:

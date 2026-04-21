@@ -57,6 +57,20 @@ normalize_converter_spec() {
 
 normalize_converter_spec
 
+TRACKED_CONVERTER_VERSION=""
+if [ -f "$CONVERTER_VERSION_FILE" ]; then
+  TRACKED_CONVERTER_VERSION="$(sed -e 's/^v//' "$CONVERTER_VERSION_FILE" | tr -d '\n')"
+fi
+if [ -z "${CONVERTER_MIN_VERSION:-}" ] && [ -n "$TRACKED_CONVERTER_VERSION" ]; then
+  CONVERTER_MIN_VERSION="$TRACKED_CONVERTER_VERSION"
+fi
+if [ -z "${CONVERTER_SPEC:-}" ] || [ "${CONVERTER_SPEC}" = "-" ]; then
+  echo "converter_spec_missing=1"
+  echo "converter_expected_version=${CONVERTER_MIN_VERSION:-unknown}"
+  echo "GOVPRESS_CONVERTER_SPEC is required for package-only production deploys." >&2
+  exit 1
+fi
+
 if [ "${CONVERTER_SPEC:-}" = "-" ]; then
   CONVERTER_SPEC=""
 fi
@@ -535,13 +549,8 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
     fi
   fi
   normalize_env_placeholder_spec "$ENV_PATH"
-  if [ -n "${CONVERTER_SPEC:-}" ]; then
-    upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
-    upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "0"
-  else
-    upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" ""
-    upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "1"
-  fi
+  upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
+  upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "0"
   if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
   fi
@@ -590,13 +599,8 @@ else
   mkdir -p "$(dirname "$ENV_PATH")"
   touch "$ENV_PATH"
   normalize_env_placeholder_spec "$ENV_PATH"
-  if [ -n "${CONVERTER_SPEC:-}" ]; then
-    upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
-    upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "0"
-  else
-    upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" ""
-    upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "1"
-  fi
+  upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
+  upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "0"
   if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
   fi
@@ -606,17 +610,13 @@ else
   "$DEPLOY_DIR/.venv/bin/python" -m pip install -U pip -q
   "$DEPLOY_DIR/.venv/bin/python" -m pip install -r "$DEPLOY_DIR/requirements.txt" -q
   "$DEPLOY_DIR/.venv/bin/python" -m pip install -U opendataloader-pdf -q
-  if [ -n "${CONVERTER_SPEC:-}" ] && [ "${CONVERTER_SPEC}" != "-" ]; then
-    "$DEPLOY_DIR/.venv/bin/python" -m pip install "$CONVERTER_SPEC" -q
-  fi
-  if [ -n "${CONVERTER_SPEC:-}" ] && [ "${CONVERTER_SPEC}" != "-" ]; then
-    if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
-      "$DEPLOY_DIR/.venv/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" \
-        --require-private-engine \
-        --min-version "$CONVERTER_MIN_VERSION"
-    else
-      "$DEPLOY_DIR/.venv/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" --require-private-engine
-    fi
+  "$DEPLOY_DIR/.venv/bin/python" -m pip install --upgrade --force-reinstall "$CONVERTER_SPEC" -q
+  if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
+    "$DEPLOY_DIR/.venv/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" \
+      --require-package-backend \
+      --expected-version "$CONVERTER_MIN_VERSION"
+  else
+    "$DEPLOY_DIR/.venv/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" --require-package-backend
   fi
   systemctl --user restart "$SERVICE"
   sleep 3
@@ -654,6 +654,27 @@ else
   echo "deploy_probe_name=health"
   echo "deploy_probe_code=${health_code}"
 fi
+if [ -n "${COMPOSE_FILE:-}" ]; then
+  if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
+    runtime_output="$(docker exec govpress-api python /app/scripts/check_converter_runtime.py \
+      --require-package-backend \
+      --expected-version "$CONVERTER_MIN_VERSION")"
+  else
+    runtime_output="$(docker exec govpress-api python /app/scripts/check_converter_runtime.py \
+      --require-package-backend)"
+  fi
+else
+  if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
+    runtime_output="$("$DEPLOY_DIR/.venv/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" \
+      --require-package-backend \
+      --expected-version "$CONVERTER_MIN_VERSION")"
+  else
+    runtime_output="$("$DEPLOY_DIR/.venv/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" \
+      --require-package-backend)"
+  fi
+fi
+echo "$runtime_output"
+echo "converter_runtime=$(printf '%s' "$runtime_output" | tr '\n' ' ')"
 if [ "${DEPLOY_MODE:-compose_proxy}" = "host_proxy" ]; then
   host_proxy_cleanup_backups
 fi
