@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import os
 import platform
+import re
 from functools import partial
 from importlib import metadata
 from pathlib import Path
@@ -32,6 +33,13 @@ def _classify_backend(module_path: Path, distribution_version: str | None) -> st
     return "unknown"
 
 
+def _mask_converter_spec(raw: str | None) -> str:
+    value = (raw or "").strip()
+    if not value:
+        return ""
+    return re.sub(r"://([^/@]+)@", "://***@", value)
+
+
 def build_router(settings, verify_admin_api_key) -> APIRouter:
     router = APIRouter(prefix="/v1/admin/runtime", tags=["admin-runtime"])
 
@@ -45,7 +53,7 @@ def build_router(settings, verify_admin_api_key) -> APIRouter:
             return {
                 "available": False,
                 "reason": str(exc),
-                "converter_spec": os.environ.get("GOVPRESS_CONVERTER_SPEC", ""),
+                "converter_spec": _mask_converter_spec(os.environ.get("GOVPRESS_CONVERTER_SPEC", "")),
                 "converter_allow_local_fallback": os.environ.get(
                     "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK",
                     "",
@@ -74,7 +82,7 @@ def build_router(settings, verify_admin_api_key) -> APIRouter:
             "platform": platform.platform(),
             "convert_hwpx_signature": str(inspect.signature(govpress_converter.convert_hwpx)),
             "convert_pdf_signature": str(inspect.signature(govpress_converter.convert_pdf)),
-            "converter_spec": os.environ.get("GOVPRESS_CONVERTER_SPEC", ""),
+            "converter_spec": _mask_converter_spec(os.environ.get("GOVPRESS_CONVERTER_SPEC", "")),
             "converter_allow_local_fallback": os.environ.get(
                 "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK",
                 "",

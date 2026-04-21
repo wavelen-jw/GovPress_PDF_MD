@@ -135,15 +135,22 @@ class ServerApiContractTests(unittest.TestCase):
         self.assertFalse(app.state.settings.using_policy_briefing_service_key_fallback)
 
     def test_admin_runtime_endpoint_requires_admin_key_and_returns_fingerprint(self) -> None:
-        previous = os.environ.get("GOVPRESS_ADMIN_API_KEY")
+        previous = {
+            "GOVPRESS_ADMIN_API_KEY": os.environ.get("GOVPRESS_ADMIN_API_KEY"),
+            "GOVPRESS_CONVERTER_SPEC": os.environ.get("GOVPRESS_CONVERTER_SPEC"),
+        }
         try:
             os.environ["GOVPRESS_ADMIN_API_KEY"] = "admin-secret"
+            os.environ["GOVPRESS_CONVERTER_SPEC"] = (
+                "git+https://gho_secret123@github.com/wavelen-jw/gov-md-converter.git@v0.1.18"
+            )
             app = create_app(Path(self.temp_dir.name))
         finally:
-            if previous is None:
-                os.environ.pop("GOVPRESS_ADMIN_API_KEY", None)
-            else:
-                os.environ["GOVPRESS_ADMIN_API_KEY"] = previous
+            for key, value in previous.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
 
         client = TestClient(app)
         denied = client.get("/v1/admin/runtime/converter")
@@ -160,5 +167,9 @@ class ServerApiContractTests(unittest.TestCase):
             self.assertIn("backend", payload)
             self.assertIn("convert_hwpx_signature", payload)
             self.assertIn("convert_pdf_signature", payload)
+            self.assertEqual(
+                payload["converter_spec"],
+                "git+https://***@github.com/wavelen-jw/gov-md-converter.git@v0.1.18",
+            )
         else:
             self.assertIn("reason", payload)

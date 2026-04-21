@@ -6,6 +6,7 @@ import inspect
 import json
 import os
 from pathlib import Path
+import re
 import sys
 
 
@@ -45,6 +46,13 @@ def _classify_backend(module_path: Path, distribution_version: str | None) -> st
     if distribution_version:
         return "package"
     return "unknown"
+
+
+def _mask_converter_spec(raw: str | None) -> str:
+    value = (raw or "").strip()
+    if not value:
+        return ""
+    return re.sub(r"://([^/@]+)@", "://***@", value)
 
 
 def main() -> int:
@@ -103,7 +111,7 @@ def main() -> int:
         "private_engine": is_private_engine,
         "convert_hwpx_signature": hwpx_signature,
         "convert_pdf_signature": pdf_signature,
-        "converter_spec": os.environ.get("GOVPRESS_CONVERTER_SPEC", ""),
+        "converter_spec": _mask_converter_spec(os.environ.get("GOVPRESS_CONVERTER_SPEC", "")),
         "converter_allow_local_fallback": os.environ.get("GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK", ""),
         "converter_min_version": os.environ.get("GOVPRESS_CONVERTER_MIN_VERSION", ""),
     }

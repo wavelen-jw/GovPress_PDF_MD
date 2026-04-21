@@ -121,6 +121,44 @@ class ConverterRuntimeSmokeTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("does not match expected 0.1.18", result.stderr)
 
+    def test_script_masks_converter_spec_token(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir) / "gov-md-converter"
+            root.mkdir()
+            module_dir = root / "govpress_converter"
+            module_dir.mkdir()
+            (module_dir / "__init__.py").write_text(
+                textwrap.dedent(
+                    """
+                    __version__ = "0.2.0"
+
+                    def convert_hwpx(path, *, table_mode="text"):
+                        return f"{path}:{table_mode}"
+
+                    def convert_pdf(path, timeout=300):
+                        return f"{path}:{timeout}"
+                    """
+                ).strip()
+                + "\n",
+                encoding="utf-8",
+            )
+            env = {
+                **os.environ,
+                "PYTHONPATH": str(root),
+                "GOVPRESS_CONVERTER_SPEC": "git+https://gho_secret123@github.com/wavelen-jw/gov-md-converter.git@v0.1.18",
+            }
+            result = subprocess.run(
+                [sys.executable, "scripts/check_converter_runtime.py"],
+                cwd=self.repo_root,
+                check=False,
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            self.assertIn('"converter_spec": "git+https://***@github.com/wavelen-jw/gov-md-converter.git@v0.1.18"', result.stdout)
+            self.assertNotIn("gho_secret123", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
