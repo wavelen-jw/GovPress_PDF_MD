@@ -40,9 +40,9 @@ print(json.dumps({
 
 def _remote_payload(alias: str, sample_rel: str) -> dict[str, str]:
     quoted_rel = shlex.quote(sample_rel)
-    remote_script = f"""
+    remote_script = """
 set -euo pipefail
-sample_rel={quoted_rel}
+sample_rel={sample_rel}
 docker exec govpress-api python - "$sample_rel" <<'PY'
 import hashlib
 import json
@@ -53,12 +53,12 @@ from govpress_converter import convert_hwpx
 sample_rel = sys.argv[1]
 sample_path = Path("/app") / sample_rel
 text = convert_hwpx(sample_path)
-print(json.dumps({
+print(json.dumps({{
   "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
   "length": len(text),
-}, ensure_ascii=False))
+}}, ensure_ascii=False))
 PY
-"""
+""".format(sample_rel=quoted_rel)
     out = _run(["ssh", alias, "bash", "-lc", remote_script])
     return json.loads(out)
 
