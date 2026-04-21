@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -38,9 +39,10 @@ print(json.dumps({
 
 
 def _remote_payload(alias: str, sample_rel: str) -> dict[str, str]:
-    remote_script = r"""
+    quoted_rel = shlex.quote(sample_rel)
+    remote_script = f"""
 set -euo pipefail
-sample_rel="$1"
+sample_rel={quoted_rel}
 docker exec govpress-api python - "$sample_rel" <<'PY'
 import hashlib
 import json
@@ -57,7 +59,7 @@ print(json.dumps({
 }, ensure_ascii=False))
 PY
 """
-    out = _run(["ssh", alias, remote_script, "--", sample_rel])
+    out = _run(["ssh", alias, "bash", "-lc", remote_script])
     return json.loads(out)
 
 
