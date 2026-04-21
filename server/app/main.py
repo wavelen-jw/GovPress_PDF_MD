@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 from .api import jobs as jobs_api
+from .api import admin_runtime as admin_runtime_api
 from .api import policy_briefings as policy_briefings_api
 from .api import results as results_api
 from .adapters.policy_briefing import PolicyBriefingCache, PolicyBriefingCatalog, PolicyBriefingClient
@@ -109,6 +110,7 @@ def create_app(
     admin_auth_dependency = partial(verify_admin_api_key, settings)
     app.include_router(jobs_api.build_router(job_service, settings, auth_dependency))
     app.include_router(results_api.build_router(result_service, auth_dependency))
+    app.include_router(admin_runtime_api.build_router(settings, verify_admin_api_key))
     app.include_router(
         policy_briefings_api.build_router(
             job_service,

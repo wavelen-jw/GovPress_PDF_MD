@@ -5,6 +5,8 @@ import os
 import tempfile
 import unittest
 
+from fastapi.testclient import TestClient
+
 from server.app.core.config import DEFAULT_CORS_ALLOW_ORIGINS, DEFAULT_POLICY_BRIEFING_SERVICE_KEY
 from server.app.main import create_app
 
@@ -26,6 +28,7 @@ class ServerApiContractTests(unittest.TestCase):
         self.assertIn("/v1/jobs/{job_id}", schema["paths"])
         self.assertIn("/v1/jobs/{job_id}/retry", schema["paths"])
         self.assertIn("/v1/jobs/{job_id}/result", schema["paths"])
+        self.assertIn("/v1/admin/runtime/converter", schema["paths"])
         self.assertIn("/v1/policy-briefings/today", schema["paths"])
         self.assertIn("/v1/policy-briefings/recent", schema["paths"])
         self.assertIn("/v1/policy-briefings/import", schema["paths"])
@@ -130,3 +133,30 @@ class ServerApiContractTests(unittest.TestCase):
 
         self.assertIsNone(app.state.settings.policy_briefing_service_key)
         self.assertFalse(app.state.settings.using_policy_briefing_service_key_fallback)
+
+    def test_admin_runtime_endpoint_requires_admin_key_and_returns_fingerprint(self) -> None:
+        previous = os.environ.get("GOVPRESS_ADMIN_API_KEY")
+        try:
+            os.environ["GOVPRESS_ADMIN_API_KEY"] = "admin-secret"
+            app = create_app(Path(self.temp_dir.name))
+        finally:
+            if previous is None:
+                os.environ.pop("GOVPRESS_ADMIN_API_KEY", None)
+            else:
+                os.environ["GOVPRESS_ADMIN_API_KEY"] = previous
+
+        client = TestClient(app)
+        denied = client.get("/v1/admin/runtime/converter")
+        self.assertEqual(denied.status_code, 403)
+
+        allowed = client.get("/v1/admin/runtime/converter", headers={"X-Admin-Key": "admin-secret"})
+        self.assertEqual(allowed.status_code, 200)
+        payload = allowed.json()
+        self.assertIn("available", payload)
+        if payload["available"]:
+            self.assertEqual(payload["version"], "0.1.18")
+            self.assertIn("module_path", payload)
+            self.assertIn("convert_hwpx_signature", payload)
+            self.assertIn("convert_pdf_signature", payload)
+        else:
+            self.assertIn("reason", payload)

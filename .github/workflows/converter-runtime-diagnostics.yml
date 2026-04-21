@@ -1,0 +1,74 @@
+name: Converter Runtime Diagnostics
+
+on:
+  workflow_dispatch:
+    inputs:
+      sample_path:
+        description: Sample HWPX/PDF path inside this repository checkout
+        required: true
+        default: exports/policy_briefing_qc/2026-04-16/156756095/source.hwpx
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run converter diagnostics
+        env:
+          API_KEY: ${{ secrets.GOVPRESS_API_KEY }}
+          ADMIN_KEY: ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
+          SAMPLE_PATH: ${{ inputs.sample_path }}
+        run: |
+          set -euo pipefail
+          python3 scripts/compare_converter_runtime.py \
+            --sample "$SAMPLE_PATH" \
+            --api-key "$API_KEY" \
+            --admin-key "$ADMIN_KEY" \
+            --server serverH=https://api.govpress.cloud \
+            --server serverW=https://api4.govpress.cloud \
+            --server serverV=https://api2.govpress.cloud \
+            | tee converter-runtime-diagnostics.json
+
+      - name: Summarize results
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("converter-runtime-diagnostics.json").read_text(encoding="utf-8"))
+          rows = payload["results"]
+          print("| server | version | module_path | text_sha256 | html_sha256 |")
+          print("| --- | --- | --- | --- | --- |")
+          for row in rows:
+              runtime = row["runtime"]
+              print(
+                  f"| {row['name']} | {runtime['version']} | `{runtime['module_path']}` | "
+                  f"`{row['text_sha256']}` | `{row['html_sha256']}` |"
+              )
+          distinct_text = {row["text_sha256"] for row in rows}
+          distinct_html = {row["html_sha256"] for row in rows}
+          with open(Path.cwd() / "_summary.md", "w", encoding="utf-8") as handle:
+              handle.write("| server | version | module_path | text_sha256 | html_sha256 |\n")
+              handle.write("| --- | --- | --- | --- | --- |\n")
+              for row in rows:
+                  runtime = row["runtime"]
+                  handle.write(
+                      f"| {row['name']} | {runtime['version']} | `{runtime['module_path']}` | "
+                      f"`{row['text_sha256']}` | `{row['html_sha256']}` |\n"
+                  )
+              handle.write("\n")
+              handle.write(f"- distinct_text_hashes: `{len(distinct_text)}`\n")
+              handle.write(f"- distinct_html_hashes: `{len(distinct_html)}`\n")
+          if len(distinct_text) != 1 or len(distinct_html) != 1:
+              raise SystemExit("converter output hash mismatch across servers")
+          PY
+          cat _summary.md >> "$GITHUB_STEP_SUMMARY"
