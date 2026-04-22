@@ -483,9 +483,44 @@ cleanup_host_proxy_port_conflicts() {
   local ports="8080"
   local pids=""
   local port
+  local api_state=""
+  if docker inspect govpress-api >/dev/null 2>&1; then
+    api_state="$(docker inspect --format '{{.State.Status}}' govpress-api 2>/dev/null || true)"
+  fi
+  if [ "${api_state:-missing}" != "running" ]; then
+    ports="8013 $ports"
+  fi
   if ! sudo -n lsof -tiTCP:8080 -sTCP:LISTEN >/dev/null 2>&1 \
     && ! sudo -n ss -ltnp "( sport = :8080 )" >/dev/null 2>&1; then
     cleanup_host_proxy_docker_port_conflicts
+    pids="$(
+      for port in $ports; do
+        {
+          lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true
+          ss -ltnp "( sport = :${port} )" 2>/dev/null \
+            | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' || true
+        }
+      done | sort -u
+    )"
+    pids="$(printf '%s\n' "$pids" | sed '/^$/d' | sort -u | tr '\n' ' ')"
+    if [ -n "$pids" ]; then
+      echo "host_proxy_port_conflict_pids_nosudo=$pids"
+      for pid in $pids; do
+        if ps -p "$pid" -o args= 2>/dev/null | grep -q 'host_proxy.py'; then
+          continue
+        fi
+        kill "$pid" >/dev/null 2>&1 || true
+      done
+      sleep 1
+      for pid in $pids; do
+        if ps -p "$pid" -o args= 2>/dev/null | grep -q 'host_proxy.py'; then
+          continue
+        fi
+        kill -9 "$pid" >/dev/null 2>&1 || true
+      done
+      echo "host_proxy_port_conflict_cleanup=nosudo_local"
+      return 0
+    fi
     echo "host_proxy_port_conflict_cleanup=skipped_no_sudo"
     return 0
   fi
