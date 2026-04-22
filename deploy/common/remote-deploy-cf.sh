@@ -361,10 +361,26 @@ cleanup_host_proxy_backup_containers() {
   fi
 }
 
+cleanup_host_proxy_stalled_services() {
+  local service_name=""
+  local state=""
+  for service_name in govpress-api govpress-worker; do
+    if ! docker inspect "$service_name" >/dev/null 2>&1; then
+      continue
+    fi
+    state="$(docker inspect --format '{{.State.Status}}' "$service_name" 2>/dev/null || true)"
+    if [ "$state" != "running" ]; then
+      echo "host_proxy_stalled_cleanup=${service_name}:${state:-unknown}"
+      docker rm -f "$service_name" >/dev/null 2>&1 || true
+    fi
+  done
+}
+
 cleanup_host_proxy_orphans() {
   docker rm -f govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
   cleanup_host_proxy_temp_containers
   cleanup_host_proxy_backup_containers
+  cleanup_host_proxy_stalled_services
   echo "host_proxy_orphan_cleanup=1"
 }
 
