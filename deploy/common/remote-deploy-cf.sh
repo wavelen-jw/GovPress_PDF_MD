@@ -376,11 +376,25 @@ cleanup_host_proxy_stalled_services() {
   done
 }
 
+cleanup_host_proxy_docker_port_conflicts() {
+  local conflict_names=""
+  conflict_names="$(
+    docker ps -a --format '{{.Names}}\t{{.Ports}}' \
+      | awk -F'\t' '$2 ~ /127\\.0\\.0\\.1:8013->/ {print $1}' \
+      | grep -v '^govpress-api$' || true
+  )"
+  if [ -n "$conflict_names" ]; then
+    echo "host_proxy_docker_port_cleanup=$(printf '%s' "$conflict_names" | tr '\n' ' ')"
+    printf '%s\n' "$conflict_names" | xargs -r docker rm -f >/dev/null 2>&1 || true
+  fi
+}
+
 cleanup_host_proxy_orphans() {
   docker rm -f govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
   cleanup_host_proxy_temp_containers
   cleanup_host_proxy_backup_containers
   cleanup_host_proxy_stalled_services
+  cleanup_host_proxy_docker_port_conflicts
   echo "host_proxy_orphan_cleanup=1"
 }
 
@@ -471,6 +485,7 @@ cleanup_host_proxy_port_conflicts() {
   local port
   if ! sudo -n lsof -tiTCP:8080 -sTCP:LISTEN >/dev/null 2>&1 \
     && ! sudo -n ss -ltnp "( sport = :8080 )" >/dev/null 2>&1; then
+    cleanup_host_proxy_docker_port_conflicts
     echo "host_proxy_port_conflict_cleanup=skipped_no_sudo"
     return 0
   fi
