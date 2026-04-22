@@ -285,33 +285,52 @@ build_and_verify_dashboard_assets() {
   fi
 }
 
+host_proxy_services_running() {
+  local states
+  states="$(docker inspect --format '{{.State.Status}}' govpress-api govpress-worker 2>/dev/null || true)"
+  [ "$(printf '%s\n' "$states" | grep -cx 'running')" -eq 2 ]
+}
+
 run_host_proxy_compose_up() {
   local log_file="${1:-/tmp/govpress-compose-up.log}"
   local build_log="${log_file}.build"
   local attempt
+  # Do not rename running service containers as "backups" before compose up.
+  # Docker Compose tracks them by labels, so renamed backups can be treated as
+  # managed containers and leave govpress-api in "created" during rollback.
   run_compose build api worker >"$build_log" 2>&1
   cat "$build_log"
   for attempt in 1 2 3; do
-    host_proxy_stage_backups
     cleanup_host_proxy_port_conflicts
     if run_compose up -d --no-build --remove-orphans api worker >"$log_file" 2>&1; then
       cat "$log_file"
-      return 0
+      if host_proxy_services_running; then
+        return 0
+      fi
+      echo "host_proxy_reconcile_attempt=${attempt}"
+      docker start govpress-api govpress-worker >/dev/null 2>&1 || true
+      if host_proxy_services_running; then
+        return 0
+      fi
+      sleep 3
+      continue
     fi
     cat "$log_file"
-    host_proxy_restore_backups
+    if docker inspect govpress-api >/dev/null 2>&1; then
+      docker start govpress-api >/dev/null 2>&1 || true
+    fi
+    if docker inspect govpress-worker >/dev/null 2>&1; then
+      docker start govpress-worker >/dev/null 2>&1 || true
+    fi
+    if host_proxy_services_running; then
+      return 0
+    fi
     if ! grep -q "ports are not available" "$log_file"; then
       return 1
     fi
     sleep 5
   done
   return 1
-}
-
-cleanup_host_proxy_orphans() {
-  docker rm -f govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
-  cleanup_host_proxy_temp_containers
-  echo "host_proxy_orphan_cleanup=1"
 }
 
 HOST_PROXY_BACKUP_ACTIVE=0
@@ -328,6 +347,25 @@ cleanup_host_proxy_temp_containers() {
     echo "host_proxy_temp_cleanup=$(printf '%s' "$temp_names" | tr '\n' ' ')"
     printf '%s\n' "$temp_names" | xargs -r docker rm -f >/dev/null 2>&1 || true
   fi
+}
+
+cleanup_host_proxy_backup_containers() {
+  local backup_names=""
+  backup_names="$(
+    docker ps -a --format '{{.Names}}' \
+      | grep -E '^govpress-(api|worker)-backup-' || true
+  )"
+  if [ -n "$backup_names" ]; then
+    echo "host_proxy_backup_container_cleanup=$(printf '%s' "$backup_names" | tr '\n' ' ')"
+    printf '%s\n' "$backup_names" | xargs -r docker rm -f >/dev/null 2>&1 || true
+  fi
+}
+
+cleanup_host_proxy_orphans() {
+  docker rm -f govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
+  cleanup_host_proxy_temp_containers
+  cleanup_host_proxy_backup_containers
+  echo "host_proxy_orphan_cleanup=1"
 }
 
 promote_host_proxy_backup_if_needed() {
@@ -654,8 +692,6 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
     restart_split_edge_tunnel
   elif [ "$restart_tunnel_after_compose" = "2" ]; then
     restart_host_proxy_edge
-    promote_host_proxy_backup_if_needed govpress-api
-    promote_host_proxy_backup_if_needed govpress-worker
   fi
   run_compose ps
   sleep 3
@@ -745,7 +781,4 @@ else
 fi
 echo "$runtime_output"
 echo "converter_runtime=$(printf '%s' "$runtime_output" | tr '\n' ' ')"
-if [ "${DEPLOY_MODE:-compose_proxy}" = "host_proxy" ]; then
-  host_proxy_cleanup_backups
-fi
 echo "deploy-complete"
