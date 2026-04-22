@@ -92,8 +92,15 @@ jobs:
                 .github/workflows/_deploy-server.yml)
                   deploy_v=true
                   ;;
-                deploy/wsl/*|.github/workflows/_deploy-server-cf.yml)
+                deploy/wsl/Dockerfile|\
+                deploy/wsl/docker-compose*.yml|\
+                deploy/wsl/apply-host-proxy.sh|\
+                deploy/wsl/install-remote-deploy-sudoers.sh|\
+                deploy/wsl/bin/*|\
+                .github/workflows/_deploy-server-cf.yml)
                   deploy_hw=true
+                  ;;
+                deploy/wsl/README.md|deploy/wsl/.env.example)
                   ;;
                 .github/workflows/vps.yml|deploy/common/*|requirements.txt|server/*|src/*|deploy/converter.version)
                   deploy_v=true
