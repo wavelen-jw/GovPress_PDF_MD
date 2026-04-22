@@ -84,6 +84,12 @@ sudo -n true
 
 이 명령이 조용히 성공해야 원격 복구까지 가능합니다.
 
+이 sudoers에는 host-proxy 배포 중 필요한 최소 포트 정리 권한도 포함됩니다.
+
+- `sudo lsof/ss/ps/kill`로 `127.0.0.1:8013`, `127.0.0.1:8080` 점유자 확인/정리
+- 목적: `govpress-api` 새 컨테이너가 `8013` publish에서 `ports are not available`로 실패하는 재발 방지
+- `8013` cleanup은 무조건 수행하지 않고, 실제 점유자가 있을 때만 제한적으로 수행합니다.
+
 ## 준비
 
 1. WSL2 Ubuntu 설치
@@ -206,7 +212,7 @@ curl -i https://api.govpress.cloud/health
 
 - 배포 대상은 `branch tip`이 아니라 workflow를 트리거한 정확한 `github.sha`여야 합니다.
 - `host_proxy` 배포는 기존 `govpress-api`/`govpress-worker`를 새 컨테이너가 검증되기 전에 삭제하면 안 됩니다.
-- `host_proxy` 충돌 정리는 `8080`만 대상으로 하고, `8013`은 cleanup 대상으로 삼지 않습니다.
+- `host_proxy` 충돌 정리는 `8080`이 우선이지만, `127.0.0.1:8013`을 다른 프로세스가 점유해 새 `govpress-api` 컨테이너 publish가 막히는 경우에는 제한된 root cleanup을 허용합니다.
 - `8080` listener cleanup은 `host_proxy.py` 프로세스를 죽이면 안 됩니다.
 - 성공 판정은 단순 `/health 200`이 아니라 인증된 `policy-briefings/today` API `200`입니다.
 - deploy 실패 시 기존 API 컨테이너를 rollback 또는 유지해야 하며, 실패가 곧 서비스 공백으로 이어지면 안 됩니다.
@@ -247,7 +253,7 @@ curl -i https://api.govpress.cloud/health
 - `run_compose up -d --build`를 activate 단계에 직접 사용
 - `health_probe_code=200`만으로 success 처리
 - `git checkout branch && reset --hard origin/branch`로 되돌리기
-- `8013` 포트 cleanup 재도입
+- `8013` 포트 cleanup을 무제한 kill로 되돌리는 변경
 - `watchdog_reconcile.sh`에서 `compose.sh` 상대 경로를 다시 조합하는 변경
 
 1. 배포 전 상태 확인
