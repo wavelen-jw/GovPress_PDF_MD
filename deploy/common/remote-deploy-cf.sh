@@ -298,7 +298,14 @@ run_host_proxy_compose_up() {
   # Do not rename running service containers as "backups" before compose up.
   # Docker Compose tracks them by labels, so renamed backups can be treated as
   # managed containers and leave govpress-api in "created" during rollback.
-  run_compose build api worker >"$build_log" 2>&1
+  if ! run_compose build api worker >"$build_log" 2>&1; then
+    echo "host_proxy_build_status=failed"
+    cat "$build_log"
+    run_compose ps || true
+    docker inspect --format 'name={{.Name}} state={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' govpress-api govpress-worker 2>/dev/null || true
+    return 1
+  fi
+  echo "host_proxy_build_status=ok"
   cat "$build_log"
   for attempt in 1 2 3; do
     cleanup_host_proxy_port_conflicts
@@ -312,6 +319,8 @@ run_host_proxy_compose_up() {
       if host_proxy_services_running; then
         return 0
       fi
+      docker inspect --format 'name={{.Name}} state={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' govpress-api govpress-worker 2>/dev/null || true
+      run_compose logs --tail=80 api worker || true
       sleep 3
       continue
     fi
@@ -325,11 +334,16 @@ run_host_proxy_compose_up() {
     if host_proxy_services_running; then
       return 0
     fi
+    docker inspect --format 'name={{.Name}} state={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' govpress-api govpress-worker 2>/dev/null || true
+    run_compose logs --tail=80 api worker || true
     if ! grep -q "ports are not available" "$log_file"; then
       return 1
     fi
     sleep 5
   done
+  echo "host_proxy_compose_up_status=failed"
+  run_compose ps || true
+  docker inspect --format 'name={{.Name}} state={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' govpress-api govpress-worker 2>/dev/null || true
   return 1
 }
 
@@ -822,6 +836,13 @@ if [ "${RUN_POLICY_PROBE:-1}" = "1" ]; then
   echo "deploy_probe_name=policy"
   echo "deploy_probe_code=${policy_probe_code}"
   test "${policy_probe_code}" = "200"
+  if [ -n "${PUBLIC_PROBE_URL:-}" ]; then
+    public_policy_probe_code="$(curl -sS -o /tmp/govpress-public-policy.txt -w '%{http_code}' "${policy_probe_header[@]}" "${PUBLIC_PROBE_URL%/}/v1/policy-briefings/today?date=2026-04-08" || true)"
+    echo "public_policy_probe_url=${PUBLIC_PROBE_URL%/}/v1/policy-briefings/today?date=2026-04-08"
+    echo "public_policy_probe_code=${public_policy_probe_code}"
+    echo "public_policy_probe_body=$(head -c 200 /tmp/govpress-public-policy.txt | tr '\n' ' ' || true)"
+    test "${public_policy_probe_code}" = "200"
+  fi
 else
   echo "deploy_probe_name=health"
   echo "deploy_probe_code=${health_code}"

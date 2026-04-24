@@ -44,6 +44,9 @@ on:
       run_policy_probe:
         type: string
         default: "true"
+      public_probe_url:
+        type: string
+        default: ""
       ssh_host:
         # e.g. ssh-h.govpress.cloud
         type: string
@@ -199,6 +202,7 @@ jobs:
           DEPLOY_MODE: ${{ inputs.deploy_mode }}
           SERVICE: ${{ inputs.service }}
           HEALTHCHECK_URL: ${{ inputs.healthcheck_url }}
+          PUBLIC_PROBE_URL: ${{ inputs.public_probe_url }}
           DEPLOY_POLL_ATTEMPTS: ${{ inputs.deploy_poll_attempts }}
           DEPLOY_POLL_INTERVAL_SECONDS: ${{ inputs.deploy_poll_interval_seconds }}
           RUN_POLICY_PROBE: ${{ inputs.run_policy_probe }}
@@ -217,7 +221,7 @@ jobs:
           REMOTE_PATH="${REMOTE_DIR}/remote-deploy.sh"
           REMOTE_LOG="${REMOTE_DIR}/remote-deploy.log"
           REMOTE_STATUS="${REMOTE_DIR}/status.env"
-          LAUNCH_CMD="$(printf "export DEPLOY_DIR=%q BRANCH=%q TARGET_SHA=%q COMPOSE_FILE=%q DEPLOY_MODE=%q SERVICE=%q HEALTHCHECK_URL=%q CONVERTER_SPEC=%q ADMIN_API_KEY=%q POLICY_BRIEFING_SERVICE_KEY=%q; remote_dir=%q; remote_path=%q; remote_log=%q; remote_status=%q; mkdir -p \"\$remote_dir\"; rm -f \"\$remote_status\"; cat > \"\$remote_path\" && chmod 700 \"\$remote_path\" && { ( /bin/bash --noprofile --norc \"\$remote_path\" > \"\$remote_log\" 2>&1; rc=\$?; printf 'exit_code=%%s\\n' \"\$rc\" > \"\$remote_status\"; rm -f \"\$remote_path\" ) </dev/null >/dev/null 2>&1 & printf 'launch_pid=%%s\\n' \"\$!\"; }; printf 'remote_log=%%s\\n' \"\$remote_log\"; printf 'remote_status=%%s\\n' \"\$remote_status\"" "$DEPLOY_DIR" "$BRANCH" "$TARGET_SHA" "$COMPOSE_FILE" "$DEPLOY_MODE" "$SERVICE" "$HEALTHCHECK_URL" "$CONVERTER_SPEC" "$ADMIN_API_KEY" "$POLICY_BRIEFING_SERVICE_KEY" "$REMOTE_DIR" "$REMOTE_PATH" "$REMOTE_LOG" "$REMOTE_STATUS")"
+          LAUNCH_CMD="$(printf "export DEPLOY_DIR=%q BRANCH=%q TARGET_SHA=%q COMPOSE_FILE=%q DEPLOY_MODE=%q SERVICE=%q HEALTHCHECK_URL=%q PUBLIC_PROBE_URL=%q CONVERTER_SPEC=%q ADMIN_API_KEY=%q POLICY_BRIEFING_SERVICE_KEY=%q; remote_dir=%q; remote_path=%q; remote_log=%q; remote_status=%q; mkdir -p \"\$remote_dir\"; rm -f \"\$remote_status\"; cat > \"\$remote_path\" && chmod 700 \"\$remote_path\" && { ( /bin/bash --noprofile --norc \"\$remote_path\" > \"\$remote_log\" 2>&1; rc=\$?; printf 'exit_code=%%s\\n' \"\$rc\" > \"\$remote_status\"; rm -f \"\$remote_path\" ) </dev/null >/dev/null 2>&1 & printf 'launch_pid=%%s\\n' \"\$!\"; }; printf 'remote_log=%%s\\n' \"\$remote_log\"; printf 'remote_status=%%s\\n' \"\$remote_status\"" "$DEPLOY_DIR" "$BRANCH" "$TARGET_SHA" "$COMPOSE_FILE" "$DEPLOY_MODE" "$SERVICE" "$HEALTHCHECK_URL" "$PUBLIC_PROBE_URL" "$CONVERTER_SPEC" "$ADMIN_API_KEY" "$POLICY_BRIEFING_SERVICE_KEY" "$REMOTE_DIR" "$REMOTE_PATH" "$REMOTE_LOG" "$REMOTE_STATUS")"
           POLL_CMD="$(printf "if [ -f %q ]; then cat %q; fi" "$REMOTE_STATUS" "$REMOTE_STATUS")"
           FETCH_CMD="$(printf "if [ -f %q ]; then cat %q; fi" "$REMOTE_LOG" "$REMOTE_LOG")"
           launch_exit=1
@@ -334,6 +338,8 @@ jobs:
           deploy_probe_code="$(sed -n 's/^deploy_probe_code=//p' remote-deploy.log | tail -n1)"
           policy_probe_code="$(sed -n 's/^policy_probe_code=//p' remote-deploy.log | tail -n1)"
           policy_probe_body="$(sed -n 's/^policy_probe_body=//p' remote-deploy.log | tail -n1)"
+          public_policy_probe_code="$(sed -n 's/^public_policy_probe_code=//p' remote-deploy.log | tail -n1)"
+          public_policy_probe_body="$(sed -n 's/^public_policy_probe_body=//p' remote-deploy.log | tail -n1)"
 
           {
             echo "remote_host=${remote_host}"
@@ -349,6 +355,8 @@ jobs:
             echo "deploy_probe_code=${deploy_probe_code}"
             echo "policy_probe_code=${policy_probe_code}"
             echo "policy_probe_body=${policy_probe_body}"
+            echo "public_policy_probe_code=${public_policy_probe_code}"
+            echo "public_policy_probe_body=${public_policy_probe_body}"
           } > remote-diagnostics.env
 
       - name: Emit remote diagnostics annotation
@@ -368,8 +376,10 @@ jobs:
           git_head="$(sed -n 's/^git_head=//p' remote-diagnostics.env | tail -n1)"
           policy_probe_code="$(sed -n 's/^policy_probe_code=//p' remote-diagnostics.env | tail -n1)"
           policy_probe_body="$(sed -n 's/^policy_probe_body=//p' remote-diagnostics.env | tail -n1)"
+          public_policy_probe_code="$(sed -n 's/^public_policy_probe_code=//p' remote-diagnostics.env | tail -n1)"
+          public_policy_probe_body="$(sed -n 's/^public_policy_probe_body=//p' remote-diagnostics.env | tail -n1)"
 
-          message="remote_host=${remote_host:-unknown}; deploy_dir=${deploy_dir:-unknown}; git_branch=${git_branch:-unknown}; target_sha=${target_sha:-unknown}; git_head=${git_head:-unknown}; policy_probe_code=${policy_probe_code:-unknown}; policy_probe_body=${policy_probe_body:-unknown}"
+          message="remote_host=${remote_host:-unknown}; deploy_dir=${deploy_dir:-unknown}; git_branch=${git_branch:-unknown}; target_sha=${target_sha:-unknown}; git_head=${git_head:-unknown}; policy_probe_code=${policy_probe_code:-unknown}; policy_probe_body=${policy_probe_body:-unknown}; public_policy_probe_code=${public_policy_probe_code:-unknown}; public_policy_probe_body=${public_policy_probe_body:-unknown}"
           echo "::warning file=.github,title=remote diagnostics::$message"
 
       - name: Emit remote deploy log tail

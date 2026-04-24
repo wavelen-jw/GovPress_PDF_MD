@@ -154,6 +154,7 @@ jobs:
       compose_file:    ${{ vars.GOVPRESS_H_COMPOSE_FILE || 'deploy/wsl/docker-compose.host-proxy.yml' }}
       deploy_mode:     host_proxy
       healthcheck_url: ${{ vars.GOVPRESS_H_HEALTHCHECK_URL || 'http://127.0.0.1:8080/health' }}
+      public_probe_url: https://api.govpress.cloud
       deploy_poll_attempts: "120"
       deploy_poll_interval_seconds: "5"
       emit_failure_diagnostics_only: "true"
@@ -180,6 +181,9 @@ jobs:
       compose_file:    ${{ vars.GOVPRESS_W_COMPOSE_FILE || 'deploy/wsl/docker-compose.host-proxy.yml' }}
       deploy_mode:     host_proxy
       healthcheck_url: ${{ vars.GOVPRESS_W_HEALTHCHECK_URL || 'http://127.0.0.1:8080/health' }}
+      public_probe_url: https://api4.govpress.cloud
+      deploy_poll_attempts: "120"
+      deploy_poll_interval_seconds: "5"
       emit_failure_diagnostics_only: "true"
       run_policy_probe: "true"
     secrets:

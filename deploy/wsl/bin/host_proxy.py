@@ -36,6 +36,7 @@ CORS_RESPONSE_HEADERS = {
     "access-control-expose-headers",
     "access-control-max-age",
 }
+RESPONSE_SKIP_HEADERS = HOP_BY_HOP_HEADERS | CORS_RESPONSE_HEADERS | {"content-length"}
 SEOUL_UTC_OFFSET = timedelta(hours=9)
 
 
@@ -144,7 +145,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.send_response(upstream_response.status, upstream_response.reason)
         for key, value in upstream_response.getheaders():
             lower = key.lower()
-            if lower in HOP_BY_HOP_HEADERS or lower in CORS_RESPONSE_HEADERS:
+            if lower in RESPONSE_SKIP_HEADERS:
                 continue
             self.send_header(key, value)
         self.send_header("Content-Length", str(len(payload)))
