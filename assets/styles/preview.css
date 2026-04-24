@@ -82,7 +82,14 @@ p {
 ul,
 ol {
   margin: 0.28em 0 1.05em;
-  padding-left: 1.25em;
+  padding-left: 2ch;
+}
+
+ul ul,
+ul ol,
+ol ul,
+ol ol {
+  padding-left: 2ch;
 }
 
 li + li {
@@ -103,7 +110,7 @@ blockquote {
   border-left: 5px solid #000000;
   color: #555555;
   background: transparent;
-  margin: 0.95em 0 1.05em;
+  margin: 0.95em 0 1.05em 2ch;
   padding: 0.05em 0 0.05em 0.95em;
 }
 

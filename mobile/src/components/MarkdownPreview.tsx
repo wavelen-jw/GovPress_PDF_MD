@@ -28,6 +28,12 @@ export type MarkdownBlockRange = {
   end: number;
 };
 
+const MARKDOWN_INDENT_UNIT = 16;
+
+function markdownIndent(level: number): ViewStyle {
+  return { marginLeft: MARKDOWN_INDENT_UNIT * (Math.max(0, level) + 1) };
+}
+
 function splitTableRow(line: string): string[] {
   return line
     .trim()
@@ -908,7 +914,7 @@ export function MarkdownPreview({
               style={[
                 styles.markdownQuote,
                 isDarkMode && styles.markdownQuoteDark,
-                block.level > 0 && { marginLeft: block.level * 18 },
+                markdownIndent(block.level),
                 blockHighlightStyle,
               ]}
               onLayout={(event) => handleBlockLayout(blockIndex, event)}
@@ -956,7 +962,7 @@ export function MarkdownPreview({
               <View
                 style={[
                   styles.markdownListItem,
-                  block.level > 0 && { marginLeft: block.level * 18 },
+                  markdownIndent(block.level),
                 ]}
               >
                 <Text style={[styles.markdownListBullet, isDarkMode && styles.markdownListBulletDark]}>
@@ -976,7 +982,7 @@ export function MarkdownPreview({
               <View
                 style={[
                   styles.markdownListItem,
-                  block.level > 0 && { marginLeft: block.level * 18 },
+                  markdownIndent(block.level),
                 ]}
               >
                 <View style={[styles.markdownCheckbox, isDarkMode && styles.markdownCheckboxDark, block.checked && styles.markdownCheckboxChecked]}>
