@@ -285,9 +285,9 @@ function getListBullet(level: number, ordered: boolean, itemIndex: number, order
     return "•";
   }
   if (level === 1) {
-    return "◦";
+    return "-";
   }
-  return "▪";
+  return "◦";
 }
 
 function openExternalLink(url: string): void {
