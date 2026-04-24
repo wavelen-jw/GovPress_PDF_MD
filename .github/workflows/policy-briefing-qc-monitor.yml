@@ -15,7 +15,7 @@ on:
       qc_root:
         description: "QC sample root inside gov-md-converter."
         required: false
-        default: "tests/manual_samples/policy_briefings"
+        default: "tests/qc_samples"
         type: string
       open_issue_on_failure:
         description: "Open or update a GitHub issue when QC requires review."
@@ -45,7 +45,7 @@ jobs:
       GOVPRESS_CURATED_QC_ROOT: ${{ github.workspace }}/gov-md-converter/tests/qc_samples
       TARGET_DATE: ${{ inputs.target_date }}
       EXPORT_LIMIT: ${{ inputs.limit || '5' }}
-      QC_ROOT: ${{ inputs.qc_root || 'tests/manual_samples/policy_briefings' }}
+      QC_ROOT: ${{ inputs.qc_root || 'tests/qc_samples' }}
       OPEN_ISSUE_ON_FAILURE: ${{ inputs.open_issue_on_failure != false }}
       SEND_TELEGRAM_ON_FAILURE: ${{ inputs.send_telegram_on_failure != false }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

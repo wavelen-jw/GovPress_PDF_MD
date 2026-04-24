@@ -58,10 +58,10 @@ DEFAULT_EXPORT_ROOT = Path(
     __import__("os").environ.get("GOVPRESS_QC_EXPORT_ROOT", DEFAULT_GOV_MD_EXPORT_ROOT)
 ).resolve()
 DEFAULT_QC_ROOT = Path(
-    __import__("os").environ.get("GOVPRESS_QC_ROOT", DEFAULT_GOV_MD_ROOT / "tests" / "manual_samples" / "policy_briefings")
+    __import__("os").environ.get("GOVPRESS_QC_ROOT", DEFAULT_GOV_MD_ROOT / "tests" / "qc_samples")
 ).resolve()
 DEFAULT_REMOTE_QC_ROOT = Path(
-    __import__("os").environ.get("GOVPRESS_REMOTE_QC_ROOT", DEFAULT_GOV_MD_ROOT / "tests" / "manual_samples" / "storage_batch")
+    __import__("os").environ.get("GOVPRESS_REMOTE_QC_ROOT", DEFAULT_GOV_MD_ROOT / "tests" / "qc_samples")
 ).resolve()
 DEFAULT_CURATED_QC_ROOT = Path(
     __import__("os").environ.get("GOVPRESS_CURATED_QC_ROOT", DEFAULT_GOV_MD_ROOT / "tests" / "qc_samples")

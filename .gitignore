@@ -23,7 +23,6 @@ exports/policy_briefing_qc/
 node_modules/
 mobile/.expo/
 CLAUDE.md
-AGENTS.md
 docs/
 
 tests/converted_md/

@@ -3,6 +3,7 @@
 정부문서가 막힌 곳에서, 사람과 AI 모두 통하게 한다.
 
 - 서비스 주소: `https://wavelen-jw.github.io/GovPress_PDF_MD`
+- Codex/agent instructions: [`AGENTS.md`](AGENTS.md)
 
 ![읽힘 랜딩 1페이지](assets/landing-section-1.png)
 

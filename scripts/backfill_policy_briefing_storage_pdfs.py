@@ -188,8 +188,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--qc-root",
-        default="/home/wavel/gov-md-converter/tests/manual_samples/storage_batch",
-        help="Curated storage_batch sample root",
+        default="/home/wavel/gov-md-converter/tests/qc_samples",
+        help="Curated QC sample root",
     )
     args = parser.parse_args()
 

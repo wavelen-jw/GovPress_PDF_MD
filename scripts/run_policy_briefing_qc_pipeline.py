@@ -28,7 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--gov-md-converter-root", default=str(DEFAULT_GOV_MD_ROOT), help="Path to the private gov-md-converter repository")
     parser.add_argument(
         "--qc-root",
-        default=str(DEFAULT_GOV_MD_ROOT / "tests" / "manual_samples" / "policy_briefings"),
+        default=str(DEFAULT_GOV_MD_ROOT / "tests" / "qc_samples"),
         help="QC sample root inside gov-md-converter",
     )
     parser.add_argument("--force", action="store_true", help="Overwrite existing scaffold sample directories")
