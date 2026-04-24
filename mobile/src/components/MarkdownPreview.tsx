@@ -361,14 +361,20 @@ function renderHeadingMarkdown(
   isDarkMode = false,
   useQuotePalette = false,
 ) {
+  const headingLevelStyle = [
+    level === 1 && styles.markdownHeading1,
+    level === 2 && styles.markdownHeading2,
+    level === 3 && styles.markdownHeading3,
+    level === 4 && styles.markdownHeading4,
+    level >= 5 && styles.markdownHeading5,
+  ];
+
   return renderInlineMarkdown(
     text,
     [
       useQuotePalette ? styles.markdownQuoteHeading : styles.markdownHeading,
       isDarkMode && (useQuotePalette ? styles.markdownQuoteHeadingDark : styles.markdownHeadingDark),
-      level === 1 && styles.markdownHeading1,
-      level === 2 && styles.markdownHeading2,
-      level >= 3 && styles.markdownHeading3,
+      ...headingLevelStyle,
     ] as unknown as object,
     keyPrefix,
     isDarkMode,
@@ -818,7 +824,9 @@ function renderHeading(level: number, text: string, key: string) {
     styles.markdownHeading,
     level === 1 && styles.markdownHeading1,
     level === 2 && styles.markdownHeading2,
-    level >= 3 && styles.markdownHeading3,
+    level === 3 && styles.markdownHeading3,
+    level === 4 && styles.markdownHeading4,
+    level >= 5 && styles.markdownHeading5,
   ];
   return (
     <Text key={key} style={headingStyle}>
@@ -838,7 +846,7 @@ export function MarkdownPreview({
   activeBlockIndex?: number;
   onBlockLayout?: (blockIndex: number, y: number) => void;
 }) {
-  const blocks = parseMarkdown(markdown);
+  const blocks = useMemo(() => parseMarkdown(markdown), [markdown]);
   const [containerWidth, setContainerWidth] = useState(0);
 
   function handleBlockLayout(blockIndex: number, event: LayoutChangeEvent): void {
@@ -874,7 +882,9 @@ export function MarkdownPreview({
                   isDarkMode && styles.markdownHeadingDark,
                   block.level === 1 && styles.markdownHeading1,
                   block.level === 2 && styles.markdownHeading2,
-                  block.level >= 3 && styles.markdownHeading3,
+                  block.level === 3 && styles.markdownHeading3,
+                  block.level === 4 && styles.markdownHeading4,
+                  block.level >= 5 && styles.markdownHeading5,
                 ] as unknown as object,
                 key,
                 isDarkMode,

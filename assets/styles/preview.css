@@ -32,31 +32,33 @@ h2 {
 }
 
 h3 {
-  font-size: 1.18em;
-  margin-top: 1.1em;
+  font-size: 1.24em;
+  margin-top: 1.15em;
+  margin-bottom: 0.5em;
 }
 
 h4 {
-  font-size: 1.32em;
-  margin-top: 0.95em;
-  margin-bottom: 0.42em;
-  line-height: 1.34;
+  font-size: 1.08em;
+  margin-top: 0.9em;
+  margin-bottom: 0.36em;
+  line-height: 1.38;
+  color: #4b5563;
 }
 
 blockquote h4,
 .quote-block h4 {
-  font-size: 1.32em;
+  font-size: 1.08em;
   font-weight: 700;
-  line-height: 1.34;
+  line-height: 1.38;
 }
 
 .md-h4 {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
-  line-height: 1.34;
+  line-height: 1.38;
   letter-spacing: -0.02em;
-  margin: 0.95em 0 0.42em;
-  color: #2f2f2f;
+  margin: 0.9em 0 0.36em;
+  color: #4b5563;
 }
 
 h1:first-child,

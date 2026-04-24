@@ -122,7 +122,7 @@ def decorate_preview_html(html: str) -> str:
         html,
     )
     html = H4_OPEN_PATTERN.sub(
-        '<p class="md-h4" style="font-size:22px;font-weight:700;line-height:1.34;margin:0.95em 0 0.42em 0;color:#2f2f2f;">',
+        '<p class="md-h4" style="font-size:18px;font-weight:700;line-height:1.38;margin:0.9em 0 0.36em 0;color:#4b5563;">',
         html,
     )
     html = H4_CLOSE_PATTERN.sub("</p>", html)

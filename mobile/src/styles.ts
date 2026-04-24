@@ -1718,8 +1718,18 @@ export const styles = StyleSheet.create({
     lineHeight: 33,
   },
   markdownHeading3: {
-    fontSize: 18,
-    lineHeight: 26,
+    fontSize: 20,
+    lineHeight: 28,
+  },
+  markdownHeading4: {
+    fontSize: 17,
+    lineHeight: 25,
+    color: "#8b5425",
+  },
+  markdownHeading5: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: "#8b5425",
   },
   markdownParagraph: {
     color: "#2f2318",

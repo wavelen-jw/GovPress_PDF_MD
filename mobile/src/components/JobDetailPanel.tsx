@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import type { DocumentPickerAsset } from "expo-document-picker";
 
@@ -102,24 +102,27 @@ export function JobDetailPanel({
   const previewBlockPositionsRef = useRef<Record<number, number>>({});
   const previewViewportHeightRef = useRef(0);
   const previewScrollYRef = useRef(0);
+  const previewMarkdown = useDeferredValue(selectedResultText);
+  const previewBlockRanges = useMemo(() => {
+    if (!previewMarkdown) {
+      return [];
+    }
+    return parseMarkdownBlockRanges(previewMarkdown);
+  }, [previewMarkdown]);
   const pendingMessage = selectedJob?.status === "queued"
     ? "대기열에 등록됐습니다. 워커가 파일을 가져가면 자동으로 변환을 시작합니다."
     : "PDF 구조를 분석하고 Markdown 초안을 생성하는 중입니다.";
   const activePreviewBlockIndex = useMemo(() => {
-    if (!editorText) {
-      return -1;
-    }
-    const ranges = parseMarkdownBlockRanges(editorText);
-    if (!ranges.length) {
+    if (!previewBlockRanges.length) {
       return -1;
     }
     const cursor = editorSelection.start;
-    const matchedIndex = ranges.findIndex((range) => cursor >= range.start && cursor <= range.end);
+    const matchedIndex = previewBlockRanges.findIndex((range) => cursor >= range.start && cursor <= range.end);
     if (matchedIndex >= 0) {
       return matchedIndex;
     }
-    return ranges.findIndex((range) => cursor < range.start);
-  }, [editorSelection.start, editorText]);
+    return previewBlockRanges.findIndex((range) => cursor < range.start);
+  }, [editorSelection.start, previewBlockRanges]);
   useEffect(() => {
     if (!editing) {
       return;
@@ -537,7 +540,7 @@ export function JobDetailPanel({
                         {isDarkMode ? (
                           <View style={styles.previewCard}>
                             <MarkdownPreview
-                              markdown={editorText || selectedResultText}
+                              markdown={previewMarkdown}
                               isDarkMode={false}
                               activeBlockIndex={activePreviewBlockIndex}
                               onBlockLayout={handlePreviewBlockLayout}
@@ -545,7 +548,7 @@ export function JobDetailPanel({
                           </View>
                         ) : (
                           <MarkdownPreview
-                            markdown={editorText || selectedResultText}
+                            markdown={previewMarkdown}
                             isDarkMode={isDarkMode}
                             activeBlockIndex={activePreviewBlockIndex}
                             onBlockLayout={handlePreviewBlockLayout}
@@ -666,7 +669,7 @@ export function JobDetailPanel({
                         {isDarkMode ? (
                           <View style={styles.previewCard}>
                             <MarkdownPreview
-                              markdown={editorText || selectedResultText}
+                              markdown={previewMarkdown}
                               isDarkMode={false}
                               activeBlockIndex={activePreviewBlockIndex}
                               onBlockLayout={handlePreviewBlockLayout}
@@ -674,7 +677,7 @@ export function JobDetailPanel({
                           </View>
                         ) : (
                           <MarkdownPreview
-                            markdown={editorText || selectedResultText}
+                            markdown={previewMarkdown}
                             isDarkMode={isDarkMode}
                             activeBlockIndex={activePreviewBlockIndex}
                             onBlockLayout={handlePreviewBlockLayout}
@@ -795,7 +798,7 @@ export function JobDetailPanel({
                         {isDarkMode ? (
                           <View style={styles.previewCard}>
                             <MarkdownPreview
-                              markdown={editorText || selectedResultText}
+                              markdown={previewMarkdown}
                               isDarkMode={false}
                               activeBlockIndex={activePreviewBlockIndex}
                               onBlockLayout={handlePreviewBlockLayout}
@@ -803,7 +806,7 @@ export function JobDetailPanel({
                           </View>
                         ) : (
                           <MarkdownPreview
-                            markdown={editorText || selectedResultText}
+                            markdown={previewMarkdown}
                             isDarkMode={isDarkMode}
                             activeBlockIndex={activePreviewBlockIndex}
                             onBlockLayout={handlePreviewBlockLayout}
