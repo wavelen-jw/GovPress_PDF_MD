@@ -612,21 +612,14 @@ function parseMarkdown(markdown: string): Block[] {
             }
           }
           const sourceNumber = Number(orderedMatch[1]);
-          const previousNumber = orderedSequenceByLevel.get(level);
-          // Reset counter when source restarts from 1 (new section), otherwise increment from previous
-          const isNewSequence = sourceNumber === 1 && previousNumber !== undefined && previousNumber > 1;
-          if (isNewSequence) {
-            orderedSequenceByLevel.delete(level);
-          }
-          const orderNumber = !isNewSequence && previousNumber !== undefined ? previousNumber + 1 : sourceNumber;
-          orderedSequenceByLevel.set(level, orderNumber);
+          orderedSequenceByLevel.set(level, sourceNumber);
           blocks.push({
             type: "list_item",
             ordered: true,
             level,
             text: orderedMatch[2].trim(),
             orderIndex,
-            orderNumber,
+            orderNumber: sourceNumber,
           });
           orderIndex += 1;
           index += 1;
