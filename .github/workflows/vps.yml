@@ -204,6 +204,7 @@ jobs:
       - deploy-h
       - deploy-w
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Materialize deploy key
         env:
@@ -230,6 +231,7 @@ jobs:
           ssh-keyscan -p "${PORT}" -H "$HOST" >> ~/.ssh/known_hosts
 
       - name: Compare conversion hashes from serverV
+        timeout-minutes: 4
         env:
           HOST: ${{ secrets.GOVPRESS_VPS_HOST }}
           USER: ${{ secrets.GOVPRESS_VPS_USER }}
@@ -238,7 +240,13 @@ jobs:
         run: |
           set -euo pipefail
           KEY_FILE=~/.ssh/deploy_key
-          ssh -T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes -p "$PORT" "$USER@$HOST" \
+          ssh -T -i "$KEY_FILE" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o ConnectTimeout=10 \
+            -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=4 \
+            -p "$PORT" "$USER@$HOST" \
             "cd '$DEPLOY_DIR' && '$DEPLOY_DIR/.venv/bin/python' '$DEPLOY_DIR/scripts/compare_converter_hashes_via_ssh.py' \
               --deploy-dir '$DEPLOY_DIR' \
               --sample-rel 'artifacts/policy_briefing_benchmark/corpus_latest100/hwpxs/156754103.hwpx'" \
