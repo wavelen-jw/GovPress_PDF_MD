@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import os
+import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -104,7 +105,7 @@ def _run_remote(server: Server, *, api_key: str, admin_key: str, news_item_id: s
         "date": date,
     }
     proc = subprocess.run(
-        ["ssh", server.ssh_target, "python3", "-c", REMOTE_CODE],
+        ["ssh", server.ssh_target, "python3 -c " + shlex.quote(REMOTE_CODE)],
         input=json.dumps(config, ensure_ascii=False),
         text=True,
         capture_output=True,
