@@ -204,53 +204,26 @@ jobs:
       - deploy-h
       - deploy-w
     runs-on: ubuntu-latest
-    continue-on-error: true
-    timeout-minutes: 5
+    timeout-minutes: 12
     steps:
-      - name: Materialize deploy key
-        env:
-          VPS_KEY: ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
-        run: |
-          set -euo pipefail
-          mkdir -p ~/.ssh
-          KEY_FILE=~/.ssh/deploy_key
-          if printf '%s' "$VPS_KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
-            printf '%s\n' "$VPS_KEY" | tr -d '\r' > "$KEY_FILE"
-          else
-            printf '%s' "$VPS_KEY" | tr -d '\r\n ' | base64 -d > "$KEY_FILE"
-          fi
-          chmod 600 "$KEY_FILE"
-          ssh-keygen -y -f "$KEY_FILE" > /dev/null
+      - name: Check out repository
+        uses: actions/checkout@v4
 
-      - name: Add serverV to known_hosts
+      - name: Compare conversion hashes through public APIs
+        timeout-minutes: 10
         env:
-          HOST: ${{ secrets.GOVPRESS_VPS_HOST }}
-          PORT: ${{ vars.GOVPRESS_VPS_PORT || '22' }}
+          API_KEY: ${{ secrets.GOVPRESS_API_KEY }}
+          ADMIN_KEY: ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh
-          ssh-keyscan -p "${PORT}" -H "$HOST" >> ~/.ssh/known_hosts
-
-      - name: Compare conversion hashes from serverV
-        timeout-minutes: 4
-        env:
-          HOST: ${{ secrets.GOVPRESS_VPS_HOST }}
-          USER: ${{ secrets.GOVPRESS_VPS_USER }}
-          PORT: ${{ vars.GOVPRESS_VPS_PORT || '22' }}
-          DEPLOY_DIR: ${{ vars.GOVPRESS_VPS_DEPLOY_DIR }}
-        run: |
-          set -euo pipefail
-          KEY_FILE=~/.ssh/deploy_key
-          ssh -T -i "$KEY_FILE" \
-            -o IdentitiesOnly=yes \
-            -o BatchMode=yes \
-            -o ConnectTimeout=10 \
-            -o ServerAliveInterval=15 \
-            -o ServerAliveCountMax=4 \
-            -p "$PORT" "$USER@$HOST" \
-            "cd '$DEPLOY_DIR' && '$DEPLOY_DIR/.venv/bin/python' '$DEPLOY_DIR/scripts/compare_converter_hashes_via_ssh.py' \
-              --deploy-dir '$DEPLOY_DIR' \
-              --sample-rel 'artifacts/policy_briefing_benchmark/corpus_latest100/hwpxs/156754103.hwpx'" \
+          python3 scripts/compare_converter_runtime.py \
+            --sample artifacts/policy_briefing_benchmark/corpus_latest100/hwpxs/156754103.hwpx \
+            --api-key "$API_KEY" \
+            --admin-key "$ADMIN_KEY" \
+            --require-equal-hashes \
+            --server serverH=https://api.govpress.cloud \
+            --server serverW=https://api4.govpress.cloud \
+            --server serverV=https://api2.govpress.cloud \
             | tee converter-drift-smoke.json
 
       - name: Summarize conversion hashes
@@ -265,17 +238,20 @@ jobs:
           import json
           from pathlib import Path
 
-          payload = json.loads(Path("converter-drift-smoke.json").read_text(encoding="utf-8"))
+          raw = Path("converter-drift-smoke.json").read_text(encoding="utf-8").strip()
+          payload = json.loads(raw)
           rows = payload["results"]
-          print("| server | text_sha256 | length |")
-          print("| --- | --- | --- |")
+          print("| server | version | text_sha256 | html_sha256 |")
+          print("| --- | --- | --- | --- |")
           lines = [
-              "| server | text_sha256 | length |",
-              "| --- | --- | --- |",
+              "| server | version | text_sha256 | html_sha256 |",
+              "| --- | --- | --- | --- |",
           ]
           for row in rows:
+              runtime = row["runtime"]
+              version = runtime.get("version", runtime.get("probe_error", "unknown"))
               line = (
-                  f"| {row['name']} | `{row['text_sha256']}` | `{row['length']}` |"
+                  f"| {row['name']} | {version} | `{row['text_sha256']}` | `{row['html_sha256']}` |"
               )
               print(line)
               lines.append(line)
@@ -285,7 +261,7 @@ jobs:
 
   notify-deploy-failure:
     name: "Notify Deploy Failure"
-    if: ${{ always() && (needs.deploy-v.result == 'failure' || needs.deploy-h.result == 'failure' || needs.deploy-w.result == 'failure') }}
+    if: ${{ always() && (needs.deploy-v.result == 'failure' || needs.deploy-h.result == 'failure' || needs.deploy-w.result == 'failure' || needs.converter-drift-smoke.result == 'failure') }}
     needs:
       - detect-targets
       - deploy-v
