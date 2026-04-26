@@ -1,0 +1,76 @@
+name: Update Converter Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      converter_tag:
+        description: "Converter release tag, e.g. v0.1.21"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: converter-version-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: "Update deploy/converter.version"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate input
+        id: validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ inputs.converter_tag }}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid converter_tag: $tag" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Check out web branch
+        uses: actions/checkout@v4
+        with:
+          ref: web
+          fetch-depth: 0
+
+      - name: Update converter version file
+        id: update
+        shell: bash
+        run: |
+          set -euo pipefail
+          version_file="deploy/converter.version"
+          tag="${{ steps.validate.outputs.tag }}"
+          current="$(tr -d '[:space:]' < "$version_file")"
+          if [[ "$current" == "$tag" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "deploy/converter.version is already $tag"
+            exit 0
+          fi
+          printf '%s\n' "$tag" > "$version_file"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit converter version bump
+        if: ${{ steps.update.outputs.changed == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.validate.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deploy/converter.version
+          git commit -m "Bump converter release to $tag"
+          git push origin HEAD:web
+
+      - name: Dispatch server deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run vps.yml --ref web

@@ -38,6 +38,7 @@ Read it before changing service, frontend, deployment, storage, or policy-briefi
 
 - QC sample generation/export can be orchestrated here, but converter fixes belong in `gov-md-converter`.
 - Keep QC jobs on dedicated branches when doing converter-quality work. Do not mix unrelated frontend/deploy edits into QC branches.
+- Converter releases are deployed through `deploy/converter.version`. The `Update Converter Version` workflow updates that file on `web` and then dispatches `vps.yml`; do not hand-edit server `.env` converter tags.
 - For frontend changes, run `npm run typecheck` in `mobile/` when TypeScript or component code changes.
 - For server changes, run the narrowest relevant Python tests or health checks available for the touched path.
 - For deployment changes, verify the target workflow or script path and document the server target (`serverW`, `serverH`, etc.) in the commit/PR notes.

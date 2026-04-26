@@ -156,6 +156,7 @@ serverW로 연결되는 현재 공개 주소는 `https://api4.govpress.cloud`입
 - `GOVPRESS_CONVERTER_SPEC`
   - 예: `git+https://<TOKEN>@github.com/wavelen-jw/gov-md-converter.git@v0.1.18`
   - 태그는 서버별 `.env`를 직접 수정하지 말고 저장소의 `deploy/converter.version`을 기준으로 관리합니다.
+  - `gov-md-converter` 릴리스 태그는 `Update Converter Version` workflow를 통해 이 파일을 갱신하고, 이 workflow가 `Deploy API To Servers`를 직접 호출합니다.
   - local compose와 원격 배포 스크립트가 `.env`의 기존 태그를 자동으로 `deploy/converter.version` 값으로 정규화합니다.
 - `GOVPRESS_CONVERTER_MIN_VERSION`
   - 예: `0.1.18`
