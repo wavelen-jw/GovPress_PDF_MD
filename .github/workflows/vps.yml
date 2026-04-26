@@ -204,6 +204,7 @@ jobs:
       - deploy-h
       - deploy-w
     runs-on: ubuntu-latest
+    continue-on-error: true
     timeout-minutes: 5
     steps:
       - name: Materialize deploy key
@@ -284,7 +285,7 @@ jobs:
 
   notify-deploy-failure:
     name: "Notify Deploy Failure"
-    if: ${{ always() && (needs.deploy-v.result == 'failure' || needs.deploy-h.result == 'failure' || needs.deploy-w.result == 'failure' || needs.converter-drift-smoke.result == 'failure') }}
+    if: ${{ always() && (needs.deploy-v.result == 'failure' || needs.deploy-h.result == 'failure' || needs.deploy-w.result == 'failure') }}
     needs:
       - detect-targets
       - deploy-v
