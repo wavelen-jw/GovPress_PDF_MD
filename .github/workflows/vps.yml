@@ -10,6 +10,7 @@ on:
       - ".github/workflows/_deploy-server-cf.yml"
       - "deploy/**"
       - "requirements.txt"
+      - "scripts/compare_converter_runtime*.py"
       - "server/**"
       - "src/**"
       - "!src/hwpx_qc_*.py"
