@@ -217,7 +217,8 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/compare_converter_runtime.py \
-            --sample artifacts/policy_briefing_benchmark/corpus_latest100/hwpxs/156754103.hwpx \
+            --policy-briefing-id 156754103 \
+            --policy-briefing-date 2026-04-12 \
             --api-key "$API_KEY" \
             --admin-key "$ADMIN_KEY" \
             --require-equal-hashes \
@@ -239,7 +240,12 @@ jobs:
           from pathlib import Path
 
           raw = Path("converter-drift-smoke.json").read_text(encoding="utf-8").strip()
-          payload = json.loads(raw)
+          try:
+              payload = json.loads(raw)
+          except json.JSONDecodeError as exc:
+              message = f"- converter drift smoke did not produce valid JSON: {exc}\n"
+              Path("_converter_drift_summary.md").write_text(message, encoding="utf-8")
+              raise SystemExit(0)
           rows = payload["results"]
           print("| server | version | text_sha256 | html_sha256 |")
           print("| --- | --- | --- | --- |")

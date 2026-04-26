@@ -80,13 +80,47 @@ def _upload_and_fetch_result(base_url: str, *, api_key: str, sample_path: Path) 
     raise SystemExit(f"{base_url} job did not complete within timeout")
 
 
+def _import_policy_briefing_and_fetch_result(
+    base_url: str,
+    *,
+    api_key: str,
+    news_item_id: str,
+    date: str | None,
+) -> dict[str, object]:
+    payload: dict[str, str] = {"news_item_id": news_item_id}
+    if date:
+        payload["date"] = date
+    created = _request_json(
+        f"{base_url}/v1/policy-briefings/import",
+        headers={
+            "X-API-Key": api_key,
+            "Content-Type": "application/json",
+        },
+        data=json.dumps(payload).encode("utf-8"),
+    )
+    job_id = str(created["job_id"])
+    edit_token = str(created["edit_token"])
+    result_payload = _request_json(
+        f"{base_url}/v1/jobs/{job_id}/result",
+        headers={"X-API-Key": api_key, "X-Edit-Token": edit_token},
+    )
+    return {
+        "job_id": job_id,
+        "edit_token": edit_token,
+        "status": str(created.get("status", "completed")),
+        "result": result_payload,
+    }
+
+
 def _hash_text(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Compare converter runtime and conversion hashes across servers")
-    parser.add_argument("--sample", required=True, help="Path to sample HWPX/PDF file")
+    parser.add_argument("--sample", help="Path to sample HWPX/PDF file")
+    parser.add_argument("--policy-briefing-id", help="Policy briefing news_item_id to import on each server")
+    parser.add_argument("--policy-briefing-date", help="Policy briefing date in YYYY-MM-DD format")
     parser.add_argument("--api-key", required=True, help="GovPress API key")
     parser.add_argument("--admin-key", required=True, help="GovPress admin key")
     parser.add_argument(
@@ -102,9 +136,13 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    sample_path = Path(args.sample).resolve()
-    if not sample_path.is_file():
-        raise SystemExit(f"sample file not found: {sample_path}")
+    if bool(args.sample) == bool(args.policy_briefing_id):
+        raise SystemExit("Provide exactly one of --sample or --policy-briefing-id")
+    sample_path: Path | None = None
+    if args.sample:
+        sample_path = Path(args.sample).resolve()
+        if not sample_path.is_file():
+            raise SystemExit(f"sample file not found: {sample_path}")
 
     results: list[dict[str, object]] = []
     for item in args.server:
@@ -112,7 +150,19 @@ def main() -> int:
             raise SystemExit(f"invalid --server value: {item}")
         name, base_url = item.split("=", 1)
         runtime = _runtime_probe(base_url, admin_key=args.admin_key)
-        upload = _upload_and_fetch_result(base_url, api_key=args.api_key, sample_path=sample_path)
+        try:
+            if sample_path is not None:
+                upload = _upload_and_fetch_result(base_url, api_key=args.api_key, sample_path=sample_path)
+            else:
+                upload = _import_policy_briefing_and_fetch_result(
+                    base_url,
+                    api_key=args.api_key,
+                    news_item_id=str(args.policy_briefing_id),
+                    date=args.policy_briefing_date,
+                )
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            raise SystemExit(f"{name} {base_url} HTTP {exc.code}: {body[:500]}") from exc
         result_payload = upload["result"]
         assert isinstance(result_payload, dict)
         text_markdown = str(result_payload["table_variants"]["text"]["markdown"])
@@ -135,7 +185,8 @@ def main() -> int:
         if len(text_hashes) != 1 or len(html_hashes) != 1:
             raise SystemExit("converter output hash mismatch across servers")
 
-    print(json.dumps({"sample": str(sample_path), "results": results}, ensure_ascii=False, indent=2))
+    source = str(sample_path) if sample_path is not None else f"policy-briefing:{args.policy_briefing_id}"
+    print(json.dumps({"sample": source, "results": results}, ensure_ascii=False, indent=2))
     return 0
 
 
