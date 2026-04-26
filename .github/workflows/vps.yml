@@ -342,7 +342,7 @@ jobs:
             --require-equal-hashes \
             --server serverH=govpress-smoke-h=http://127.0.0.1:8080 \
             --server serverW=govpress-smoke-w=http://127.0.0.1:8080 \
-            --server serverV=govpress-smoke-v=http://127.0.0.1:8013 \
+            --server serverV=govpress-smoke-v=http://127.0.0.1:8080 \
             | tee converter-drift-smoke.json
 
       - name: Summarize conversion hashes
