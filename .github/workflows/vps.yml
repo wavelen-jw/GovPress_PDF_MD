@@ -209,22 +209,139 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Compare conversion hashes through public APIs
+      - name: Install cloudflared
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb \
+            -o cloudflared.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: Materialize smoke SSH keys
+        env:
+          VPS_KEY: ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
+          H_KEY: ${{ secrets.GOVPRESS_H_SSH_KEY }}
+          W_KEY: ${{ secrets.GOVPRESS_W_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          write_key() {
+            local value="$1"
+            local path="$2"
+            if printf '%s' "$value" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+              printf '%s\n' "$value" | tr -d '\r' > "$path"
+            else
+              printf '%s' "$value" | tr -d '\r\n ' | base64 -d > "$path"
+            fi
+            chmod 600 "$path"
+            ssh-keygen -y -f "$path" > /dev/null
+          }
+          write_key "$VPS_KEY" ~/.ssh/smoke_v_key
+          write_key "$H_KEY" ~/.ssh/smoke_h_key
+          write_key "$W_KEY" ~/.ssh/smoke_w_key
+
+      - name: Configure smoke SSH targets
+        env:
+          VPS_HOST: ${{ secrets.GOVPRESS_VPS_HOST }}
+          VPS_USER: ${{ secrets.GOVPRESS_VPS_USER }}
+          VPS_PORT: ${{ vars.GOVPRESS_VPS_PORT || '22' }}
+          H_HOST: ${{ vars.GOVPRESS_H_SSH_HOST }}
+          H_USER: ${{ secrets.GOVPRESS_H_USER }}
+          W_HOST: ${{ vars.GOVPRESS_W_SSH_HOST }}
+          W_USER: ${{ secrets.GOVPRESS_W_USER }}
+          CF_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh/cm
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+          cloudflared access tcp \
+            --hostname "$H_HOST" \
+            --url "127.0.0.1:2222" \
+            --service-token-id "$CF_ID" \
+            --service-token-secret "$CF_SECRET" \
+            --logfile "$HOME/cloudflared-h.log" \
+            >/tmp/cloudflared-h.stdout 2>&1 &
+          echo $! > ~/cloudflared-h.pid
+
+          cloudflared access tcp \
+            --hostname "$W_HOST" \
+            --url "127.0.0.1:2223" \
+            --service-token-id "$CF_ID" \
+            --service-token-secret "$CF_SECRET" \
+            --logfile "$HOME/cloudflared-w.log" \
+            >/tmp/cloudflared-w.stdout 2>&1 &
+          echo $! > ~/cloudflared-w.pid
+
+          for port in 2222 2223; do
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+              if ss -ltn | grep -q "127.0.0.1:${port}"; then
+                break
+              fi
+              sleep 1
+            done
+          done
+
+          cat >> ~/.ssh/config << EOF
+          Host govpress-smoke-v
+            HostName ${VPS_HOST}
+            User ${VPS_USER}
+            Port ${VPS_PORT}
+            IdentityFile ~/.ssh/smoke_v_key
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking accept-new
+            ConnectTimeout 20
+            ServerAliveInterval 15
+            ServerAliveCountMax 6
+
+          Host govpress-smoke-h
+            HostName 127.0.0.1
+            User ${H_USER}
+            Port 2222
+            IdentityFile ~/.ssh/smoke_h_key
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking accept-new
+            ControlMaster no
+            ControlPath none
+            ConnectTimeout 20
+            ServerAliveInterval 15
+            ServerAliveCountMax 6
+
+          Host govpress-smoke-w
+            HostName 127.0.0.1
+            User ${W_USER}
+            Port 2223
+            IdentityFile ~/.ssh/smoke_w_key
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking accept-new
+            ControlMaster no
+            ControlPath none
+            ConnectTimeout 20
+            ServerAliveInterval 15
+            ServerAliveCountMax 6
+          EOF
+
+          ssh govpress-smoke-v "exit 0"
+          ssh govpress-smoke-h "exit 0"
+          ssh govpress-smoke-w "exit 0"
+
+      - name: Compare conversion hashes through server-local APIs
         timeout-minutes: 10
         env:
           API_KEY: ${{ secrets.GOVPRESS_API_KEY }}
           ADMIN_KEY: ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
         run: |
           set -euo pipefail
-          python3 scripts/compare_converter_runtime.py \
+          python3 scripts/compare_converter_runtime_via_ssh.py \
             --policy-briefing-id 156754103 \
             --policy-briefing-date 2026-04-12 \
-            --api-key "$API_KEY" \
-            --admin-key "$ADMIN_KEY" \
             --require-equal-hashes \
-            --server serverH=https://api.govpress.cloud \
-            --server serverW=https://api4.govpress.cloud \
-            --server serverV=https://api2.govpress.cloud \
+            --server serverH=govpress-smoke-h=http://127.0.0.1:8080 \
+            --server serverW=govpress-smoke-w=http://127.0.0.1:8080 \
+            --server serverV=govpress-smoke-v=http://127.0.0.1:8013 \
             | tee converter-drift-smoke.json
 
       - name: Summarize conversion hashes
