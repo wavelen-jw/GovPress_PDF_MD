@@ -21,8 +21,12 @@ import urllib.request
 
 def request_json(url, headers, data=None):
     request = urllib.request.Request(url, headers=headers, data=data)
-    with urllib.request.urlopen(request, timeout=120) as response:
-        return json.load(response)
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")[:1000]
+        raise RuntimeError("HTTP %s for %s: %s" % (exc.code, url, body)) from exc
 
 
 def runtime_probe(base_url, admin_key):
