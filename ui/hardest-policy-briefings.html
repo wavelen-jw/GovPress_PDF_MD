@@ -65,6 +65,7 @@
     }
     .doc-rank { color: var(--accent); font-size: 12px; font-weight: 900; letter-spacing: .08em; }
     .doc-title { margin-top: 5px; font-weight: 850; font-size: 14px; line-height: 1.42; }
+    .doc-department { margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.4; font-weight: 750; }
     .doc-source { color: var(--accent); font-size: 12px; font-weight: 800; text-decoration: none; width: fit-content; }
     .doc-source:hover { text-decoration: underline; }
     .detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
@@ -104,6 +105,7 @@
     .rendered blockquote { margin: .8em 0; padding: 8px 14px; border-left: 3px solid var(--accent); background: rgba(13,106,87,.04); border-radius: 0 8px 8px 0; }
     .rendered table { width: 100%; border-collapse: collapse; margin: .8em 0; display: block; overflow-x: auto; font-size: 12px; }
     .rendered th, .rendered td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; vertical-align: top; }
+    .rendered img { display: block; max-width: min(92%, 720px); max-height: 420px; width: auto; height: auto; object-fit: contain; margin: .85em auto; border-radius: 8px; }
     .empty { padding: 60px 20px; text-align: center; color: var(--muted); line-height: 1.7; }
     @media (max-width: 980px) {
       .hero, .layout { grid-template-columns: 1fr; }
@@ -121,7 +123,7 @@
       <p class="lead" id="page-subtitle">표, 붙임, 각주가 복잡하게 섞인 정책브리핑 문서를 여러 변환 도구로 비교합니다.</p>
     </div>
     <div class="summary-box">
-      <strong>기준일 2026-04-29 · 최근 2주 정책브리핑</strong>
+      <strong>기준일 2026-04-29 · 최근 2주간 정책브리핑 + 일부 과거 보도자료</strong>
       <p>대형 통계표, 긴 붙임, 표 내부 목록, 각주성 문장이 섞인 실제 보도자료를 골랐습니다. 결과는 변환 품질을 눈으로 검토하기 위한 정적 비교 자료입니다.</p>
     </div>
   </section>
@@ -188,6 +190,7 @@
       button.innerHTML = `
         <div class="doc-rank">#${doc.rank}</div>
         <div class="doc-title">${doc.title}</div>
+        <div class="doc-department">${doc.department || ""}</div>
       `;
       button.addEventListener("click", () => {
         selectedDocIndex = index;

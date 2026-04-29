@@ -2009,6 +2009,7 @@ export const styles = StyleSheet.create({
   },
   markdownImageWrap: {
     gap: 8,
+    alignItems: "center",
   },
   markdownImageFallback: {
     borderWidth: 1,
@@ -2037,9 +2038,10 @@ export const styles = StyleSheet.create({
     color: "#c3b29f",
   },
   markdownImage: {
-    width: "100%",
-    minHeight: 180,
-    maxHeight: 320,
+    width: "92%",
+    maxWidth: 720,
+    height: 240,
+    maxHeight: 280,
     borderRadius: 12,
     backgroundColor: "#f7f2eb",
   },

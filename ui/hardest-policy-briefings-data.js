@@ -16,6 +16,10 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
       "label": "OpenDataLoader PDF"
     },
     {
+      "key": "opendataloader-hybrid",
+      "label": "OpenDataLoader Hybrid"
+    },
+    {
       "key": "docling",
       "label": "Docling"
     },
@@ -33,7 +37,7 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
       "rank": 1,
       "title": "2024년 가계생산위성계정 (무급 가사노동 가치 평가)",
       "source_url": "https://www.korea.kr/briefing/pressReleaseView.do?newsId=156759031",
-      "department": "",
+      "department": "국가데이터처",
       "difficulty_note": "통계 보고서처럼 긴 문서입니다. 목차, 설명문, 수백 개의 표, 부록이 이어져서 제목과 표를 끝까지 일관되게 구분해야 합니다.",
       "engines": [
         {
@@ -55,6 +59,13 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
           "label": "OpenDataLoader PDF",
           "status": "available",
           "path": "outputs/opendataloader/156759031.md",
+          "error": ""
+        },
+        {
+          "key": "opendataloader-hybrid",
+          "label": "OpenDataLoader Hybrid",
+          "status": "available",
+          "path": "outputs/opendataloader-hybrid/156759031.md",
           "error": ""
         },
         {
@@ -109,6 +120,13 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
           "error": ""
         },
         {
+          "key": "opendataloader-hybrid",
+          "label": "OpenDataLoader Hybrid",
+          "status": "available",
+          "path": "outputs/opendataloader-hybrid/156754934.md",
+          "error": ""
+        },
+        {
           "key": "docling",
           "label": "Docling",
           "status": "available",
@@ -135,7 +153,7 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
       "rank": 3,
       "title": "지난해 디지털성범죄 피해자 1만 637명에게 35만여 건 원스톱 지원",
       "source_url": "https://www.korea.kr/briefing/pressReleaseView.do?newsId=156756008",
-      "department": "",
+      "department": "성평등가족부",
       "difficulty_note": "피해자 현황과 지원 건수 표가 길게 이어지고, 별표·쌍별표·참고 문장이 많습니다. 설명문이 표나 목록 안으로 섞이지 않게 분리해야 합니다.",
       "engines": [
         {
@@ -157,6 +175,13 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
           "label": "OpenDataLoader PDF",
           "status": "available",
           "path": "outputs/opendataloader/156756008.md",
+          "error": ""
+        },
+        {
+          "key": "opendataloader-hybrid",
+          "label": "OpenDataLoader Hybrid",
+          "status": "available",
+          "path": "outputs/opendataloader-hybrid/156756008.md",
           "error": ""
         },
         {
@@ -211,6 +236,13 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
           "error": ""
         },
         {
+          "key": "opendataloader-hybrid",
+          "label": "OpenDataLoader Hybrid",
+          "status": "available",
+          "path": "outputs/opendataloader-hybrid/156757632.md",
+          "error": ""
+        },
+        {
           "key": "docling",
           "label": "Docling",
           "status": "available",
@@ -259,6 +291,13 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
           "label": "OpenDataLoader PDF",
           "status": "available",
           "path": "outputs/opendataloader/156757541.md",
+          "error": ""
+        },
+        {
+          "key": "opendataloader-hybrid",
+          "label": "OpenDataLoader Hybrid",
+          "status": "available",
+          "path": "outputs/opendataloader-hybrid/156757541.md",
           "error": ""
         },
         {
@@ -313,6 +352,13 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
           "error": ""
         },
         {
+          "key": "opendataloader-hybrid",
+          "label": "OpenDataLoader Hybrid",
+          "status": "available",
+          "path": "outputs/opendataloader-hybrid/156448349.md",
+          "error": ""
+        },
+        {
           "key": "docling",
           "label": "Docling",
           "status": "available",
@@ -361,6 +407,13 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
           "label": "OpenDataLoader PDF",
           "status": "available",
           "path": "outputs/opendataloader/156757495.md",
+          "error": ""
+        },
+        {
+          "key": "opendataloader-hybrid",
+          "label": "OpenDataLoader Hybrid",
+          "status": "available",
+          "path": "outputs/opendataloader-hybrid/156757495.md",
           "error": ""
         },
         {
@@ -415,6 +468,13 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
           "error": ""
         },
         {
+          "key": "opendataloader-hybrid",
+          "label": "OpenDataLoader Hybrid",
+          "status": "available",
+          "path": "outputs/opendataloader-hybrid/156757844.md",
+          "error": ""
+        },
+        {
           "key": "docling",
           "label": "Docling",
           "status": "available",
@@ -441,7 +501,7 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
       "rank": 9,
       "title": "「국가바이오혁신위원회」 출범, 바이오 정책 총괄 민관협력 플랫폼 본격 가동",
       "source_url": "https://www.korea.kr/briefing/pressReleaseView.do?newsId=156755997",
-      "department": "",
+      "department": "국무조정실",
       "difficulty_note": "보도자료 뒤에 정책 설명서에 가까운 긴 붙임이 이어집니다. 본문, 로드맵, 해외 사례, 담당부서 표를 각각 다른 구조로 읽어야 합니다.",
       "engines": [
         {
@@ -463,6 +523,13 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
           "label": "OpenDataLoader PDF",
           "status": "available",
           "path": "outputs/opendataloader/156755997.md",
+          "error": ""
+        },
+        {
+          "key": "opendataloader-hybrid",
+          "label": "OpenDataLoader Hybrid",
+          "status": "available",
+          "path": "outputs/opendataloader-hybrid/156755997.md",
           "error": ""
         },
         {
@@ -514,6 +581,13 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
           "label": "OpenDataLoader PDF",
           "status": "available",
           "path": "outputs/opendataloader/156757801.md",
+          "error": ""
+        },
+        {
+          "key": "opendataloader-hybrid",
+          "label": "OpenDataLoader Hybrid",
+          "status": "available",
+          "path": "outputs/opendataloader-hybrid/156757801.md",
           "error": ""
         },
         {

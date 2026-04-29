@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.request
 from pathlib import Path
 
 
@@ -34,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument(
         "--engine",
-        choices=["readhim", "kordoc", "opendataloader", "docling", "all"],
+        choices=["readhim", "kordoc", "opendataloader", "opendataloader-hybrid", "docling", "all"],
         default="all",
     )
     return parser.parse_args()
@@ -96,9 +97,54 @@ def run_kordoc(samples: dict[str, Path], output_root: Path) -> None:
     write_status(output_root, "kordoc", statuses)
 
 
-def run_opendataloader(samples: dict[str, Path], output_root: Path) -> None:
+def hybrid_server_ready(url: str) -> bool:
+    try:
+        with urllib.request.urlopen(url, timeout=2) as response:
+            return 200 <= response.status < 300
+    except Exception:
+        return False
+
+
+def start_hybrid_server(target: Path, port: int = 25002) -> tuple[subprocess.Popen | None, object | None, str]:
+    health_url = f"http://127.0.0.1:{port}/health"
+    if hybrid_server_ready(health_url):
+        return None, None, f"http://127.0.0.1:{port}"
+
+    command = DEFAULT_CONVERTER_ROOT / ".venv" / "bin" / "opendataloader-pdf-hybrid"
+    if not command.exists():
+        raise FileNotFoundError(f"{command} missing")
+    log_file = (target / "hybrid-server.log").open("w", encoding="utf-8")
+    process = subprocess.Popen(
+        [str(command), "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning"],
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
+    )
+    for _ in range(120):
+        if process.poll() is not None:
+            raise RuntimeError(f"hybrid server exited early with code {process.returncode}")
+        if hybrid_server_ready(health_url):
+            return process, log_file, f"http://127.0.0.1:{port}"
+        time.sleep(1)
+    process.terminate()
+    raise TimeoutError("hybrid server did not become ready")
+
+
+def stop_hybrid_server(process: subprocess.Popen | None, log_file: object | None) -> None:
+    if process is not None and process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=10)
+    if log_file is not None:
+        log_file.close()
+
+
+def run_opendataloader(samples: dict[str, Path], output_root: Path, *, hybrid: bool = False) -> None:
     statuses: list[dict] = []
-    target = output_root / "outputs" / "opendataloader"
+    engine_name = "opendataloader-hybrid" if hybrid else "opendataloader"
+    target = output_root / "outputs" / engine_name
     target.mkdir(parents=True, exist_ok=True)
     bench_root = Path("/home/wavel/opendataloader-bench")
     if str(bench_root / "src") not in sys.path:
@@ -106,44 +152,79 @@ def run_opendataloader(samples: dict[str, Path], output_root: Path) -> None:
     venv_site = Path("/home/wavel/projects/gov-md-converter/.venv/lib/python3.12/site-packages")
     if venv_site.exists() and str(venv_site) not in sys.path:
         sys.path.insert(0, str(venv_site))
+    server_process = None
+    server_log = None
     try:
-        from pdf_parser_opendataloader import to_markdown as opendataloader_to_markdown
-
-        def convert_pdf(source: Path, out_dir: Path) -> None:
-            opendataloader_to_markdown(None, source, out_dir)
-
-    except Exception as exc:
-        try:
+        if hybrid:
             from opendataloader_pdf import convert as opendataloader_convert
 
-            def convert_pdf(source: Path, out_dir: Path) -> None:
-                opendataloader_convert(str(source), output_dir=str(out_dir), format="markdown", quiet=True)
+            server_process, server_log, hybrid_url = start_hybrid_server(target)
 
-        except Exception:
-            statuses = [{"news_id": news_id, "status": "missing_tool", "error": str(exc)} for news_id in samples]
-            write_status(output_root, "opendataloader", statuses)
-            return
-    for news_id, sample in samples.items():
-        source = sample / "source.pdf"
-        if not source.exists():
-            statuses.append({"news_id": news_id, "status": "missing_input", "error": "source.pdf missing"})
-            continue
-        before = {path.resolve() for path in target.glob("*.md")}
-        try:
-            convert_pdf(source, target)
-        except Exception as exc:
-            statuses.append({"news_id": news_id, "status": "failed", "error": str(exc)})
-            continue
-        final = target / f"{news_id}.md"
-        generated = target / f"{source.stem}.md"
-        if generated.exists() and generated != final:
-            generated.replace(final)
-        if not final.exists():
-            after = sorted((path for path in target.glob("*.md") if path.resolve() not in before), key=lambda path: path.stat().st_mtime, reverse=True)
-            if after:
-                after[0].replace(final)
-        statuses.append({"news_id": news_id, "status": "available" if final.exists() else "failed"})
-    write_status(output_root, "opendataloader", statuses)
+            def convert_pdf(source: Path, out_dir: Path) -> None:
+                opendataloader_convert(
+                    str(source),
+                    output_dir=str(out_dir),
+                    format="markdown",
+                    quiet=True,
+                    hybrid="docling-fast",
+                    hybrid_mode="auto",
+                    hybrid_url=hybrid_url,
+                    hybrid_fallback=True,
+                )
+
+        else:
+            try:
+                from pdf_parser_opendataloader import to_markdown as opendataloader_to_markdown
+
+                def convert_pdf(source: Path, out_dir: Path) -> None:
+                    opendataloader_to_markdown(None, source, out_dir)
+
+            except Exception as exc:
+                try:
+                    from opendataloader_pdf import convert as opendataloader_convert
+
+                    def convert_pdf(source: Path, out_dir: Path) -> None:
+                        opendataloader_convert(str(source), output_dir=str(out_dir), format="markdown", quiet=True)
+
+                except Exception:
+                    statuses = [{"news_id": news_id, "status": "missing_tool", "error": str(exc)} for news_id in samples]
+                    write_status(output_root, engine_name, statuses)
+                    return
+        for news_id, sample in samples.items():
+            source = sample / "source.pdf"
+            if not source.exists():
+                statuses.append({"news_id": news_id, "status": "missing_input", "error": "source.pdf missing"})
+                continue
+            out_dir = target / f".{news_id}" if hybrid else target
+            out_dir.mkdir(parents=True, exist_ok=True)
+            before = {path.resolve() for path in out_dir.glob("*.md")}
+            try:
+                convert_pdf(source, out_dir)
+            except Exception as exc:
+                statuses.append({"news_id": news_id, "status": "failed", "error": str(exc)})
+                continue
+            final = target / f"{news_id}.md"
+            generated = out_dir / f"{source.stem}.md"
+            if generated.exists() and generated != final:
+                shutil.copyfile(generated, final)
+            if not final.exists():
+                after = sorted((path for path in out_dir.glob("*.md") if path.resolve() not in before), key=lambda path: path.stat().st_mtime, reverse=True)
+                if after:
+                    shutil.copyfile(after[0], final)
+            if hybrid and final.exists():
+                image_source = out_dir / "source_images"
+                image_target = target / f"{news_id}_images"
+                if image_source.exists():
+                    if image_target.exists():
+                        shutil.rmtree(image_target)
+                    shutil.copytree(image_source, image_target)
+                    markdown = final.read_text(encoding="utf-8")
+                    markdown = markdown.replace("](source_images/", f"]({news_id}_images/")
+                    final.write_text(markdown, encoding="utf-8")
+            statuses.append({"news_id": news_id, "status": "available" if final.exists() else "failed"})
+        write_status(output_root, engine_name, statuses)
+    finally:
+        stop_hybrid_server(server_process, server_log)
 
 
 def run_docling(samples: dict[str, Path], output_root: Path) -> None:
@@ -193,6 +274,8 @@ def main() -> int:
         run_kordoc(samples, output_root)
     if args.engine in {"opendataloader", "all"}:
         run_opendataloader(samples, output_root)
+    if args.engine in {"opendataloader-hybrid", "all"}:
+        run_opendataloader(samples, output_root, hybrid=True)
     if args.engine in {"docling", "all"}:
         run_docling(samples, output_root)
     return 0

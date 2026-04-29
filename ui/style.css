@@ -303,6 +303,17 @@ body.mode-preview #divider      { display: none; }
 }
 #preview-content th { background: #f7f7f7; font-weight: 700; }
 
+#preview-content img {
+  display: block;
+  max-width: min(92%, 720px);
+  max-height: 420px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  margin: 0.85em auto 1.1em;
+  border-radius: 6px;
+}
+
 /* cursor highlight */
 #preview-content .cursor-highlight {
   background: #fff8c6;

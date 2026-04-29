@@ -16,6 +16,7 @@ ENGINES = [
     {"key": "readhim", "label": "읽힘"},
     {"key": "kordoc", "label": "Kordoc"},
     {"key": "opendataloader", "label": "OpenDataLoader PDF"},
+    {"key": "opendataloader-hybrid", "label": "OpenDataLoader Hybrid"},
     {"key": "docling", "label": "Docling"},
     {"key": "chatgpt-5.4-medium", "label": "ChatGPT 5.4 medium"},
     {"key": "gemini", "label": "Gemini"},
@@ -32,6 +33,12 @@ DIFFICULTY_NOTES = {
     "156757844": "행사 일정, 참여 기관, 인물 명단이 큰 표로 들어 있습니다. 표 셀 안에 긴 소개문과 줄바꿈이 많아 표 형태가 무너지기 쉽습니다.",
     "156755997": "보도자료 뒤에 정책 설명서에 가까운 긴 붙임이 이어집니다. 본문, 로드맵, 해외 사례, 담당부서 표를 각각 다른 구조로 읽어야 합니다.",
     "156757801": "본문은 짧지만 참고자료가 제도 설명서처럼 길게 이어집니다. 카드뉴스, 신청 기준, 법령 인용, 별표 설명을 서로 섞지 않는 것이 중요합니다.",
+}
+
+DEPARTMENT_OVERRIDES = {
+    "156759031": "국가데이터처",
+    "156756008": "성평등가족부",
+    "156755997": "국무조정실",
 }
 
 
@@ -161,7 +168,7 @@ def build_payload() -> dict:
         meta = load_json(sample_dir / "meta.json") if sample_dir else {}
         document_metadata = meta.get("document_metadata") if isinstance(meta.get("document_metadata"), dict) else {}
         title = row["title"] or meta.get("title") or document_metadata.get("title") or sample_id
-        department = meta.get("department") or document_metadata.get("issuer_agency") or ""
+        department = meta.get("department") or document_metadata.get("issuer_agency") or DEPARTMENT_OVERRIDES.get(news_id, "")
         engine_results = []
         for engine in ENGINES:
             key = engine["key"]
