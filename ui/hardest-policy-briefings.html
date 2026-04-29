@@ -83,6 +83,11 @@
       border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer;
     }
     .engine-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .engine-assessment {
+      margin: -2px 0 12px; padding: 11px 13px; border-radius: 8px;
+      background: rgba(13,106,87,0.06); border: 1px solid rgba(13,106,87,0.12);
+      color: #345349; font-size: 13px; line-height: 1.55; font-weight: 750;
+    }
     .result-card { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: rgba(255,255,255,0.62); }
     .result-head { display: flex; justify-content: space-between; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
     .result-label { font-weight: 900; }
@@ -95,17 +100,44 @@
     .md-pane .pane-eyebrow { color: rgba(255,255,255,.45); }
     .preview-pane .pane-eyebrow { color: var(--muted); }
     pre { margin: 0; white-space: pre-wrap; font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    .rendered { line-height: 1.72; font-size: 14px; color: #2b2622; }
-    .rendered h1, .rendered h2, .rendered h3, .rendered h4 { margin: 1.1em 0 .45em; line-height: 1.24; }
-    .rendered h1 { font-size: 1.45em; }
-    .rendered h2 { font-size: 1.16em; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
-    .rendered h3 { font-size: 1.04em; }
-    .rendered p { margin: .65em 0; }
-    .rendered ul, .rendered ol { padding-left: 1.5em; }
-    .rendered blockquote { margin: .8em 0; padding: 8px 14px; border-left: 3px solid var(--accent); background: rgba(13,106,87,.04); border-radius: 0 8px 8px 0; }
-    .rendered table { width: 100%; border-collapse: collapse; margin: .8em 0; display: block; overflow-x: auto; font-size: 12px; }
-    .rendered th, .rendered td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; vertical-align: top; }
-    .rendered img { display: block; max-width: min(92%, 720px); max-height: 420px; width: auto; height: auto; object-fit: contain; margin: .85em auto; border-radius: 8px; }
+    .rendered {
+      font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", sans-serif;
+      font-size: 17px; color: #333333; line-height: 1.58;
+    }
+    .rendered h1, .rendered h2, .rendered h3, .rendered h4 {
+      color: #2f2f2f; font-weight: 700; letter-spacing: -0.02em;
+      margin-top: 1.25em; margin-bottom: 0.58em; line-height: 1.28;
+    }
+    .rendered h1 { font-size: 2.35em; margin-top: 0; margin-bottom: 0.6em; }
+    .rendered h2 { font-size: 1.62em; margin-top: 1.45em; }
+    .rendered h3 { font-size: 1.18em; margin-top: 1.1em; }
+    .rendered h4 { font-size: 1.32em; margin-top: 0.95em; margin-bottom: 0.42em; }
+    .rendered h1:first-child, .rendered h2:first-child, .rendered h3:first-child, .rendered p:first-child { margin-top: 0; }
+    .rendered p { margin: 0.18em 0 1.08em; line-height: 1.52; }
+    .rendered li { line-height: 1.52; }
+    .rendered ul, .rendered ol { margin: 0.28em 0 1.05em; padding-left: 1.25em; }
+    .rendered li + li { margin-top: 0.18em; }
+    .rendered li p { margin: 0.1em 0; }
+    .rendered hr { border: 0; border-top: 2px solid #000000; margin: 0.55em 0 0.7em; }
+    .rendered blockquote {
+      border-left: 5px solid #000000; color: #555555;
+      margin: 0.95em 0 1.05em; padding: 0.05em 0 0.05em 0.95em;
+      background: transparent; border-radius: 0;
+    }
+    .rendered blockquote p { margin: 0.16em 0; }
+    .rendered code, .rendered pre {
+      background: #f5f5f5;
+      font-family: "D2Coding", "Consolas", "Courier New", monospace;
+    }
+    .rendered pre { padding: 12px 14px; overflow-x: auto; border: 1px solid #ebebeb; border-radius: 4px; }
+    .rendered code { padding: 0.12em 0.35em; border-radius: 4px; }
+    .rendered table {
+      border-collapse: collapse; width: 100%; margin: 0.45em 0 1.3em;
+      font-size: 0.98em; display: block; overflow-x: auto;
+    }
+    .rendered th, .rendered td { border: 1px solid #cbd5e1; padding: 8px 10px; vertical-align: top; text-align: left; }
+    .rendered th { background: #f7f7f7; font-weight: 700; }
+    .rendered img { display: block; max-width: min(92%, 720px); max-height: 420px; width: auto; height: auto; object-fit: contain; margin: .85em auto 1.1em; border-radius: 6px; }
     .empty { padding: 60px 20px; text-align: center; color: var(--muted); line-height: 1.7; }
     @media (max-width: 980px) {
       .hero, .layout { grid-template-columns: 1fr; }
@@ -133,7 +165,7 @@
     <p class="section-copy">왼쪽에서 문서를 고르고, 오른쪽에서 변환 엔진을 바꿔 보세요. Markdown 원문과 렌더링 Preview를 함께 확인할 수 있습니다.</p>
     <div class="layout">
       <aside class="doc-list" id="doc-list"></aside>
-      <section>
+      <section id="comparison-section">
         <div class="detail-head">
           <h2 class="detail-title" id="detail-title"></h2>
           <a class="source-link" id="source-link" target="_blank" rel="noreferrer">원문 보기</a>
@@ -143,6 +175,7 @@
           <p id="difficulty-reason"></p>
         </div>
         <div class="engine-tabs" id="engine-tabs"></div>
+        <div class="engine-assessment" id="engine-assessment"></div>
         <article class="result-card">
           <div class="result-head">
             <div>
@@ -196,6 +229,9 @@
         selectedDocIndex = index;
         selectedEngineKey = "readhim";
         render();
+        requestAnimationFrame(() => {
+          document.getElementById("comparison-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
       });
       const sourceLink = document.createElement("a");
       sourceLink.className = "doc-source";
@@ -226,9 +262,29 @@
         selectedEngineKey = engine.key;
         renderEngine(doc);
         renderEngineTabs(doc);
+        renderEngineAssessment(doc);
       });
       root.appendChild(button);
     });
+  }
+
+  function engineAssessment(doc) {
+    const engine = doc.engines.find((item) => item.key === selectedEngineKey) || doc.engines[0];
+    if (!engine || engine.status !== "available") return "AI 평가: 아직 비교할 변환 결과가 준비되지 않았습니다.";
+    const notes = {
+      readhim: "AI 평가: 본문 흐름과 제목 계층을 가장 안정적으로 살려 검토 기준으로 삼기 좋습니다.",
+      kordoc: "AI 평가: 기본 텍스트 추출은 가능하지만 긴 표와 붙임 구조에서는 계층이 흔들리는 구간이 보입니다.",
+      opendataloader: "AI 평가: PDF 기반 추출 특성상 원문 배치를 많이 따라가지만 페이지 잔여물과 표 경계 확인이 필요합니다.",
+      "opendataloader-hybrid": "AI 평가: 이미지와 복잡한 배치 보존은 늘었지만, 문서별 그림·표가 과하게 남는지 함께 확인해야 합니다.",
+      docling: "AI 평가: 시각 구조를 넓게 포착하지만 긴 정책문서에서는 표와 이미지가 본문보다 커지는 구간이 있습니다.",
+      "chatgpt-5.4-medium": "AI 평가: 문장 재구성은 자연스럽지만, 원문 표의 숫자와 셀 경계를 반드시 대조해야 합니다.",
+      gemini: "AI 평가: 결과가 준비된 문서에서는 요약력은 기대할 수 있으나 원문 재현성은 별도로 확인해야 합니다."
+    };
+    return notes[engine.key] || "AI 평가: 본문, 표, 이미지가 원문 의도대로 분리됐는지 확인이 필요합니다.";
+  }
+
+  function renderEngineAssessment(doc) {
+    document.getElementById("engine-assessment").textContent = engineAssessment(doc);
   }
 
   async function loadMarkdown(engine) {
@@ -294,6 +350,7 @@
     renderDocs();
     renderDetailShell(doc);
     renderEngineTabs(doc);
+    renderEngineAssessment(doc);
     renderEngine(doc);
   }
 
