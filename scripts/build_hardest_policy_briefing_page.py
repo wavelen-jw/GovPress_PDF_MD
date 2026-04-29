@@ -13,13 +13,26 @@ OUTPUT_ROOT = Path("artifacts/hardest_policy_briefings")
 DATA_OUTPUT = Path("ui/hardest-policy-briefings-data.js")
 
 ENGINES = [
-    {"key": "readhim", "label": "읽힘", "input": "HWPX"},
-    {"key": "kordoc", "label": "Kordoc", "input": "HWPX"},
-    {"key": "opendataloader", "label": "OpenDataLoader PDF", "input": "PDF"},
-    {"key": "docling", "label": "Docling", "input": "PDF"},
-    {"key": "chatgpt-5.4-medium", "label": "ChatGPT 5.4 medium", "input": "원문 추출"},
-    {"key": "gemini", "label": "Gemini", "input": "수동 산출물"},
+    {"key": "readhim", "label": "읽힘"},
+    {"key": "kordoc", "label": "Kordoc"},
+    {"key": "opendataloader", "label": "OpenDataLoader PDF"},
+    {"key": "docling", "label": "Docling"},
+    {"key": "chatgpt-5.4-medium", "label": "ChatGPT 5.4 medium"},
+    {"key": "gemini", "label": "Gemini"},
 ]
+
+DIFFICULTY_NOTES = {
+    "156759031": "통계 보고서처럼 긴 문서입니다. 목차, 설명문, 수백 개의 표, 부록이 이어져서 제목과 표를 끝까지 일관되게 구분해야 합니다.",
+    "156754934": "수출입 수치와 품목별 표가 매우 많습니다. 비슷한 표 제목과 숫자가 반복되어 표의 경계와 증감률 표기를 흐트러뜨리기 쉽습니다.",
+    "156756008": "피해자 현황과 지원 건수 표가 길게 이어지고, 별표·쌍별표·참고 문장이 많습니다. 설명문이 표나 목록 안으로 섞이지 않게 분리해야 합니다.",
+    "156757632": "본문은 보도자료 형식이지만 뒤쪽에는 조사 개요와 지역별 통계표가 이어집니다. 본문 설명, 그림 제목, 붙임 표의 구조를 각각 다르게 보존해야 합니다.",
+    "156757541": "법률별 요약표와 11개 법안 설명이 이어집니다. 표 안의 긴 문장과 목록을 본문 목록으로 잘못 빼내지 않고 셀 안에 유지해야 합니다.",
+    "156448349": "외국인 토지 보유 현황 표가 본문과 붙임에 반복됩니다. 예시 번호처럼 보이는 문장과 실제 번호 목록을 구분하고, 넓은 다단 표를 보존해야 합니다.",
+    "156757495": "지가 변동률과 토지 거래량 표가 번갈아 나오고, 그림을 대신하는 표도 섞여 있습니다. 그림 설명과 실제 데이터 표를 구분해야 합니다.",
+    "156757844": "행사 일정, 참여 기관, 인물 명단이 큰 표로 들어 있습니다. 표 셀 안에 긴 소개문과 줄바꿈이 많아 표 형태가 무너지기 쉽습니다.",
+    "156755997": "보도자료 뒤에 정책 설명서에 가까운 긴 붙임이 이어집니다. 본문, 로드맵, 해외 사례, 담당부서 표를 각각 다른 구조로 읽어야 합니다.",
+    "156757801": "본문은 짧지만 참고자료가 제도 설명서처럼 길게 이어집니다. 카드뉴스, 신청 기준, 법령 인용, 별표 설명을 서로 섞지 않는 것이 중요합니다.",
+}
 
 
 def table_rows(markdown: str) -> list[dict]:
@@ -164,21 +177,18 @@ def build_payload() -> dict:
                 {
                     "key": key,
                     "label": engine["label"],
-                    "input": engine["input"],
                     "status": state,
                     "path": relative_path,
-                    "error": status.get("error", ""),
+                    "error": "" if state == "available" else status.get("error", ""),
                 }
             )
         documents.append(
             {
-                **row,
-                "news_id": news_id,
+                "rank": row["rank"],
                 "title": title,
+                "source_url": row["source_url"],
                 "department": department,
-                "details": details.get(sample_id, {}),
-                "has_hwpx": bool(sample_dir and (sample_dir / "source.hwpx").exists()),
-                "has_pdf": bool(sample_dir and (sample_dir / "source.pdf").exists()),
+                "difficulty_note": DIFFICULTY_NOTES.get(news_id, row["difficulty_reason"]),
                 "engines": engine_results,
             }
         )
@@ -187,7 +197,6 @@ def build_payload() -> dict:
         "title": "AI가 고른 어려운 보도자료 10선",
         "subtitle": "표, 붙임, 각주가 복잡하게 섞인 정책브리핑 문서를 여러 변환 도구로 비교합니다.",
         "generated_at": "2026-04-29",
-        "source_doc": "gov-md-converter/docs/qc-v2-hardest-curated-press-releases.md",
         "engines": ENGINES,
         "documents": documents,
     }

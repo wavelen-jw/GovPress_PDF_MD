@@ -152,6 +152,10 @@ def run_docling(samples: dict[str, Path], output_root: Path) -> None:
     target.mkdir(parents=True, exist_ok=True)
     docling = shutil.which("docling")
     if not docling:
+        venv_docling = DEFAULT_CONVERTER_ROOT / ".venv" / "bin" / "docling"
+        if venv_docling.exists():
+            docling = str(venv_docling)
+    if not docling:
         statuses = [{"news_id": news_id, "status": "missing_tool", "error": "docling command not found"} for news_id in samples]
         write_status(output_root, "docling", statuses)
         return
