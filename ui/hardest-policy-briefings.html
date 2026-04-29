@@ -270,17 +270,7 @@
 
   function engineAssessment(doc) {
     const engine = doc.engines.find((item) => item.key === selectedEngineKey) || doc.engines[0];
-    if (!engine || engine.status !== "available") return "AI 평가: 아직 비교할 변환 결과가 준비되지 않았습니다.";
-    const notes = {
-      readhim: "AI 평가: 본문 흐름과 제목 계층을 가장 안정적으로 살려 검토 기준으로 삼기 좋습니다.",
-      kordoc: "AI 평가: 기본 텍스트 추출은 가능하지만 긴 표와 붙임 구조에서는 계층이 흔들리는 구간이 보입니다.",
-      opendataloader: "AI 평가: PDF 기반 추출 특성상 원문 배치를 많이 따라가지만 페이지 잔여물과 표 경계 확인이 필요합니다.",
-      "opendataloader-hybrid": "AI 평가: 이미지와 복잡한 배치 보존은 늘었지만, 문서별 그림·표가 과하게 남는지 함께 확인해야 합니다.",
-      docling: "AI 평가: 시각 구조를 넓게 포착하지만 긴 정책문서에서는 표와 이미지가 본문보다 커지는 구간이 있습니다.",
-      "chatgpt-5.4-medium": "AI 평가: 문장 재구성은 자연스럽지만, 원문 표의 숫자와 셀 경계를 반드시 대조해야 합니다.",
-      gemini: "AI 평가: 결과가 준비된 문서에서는 요약력은 기대할 수 있으나 원문 재현성은 별도로 확인해야 합니다."
-    };
-    return notes[engine.key] || "AI 평가: 본문, 표, 이미지가 원문 의도대로 분리됐는지 확인이 필요합니다.";
+    return `AI 평가: ${engine?.assessment || "아직 비교할 변환 결과가 준비되지 않았습니다."}`;
   }
 
   function renderEngineAssessment(doc) {
