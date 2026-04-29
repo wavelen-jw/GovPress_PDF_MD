@@ -270,7 +270,7 @@
 
   function engineAssessment(doc) {
     const engine = doc.engines.find((item) => item.key === selectedEngineKey) || doc.engines[0];
-    return `chatgpt5.5의 평가: ${engine?.assessment || "아직 비교할 변환 결과가 준비되지 않았습니다."}`;
+    return `ChatGPT 5.5의 평가: ${engine?.assessment || "아직 비교할 변환 결과가 준비되지 않았습니다."}`;
   }
 
   function renderEngineAssessment(doc) {
