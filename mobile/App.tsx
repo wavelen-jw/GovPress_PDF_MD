@@ -64,10 +64,9 @@ type RecentJobEntry = {
 };
 
 type WebDropAsset = DocumentPicker.DocumentPickerAsset & { file?: File };
-type PendingLandingAction = {
-  type: "open-picker" | "open-policy-briefings";
-  requestedAt: number;
-};
+type PendingLandingAction =
+  | { type: "open-picker" | "open-policy-briefings"; requestedAt: number }
+  | { type: "open-briefing-by-id"; newsItemId: string; requestedAt: number };
 
 type PolicyBriefingServerStatus = {
   key: string;
@@ -197,6 +196,30 @@ async function probeServerHealthStatus(
     }
   }
   return { ok: false, detail: lastFailure };
+}
+
+function setBriefingParamInUrl(newsItemId: string): void {
+  if (Platform.OS !== "web" || typeof window === "undefined") {
+    return;
+  }
+  const params = new URLSearchParams(window.location.search);
+  params.set("editor", "1");
+  params.set("briefing", newsItemId);
+  const search = params.toString();
+  window.history.replaceState({}, "", `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`);
+}
+
+function clearBriefingParamFromUrl(): void {
+  if (Platform.OS !== "web" || typeof window === "undefined") {
+    return;
+  }
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has("briefing")) {
+    return;
+  }
+  params.delete("briefing");
+  const search = params.toString();
+  window.history.replaceState({}, "", `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`);
 }
 
 function consumeLandingAction(): PendingLandingAction | null {
@@ -926,6 +949,7 @@ export default function App(): React.JSX.Element {
       setMobileShowList(false);
     });
     addToRecentJobs(localJobId, null, asset.name, config.baseUrl);
+    clearBriefingParamFromUrl();
     setNotice("Markdown 문서를 열었습니다.");
   }
 
@@ -969,6 +993,7 @@ export default function App(): React.JSX.Element {
         setMobileShowList(false);
       });
       addToRecentJobs(job.job_id, job.edit_token, job.file_name, resolvedBaseUrl);
+      clearBriefingParamFromUrl();
       await refreshSelectedJob(job.job_id, job.edit_token, false, false, resolvedBaseUrl);
     } catch (error) {
       showError("파일 업로드에 실패했습니다.", error);
@@ -1089,44 +1114,45 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  async function loadBriefingByNewsItemId(newsItemId: string, date?: string): Promise<void> {
+    const { payload: imported, resolvedBaseUrl } = await importPolicyBriefing(config, newsItemId, date);
+    if (resolvedBaseUrl !== config.baseUrl) {
+      const nextConfig = { ...config, baseUrl: resolvedBaseUrl };
+      invalidateJobRefreshes();
+      await persistConfig(nextConfig);
+      startTransition(() => {
+        setConfig(nextConfig);
+        setConfigDraft(nextConfig);
+      });
+      setNotice(`${getServerLabel(resolvedBaseUrl)}로 자동 전환했습니다.`);
+    }
+    startTransition(() => {
+      setPolicyBriefingVisible(false);
+      setSelectedJobId(imported.job_id);
+      setCurrentEditToken(imported.edit_token);
+      setSelectedJob(imported);
+      setSelectedJobBaseUrl(resolvedBaseUrl);
+      setResult(null);
+      setLoadedTableMode("text");
+      setSelectedTableMode("text");
+      setEditorText("");
+      setEditorSelection({ start: 0, end: 0 });
+      setEditorFocusToken((current) => current + 1);
+      setEditing(false);
+      setActiveTab("preview");
+      setMobileShowList(false);
+    });
+    addToRecentJobs(imported.job_id, imported.edit_token, imported.file_name, resolvedBaseUrl);
+    setBriefingParamInUrl(imported.news_item_id);
+    await refreshSelectedJob(imported.job_id, imported.edit_token, false, false, resolvedBaseUrl);
+  }
+
   async function handleImportPolicyBriefing(item: PolicyBriefingItem): Promise<void> {
     setImportingNewsItemId(item.news_item_id);
     setBusy(true);
     setNotice("정책브리핑 HWPX를 가져오는 중...");
     try {
-      const { payload: imported, resolvedBaseUrl } = await importPolicyBriefing(
-        config,
-        item.news_item_id,
-        getPolicyBriefingDate(item),
-      );
-      if (resolvedBaseUrl !== config.baseUrl) {
-        const nextConfig = { ...config, baseUrl: resolvedBaseUrl };
-        invalidateJobRefreshes();
-        await persistConfig(nextConfig);
-        startTransition(() => {
-          setConfig(nextConfig);
-          setConfigDraft(nextConfig);
-        });
-        setNotice(`${getServerLabel(resolvedBaseUrl)}로 자동 전환했습니다.`);
-      }
-      startTransition(() => {
-        setPolicyBriefingVisible(false);
-        setSelectedJobId(imported.job_id);
-        setCurrentEditToken(imported.edit_token);
-        setSelectedJob(imported);
-        setSelectedJobBaseUrl(resolvedBaseUrl);
-        setResult(null);
-        setLoadedTableMode("text");
-        setSelectedTableMode("text");
-        setEditorText("");
-        setEditorSelection({ start: 0, end: 0 });
-        setEditorFocusToken((current) => current + 1);
-        setEditing(false);
-        setActiveTab("preview");
-        setMobileShowList(false);
-      });
-      addToRecentJobs(imported.job_id, imported.edit_token, imported.file_name, resolvedBaseUrl);
-      await refreshSelectedJob(imported.job_id, imported.edit_token, false, false, resolvedBaseUrl);
+      await loadBriefingByNewsItemId(item.news_item_id, getPolicyBriefingDate(item));
     } catch (error) {
       showError("정책브리핑 보도자료를 가져오지 못했습니다.", error);
     } finally {
@@ -1145,15 +1171,18 @@ export default function App(): React.JSX.Element {
     const params = new URLSearchParams(window.location.search);
     const wantsEditor = params.get("editor") === "1";
     const queryIntent = params.get("intent");
-    const pendingAction =
-      queryIntent === "policy-briefings"
-        ? { type: "open-policy-briefings" as const, requestedAt: Date.now() }
+    const briefingId = params.get("briefing");
+    const pendingAction: PendingLandingAction | null = briefingId
+      ? { type: "open-briefing-by-id", newsItemId: briefingId, requestedAt: Date.now() }
+      : queryIntent === "policy-briefings"
+        ? { type: "open-policy-briefings", requestedAt: Date.now() }
         : consumeLandingAction();
 
     if (
       isHostedWeb() &&
       !wantsEditor &&
       !queryIntent &&
+      !briefingId &&
       !pendingAction &&
       /^\/(?:GovPress_PDF_MD\/)?app\/?$/.test(window.location.pathname)
     ) {
@@ -1174,6 +1203,18 @@ export default function App(): React.JSX.Element {
     const action = pendingAction;
 
     async function hydrateLandingIntent(): Promise<void> {
+      if (action.type === "open-briefing-by-id") {
+        setBusy(true);
+        setNotice("공유된 보도자료를 불러오는 중...");
+        try {
+          await loadBriefingByNewsItemId(action.newsItemId);
+        } catch (error) {
+          showError("공유된 보도자료를 불러오지 못했습니다.", error);
+        } finally {
+          setBusy(false);
+        }
+        return;
+      }
       if (action.type === "open-policy-briefings") {
         await handleOpenPolicyBriefings();
         return;
@@ -1566,6 +1607,7 @@ export default function App(): React.JSX.Element {
     setResult(null);
     setEditorText("");
     setEditing(false);
+    clearBriefingParamFromUrl();
     setNotice(selectedJobId.startsWith("local-md-") ? "로컬 Markdown 문서를 닫았습니다." : "현재 작업 화면을 닫았습니다.");
   }
 
@@ -1669,6 +1711,7 @@ export default function App(): React.JSX.Element {
                   setResult(null);
                   setActiveTab("preview");
                 setEditing(false);
+                clearBriefingParamFromUrl();
               });
             }}
             onChangeEditorText={handleEditorTextChange}
@@ -1743,6 +1786,7 @@ export default function App(): React.JSX.Element {
                     setResult(null);
                     setActiveTab("preview");
                   setEditing(false);
+                  clearBriefingParamFromUrl();
                 });
               }}
               onChangeEditorText={handleEditorTextChange}
@@ -1810,6 +1854,7 @@ export default function App(): React.JSX.Element {
                           setActiveTab("preview");
                           setMobileShowList(false);
                         });
+                        clearBriefingParamFromUrl();
                         if (entry.editToken) {
                           void refreshSelectedJob(entry.jobId, entry.editToken, false, false, entry.baseUrl);
                         }
