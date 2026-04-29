@@ -1,0 +1,56 @@
+{
+  "engine": "docling",
+  "generated_at": "2026-04-30T00:38:44+0900",
+  "documents": [
+    {
+      "news_id": "156759031",
+      "status": "missing_tool",
+      "error": "docling command not found"
+    },
+    {
+      "news_id": "156754934",
+      "status": "missing_tool",
+      "error": "docling command not found"
+    },
+    {
+      "news_id": "156756008",
+      "status": "missing_tool",
+      "error": "docling command not found"
+    },
+    {
+      "news_id": "156757632",
+      "status": "missing_tool",
+      "error": "docling command not found"
+    },
+    {
+      "news_id": "156757541",
+      "status": "missing_tool",
+      "error": "docling command not found"
+    },
+    {
+      "news_id": "156448349",
+      "status": "missing_tool",
+      "error": "docling command not found"
+    },
+    {
+      "news_id": "156757495",
+      "status": "missing_tool",
+      "error": "docling command not found"
+    },
+    {
+      "news_id": "156757844",
+      "status": "missing_tool",
+      "error": "docling command not found"
+    },
+    {
+      "news_id": "156755997",
+      "status": "missing_tool",
+      "error": "docling command not found"
+    },
+    {
+      "news_id": "156757801",
+      "status": "missing_tool",
+      "error": "docling command not found"
+    }
+  ]
+}

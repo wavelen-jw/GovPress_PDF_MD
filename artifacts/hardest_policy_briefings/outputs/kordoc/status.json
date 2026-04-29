@@ -1,0 +1,56 @@
+{
+  "engine": "kordoc",
+  "generated_at": "2026-04-30T00:50:31+0900",
+  "documents": [
+    {
+      "news_id": "156759031",
+      "status": "failed",
+      "error": "Command '['npx', 'kordoc', '/home/wavel/projects/gov-md-converter/tests/qc_samples_qc_v2/policy_briefing_2026_04_29_156759031/source.hwpx', '-o', '/home/wavel/projects/GovPress_PDF_MD/artifacts/hardest_policy_briefings/outputs/kordoc/156759031.md', '--silent']' returned non-zero exit status 1."
+    },
+    {
+      "news_id": "156754934",
+      "status": "failed",
+      "error": "Command '['npx', 'kordoc', '/home/wavel/projects/gov-md-converter/tests/qc_samples_qc_v2/policy_briefing_2026_04_14_156754934/source.hwpx', '-o', '/home/wavel/projects/GovPress_PDF_MD/artifacts/hardest_policy_briefings/outputs/kordoc/156754934.md', '--silent']' returned non-zero exit status 1."
+    },
+    {
+      "news_id": "156756008",
+      "status": "failed",
+      "error": "Command '['npx', 'kordoc', '/home/wavel/projects/gov-md-converter/tests/qc_samples_qc_v2/policy_briefing_2026_04_16_156756008/source.hwpx', '-o', '/home/wavel/projects/GovPress_PDF_MD/artifacts/hardest_policy_briefings/outputs/kordoc/156756008.md', '--silent']' returned non-zero exit status 1."
+    },
+    {
+      "news_id": "156757632",
+      "status": "failed",
+      "error": "Command '['npx', 'kordoc', '/home/wavel/projects/gov-md-converter/tests/qc_samples_qc_v2/policy_briefing_2026_04_24_156757632/source.hwpx', '-o', '/home/wavel/projects/GovPress_PDF_MD/artifacts/hardest_policy_briefings/outputs/kordoc/156757632.md', '--silent']' returned non-zero exit status 1."
+    },
+    {
+      "news_id": "156757541",
+      "status": "failed",
+      "error": "Command '['npx', 'kordoc', '/home/wavel/projects/gov-md-converter/tests/qc_samples_qc_v2/policy_briefing_2026_04_23_156757541/source.hwpx', '-o', '/home/wavel/projects/GovPress_PDF_MD/artifacts/hardest_policy_briefings/outputs/kordoc/156757541.md', '--silent']' returned non-zero exit status 1."
+    },
+    {
+      "news_id": "156448349",
+      "status": "failed",
+      "error": "Command '['npx', 'kordoc', '/home/wavel/projects/gov-md-converter/tests/qc_samples_qc_v2/policy_briefing_2021_04_23_156448349/source.hwpx', '-o', '/home/wavel/projects/GovPress_PDF_MD/artifacts/hardest_policy_briefings/outputs/kordoc/156448349.md', '--silent']' returned non-zero exit status 1."
+    },
+    {
+      "news_id": "156757495",
+      "status": "failed",
+      "error": "Command '['npx', 'kordoc', '/home/wavel/projects/gov-md-converter/tests/qc_samples_qc_v2/policy_briefing_2026_04_23_156757495/source.hwpx', '-o', '/home/wavel/projects/GovPress_PDF_MD/artifacts/hardest_policy_briefings/outputs/kordoc/156757495.md', '--silent']' returned non-zero exit status 1."
+    },
+    {
+      "news_id": "156757844",
+      "status": "failed",
+      "error": "Command '['npx', 'kordoc', '/home/wavel/projects/gov-md-converter/tests/qc_samples_qc_v2/policy_briefing_2026_04_24_156757844/source.hwpx', '-o', '/home/wavel/projects/GovPress_PDF_MD/artifacts/hardest_policy_briefings/outputs/kordoc/156757844.md', '--silent']' returned non-zero exit status 1."
+    },
+    {
+      "news_id": "156755997",
+      "status": "failed",
+      "error": "Command '['npx', 'kordoc', '/home/wavel/projects/gov-md-converter/tests/qc_samples_qc_v2/policy_briefing_2026_04_16_156755997/source.hwpx', '-o', '/home/wavel/projects/GovPress_PDF_MD/artifacts/hardest_policy_briefings/outputs/kordoc/156755997.md', '--silent']' returned non-zero exit status 1."
+    },
+    {
+      "news_id": "156757801",
+      "status": "failed",
+      "error": "Command '['npx', 'kordoc', '/home/wavel/projects/gov-md-converter/tests/qc_samples_qc_v2/policy_briefing_2026_04_24_156757801/source.hwpx', '-o', '/home/wavel/projects/GovPress_PDF_MD/artifacts/hardest_policy_briefings/outputs/kordoc/156757801.md', '--silent']' returned non-zero exit status 1."
+    }
+  ]
+}

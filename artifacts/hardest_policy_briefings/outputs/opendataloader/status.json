@@ -1,0 +1,50 @@
+{
+  "engine": "opendataloader",
+  "generated_at": "2026-04-30T00:43:12+0900",
+  "documents": [
+    {
+      "news_id": "156759031",
+      "status": "missing_input",
+      "error": "source.pdf missing"
+    },
+    {
+      "news_id": "156754934",
+      "status": "missing_input",
+      "error": "source.pdf missing"
+    },
+    {
+      "news_id": "156756008",
+      "status": "available"
+    },
+    {
+      "news_id": "156757632",
+      "status": "available"
+    },
+    {
+      "news_id": "156757541",
+      "status": "missing_input",
+      "error": "source.pdf missing"
+    },
+    {
+      "news_id": "156448349",
+      "status": "missing_input",
+      "error": "source.pdf missing"
+    },
+    {
+      "news_id": "156757495",
+      "status": "available"
+    },
+    {
+      "news_id": "156757844",
+      "status": "available"
+    },
+    {
+      "news_id": "156755997",
+      "status": "available"
+    },
+    {
+      "news_id": "156757801",
+      "status": "available"
+    }
+  ]
+}
