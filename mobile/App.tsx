@@ -66,7 +66,7 @@ type RecentJobEntry = {
 type WebDropAsset = DocumentPicker.DocumentPickerAsset & { file?: File };
 type PendingLandingAction =
   | { type: "open-picker" | "open-policy-briefings"; requestedAt: number }
-  | { type: "open-briefing-by-id"; newsItemId: string; requestedAt: number };
+  | { type: "open-briefing-by-id"; newsItemId: string; date?: string; requestedAt: number };
 
 type PolicyBriefingServerStatus = {
   key: string;
@@ -198,13 +198,18 @@ async function probeServerHealthStatus(
   return { ok: false, detail: lastFailure };
 }
 
-function setBriefingParamInUrl(newsItemId: string): void {
+function setBriefingParamInUrl(newsItemId: string, date?: string): void {
   if (Platform.OS !== "web" || typeof window === "undefined") {
     return;
   }
   const params = new URLSearchParams(window.location.search);
   params.set("editor", "1");
   params.set("briefing", newsItemId);
+  if (date) {
+    params.set("date", date);
+  } else {
+    params.delete("date");
+  }
   const search = params.toString();
   window.history.replaceState({}, "", `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`);
 }
@@ -218,6 +223,7 @@ function clearBriefingParamFromUrl(): void {
     return;
   }
   params.delete("briefing");
+  params.delete("date");
   const search = params.toString();
   window.history.replaceState({}, "", `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`);
 }
@@ -1143,7 +1149,7 @@ export default function App(): React.JSX.Element {
       setMobileShowList(false);
     });
     addToRecentJobs(imported.job_id, imported.edit_token, imported.file_name, resolvedBaseUrl);
-    setBriefingParamInUrl(imported.news_item_id);
+    setBriefingParamInUrl(imported.news_item_id, date);
     await refreshSelectedJob(imported.job_id, imported.edit_token, false, false, resolvedBaseUrl);
   }
 
@@ -1172,8 +1178,9 @@ export default function App(): React.JSX.Element {
     const wantsEditor = params.get("editor") === "1";
     const queryIntent = params.get("intent");
     const briefingId = params.get("briefing");
+    const briefingDate = params.get("date") || undefined;
     const pendingAction: PendingLandingAction | null = briefingId
-      ? { type: "open-briefing-by-id", newsItemId: briefingId, requestedAt: Date.now() }
+      ? { type: "open-briefing-by-id", newsItemId: briefingId, date: briefingDate, requestedAt: Date.now() }
       : queryIntent === "policy-briefings"
         ? { type: "open-policy-briefings", requestedAt: Date.now() }
         : consumeLandingAction();
@@ -1207,7 +1214,7 @@ export default function App(): React.JSX.Element {
         setBusy(true);
         setNotice("공유된 보도자료를 불러오는 중...");
         try {
-          await loadBriefingByNewsItemId(action.newsItemId);
+          await loadBriefingByNewsItemId(action.newsItemId, action.date);
         } catch (error) {
           showError("공유된 보도자료를 불러오지 못했습니다.", error);
         } finally {
