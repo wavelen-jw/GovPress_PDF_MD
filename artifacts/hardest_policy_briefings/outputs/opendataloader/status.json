@@ -1,16 +1,14 @@
 {
   "engine": "opendataloader",
-  "generated_at": "2026-04-30T00:43:12+0900",
+  "generated_at": "2026-04-30T01:39:28+0900",
   "documents": [
     {
       "news_id": "156759031",
-      "status": "missing_input",
-      "error": "source.pdf missing"
+      "status": "available"
     },
     {
       "news_id": "156754934",
-      "status": "missing_input",
-      "error": "source.pdf missing"
+      "status": "available"
     },
     {
       "news_id": "156756008",
@@ -22,13 +20,11 @@
     },
     {
       "news_id": "156757541",
-      "status": "missing_input",
-      "error": "source.pdf missing"
+      "status": "available"
     },
     {
       "news_id": "156448349",
-      "status": "missing_input",
-      "error": "source.pdf missing"
+      "status": "available"
     },
     {
       "news_id": "156757495",

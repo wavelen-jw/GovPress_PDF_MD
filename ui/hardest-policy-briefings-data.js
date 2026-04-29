@@ -52,7 +52,7 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
         "deferred_reason": "단일 문서 예외로는 맞출 수 있으나, 통계 보고서형 보도자료 전체에 적용 가능한 공통규칙 경계가 아직 명확하지 않다."
       },
       "has_hwpx": true,
-      "has_pdf": false,
+      "has_pdf": true,
       "engines": [
         {
           "key": "readhim",
@@ -74,9 +74,9 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
           "key": "opendataloader",
           "label": "OpenDataLoader PDF",
           "input": "PDF",
-          "status": "missing_input",
-          "path": "",
-          "error": "source.pdf missing"
+          "status": "available",
+          "path": "outputs/opendataloader/156759031.md",
+          "error": ""
         },
         {
           "key": "docling",
@@ -120,7 +120,7 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
         "deferred_reason": ""
       },
       "has_hwpx": true,
-      "has_pdf": false,
+      "has_pdf": true,
       "engines": [
         {
           "key": "readhim",
@@ -142,9 +142,9 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
           "key": "opendataloader",
           "label": "OpenDataLoader PDF",
           "input": "PDF",
-          "status": "missing_input",
-          "path": "",
-          "error": "source.pdf missing"
+          "status": "available",
+          "path": "outputs/opendataloader/156754934.md",
+          "error": ""
         },
         {
           "key": "docling",
@@ -324,7 +324,7 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
         "deferred_reason": ""
       },
       "has_hwpx": true,
-      "has_pdf": false,
+      "has_pdf": true,
       "engines": [
         {
           "key": "readhim",
@@ -346,9 +346,9 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
           "key": "opendataloader",
           "label": "OpenDataLoader PDF",
           "input": "PDF",
-          "status": "missing_input",
-          "path": "",
-          "error": "source.pdf missing"
+          "status": "available",
+          "path": "outputs/opendataloader/156757541.md",
+          "error": ""
         },
         {
           "key": "docling",
@@ -392,7 +392,7 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
         "deferred_reason": "과거 golden을 가진 샘플이지만 최근 규칙과 충돌하는 구간이 있어, 기존 assertion을 그대로 유지할지 재생성할지 판단이 필요하다."
       },
       "has_hwpx": true,
-      "has_pdf": false,
+      "has_pdf": true,
       "engines": [
         {
           "key": "readhim",
@@ -414,9 +414,9 @@ window.HARDEST_POLICY_BRIEFINGS_DATA = {
           "key": "opendataloader",
           "label": "OpenDataLoader PDF",
           "input": "PDF",
-          "status": "missing_input",
-          "path": "",
-          "error": "source.pdf missing"
+          "status": "available",
+          "path": "outputs/opendataloader/156448349.md",
+          "error": ""
         },
         {
           "key": "docling",
