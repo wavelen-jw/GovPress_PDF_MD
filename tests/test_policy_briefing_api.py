@@ -15,6 +15,8 @@ from fastapi.testclient import TestClient
 
 from server.app.adapters.policy_briefing import (
     DownloadedPolicyBriefingFile,
+    PolicyBriefingCache,
+    PolicyBriefingCatalog,
     PolicyBriefingAttachment,
     PolicyBriefingClient,
     PolicyBriefingItem,
@@ -128,7 +130,7 @@ class PolicyBriefingApiTests(unittest.TestCase):
         self.addCleanup(self._restore_api_key)
         self.addCleanup(self._restore_qc_export_root)
         self.client_stub = PolicyBriefingClientStub()
-        self.app = create_app(Path(self.temp_dir.name), policy_briefing_client=self.client_stub)
+        self.app = create_app(Path(self.temp_dir.name), policy_briefing_client=self.client_stub, run_worker=False)
         self.client = TestClient(self.app)
         self.headers = {"X-API-Key": "test-api-key"}
         self.convert_hwpx_patcher = patch(
@@ -257,6 +259,72 @@ class PolicyBriefingApiTests(unittest.TestCase):
         self.assertGreater(original_path.stat().st_size, 0)
         pdf_path = next((Path(self.temp_dir.name) / "originals").glob(f"{payload['job_id']}-*.pdf"))
         self.assertGreater(pdf_path.stat().st_size, 0)
+
+    def test_policy_briefing_cache_retries_with_refreshed_catalog_when_cached_hwpx_url_fails(self) -> None:
+        target_date = date(2026, 4, 9)
+        stale_item = replace(
+            self.client_stub.items[0],
+            attachments=(
+                PolicyBriefingAttachment(
+                    file_name="stale-briefing.hwpx",
+                    file_url="https://example.test/files/stale-briefing.hwpx",
+                ),
+                PolicyBriefingAttachment(
+                    file_name="stale-briefing.pdf",
+                    file_url="https://example.test/files/stale-briefing.pdf",
+                ),
+            ),
+        )
+        fresh_item = replace(
+            self.client_stub.items[0],
+            attachments=(
+                PolicyBriefingAttachment(
+                    file_name="fresh-briefing.hwpx",
+                    file_url="https://example.test/files/fresh-briefing.hwpx",
+                ),
+                PolicyBriefingAttachment(
+                    file_name="fresh-briefing.pdf",
+                    file_url="https://example.test/files/fresh-briefing.pdf",
+                ),
+            ),
+        )
+        self.client_stub.items_by_date[target_date] = [stale_item]
+        catalog = PolicyBriefingCatalog(
+            client=self.client_stub,
+            cache_path=Path(self.temp_dir.name) / "policy_briefing_catalog.json",
+        )
+        cache = PolicyBriefingCache(
+            client=self.client_stub,
+            cache_dir=Path(self.temp_dir.name) / "policy_briefing_retry_cache",
+        )
+        catalog.list_cached_items(target_date=target_date)
+        self.client_stub.items_by_date[target_date] = [fresh_item]
+
+        def flaky_download(item: PolicyBriefingItem) -> DownloadedPolicyBriefingFile:
+            attachment = item.primary_hwpx
+            assert attachment is not None
+            self.client_stub.download_calls.append(attachment.file_url)
+            if "stale-briefing" in attachment.file_url:
+                raise ValueError("첨부파일 다운로드 결과가 실제 문서가 아니라 HTML 에러 페이지입니다.")
+            return DownloadedPolicyBriefingFile(item=item, attachment=attachment, content=self.client_stub.fixture_hwpx)
+
+        self.client_stub.download_item_hwpx = flaky_download  # type: ignore[method-assign]
+
+        cached = cache.warm_item_with_catalog_retry(
+            stale_item,
+            catalog=catalog,
+            target_date=target_date,
+        )
+
+        self.assertEqual(cached.file_name, "fresh-briefing.hwpx")
+        self.assertEqual(
+            self.client_stub.download_calls[:2],
+            [
+                "https://example.test/files/stale-briefing.hwpx",
+                "https://example.test/files/fresh-briefing.hwpx",
+            ],
+        )
+        self.assertEqual(self.client_stub.list_calls, [target_date, target_date])
 
     def test_import_policy_briefing_recovers_missing_cached_original(self) -> None:
         first = self.client.post(
@@ -417,7 +485,7 @@ class PolicyBriefingApiTests(unittest.TestCase):
                 downloaded = super().download_item_hwpx(item)
                 return replace(downloaded, content=b"\xd0\xcf\x11\xe0legacy-hwp")
 
-        app = create_app(Path(self.temp_dir.name), policy_briefing_client=NonZipClientStub())
+        app = create_app(Path(self.temp_dir.name), policy_briefing_client=NonZipClientStub(), run_worker=False)
         client = TestClient(app)
         self.addCleanup(client.close)
         self.addCleanup(app.state.worker.stop)
@@ -458,7 +526,7 @@ class PolicyBriefingApiTests(unittest.TestCase):
             def download_item_hwpx(self, item: PolicyBriefingItem) -> DownloadedPolicyBriefingFile:
                 raise ValueError("HWPX 첨부파일이 없는 기사입니다.")
 
-        app = create_app(Path(self.temp_dir.name), policy_briefing_client=NoHwpxClientStub())
+        app = create_app(Path(self.temp_dir.name), policy_briefing_client=NoHwpxClientStub(), run_worker=False)
         client = TestClient(app)
         self.addCleanup(client.close)
         self.addCleanup(app.state.worker.stop)
@@ -484,7 +552,7 @@ class PolicyBriefingApiTests(unittest.TestCase):
             def download_item_hwpx(self, item: PolicyBriefingItem) -> DownloadedPolicyBriefingFile:
                 raise TimeoutError("upstream policy briefing timeout")
 
-        app = create_app(Path(self.temp_dir.name), policy_briefing_client=TimeoutClientStub())
+        app = create_app(Path(self.temp_dir.name), policy_briefing_client=TimeoutClientStub(), run_worker=False)
         client = TestClient(app)
         self.addCleanup(client.close)
         self.addCleanup(app.state.worker.stop)
