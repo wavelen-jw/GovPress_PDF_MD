@@ -11,6 +11,7 @@ type Props = {
   isPdfPickReady: boolean;
   editing: boolean;
   onDiscardEdit: () => void;
+  onOpenLanding: () => void;
   onOpenInfo: () => void;
   onPickPdf: () => void;
   onOpenPolicyBriefings: () => void;
@@ -28,6 +29,7 @@ export function WorkspaceToolbar({
   isPdfPickReady,
   editing,
   onDiscardEdit,
+  onOpenLanding,
   onOpenInfo,
   onPickPdf,
   onOpenPolicyBriefings,
@@ -40,7 +42,14 @@ export function WorkspaceToolbar({
     <View style={[styles.workspaceToolbar, isDarkMode && styles.workspaceToolbarDark]}>
 
       {/* ── Brand ── */}
-      <Text style={[styles.tbarBrand, isDarkMode && styles.tbarBrandDark]}>읽힘</Text>
+      <Pressable
+        onPress={onOpenLanding}
+        accessibilityRole="link"
+        accessibilityLabel="읽힘 랜딩페이지로 이동"
+        {...webTitle("읽힘 랜딩페이지로 이동")}
+      >
+        <Text style={[styles.tbarBrand, isDarkMode && styles.tbarBrandDark]}>읽힘</Text>
+      </Pressable>
       <Text style={[styles.tbarSep, isDarkMode && styles.tbarSepDark]}>|</Text>
 
       {/* ── Document name ── */}

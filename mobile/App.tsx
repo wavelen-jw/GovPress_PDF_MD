@@ -1649,6 +1649,15 @@ export default function App(): React.JSX.Element {
     setIsDarkMode((current) => !current);
   }
 
+  function handleOpenLanding(): void {
+    if (Platform.OS !== "web" || typeof window === "undefined") {
+      return;
+    }
+    confirmDiscardChanges(() => {
+      window.location.assign(new URL("../", window.location.href).toString());
+    });
+  }
+
   const showDetailPanel = isWideLayout || !mobileShowList;
   const currentDocumentName = selectedJob?.file_name || result?.meta.source_file_name || null;
   const isPdfPickReady = true;
@@ -1674,6 +1683,7 @@ export default function App(): React.JSX.Element {
           isPdfPickReady={isPdfPickReady}
           editing={editing}
           onDiscardEdit={handleDiscardEdit}
+          onOpenLanding={handleOpenLanding}
           onOpenInfo={handleOpenInfo}
           onPickPdf={() => void handlePickPdf()}
           onOpenPolicyBriefings={() => void handleOpenPolicyBriefings()}
