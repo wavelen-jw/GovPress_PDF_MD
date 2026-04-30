@@ -63,6 +63,19 @@ jobs:
           app_index = Path("mobile/dist/app/index.html")
           text = app_index.read_text(encoding="utf-8")
           text = text.replace('src="/GovPress_PDF_MD/app/_expo/', 'src="./_expo/')
+          if 'property="og:title"' not in text:
+              app_meta = "\n".join([
+                  '    <meta name="description" content="정부 보도자료 PDF와 HWPX를 Markdown으로 바꾸고, 바로 확인하고 다듬는 읽힘 웹 에디터입니다." />',
+                  '    <meta property="og:site_name" content="읽힘" />',
+                  '    <meta property="og:type" content="website" />',
+                  '    <meta property="og:title" content="읽힘 — 정부문서를 사람도 AI도 읽게 한다" />',
+                  '    <meta property="og:description" content="정부 보도자료 PDF와 HWPX를 Markdown으로 바꾸고, 바로 확인하고 다듬는 읽힘 웹 에디터입니다." />',
+                  '    <meta property="og:url" content="https://govpress.cloud/app/" />',
+                  '    <meta name="twitter:card" content="summary" />',
+                  '    <meta name="twitter:title" content="읽힘 — 정부문서를 사람도 AI도 읽게 한다" />',
+                  '    <meta name="twitter:description" content="정부 보도자료 PDF와 HWPX를 Markdown으로 바꾸고, 바로 확인하고 다듬는 읽힘 웹 에디터입니다." />',
+              ]) + "\n"
+              text = text.replace("    <title>읽힘 — 정부문서를 사람도 AI도 읽게 한다</title>\n", "    <title>읽힘 — 정부문서를 사람도 AI도 읽게 한다</title>\n" + app_meta)
           app_index.write_text(text, encoding="utf-8")
           PY
 
