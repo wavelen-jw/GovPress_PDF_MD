@@ -19,110 +19,94 @@
       height: 630px;
       margin: 0;
       overflow: hidden;
-      background:
-        radial-gradient(circle at 85% 21%, rgba(34,197,94,.28), transparent 360px),
-        radial-gradient(circle at 8% 86%, rgba(255,59,59,.22), transparent 320px),
-        #0d0d0d;
+      background: #0d0d0d;
       font-family: NanumSquare, sans-serif;
       color: #f8f8f5;
-    }
-    .frame {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      padding: 78px 92px;
-    }
-    .top-bar {
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 12px;
-      background: #ff3b3b;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 78px;
     }
     .eyebrow {
-      color: rgba(248,248,245,.55);
-      font-size: 28px;
+      font-size: 22px;
       font-weight: 800;
-      margin-bottom: 16px;
+      letter-spacing: 0.32em;
+      color: rgba(248,248,245,.45);
     }
     .title {
-      font-size: 224px;
-      line-height: .9;
+      font-size: 220px;
+      line-height: 1;
       font-weight: 800;
-      margin: 0;
-      letter-spacing: -2px;
+      margin: 60px 0 36px;
+      letter-spacing: -0.02em;
     }
-    .underline {
-      width: 96px;
-      height: 6px;
-      background: #ff3b3b;
-      margin: 6px 0 30px;
-    }
-    .tagline {
-      font-size: 40px;
-      font-weight: 800;
-      margin: 0 0 14px;
-    }
-    .sub {
-      font-size: 28px;
+    .tag-sub {
+      font-size: 30px;
       font-weight: 400;
-      color: rgba(248,248,245,.7);
+      color: rgba(248,248,245,.66);
+      margin: 0 0 12px;
+    }
+    .tag-main {
+      font-size: 38px;
+      font-weight: 800;
       margin: 0;
     }
     .flow {
-      position: absolute;
-      left: 92px;
-      bottom: 88px;
       display: flex;
       align-items: center;
       gap: 14px;
+      margin-top: auto;
+      margin-bottom: 56px;
     }
     .chip {
-      padding: 14px 24px;
-      border: 2px solid rgba(248,248,245,.36);
-      border-radius: 8px;
-      color: rgba(248,248,245,.78);
-      font-size: 26px;
+      padding: 0 22px;
+      height: 56px;
+      border: 2px solid rgba(248,248,245,.32);
+      border-radius: 10px;
+      color: rgba(248,248,245,.86);
+      font-size: 24px;
       font-weight: 800;
+      display: flex;
+      align-items: center;
     }
-    .arrow {
-      color: rgba(248,248,245,.7);
-      font-size: 36px;
-      font-weight: 800;
-      margin: 0 8px;
-    }
-    .result {
-      padding: 14px 28px;
-      background: #22c55e;
-      border-radius: 8px;
-      color: #0d0d0d;
-      font-size: 26px;
-      font-weight: 800;
-    }
-    .domain {
-      position: absolute;
-      right: 92px;
-      bottom: 70px;
+    .glue {
       color: rgba(248,248,245,.5);
       font-size: 24px;
       font-weight: 800;
     }
+    .arrow {
+      color: rgba(248,248,245,.62);
+      font-size: 24px;
+      font-weight: 800;
+    }
+    .result {
+      padding: 0 22px;
+      height: 56px;
+      background: #22c55e;
+      color: #0d0d0d;
+      border-radius: 10px;
+      font-size: 24px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
   </style>
 </head>
 <body>
-  <main class="frame">
-    <div class="top-bar"></div>
-    <div class="eyebrow">정부문서 PDF · HWPX 변환</div>
-    <h1 class="title">읽힘</h1>
-    <div class="underline"></div>
-    <p class="tagline">정부문서를 사람도 AI도 읽게 한다.</p>
-    <p class="sub">PDF·HWPX 보도자료를 흐름이 살아있는 Markdown으로.</p>
-    <div class="flow" aria-hidden="true">
-      <div class="chip">PDF</div>
-      <div class="chip">HWPX</div>
-      <div class="arrow">→</div>
-      <div class="result">Markdown</div>
-    </div>
-    <div class="domain">govpress.cloud</div>
-  </main>
+  <div class="eyebrow">GOVERNMENT DOCUMENT CONVERTER</div>
+  <h1 class="title">읽힘</h1>
+  <p class="tag-sub">정부문서가 막힌 곳에서,</p>
+  <p class="tag-main">사람과 AI 모두 통하게 한다.</p>
+  <div class="flow" aria-hidden="true">
+    <div class="chip">.hwpx</div>
+    <div class="glue">+</div>
+    <div class="chip">.pdf</div>
+    <div class="glue">+</div>
+    <div class="chip">HTML API</div>
+    <div class="arrow">→</div>
+    <div class="result">.md ✓</div>
+  </div>
 </body>
 </html>
