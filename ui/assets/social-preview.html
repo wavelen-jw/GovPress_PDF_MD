@@ -22,88 +22,91 @@
       background: #0d0d0d;
       font-family: NanumSquare, sans-serif;
       color: #f8f8f5;
-    }
-    .frame {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      padding: 76px 92px;
-      background:
-        linear-gradient(90deg, #ff3b3b 0 100%, transparent 0) 0 0 / 100% 12px no-repeat,
-        radial-gradient(circle at 85% 20%, rgba(34,197,94,.18), transparent 280px),
-        #0d0d0d;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 78px;
     }
     .eyebrow {
-      color: rgba(248,248,245,.54);
-      font-size: 28px;
+      font-size: 22px;
       font-weight: 800;
-      letter-spacing: 0;
-      margin-bottom: 44px;
+      letter-spacing: 0.32em;
+      color: rgba(248,248,245,.45);
     }
     .title {
-      font-size: 116px;
-      line-height: .94;
+      font-size: 220px;
+      line-height: 1;
       font-weight: 800;
-      letter-spacing: 0;
-      margin: 0 0 38px;
+      margin: 60px 0 36px;
+      letter-spacing: -0.02em;
     }
-    .copy {
-      width: 860px;
-      color: rgba(248,248,245,.74);
-      font-size: 34px;
-      line-height: 1.34;
+    .tag-sub {
+      font-size: 30px;
       font-weight: 400;
-      letter-spacing: 0;
+      color: rgba(248,248,245,.66);
+      margin: 0 0 12px;
+    }
+    .tag-main {
+      font-size: 38px;
+      font-weight: 800;
       margin: 0;
     }
     .flow {
-      position: absolute;
-      right: 88px;
-      bottom: 78px;
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 14px;
+      margin-top: auto;
+      margin-bottom: 56px;
     }
     .chip {
-      height: 64px;
-      padding: 0 24px;
-      border: 2px solid rgba(248,248,245,.22);
+      padding: 0 22px;
+      height: 56px;
+      border: 2px solid rgba(248,248,245,.32);
+      border-radius: 10px;
+      color: rgba(248,248,245,.86);
+      font-size: 24px;
+      font-weight: 800;
       display: flex;
       align-items: center;
-      justify-content: center;
-      color: rgba(248,248,245,.72);
-      font-size: 26px;
+    }
+    .glue {
+      color: rgba(248,248,245,.5);
+      font-size: 24px;
       font-weight: 800;
     }
     .arrow {
-      color: rgba(248,248,245,.64);
-      font-size: 38px;
+      color: rgba(248,248,245,.62);
+      font-size: 24px;
       font-weight: 800;
     }
     .result {
-      height: 72px;
-      padding: 0 30px;
+      padding: 0 22px;
+      height: 56px;
       background: #22c55e;
       color: #0d0d0d;
+      border-radius: 10px;
+      font-size: 24px;
+      font-weight: 800;
       display: flex;
       align-items: center;
-      justify-content: center;
-      font-size: 28px;
-      font-weight: 800;
+      gap: 8px;
     }
   </style>
 </head>
 <body>
-  <main class="frame">
-    <div class="eyebrow">Government Document Converter</div>
-    <h1 class="title">읽힘</h1>
-    <p class="copy">PDF·HWPX를 Markdown으로 변환합니다.</p>
-    <div class="flow" aria-hidden="true">
-      <div class="chip">PDF</div>
-      <div class="chip">HWPX</div>
-      <div class="arrow">→</div>
-      <div class="result">Markdown</div>
-    </div>
-  </main>
+  <div class="eyebrow">GOVERNMENT DOCUMENT CONVERTER</div>
+  <h1 class="title">읽힘</h1>
+  <p class="tag-sub">정부문서가 막힌 곳에서,</p>
+  <p class="tag-main">사람과 AI 모두 통하게 한다.</p>
+  <div class="flow" aria-hidden="true">
+    <div class="chip">.hwpx</div>
+    <div class="glue">+</div>
+    <div class="chip">.pdf</div>
+    <div class="glue">+</div>
+    <div class="chip">HTML API</div>
+    <div class="arrow">→</div>
+    <div class="result">.md ✓</div>
+  </div>
 </body>
 </html>
