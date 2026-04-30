@@ -65,11 +65,11 @@ jobs:
           text = text.replace('src="/GovPress_PDF_MD/app/_expo/', 'src="./_expo/')
           if 'property="og:title"' not in text:
               app_meta = "\n".join([
-                  '    <meta name="description" content="정부 보도자료 PDF와 HWPX를 Markdown으로 바꾸고, 바로 확인하고 다듬는 읽힘 웹 에디터입니다." />',
+                  '    <meta name="description" content="PDF·HWPX를 Markdown으로 변환합니다." />',
                   '    <meta property="og:site_name" content="읽힘" />',
                   '    <meta property="og:type" content="website" />',
                   '    <meta property="og:title" content="읽힘 — 정부문서를 사람도 AI도 읽게 한다" />',
-                  '    <meta property="og:description" content="정부 보도자료 PDF와 HWPX를 Markdown으로 바꾸고, 바로 확인하고 다듬는 읽힘 웹 에디터입니다." />',
+                  '    <meta property="og:description" content="PDF·HWPX를 Markdown으로 변환합니다." />',
                   '    <meta property="og:url" content="https://govpress.cloud/app/" />',
                   '    <meta property="og:image" content="https://govpress.cloud/assets/social-preview.png" />',
                   '    <meta property="og:image:width" content="1200" />',
@@ -77,7 +77,7 @@ jobs:
                   '    <meta property="og:image:type" content="image/png" />',
                   '    <meta name="twitter:card" content="summary_large_image" />',
                   '    <meta name="twitter:title" content="읽힘 — 정부문서를 사람도 AI도 읽게 한다" />',
-                  '    <meta name="twitter:description" content="정부 보도자료 PDF와 HWPX를 Markdown으로 바꾸고, 바로 확인하고 다듬는 읽힘 웹 에디터입니다." />',
+                  '    <meta name="twitter:description" content="PDF·HWPX를 Markdown으로 변환합니다." />',
                   '    <meta name="twitter:image" content="https://govpress.cloud/assets/social-preview.png" />',
               ]) + "\n"
               text = text.replace("    <title>읽힘 — 정부문서를 사람도 AI도 읽게 한다</title>\n", "    <title>읽힘 — 정부문서를 사람도 AI도 읽게 한다</title>\n" + app_meta)

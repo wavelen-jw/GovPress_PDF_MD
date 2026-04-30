@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @font-face {
+      font-family: NanumSquare;
+      src: url("file:///usr/share/fonts/truetype/nanum/NanumSquareR.ttf");
+      font-weight: 400;
+    }
+    @font-face {
+      font-family: NanumSquare;
+      src: url("file:///usr/share/fonts/truetype/nanum/NanumSquareB.ttf");
+      font-weight: 800;
+    }
+    * { box-sizing: border-box; }
+    body {
+      width: 1200px;
+      height: 630px;
+      margin: 0;
+      overflow: hidden;
+      background: #0d0d0d;
+      font-family: NanumSquare, sans-serif;
+      color: #f8f8f5;
+    }
+    .frame {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      padding: 76px 92px;
+      background:
+        linear-gradient(90deg, #ff3b3b 0 100%, transparent 0) 0 0 / 100% 12px no-repeat,
+        radial-gradient(circle at 85% 20%, rgba(34,197,94,.18), transparent 280px),
+        #0d0d0d;
+    }
+    .eyebrow {
+      color: rgba(248,248,245,.54);
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 0;
+      margin-bottom: 44px;
+    }
+    .title {
+      font-size: 116px;
+      line-height: .94;
+      font-weight: 800;
+      letter-spacing: 0;
+      margin: 0 0 38px;
+    }
+    .copy {
+      width: 860px;
+      color: rgba(248,248,245,.74);
+      font-size: 34px;
+      line-height: 1.34;
+      font-weight: 400;
+      letter-spacing: 0;
+      margin: 0;
+    }
+    .flow {
+      position: absolute;
+      right: 88px;
+      bottom: 78px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .chip {
+      height: 64px;
+      padding: 0 24px;
+      border: 2px solid rgba(248,248,245,.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(248,248,245,.72);
+      font-size: 26px;
+      font-weight: 800;
+    }
+    .arrow {
+      color: rgba(248,248,245,.64);
+      font-size: 38px;
+      font-weight: 800;
+    }
+    .result {
+      height: 72px;
+      padding: 0 30px;
+      background: #22c55e;
+      color: #0d0d0d;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 800;
+    }
+  </style>
+</head>
+<body>
+  <main class="frame">
+    <div class="eyebrow">Government Document Converter</div>
+    <h1 class="title">읽힘</h1>
+    <p class="copy">PDF·HWPX를 Markdown으로 변환합니다.</p>
+    <div class="flow" aria-hidden="true">
+      <div class="chip">PDF</div>
+      <div class="chip">HWPX</div>
+      <div class="arrow">→</div>
+      <div class="result">Markdown</div>
+    </div>
+  </main>
+</body>
+</html>
