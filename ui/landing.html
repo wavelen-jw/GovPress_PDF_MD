@@ -106,12 +106,54 @@
     /* Section chip */
     .chip { font-size: .65rem; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
 
+    .drop-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(13, 13, 13, 0.72);
+      backdrop-filter: blur(10px);
+    }
+    .drop-overlay.active { display: flex; }
+    .drop-card {
+      width: min(520px, 100%);
+      border: 1px solid rgba(255,255,255,0.24);
+      border-radius: 16px;
+      padding: 34px 28px;
+      background: rgba(255,255,255,0.08);
+      box-shadow: 0 24px 80px rgba(0,0,0,0.42);
+      text-align: center;
+    }
+    .drop-card strong {
+      display: block;
+      margin-bottom: 10px;
+      color: #fff;
+      font-size: clamp(1.5rem, 4vw, 2.2rem);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+    }
+    .drop-card span {
+      color: rgba(255,255,255,0.62);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
     @media (max-width: 640px) {
       .fmt-flow { flex-wrap: wrap; gap: .5rem; }
     }
   </style>
 </head>
 <body class="bg-ink text-paper overflow-x-hidden">
+
+  <div class="drop-overlay" id="landing-drop-overlay" aria-hidden="true">
+    <div class="drop-card">
+      <strong>파일을 놓으면 바로 변환합니다</strong>
+      <span>PDF, HWPX, Markdown 파일을 지원합니다.</span>
+    </div>
+  </div>
 
   <!-- ═══ SECTION 1: HERO ═══ -->
   <section id="s-hero" class="min-h-screen flex flex-col justify-center items-center px-6 relative" style="background:#0d0d0d">
@@ -717,6 +759,105 @@
         window.location.href = APP_URL;
       }
     });
+
+    const dropOverlay = document.getElementById('landing-drop-overlay');
+    let landingDragDepth = 0;
+
+    function isSupportedLandingFile(file) {
+      if (!file) {
+        return false;
+      }
+      const name = (file.name || '').toLowerCase();
+      return name.endsWith('.pdf') || name.endsWith('.hwpx') || name.endsWith('.md');
+    }
+
+    function hasLandingFilePayload(transfer) {
+      if (!transfer) {
+        return false;
+      }
+      if (Array.from(transfer.files || []).length > 0) {
+        return true;
+      }
+      return Array.from(transfer.items || []).some((item) => item.kind === 'file')
+        || Array.from(transfer.types || []).includes('Files');
+    }
+
+    function hasSupportedLandingFiles(transfer) {
+      if (!transfer) {
+        return false;
+      }
+      const files = Array.from(transfer.files || []);
+      if (files.some((file) => isSupportedLandingFile(file))) {
+        return true;
+      }
+      return Array.from(transfer.items || []).some((item) => {
+        if (item.kind !== 'file') {
+          return false;
+        }
+        const type = (item.type || '').toLowerCase();
+        return !type
+          || type === 'application/pdf'
+          || type.includes('hwpx')
+          || type === 'text/markdown'
+          || type === 'text/plain';
+      });
+    }
+
+    function setDropOverlayVisible(visible) {
+      if (!dropOverlay) {
+        return;
+      }
+      dropOverlay.classList.toggle('active', visible);
+      dropOverlay.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    }
+
+    window.addEventListener('dragenter', (event) => {
+      if (!hasLandingFilePayload(event.dataTransfer)) {
+        return;
+      }
+      event.preventDefault();
+      landingDragDepth += 1;
+      setDropOverlayVisible(hasSupportedLandingFiles(event.dataTransfer));
+    }, true);
+
+    window.addEventListener('dragover', (event) => {
+      if (!hasLandingFilePayload(event.dataTransfer)) {
+        return;
+      }
+      event.preventDefault();
+      event.dataTransfer.dropEffect = hasSupportedLandingFiles(event.dataTransfer) ? 'copy' : 'none';
+    }, true);
+
+    window.addEventListener('dragleave', (event) => {
+      if (!hasLandingFilePayload(event.dataTransfer)) {
+        return;
+      }
+      event.preventDefault();
+      landingDragDepth = Math.max(0, landingDragDepth - 1);
+      if (landingDragDepth === 0) {
+        setDropOverlayVisible(false);
+      }
+    }, true);
+
+    window.addEventListener('drop', async (event) => {
+      if (!hasLandingFilePayload(event.dataTransfer)) {
+        return;
+      }
+      event.preventDefault();
+      landingDragDepth = 0;
+      setDropOverlayVisible(false);
+
+      const file = Array.from(event.dataTransfer.files || []).find((candidate) => isSupportedLandingFile(candidate));
+      if (!file) {
+        return;
+      }
+      try {
+        await navigateToApp('open-picker', file);
+      } catch (error) {
+        console.error(error);
+        window.location.href = APP_URL;
+      }
+    }, true);
 
     document.querySelectorAll('[data-app-action]').forEach((trigger) => {
       trigger.addEventListener('click', async (event) => {
