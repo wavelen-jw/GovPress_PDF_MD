@@ -1,7 +1,7 @@
 {
   "name": "읽힘 — 정부문서를 사람도 AI도 읽게 한다",
   "short_name": "읽힘",
-  "description": "정부 보도자료 HWPX를 Markdown으로 변환하고 편집·내보내는 설치형 도구.",
+  "description": "정부문서.hwpx를 Markdown으로 변환합니다",
   "start_url": "./?editor=1",
   "scope": "./",
   "display": "standalone",
