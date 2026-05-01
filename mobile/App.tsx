@@ -64,14 +64,6 @@ type RecentJobEntry = {
 };
 
 type WebDropAsset = DocumentPicker.DocumentPickerAsset & { file?: File };
-type WebFileLaunchParams = {
-  files?: Array<{
-    getFile: () => Promise<File>;
-  }>;
-};
-type WebLaunchQueue = {
-  setConsumer: (consumer: (launchParams: WebFileLaunchParams) => void) => void;
-};
 type PendingLandingAction =
   | { type: "open-picker" | "open-policy-briefings"; requestedAt: number }
   | { type: "open-briefing-by-id"; newsItemId: string; date?: string; requestedAt: number };
@@ -1015,34 +1007,6 @@ export default function App(): React.JSX.Element {
       setBusy(false);
     }
   }
-
-  useEffect(() => {
-    if (Platform.OS !== "web" || typeof window === "undefined") {
-      return;
-    }
-    const launchQueue = (window as typeof window & { launchQueue?: WebLaunchQueue }).launchQueue;
-    if (!launchQueue) {
-      return;
-    }
-    launchQueue.setConsumer((launchParams) => {
-      const fileHandle = launchParams.files?.[0];
-      if (!fileHandle) {
-        return;
-      }
-      void fileHandle
-        .getFile()
-        .then((file) =>
-          handleSelectedAsset({
-            uri: file.name || "launched.md",
-            name: file.name || "launched.md",
-            mimeType: file.type || "text/markdown",
-            size: file.size,
-            file,
-          } as WebDropAsset),
-        )
-        .catch((error) => showError("연결 프로그램으로 열린 파일을 읽지 못했습니다.", error));
-    });
-  }, []);
 
   async function handlePickPdf(): Promise<void> {
     try {
