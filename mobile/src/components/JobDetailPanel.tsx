@@ -1,5 +1,5 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import type { DocumentPickerAsset } from "expo-document-picker";
 
 import { styles } from "../styles";
@@ -41,6 +41,7 @@ type Props = {
   hideTopTabs?: boolean;
   result: ResultPayload | null;
   selectedJob: Job | null;
+  originalUrl?: string | null;
   selectedResultText: string;
   onApplyEditorAction: (action: "heading" | "heading2" | "heading3" | "bold" | "italic" | "bullet" | "number" | "quote" | "table" | "tableRow") => void;
   onBack: () => void;
@@ -77,6 +78,7 @@ export function JobDetailPanel({
   hideTopTabs,
   result,
   selectedJob,
+  originalUrl,
   selectedResultText,
   onApplyEditorAction,
   onBack,
@@ -103,6 +105,32 @@ export function JobDetailPanel({
   const previewViewportHeightRef = useRef(0);
   const previewScrollYRef = useRef(0);
   const previewMarkdown = useDeferredValue(selectedResultText);
+  const openOriginalUrl = () => {
+    if (!originalUrl) {
+      return;
+    }
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.open(originalUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    void Linking.openURL(originalUrl);
+  };
+  const renderPreviewHeader = () => (
+    <View style={[styles.panelTabBar, isDarkMode ? styles.panelTabBarDark : styles.panelTabBarLight]}>
+      <Text style={isDarkMode ? styles.panelTabLabelActive : styles.previewLabel}>미리보기</Text>
+      <View style={styles.panelTabSpacer} />
+      {originalUrl ? (
+        <Pressable
+          onPress={openOriginalUrl}
+          style={[styles.previewOriginalButton, isDarkMode && styles.previewOriginalButtonDark]}
+          accessibilityRole="link"
+          accessibilityLabel="정책브리핑 원문 열기"
+        >
+          <Text style={[styles.previewOriginalButtonLabel, isDarkMode && styles.previewOriginalButtonLabelDark]}>원본</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
   const previewBlockRanges = useMemo(() => {
     if (!previewMarkdown) {
       return [];
@@ -515,16 +543,7 @@ export function JobDetailPanel({
                       ]}
                       {...webPreviewDropProps}
                     >
-                      {/* Preview tab bar */}
-                      {isDarkMode ? (
-                        <View style={[styles.panelTabBar, styles.panelTabBarDark]}>
-                          <Text style={styles.panelTabLabelActive}>미리보기</Text>
-                          <View style={styles.panelTabSpacer} />
-                          <Text style={styles.panelStatusText}>렌더링됨</Text>
-                        </View>
-                      ) : (
-                        <Text style={[styles.previewLabel, isDarkMode && styles.previewLabelDark]}>미리보기</Text>
-                      )}
+                      {renderPreviewHeader()}
                       <ScrollView
                         ref={previewScrollRef}
                         style={[styles.previewScroll, styles.previewScrollDesktop]}
@@ -644,16 +663,7 @@ export function JobDetailPanel({
                     ) : null}
                     <View style={[styles.previewPanel, styles.previewPanelTablet, isDarkMode && styles.previewPanelDark]}>
                       <View style={{ flex: 1 }} {...webPreviewDropProps}>
-                      {/* Preview tab bar */}
-                      {isDarkMode ? (
-                        <View style={[styles.panelTabBar, styles.panelTabBarDark]}>
-                          <Text style={styles.panelTabLabelActive}>미리보기</Text>
-                          <View style={styles.panelTabSpacer} />
-                          <Text style={styles.panelStatusText}>렌더링됨</Text>
-                        </View>
-                      ) : (
-                        <Text style={[styles.previewLabel, isDarkMode && styles.previewLabelDark]}>미리보기</Text>
-                      )}
+                      {renderPreviewHeader()}
                       <ScrollView
                         ref={previewScrollRef}
                         style={[styles.previewScroll, styles.previewScrollTablet]}
@@ -773,16 +783,7 @@ export function JobDetailPanel({
                     ) : (
                     <View style={[styles.previewPanel, styles.previewPanelMobile, isDarkMode && styles.previewPanelDark]}>
                       <View style={{ flex: 1 }} {...webPreviewDropProps}>
-                      {/* Preview tab bar */}
-                      {isDarkMode ? (
-                        <View style={[styles.panelTabBar, styles.panelTabBarDark]}>
-                          <Text style={styles.panelTabLabelActive}>미리보기</Text>
-                          <View style={styles.panelTabSpacer} />
-                          <Text style={styles.panelStatusText}>렌더링됨</Text>
-                        </View>
-                      ) : (
-                        <Text style={[styles.previewLabel, isDarkMode && styles.previewLabelDark]}>미리보기</Text>
-                      )}
+                      {renderPreviewHeader()}
                       <ScrollView
                         ref={previewScrollRef}
                         style={[styles.previewScroll, styles.previewScrollMobile]}

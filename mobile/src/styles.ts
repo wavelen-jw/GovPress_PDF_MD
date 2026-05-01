@@ -362,6 +362,23 @@ export const styles = StyleSheet.create({
     color: "#5a3f2a",
   },
   tbarIconLabelDark: { color: "rgba(255,255,255,0.65)" },
+  tbarInfoIcon: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#5a3f2a",
+    color: "#5a3f2a",
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "800",
+    textAlign: "center",
+    fontFamily: FONT_SANS,
+  },
+  tbarInfoIconDark: {
+    borderColor: "rgba(255,255,255,0.65)",
+    color: "rgba(255,255,255,0.65)",
+  },
   tbarDivider: {
     width: 1,
     height: 28,
@@ -492,18 +509,6 @@ export const styles = StyleSheet.create({
   utilityIconLabel: {
     fontSize: 14,
     lineHeight: 16,
-  },
-  utilityInfoImage: {
-    width: 40,
-    height: 40,
-    marginLeft: -5,
-    marginTop: -2,
-  },
-  utilityInfoCrop: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    overflow: "hidden",
   },
   utilityButtonLabelDark: {
     color: "#e6d2bb",
@@ -1608,6 +1613,29 @@ export const styles = StyleSheet.create({
   },
   previewLabelDark: {
     color: "#ccb090",
+  },
+  previewOriginalButton: {
+    minHeight: 26,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#d8c6ae",
+    backgroundColor: "#fffaf4",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  previewOriginalButtonDark: {
+    borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  previewOriginalButtonLabel: {
+    color: "#5a3f2a",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  previewOriginalButtonLabelDark: {
+    color: "#f4ddc5",
   },
   previewScroll: { flex: 1 },
   previewScrollDesktop: {},

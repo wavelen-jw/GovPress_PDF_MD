@@ -360,6 +360,7 @@ export default function App(): React.JSX.Element {
   const [currentEditToken, setCurrentEditToken] = useState<string | null>(null);
   const [selectedJobBaseUrl, setSelectedJobBaseUrl] = useState<string>(DEFAULT_CONFIG.baseUrl);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [selectedPolicyBriefingOriginalUrl, setSelectedPolicyBriefingOriginalUrl] = useState<string | null>(null);
   const [result, setResult] = useState<ResultPayload | null>(null);
   const [editorText, setEditorText] = useState("");
   const deferredEditorText = useDeferredValue(editorText);
@@ -864,6 +865,7 @@ export default function App(): React.JSX.Element {
             startTransition(() => {
               setSelectedJobId(null);
               setSelectedJob(null);
+              setSelectedPolicyBriefingOriginalUrl(null);
               setResult(null);
               setEditorText("");
               setEditing(false);
@@ -884,6 +886,7 @@ export default function App(): React.JSX.Element {
           startTransition(() => {
             setSelectedJobId(null);
             setSelectedJob(null);
+            setSelectedPolicyBriefingOriginalUrl(null);
             setResult(null);
             setEditorText("");
             setEditing(false);
@@ -993,6 +996,7 @@ export default function App(): React.JSX.Element {
       setSelectedJobId(localJobId);
       setCurrentEditToken(null);
       setSelectedJob(localJob);
+      setSelectedPolicyBriefingOriginalUrl(null);
       setResult(localResult);
       setLoadedTableMode("text");
       setSelectedTableMode("text");
@@ -1035,6 +1039,7 @@ export default function App(): React.JSX.Element {
         setSelectedJobId(job.job_id);
         setCurrentEditToken(job.edit_token);
         setSelectedJob(job);
+        setSelectedPolicyBriefingOriginalUrl(null);
         setSelectedJobBaseUrl(resolvedBaseUrl);
         setResult(null);
         setLoadedTableMode(hwpxTableMode);
@@ -1185,6 +1190,7 @@ export default function App(): React.JSX.Element {
       setSelectedJobId(imported.job_id);
       setCurrentEditToken(imported.edit_token);
       setSelectedJob(imported);
+      setSelectedPolicyBriefingOriginalUrl(imported.original_url || null);
       setSelectedJobBaseUrl(resolvedBaseUrl);
       setResult(null);
       setLoadedTableMode("text");
@@ -1659,6 +1665,7 @@ export default function App(): React.JSX.Element {
     setCurrentEditToken(null);
     setSelectedJobBaseUrl(config.baseUrl);
     setSelectedJob(null);
+    setSelectedPolicyBriefingOriginalUrl(null);
     setResult(null);
     setEditorText("");
     setEditing(false);
@@ -1766,6 +1773,7 @@ export default function App(): React.JSX.Element {
             hideTopTabs={!isWideLayout}
             result={result}
             selectedJob={selectedJob}
+            originalUrl={selectedPolicyBriefingOriginalUrl}
             selectedResultText={previewMarkdown}
             onApplyEditorAction={applyEditorAction}
             onBack={() => {
@@ -1773,6 +1781,7 @@ export default function App(): React.JSX.Element {
                   setSelectedJobId(null);
                   setCurrentEditToken(null);
                   setSelectedJob(null);
+                  setSelectedPolicyBriefingOriginalUrl(null);
                   setResult(null);
                   setActiveTab("preview");
                 setEditing(false);
@@ -1841,6 +1850,7 @@ export default function App(): React.JSX.Element {
               hideTopTabs={!isWideLayout}
               result={result}
               selectedJob={selectedJob}
+              originalUrl={selectedPolicyBriefingOriginalUrl}
               selectedResultText={previewMarkdown}
               onApplyEditorAction={applyEditorAction}
               onBack={() => {
@@ -1848,6 +1858,7 @@ export default function App(): React.JSX.Element {
                     setSelectedJobId(null);
                     setCurrentEditToken(null);
                     setSelectedJob(null);
+                    setSelectedPolicyBriefingOriginalUrl(null);
                     setResult(null);
                     setActiveTab("preview");
                   setEditing(false);
@@ -1912,6 +1923,7 @@ export default function App(): React.JSX.Element {
                           setSelectedJobId(entry.jobId);
                           setCurrentEditToken(entry.editToken);
                           setSelectedJobBaseUrl(entry.baseUrl);
+                          setSelectedPolicyBriefingOriginalUrl(null);
                           setResult(null);
                           setEditorText("");
                           setSelectedTableMode("text");

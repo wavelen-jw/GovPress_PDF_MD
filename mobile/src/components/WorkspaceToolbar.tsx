@@ -37,7 +37,6 @@ export function WorkspaceToolbar({
   onToggleDarkMode,
 }: Props) {
   const brandIconUri = "./icons/icon-192.png";
-  const infoIconUri = "https://thumb.mt.co.kr/cdn-cgi/image/f=avif/21/2025/06/2025061011200349911_1.jpg";
 
   return (
     <View style={[styles.workspaceToolbar, isDarkMode && styles.workspaceToolbarDark]}>
@@ -139,9 +138,7 @@ export function WorkspaceToolbar({
         accessibilityLabel="정보"
         {...webTitle("정보")}
       >
-        <View style={styles.utilityInfoCrop}>
-          <Image source={{ uri: infoIconUri }} style={styles.utilityInfoImage} />
-        </View>
+        <Text style={[styles.tbarInfoIcon, isDarkMode && styles.tbarInfoIconDark]}>i</Text>
       </Pressable>
     </View>
   );
