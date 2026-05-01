@@ -5,9 +5,10 @@
 //   - Other GET requests → network-first with cache fallback (covers static assets fetched at runtime).
 // Bumping CACHE_VERSION invalidates old caches on next activate.
 
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const APP_SHELL_CACHE = `readhim-app-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `readhim-runtime-${CACHE_VERSION}`;
+const SHARED_MARKDOWN_URL = "./shared-markdown";
 
 const APP_SHELL_URLS = [
   "./",
@@ -49,6 +50,14 @@ function isApiRequest(url) {
   return url.pathname.startsWith("/v1/") || url.pathname === "/health";
 }
 
+function isShareTargetRequest(url) {
+  return url.searchParams.get("shareTarget") === "1";
+}
+
+function isSharedMarkdownRequest(url) {
+  return url.pathname.endsWith("/shared-markdown");
+}
+
 function isAppShellRequest(request, url) {
   if (request.mode === "navigate") {
     return true;
@@ -64,9 +73,6 @@ function isAppShellRequest(request, url) {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
-  if (request.method !== "GET") {
-    return;
-  }
   let url;
   try {
     url = new URL(request.url);
@@ -74,7 +80,21 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  if (request.method === "POST" && isShareTargetRequest(url)) {
+    event.respondWith(handleShareTargetPost(request));
+    return;
+  }
+
+  if (request.method !== "GET") {
+    return;
+  }
+
   if (isApiRequest(url)) {
+    return;
+  }
+
+  if (isSharedMarkdownRequest(url)) {
+    event.respondWith(caches.match(SHARED_MARKDOWN_URL).then((cached) => cached || Response.error()));
     return;
   }
 
@@ -121,6 +141,39 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+async function handleShareTargetPost(request) {
+  const formData = await request.formData();
+  const sharedFiles = formData.getAll("shared_files");
+  const sharedFile = sharedFiles.find((value) => value instanceof File);
+  const sharedText = formData.get("shared_text");
+  const sharedTitle = formData.get("shared_title");
+
+  let body = "";
+  let fileName = "shared.md";
+  if (sharedFile) {
+    body = await sharedFile.text();
+    fileName = sharedFile.name || fileName;
+  } else if (typeof sharedText === "string" && sharedText.trim()) {
+    body = sharedText;
+    fileName = typeof sharedTitle === "string" && sharedTitle.trim() ? `${sharedTitle.trim()}.md` : fileName;
+  }
+
+  if (body) {
+    const cache = await caches.open(RUNTIME_CACHE);
+    await cache.put(
+      SHARED_MARKDOWN_URL,
+      new Response(body, {
+        headers: {
+          "content-type": "text/markdown; charset=utf-8",
+          "x-readhim-file-name": encodeURIComponent(fileName),
+        },
+      }),
+    );
+  }
+
+  return Response.redirect("./?editor=1&sharedFile=1", 303);
+}
 
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {

@@ -901,6 +901,37 @@ export default function App(): React.JSX.Element {
     return () => clearInterval(interval);
   }, [config.baseUrl, currentEditToken, result, selectedJob?.status, selectedJobBaseUrl, selectedJobId]);
 
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("sharedFile") !== "1") {
+      return;
+    }
+    const sharedFileUrl = new URL("./shared-markdown", window.location.href).toString();
+    void fetch(sharedFileUrl)
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`shared file HTTP ${response.status}`);
+        }
+        const encodedName = response.headers.get("x-readhim-file-name") || "shared.md";
+        const name = decodeURIComponent(encodedName);
+        const markdown = await response.text();
+        await openLocalMarkdown({
+          uri: sharedFileUrl,
+          name: name.toLowerCase().endsWith(".md") || name.toLowerCase().endsWith(".markdown") ? name : `${name}.md`,
+          mimeType: "text/markdown",
+          size: markdown.length,
+          file: new File([markdown], name, { type: "text/markdown" }),
+        } as WebDropAsset);
+        params.delete("sharedFile");
+        const query = params.toString();
+        window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+      })
+      .catch((error) => showError("공유된 Markdown 파일을 열지 못했습니다.", error));
+  }, []);
+
   async function openLocalMarkdown(asset: DocumentPicker.DocumentPickerAsset): Promise<void> {
     const webFile = (asset as WebDropAsset).file;
     let markdown = "";
