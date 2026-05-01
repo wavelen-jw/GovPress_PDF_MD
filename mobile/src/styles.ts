@@ -1366,6 +1366,8 @@ export const styles = StyleSheet.create({
     padding: 0,
     paddingTop: 2,
     paddingRight: 4,
+    fontSize: 16,
+    lineHeight: 24,
   },
   // ── Concept panel layout ─────────────────────────────────
   panelTabBar: {
@@ -1459,8 +1461,8 @@ export const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingLeft: 8,
     paddingRight: 14,
-    fontSize: 13,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 24,
     textAlignVertical: "top",
     backgroundColor: "transparent",
     borderWidth: 0,

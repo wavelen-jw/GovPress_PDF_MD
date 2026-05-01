@@ -589,6 +589,23 @@ export default function App(): React.JSX.Element {
           outline: none;
           box-shadow: none;
         }
+        @supports (-webkit-touch-callout: none) {
+          html {
+            -webkit-text-size-adjust: 100%;
+          }
+          input,
+          textarea,
+          [contenteditable="true"],
+          .cm-content,
+          .cm-line {
+            font-size: 16px !important;
+            line-height: 24px !important;
+          }
+          .cm-scroller {
+            font-size: 16px !important;
+            line-height: 24px !important;
+          }
+        }
         * {
           scrollbar-color: var(--govpress-scrollbar-thumb) var(--govpress-scrollbar-track);
         }
