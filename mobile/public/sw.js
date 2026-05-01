@@ -5,7 +5,7 @@
 //   - Other GET requests → network-first with cache fallback (covers static assets fetched at runtime).
 // Bumping CACHE_VERSION invalidates old caches on next activate.
 
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v5";
 const APP_SHELL_CACHE = `readhim-app-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `readhim-runtime-${CACHE_VERSION}`;
 const SHARED_MARKDOWN_URL = "./shared-markdown";
