@@ -1060,6 +1060,46 @@ export function MarkdownPreview({
 
     if (block.type === "list") {
       const effectiveLevel = listDepth + block.level;
+      if (inQuote && listDepth > 0) {
+        return (
+          <View key={key} style={[styles.markdownList, blockHighlightStyle]} {...layoutProps}>
+            {block.items.map((item, itemIndex) => {
+              const marker = typeof item.checked === "boolean"
+                ? `- [${item.checked ? "x" : " "}]`
+                : block.ordered
+                  ? `${block.start ? block.start + itemIndex : itemIndex + 1}.`
+                  : "-";
+              const paragraphChildren = item.children.filter((child) => child.type === "paragraph") as Extract<Block, { type: "paragraph" }>[];
+              const firstParagraph = paragraphChildren[0]?.text || "";
+              const remainingChildren = firstParagraph
+                ? item.children.filter((child) => child !== paragraphChildren[0])
+                : item.children;
+
+              return (
+                <View key={`${key}-text-item-${itemIndex}`} style={markdownListIndent(effectiveLevel, true)}>
+                  {renderInlineMarkdown(
+                    `${marker}${firstParagraph ? ` ${firstParagraph}` : ""}`,
+                    [
+                      styles.markdownQuoteText,
+                      isDarkMode && styles.markdownQuoteTextDark,
+                      item.checked && styles.markdownChecklistDone,
+                      item.checked && isDarkMode && styles.markdownChecklistDoneDark,
+                    ] as unknown as object,
+                    `${key}-text-item-${itemIndex}`,
+                    isDarkMode,
+                  )}
+                  {remainingChildren.map((child, childIndex) =>
+                    renderBlock(child, childIndex, `${key}-text-item-${itemIndex}-child-${childIndex}`, {
+                      inQuote,
+                      listDepth: effectiveLevel + 1,
+                    }),
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        );
+      }
       return (
         <View key={key} style={[styles.markdownList, blockHighlightStyle]} {...layoutProps}>
           {block.items.map((item, itemIndex) => {
