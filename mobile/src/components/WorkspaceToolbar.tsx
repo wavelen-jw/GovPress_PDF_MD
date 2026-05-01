@@ -36,6 +36,7 @@ export function WorkspaceToolbar({
   onSaveMarkdownFile,
   onToggleDarkMode,
 }: Props) {
+  const brandIconUri = "./icons/icon-192.png";
   const infoIconUri = "https://thumb.mt.co.kr/cdn-cgi/image/f=avif/21/2025/06/2025061011200349911_1.jpg";
 
   return (
@@ -46,8 +47,10 @@ export function WorkspaceToolbar({
         onPress={onOpenLanding}
         accessibilityRole="link"
         accessibilityLabel="읽힘 랜딩페이지로 이동"
+        style={styles.tbarBrandLink}
         {...webTitle("읽힘 랜딩페이지로 이동")}
       >
+        <Image source={{ uri: brandIconUri }} style={styles.tbarBrandIcon} />
         <Text style={[styles.tbarBrand, isDarkMode && styles.tbarBrandDark]}>읽힘</Text>
       </Pressable>
       <Text style={[styles.tbarSep, isDarkMode && styles.tbarSepDark]}>|</Text>

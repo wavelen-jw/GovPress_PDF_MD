@@ -9,7 +9,7 @@
   "lang": "ko-KR",
   "dir": "ltr",
   "background_color": "#ffffff",
-  "theme_color": "#b75e1f",
+  "theme_color": "#143e70",
   "categories": ["productivity", "utilities", "government"],
   "share_target": {
     "action": "./?editor=1&shareTarget=1",

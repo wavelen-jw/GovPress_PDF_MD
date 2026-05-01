@@ -323,7 +323,7 @@ function getListBullet(level: number, ordered: boolean, itemIndex: number, order
 }
 
 function getListMarker(line: string) {
-  return line.match(/^(\s*)((?:[-*+])|(?:\d+\.))\s+(?:\[( |x|X)\]\s+)?(.*)$/);
+  return line.match(/^(\s*)((?:[-+])|(?:\d+\.))\s+(?:\[( |x|X)\]\s+)?(.*)$/);
 }
 
 function isBlockStart(line: string, nextLine?: string): boolean {
@@ -334,8 +334,8 @@ function isBlockStart(line: string, nextLine?: string): boolean {
     /^!\[([^\]]*)\]\(([^)]+)\)$/.test(trimmed) ||
     /^<table\b/i.test(trimmed) ||
     (trimmed.includes("|") && !!nextLine && isTableDivider(nextLine.trim())) ||
-    /^[-*+]\s+\[( |x|X)\]\s+/.test(trimmed) ||
-    /^(\d+\.|[-*+])\s+/.test(trimmed) ||
+    /^[-+]\s+\[( |x|X)\]\s+/.test(trimmed) ||
+    /^(\d+\.|[-+])\s+/.test(trimmed) ||
     /^(-{3,}|\*{3,}|_{3,})$/.test(trimmed) ||
     /^(```|~~~)/.test(trimmed)
   );
@@ -544,7 +544,7 @@ function MarkdownImage({ alt, src, isDarkMode = false }: { alt: string; src: str
   );
 }
 
-function parseMarkdown(markdown: string, depth = 0): Block[] {
+function parseMarkdown(markdown: string, depth = 0, preserveSoftBreaks = false): Block[] {
   const lines = markdown.replace(/\r\n/g, "\n").split("\n");
   const blocks: Block[] = [];
   let index = 0;
@@ -603,7 +603,7 @@ function parseMarkdown(markdown: string, depth = 0): Block[] {
       }
 
       const childSource = itemLines.join("\n").trim();
-      const children = childSource ? parseMarkdown(childSource, depth + 1) : [{ type: "paragraph", text: "" } satisfies Block];
+      const children = childSource ? parseMarkdown(childSource, depth + 1, preserveSoftBreaks) : [{ type: "paragraph", text: "" } satisfies Block];
       items.push({ children, checked });
     }
 
@@ -700,7 +700,7 @@ function parseMarkdown(markdown: string, depth = 0): Block[] {
         quoteLines.push(currentQuoteMatch[2]);
         index += 1;
       }
-      const children = depth >= 8 ? [{ type: "paragraph", text: quoteLines.join(" ").trim() } satisfies Block] : parseMarkdown(quoteLines.join("\n"), depth + 1);
+      const children = depth >= 8 ? [{ type: "paragraph", text: quoteLines.join("\n").trim() } satisfies Block] : parseMarkdown(quoteLines.join("\n"), depth + 1, true);
       blocks.push({ type: "blockquote", children: children.length ? children : [{ type: "paragraph", text: "" }], level: quoteLevel });
       continue;
     }
@@ -788,8 +788,8 @@ function parseMarkdown(markdown: string, depth = 0): Block[] {
         /^!\[([^\]]*)\]\(([^)]+)\)$/.test(candidate) ||
         /^<table\b/i.test(candidate) ||
         (candidate.includes("|") && index + 1 < lines.length && isTableDivider(lines[index + 1].trim())) ||
-        /^[-*+]\s+\[( |x|X)\]\s+/.test(candidate) ||
-        /^(\d+\.|[-*+])\s+/.test(candidate) ||
+        /^[-+]\s+\[( |x|X)\]\s+/.test(candidate) ||
+        /^(\d+\.|[-+])\s+/.test(candidate) ||
         /^(-{3,}|\*{3,}|_{3,})$/.test(candidate) ||
         /^(```|~~~)/.test(candidate)
       ) {
@@ -798,7 +798,7 @@ function parseMarkdown(markdown: string, depth = 0): Block[] {
       paragraphLines.push(candidate);
       index += 1;
     }
-    blocks.push({ type: "paragraph", text: paragraphLines.join(" ") });
+    blocks.push({ type: "paragraph", text: paragraphLines.join(preserveSoftBreaks ? "\n" : " ") });
   }
 
   return blocks;
@@ -950,8 +950,8 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
         /^!\[([^\]]*)\]\(([^)]+)\)$/.test(candidate) ||
         /^<table\b/i.test(candidate) ||
         (candidate.includes("|") && index + 1 < lines.length && isTableDivider(lines[index + 1].trim())) ||
-        /^[-*+]\s+\[( |x|X)\]\s+/.test(candidate) ||
-        /^[-*+]\s+/.test(candidate) ||
+        /^[-+]\s+\[( |x|X)\]\s+/.test(candidate) ||
+        /^[-+]\s+/.test(candidate) ||
         /^\d+\.\s+/.test(candidate) ||
         /^(-{3,}|\*{3,}|_{3,})$/.test(candidate) ||
         /^(```|~~~)/.test(candidate)
@@ -1000,9 +1000,10 @@ export function MarkdownPreview({
     onBlockLayout?.(blockIndex, event.nativeEvent.layout.y);
   }
 
-  function renderBlock(block: Block, blockIndex: number, key: string, options: { trackLayout?: boolean; inQuote?: boolean } = {}): React.ReactNode {
+  function renderBlock(block: Block, blockIndex: number, key: string, options: { trackLayout?: boolean; inQuote?: boolean; listDepth?: number } = {}): React.ReactNode {
     const trackLayout = options.trackLayout ?? false;
     const inQuote = options.inQuote ?? false;
+    const listDepth = options.listDepth ?? 0;
     const isActive = trackLayout && blockIndex === activeBlockIndex;
     const blockHighlightStyle = isActive ? [styles.markdownActiveBlock, isDarkMode && styles.markdownActiveBlockDark] : undefined;
     const layoutProps = trackLayout ? { onLayout: (event: LayoutChangeEvent) => handleBlockLayout(blockIndex, event) } : {};
@@ -1044,22 +1045,23 @@ export function MarkdownPreview({
           {...layoutProps}
         >
           {block.children.map((child, childIndex) =>
-            renderBlock(child, childIndex, `${key}-quote-${childIndex}`, { inQuote: true }),
+            renderBlock(child, childIndex, `${key}-quote-${childIndex}`, { inQuote: true, listDepth }),
           )}
         </View>
       );
     }
 
     if (block.type === "list") {
+      const effectiveLevel = listDepth + block.level;
       return (
         <View key={key} style={[styles.markdownList, blockHighlightStyle]} {...layoutProps}>
           {block.items.map((item, itemIndex) => {
-            const marker = getListBullet(block.level, block.ordered, itemIndex, block.start ? block.start + itemIndex : undefined);
+            const marker = getListBullet(effectiveLevel, block.ordered, itemIndex, block.start ? block.start + itemIndex : undefined);
             const paragraphChildren = item.children.filter((child) => child.type === "paragraph") as Extract<Block, { type: "paragraph" }>[];
             const compactParagraphOnly = item.children.length === 1 && paragraphChildren.length === 1;
 
             return (
-              <View key={`${key}-item-${itemIndex}`} style={[styles.markdownListItem, markdownIndent(block.level)]}>
+              <View key={`${key}-item-${itemIndex}`} style={[styles.markdownListItem, markdownIndent(effectiveLevel)]}>
                 {typeof item.checked === "boolean" ? (
                   <View style={[styles.markdownCheckbox, isDarkMode && styles.markdownCheckboxDark, item.checked && styles.markdownCheckboxChecked]}>
                     {item.checked ? <Text style={[styles.markdownCheckboxMark, isDarkMode && styles.markdownCheckboxMarkDark]}>✓</Text> : null}
@@ -1081,7 +1083,10 @@ export function MarkdownPreview({
                         isDarkMode,
                       )
                     : item.children.map((child, childIndex) =>
-                        renderBlock(child, childIndex, `${key}-item-${itemIndex}-child-${childIndex}`, { inQuote }),
+                        renderBlock(child, childIndex, `${key}-item-${itemIndex}-child-${childIndex}`, {
+                          inQuote,
+                          listDepth: effectiveLevel + 1,
+                        }),
                       )}
                 </View>
               </View>

@@ -4,6 +4,7 @@
     "slug": "govpress-mobile",
     "version": "0.1.0",
     "description": "정부문서.hwpx를 Markdown으로 변환합니다",
+    "icon": "./public/icons/icon-512.png",
     "experiments": {
       "baseUrl": "/GovPress_PDF_MD/app"
     },
@@ -14,11 +15,17 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.wavelen.govpressmobile"
+      "bundleIdentifier": "com.wavelen.govpressmobile",
+      "icon": "./public/icons/icon-512.png"
     },
     "android": {
       "package": "com.wavelen.govpressmobile",
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "icon": "./public/icons/icon-512.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./public/icons/icon-512-maskable.png",
+        "backgroundColor": "#fafaf8"
+      }
     },
     "web": {
       "bundler": "metro"

@@ -277,6 +277,17 @@ export const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.09)",
   },
   // ── Flat toolbar (tbar*) ─────────────────────────────────
+  tbarBrandLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
+  },
+  tbarBrandIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+  },
   tbarBrand: {
     fontSize: 17,
     lineHeight: 20,
