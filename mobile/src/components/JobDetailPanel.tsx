@@ -122,11 +122,11 @@ export function JobDetailPanel({
       {originalUrl ? (
         <Pressable
           onPress={openOriginalUrl}
-          style={[styles.previewOriginalButton, isDarkMode && styles.previewOriginalButtonDark]}
+          style={styles.panelTabBtn}
           accessibilityRole="link"
           accessibilityLabel="정책브리핑 원문 열기"
         >
-          <Text style={[styles.previewOriginalButtonLabel, isDarkMode && styles.previewOriginalButtonLabelDark]}>원본</Text>
+          <Text style={styles.panelTabBtnLabel}>원본</Text>
         </Pressable>
       ) : null}
     </View>
