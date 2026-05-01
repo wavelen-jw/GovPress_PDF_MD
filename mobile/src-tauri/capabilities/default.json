@@ -1,0 +1,43 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capabilities for the main window of the 읽힘 desktop shell.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:event:allow-listen",
+    "core:event:allow-emit",
+    "core:event:allow-unlisten",
+    "core:window:default",
+    "core:window:allow-set-focus",
+    "core:webview:default",
+    "core:app:default",
+
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+
+    "fs:allow-read-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read-text-file",
+
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://api.govpress.cloud/*" },
+        { "url": "https://*.govpress.cloud/*" },
+        { "url": "https://github.com/wavelen-jw/*" },
+        { "url": "https://objects.githubusercontent.com/*" }
+      ]
+    },
+
+    "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-read-text",
+
+    "deep-link:default",
+
+    "updater:default",
+    "process:allow-restart"
+  ]
+}

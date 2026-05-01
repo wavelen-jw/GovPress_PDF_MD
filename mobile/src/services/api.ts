@@ -19,6 +19,32 @@ import type {
   UploadResult,
 } from "../types";
 
+// Tauri detection — when running inside the desktop wrapper we route HTTP via
+// @tauri-apps/plugin-http (Rust reqwest) to bypass CORS entirely. The plugin
+// API mirrors the browser fetch signature, so this is a transparent swap.
+function isTauriRuntime(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== undefined
+  );
+}
+
+let tauriFetchPromise: Promise<typeof fetch> | null = null;
+function loadTauriFetch(): Promise<typeof fetch> {
+  if (!tauriFetchPromise) {
+    tauriFetchPromise = import("@tauri-apps/plugin-http").then((mod) => mod.fetch as typeof fetch);
+  }
+  return tauriFetchPromise;
+}
+
+export async function httpFetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+  if (isTauriRuntime()) {
+    const tauriFetch = await loadTauriFetch();
+    return tauriFetch(input as RequestInfo, init);
+  }
+  return fetch(input, init);
+}
+
 export class ApiError extends Error {
   readonly status: number;
 
@@ -86,7 +112,7 @@ function buildHeaders(config: AppConfig, contentType?: string, editToken?: strin
 }
 
 async function fetchJson<T>(config: AppConfig, path: string, init?: RequestInit, editToken?: string | null): Promise<T> {
-  const response = await fetch(`${config.baseUrl}${path}`, {
+  const response = await httpFetch(`${config.baseUrl}${path}`, {
     ...init,
     headers: {
       ...buildHeaders(config, undefined, editToken),
@@ -106,7 +132,7 @@ async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: num
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(input, { ...init, signal: controller.signal });
+    return await httpFetch(input, { ...init, signal: controller.signal });
   } finally {
     clearTimeout(timeout);
   }

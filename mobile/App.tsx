@@ -34,11 +34,13 @@ import {
   fetchRecentPolicyBriefings,
   fetchResult,
   fetchTodayPolicyBriefingsDirect,
+  httpFetch,
   importPolicyBriefing,
   retryJob,
   saveResult,
   uploadPdf,
 } from "./src/services/api";
+import { onExternalFileOpen } from "./src/platform/fileio";
 import { clearDraft, loadConfig, loadDraft, persistConfig, persistDraft } from "./src/storage/config";
 import { styles } from "./src/styles";
 import type {
@@ -142,7 +144,7 @@ async function probeServerApiReachability(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(`${url}/v1/policy-briefings/today?date=2026-04-08&_t=${Date.now()}`, {
+    const response = await httpFetch(`${url}/v1/policy-briefings/today?date=2026-04-08&_t=${Date.now()}`, {
       signal: controller.signal,
       cache: "no-store",
       headers: apiKey.trim() ? { "X-API-Key": apiKey.trim() } : undefined,
@@ -169,7 +171,7 @@ async function probeServerHealthStatus(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(`${url}/health?_t=${Date.now()}_${attempt}`, {
+      const response = await httpFetch(`${url}/health?_t=${Date.now()}_${attempt}`, {
         signal: controller.signal,
         cache: "no-store",
       });
@@ -400,6 +402,10 @@ export default function App(): React.JSX.Element {
   const [recentJobs, setRecentJobs] = useState<RecentJobEntry[]>([]);
   const jobRefreshSeqRef = useRef(0);
   const landingIntentHandledRef = useRef(false);
+  // Mutable handle to handleSelectedAsset() for the deep-link / external-open
+  // listener; assigned below the function declaration so the latest closure
+  // is always invoked.
+  const handleSelectedAssetRef = useRef<((asset: DocumentPicker.DocumentPickerAsset) => Promise<void>) | null>(null);
   const selectedJobConfig = useMemo<AppConfig>(() => {
     const baseUrl = selectedJobBaseUrl || config.baseUrl;
     return { ...config, baseUrl };
@@ -1008,6 +1014,10 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  // Keep the deep-link / external-open listener pointed at the current
+  // closure of handleSelectedAsset (it captures component state).
+  handleSelectedAssetRef.current = handleSelectedAsset;
+
   async function handlePickPdf(): Promise<void> {
     try {
       const picked = await DocumentPicker.getDocumentAsync({
@@ -1245,6 +1255,21 @@ export default function App(): React.JSX.Element {
     }
 
     void hydrateLandingIntent();
+  }, [loadingConfig]);
+
+  // Tauri / desktop wrapper: when the OS asks us to open a file (double-click
+  // in Explorer/Finder, drag onto dock icon, etc.) the file path arrives via
+  // the deep-link / single-instance plugin. Route it through the same handler
+  // as picker/drag-drop. No-op on web/PWA and on iOS/Android.
+  useEffect(() => {
+    if (loadingConfig) return;
+    const off = onExternalFileOpen((asset) => {
+      const handler = handleSelectedAssetRef.current;
+      if (handler) {
+        void handler(asset as unknown as DocumentPicker.DocumentPickerAsset);
+      }
+    });
+    return off;
   }, [loadingConfig]);
 
   async function handleRetry(): Promise<void> {

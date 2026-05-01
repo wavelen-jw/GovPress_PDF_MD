@@ -1,0 +1,112 @@
+name: Build Desktop (Tauri)
+
+# Tauri desktop builds for the GovPress 읽힘 app. Triggered by pushing a
+# `desktop-v*` tag. Each platform builds in parallel and the resulting
+# installers (.dmg, NSIS .exe, .AppImage, .deb) plus updater manifest
+# (latest.json) are uploaded as a draft GitHub Release.
+#
+# This workflow does NOT do OS code signing. The Tauri updater Ed25519
+# signing key is required if updater publishing is enabled — the workflow
+# silently produces unsigned-update artifacts when the secret is missing.
+
+on:
+  push:
+    tags:
+      - "desktop-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            label: linux
+            args: ""
+          - platform: macos-14
+            label: macos-arm64
+            args: "--target aarch64-apple-darwin"
+          - platform: macos-14
+            label: macos-intel
+            args: "--target x86_64-apple-darwin"
+          - platform: windows-latest
+            label: windows
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.4
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.label == 'macos-arm64' && 'aarch64-apple-darwin' || matrix.label == 'macos-intel' && 'x86_64-apple-darwin' || '' }}
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            mobile/src-tauri/target
+          key: ${{ runner.os }}-${{ matrix.label }}-cargo-${{ hashFiles('mobile/src-tauri/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.label }}-cargo-
+
+      - name: Install npm dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Run typecheck
+        working-directory: mobile
+        run: npm run typecheck
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          EXPO_PUBLIC_GOVPRESS_API_KEY: ${{ vars.EXPO_PUBLIC_GOVPRESS_API_KEY }}
+        with:
+          projectPath: mobile
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('desktop-v{0}', github.run_number) }}
+          releaseName: "읽힘 데스크탑 ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', github.run_number) }}"
+          releaseBody: |
+            정부 보도자료 Markdown 변환·편집 데스크탑 앱.
+
+            **첫 실행 안내**
+            - macOS: "확인되지 않은 개발자" 경고가 뜨면 우클릭 → 열기 → 열기 (한 번만).
+            - Windows: SmartScreen 경고가 뜨면 "추가 정보" → "실행".
+            - Linux AppImage: `chmod +x` 후 더블클릭. .deb 는 `apt install ./파일.deb`.
+
+            변환은 `api.govpress.cloud` 를 통해 서버에서 처리됩니다.
+          releaseDraft: true
+          prerelease: false
+          updaterJsonPreferNsis: true
+          args: ${{ matrix.args }}

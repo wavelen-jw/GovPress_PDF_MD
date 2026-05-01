@@ -22,6 +22,10 @@ exports/policy_briefing_qc/
 !mobile/src/storage/config.ts
 node_modules/
 mobile/.expo/
+mobile/dist-desktop/
+mobile/src-tauri/target/
+mobile/src-tauri/gen/
+mobile/src-tauri/Cargo.lock
 CLAUDE.md
 docs/
 

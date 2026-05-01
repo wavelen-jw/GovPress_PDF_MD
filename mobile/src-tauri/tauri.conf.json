@@ -1,0 +1,85 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "읽힘",
+  "version": "0.1.0",
+  "identifier": "cloud.govpress.desktop",
+  "build": {
+    "beforeBuildCommand": "npm run export:desktop",
+    "beforeDevCommand": "npm run web",
+    "frontendDist": "../dist-desktop",
+    "devUrl": "http://localhost:8081"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "읽힘 — 정부문서를 사람도 AI도 읽게 한다",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 720,
+        "minHeight": 480,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false,
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' tauri: ipc: http://ipc.localhost; connect-src 'self' tauri: ipc: http://ipc.localhost https://api.govpress.cloud https://*.govpress.cloud; img-src 'self' tauri: ipc: data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; font-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "dmg", "appimage", "deb"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Productivity",
+    "shortDescription": "정부 보도자료(HWPX/PDF)를 Markdown으로 변환·편집",
+    "longDescription": "정부 보도자료를 Markdown으로 변환하고 편집·내보내는 데스크탑 앱. 변환은 govpress.cloud API를 통해 서버에서 처리됩니다.",
+    "publisher": "wavelen-jw",
+    "fileAssociations": [
+      {
+        "ext": ["md"],
+        "mimeType": "text/markdown",
+        "description": "Markdown 문서",
+        "role": "Editor"
+      },
+      {
+        "ext": ["hwpx"],
+        "mimeType": "application/vnd.hancom.hwpx",
+        "description": "HWPX 한글 문서",
+        "role": "Viewer"
+      }
+    ],
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
+      }
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["Korean", "English"]
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/wavelen-jw/GovPress_PDF_MD/releases/latest/download/latest.json"
+      ],
+      "dialog": true,
+      "pubkey": "REPLACE_WITH_ED25519_PUBLIC_KEY_BEFORE_FIRST_RELEASE"
+    }
+  }
+}

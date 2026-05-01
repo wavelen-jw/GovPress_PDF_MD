@@ -1,15 +1,28 @@
 #!/usr/bin/env node
 // Post-export step for `expo export --platform web`.
-// Injects PWA head tags (manifest, theme-color, apple-* meta) into the freshly
-// generated dist/index.html. Manifest, service worker, and icons are already
-// copied from mobile/public/ to dist/ by Expo's exporter, so we only patch HTML.
+//
+// Two modes:
+//   default       — patches dist/index.html for PWA install (manifest link,
+//                   theme-color, apple-* meta, inline service worker
+//                   registration). Used by `npm run export:web`.
+//   --desktop     — patches dist/index.html for the Tauri desktop wrapper.
+//                   Skips SW registration (assets are bundled in the binary)
+//                   and rewrites the absolute /GovPress_PDF_MD/app/_expo/...
+//                   bundle path to a relative ./_expo/... path so the file
+//                   resolves under tauri://localhost/.
 
 const fs = require("node:fs");
 const path = require("node:path");
 
-const DIST_INDEX = path.resolve(__dirname, "..", "dist", "index.html");
+const argv = process.argv.slice(2);
+const desktopMode = argv.includes("--desktop");
+const distArgIdx = argv.indexOf("--dist");
+const distRel = distArgIdx >= 0 && argv[distArgIdx + 1] ? argv[distArgIdx + 1] : "dist";
 
-const HEAD_INJECTION = `
+const DIST_DIR = path.resolve(__dirname, "..", distRel);
+const DIST_INDEX = path.join(DIST_DIR, "index.html");
+
+const PWA_HEAD_INJECTION = `
     <link rel="manifest" href="./manifest.webmanifest">
     <meta name="theme-color" content="#b75e1f">
     <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
@@ -22,9 +35,12 @@ const HEAD_INJECTION = `
     <meta name="format-detection" content="telephone=no">
 `;
 
-const SW_REGISTER = `
+const PWA_SW_REGISTER = `
     <script>
-      if ("serviceWorker" in navigator) {
+      if (
+        "serviceWorker" in navigator &&
+        !location.protocol.startsWith("tauri")
+      ) {
         window.addEventListener("load", function () {
           navigator.serviceWorker.register("./sw.js").catch(function (error) {
             console.warn("[pwa] service worker register failed:", error);
@@ -34,31 +50,48 @@ const SW_REGISTER = `
     </script>
 `;
 
+function patchPwa(html) {
+  let out = html;
+  if (!out.includes('rel="manifest"')) {
+    if (out.includes("</head>")) {
+      out = out.replace("</head>", `${PWA_HEAD_INJECTION}  </head>`);
+    } else {
+      console.warn("[postexport-pwa] no </head> tag found; head injection skipped");
+    }
+  }
+  if (!out.includes("serviceWorker.register")) {
+    if (out.includes("</body>")) {
+      out = out.replace("</body>", `${PWA_SW_REGISTER}  </body>`);
+    } else {
+      console.warn("[postexport-pwa] no </body> tag found; SW registration skipped");
+    }
+  }
+  return out;
+}
+
+function patchDesktop(html) {
+  // Rewrite absolute /GovPress_PDF_MD/app/_expo/... → ./_expo/... so the
+  // bundle resolves under tauri://localhost/. Mirrors the python heredoc in
+  // .github/workflows/pages.yml that performs the same rewrite for /app/
+  // hosting on GitHub Pages.
+  let out = html.replace(/(["'])\/GovPress_PDF_MD\/app\//g, "$1./");
+  // Defensive: if any other absolute /GovPress_PDF_MD/... refs exist, drop
+  // the prefix so they become relative too.
+  out = out.replace(/(["'])\/GovPress_PDF_MD\//g, "$1./");
+  return out;
+}
+
 function main() {
   if (!fs.existsSync(DIST_INDEX)) {
     console.error(`[postexport-pwa] missing ${DIST_INDEX}; did expo export run?`);
     process.exit(1);
   }
   let html = fs.readFileSync(DIST_INDEX, "utf8");
-
-  if (!html.includes('rel="manifest"')) {
-    if (html.includes("</head>")) {
-      html = html.replace("</head>", `${HEAD_INJECTION}  </head>`);
-    } else {
-      console.warn("[postexport-pwa] no </head> tag found; head injection skipped");
-    }
-  }
-
-  if (!html.includes("serviceWorker.register")) {
-    if (html.includes("</body>")) {
-      html = html.replace("</body>", `${SW_REGISTER}  </body>`);
-    } else {
-      console.warn("[postexport-pwa] no </body> tag found; SW registration skipped");
-    }
-  }
-
+  html = desktopMode ? patchDesktop(html) : patchPwa(html);
   fs.writeFileSync(DIST_INDEX, html, "utf8");
-  console.log("[postexport-pwa] patched", DIST_INDEX);
+  console.log(
+    `[postexport-pwa] patched ${DIST_INDEX} (${desktopMode ? "desktop" : "pwa"} mode)`,
+  );
 }
 
 main();
