@@ -11,6 +11,15 @@
   "background_color": "#ffffff",
   "theme_color": "#b75e1f",
   "categories": ["productivity", "utilities", "government"],
+  "file_handlers": [
+    {
+      "action": "./?editor=1&fileLaunch=1",
+      "accept": {
+        "text/markdown": [".md", ".markdown"],
+        "text/plain": [".md", ".markdown"]
+      }
+    }
+  ],
   "icons": [
     {
       "src": "./icons/icon-192.png",
