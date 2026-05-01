@@ -38,6 +38,13 @@ function markdownIndent(level: number): ViewStyle {
   return { marginLeft: MARKDOWN_INDENT_UNIT * (Math.max(0, level) + 1) };
 }
 
+function markdownListIndent(level: number, inQuote: boolean): ViewStyle {
+  if (inQuote) {
+    return { marginLeft: MARKDOWN_INDENT_UNIT * Math.max(0, level) };
+  }
+  return markdownIndent(level);
+}
+
 function isEscaped(value: string, index: number): boolean {
   let slashCount = 0;
   for (let cursor = index - 1; cursor >= 0 && value[cursor] === "\\"; cursor -= 1) {
@@ -1061,7 +1068,7 @@ export function MarkdownPreview({
             const compactParagraphOnly = item.children.length === 1 && paragraphChildren.length === 1;
 
             return (
-              <View key={`${key}-item-${itemIndex}`} style={[styles.markdownListItem, markdownIndent(effectiveLevel)]}>
+              <View key={`${key}-item-${itemIndex}`} style={[styles.markdownListItem, markdownListIndent(effectiveLevel, inQuote)]}>
                 {typeof item.checked === "boolean" ? (
                   <View style={[styles.markdownCheckbox, isDarkMode && styles.markdownCheckboxDark, item.checked && styles.markdownCheckboxChecked]}>
                     {item.checked ? <Text style={[styles.markdownCheckboxMark, isDarkMode && styles.markdownCheckboxMarkDark]}>✓</Text> : null}
