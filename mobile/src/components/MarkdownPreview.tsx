@@ -34,13 +34,41 @@ function markdownIndent(level: number): ViewStyle {
   return { marginLeft: MARKDOWN_INDENT_UNIT * (Math.max(0, level) + 1) };
 }
 
+function isEscaped(value: string, index: number): boolean {
+  let slashCount = 0;
+  for (let cursor = index - 1; cursor >= 0 && value[cursor] === "\\"; cursor -= 1) {
+    slashCount += 1;
+  }
+  return slashCount % 2 === 1;
+}
+
 function splitTableRow(line: string): string[] {
-  return line
-    .trim()
-    .replace(/^\|/, "")
-    .replace(/\|$/, "")
-    .split("|")
-    .map((cell) => cell.trim().replace(/<br\s*\/?>/gi, "\n"));
+  let source = line.trim();
+  if (source.startsWith("|")) {
+    source = source.slice(1);
+  }
+  if (source.endsWith("|") && !isEscaped(source, source.length - 1)) {
+    source = source.slice(0, -1);
+  }
+
+  const cells: string[] = [];
+  let current = "";
+  let inCode = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === "`" && !isEscaped(source, index)) {
+      inCode = !inCode;
+    }
+    if (char === "|" && !inCode && !isEscaped(source, index)) {
+      cells.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  cells.push(current);
+
+  return cells.map((cell) => cell.trim().replace(/\\\|/g, "|").replace(/<br\s*\/?>/gi, "\n"));
 }
 
 function isTableDivider(line: string): boolean {
@@ -299,7 +327,7 @@ function openExternalLink(url: string): void {
 }
 
 function renderInlineMarkdown(text: string, textStyle: object, keyPrefix: string, isDarkMode = false) {
-  const pattern = /(\*\*[^*]+\*\*|~~[^~]+~~|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
+  const pattern = /(\\[\\`*_[\]()>#+.!-]|\*\*[^*]+\*\*|~~[^~]+~~|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
   const lineParts = text.split(/<br\s*\/?>/gi);
 
   return (
@@ -311,6 +339,10 @@ function renderInlineMarkdown(text: string, textStyle: object, keyPrefix: string
             {lineIndex > 0 ? "\n" : null}
             {matches.map((part, index) => {
               const key = `${keyPrefix}-${lineIndex}-${index}`;
+              const escaped = part.match(/^\\([\\`*_[\]()>#+.!-])$/);
+              if (escaped) {
+                return <Text key={key}>{escaped[1]}</Text>;
+              }
               if (/^\*\*[^*]+\*\*$/.test(part)) {
                 return (
                   <Text key={key} style={[styles.markdownStrong, isDarkMode && styles.markdownStrongDark]}>
@@ -430,12 +462,13 @@ function parseMarkdown(markdown: string): Block[] {
 
     blankRun = 0;
 
-    const codeFenceMatch = trimmed.match(/^```([\w-]+)?$/);
+    const codeFenceMatch = trimmed.match(/^(```|~~~)([\w-]+)?$/);
     if (codeFenceMatch) {
       const codeLines: string[] = [];
-      const language = codeFenceMatch[1] || null;
+      const fence = codeFenceMatch[1];
+      const language = codeFenceMatch[2] || null;
       index += 1;
-      while (index < lines.length && !/^```/.test(lines[index].trim())) {
+      while (index < lines.length && !lines[index].trim().startsWith(fence)) {
         codeLines.push(lines[index]);
         index += 1;
       }
@@ -572,11 +605,11 @@ function parseMarkdown(markdown: string): Block[] {
       continue;
     }
 
-    if (/^[-*]\s+\[( |x|X)\]\s+/.test(trimmed)) {
+    if (/^[-*+]\s+\[( |x|X)\]\s+/.test(trimmed)) {
       while (index < lines.length) {
         const rawCandidate = lines[index];
         const candidate = rawCandidate.trim();
-        const match = candidate.match(/^[-*]\s+\[( |x|X)\]\s+(.*)$/);
+        const match = candidate.match(/^[-*+]\s+\[( |x|X)\]\s+(.*)$/);
         if (!match) {
           break;
         }
@@ -593,7 +626,7 @@ function parseMarkdown(markdown: string): Block[] {
       continue;
     }
 
-    if (/^[-*]\s+/.test(trimmed) || /^\d+\.\s+/.test(trimmed)) {
+    if (/^[-*+]\s+/.test(trimmed) || /^\d+\.\s+/.test(trimmed)) {
       const ordered = /^\d+\.\s+/.test(trimmed);
       let orderIndex = 0;
       while (index < lines.length) {
@@ -625,12 +658,12 @@ function parseMarkdown(markdown: string): Block[] {
           index += 1;
           continue;
         }
-        if (!ordered && /^[-*]\s+/.test(candidate)) {
+        if (!ordered && /^[-*+]\s+/.test(candidate)) {
           blocks.push({
             type: "list_item",
             ordered: false,
             level,
-            text: candidate.replace(/^[-*]\s+/, "").trim(),
+            text: candidate.replace(/^[-*+]\s+/, "").trim(),
             orderIndex,
           });
           index += 1;
@@ -653,11 +686,11 @@ function parseMarkdown(markdown: string): Block[] {
         /^!\[([^\]]*)\]\(([^)]+)\)$/.test(candidate) ||
         /^<table\b/i.test(candidate) ||
         (candidate.includes("|") && index + 1 < lines.length && isTableDivider(lines[index + 1].trim())) ||
-        /^[-*]\s+\[( |x|X)\]\s+/.test(candidate) ||
-        /^[-*]\s+/.test(candidate) ||
+        /^[-*+]\s+\[( |x|X)\]\s+/.test(candidate) ||
+        /^[-*+]\s+/.test(candidate) ||
         /^\d+\.\s+/.test(candidate) ||
         /^(-{3,}|\*{3,}|_{3,})$/.test(candidate) ||
-        /^```/.test(candidate)
+        /^(```|~~~)/.test(candidate)
       ) {
         break;
       }
@@ -696,9 +729,11 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
       continue;
     }
 
-    if (/^```([\w-]+)?$/.test(trimmed)) {
+    const fenceMatch = trimmed.match(/^(```|~~~)([\w-]+)?$/);
+    if (fenceMatch) {
+      const fence = fenceMatch[1];
       advanceLine(rawLine);
-      while (index < lines.length && !/^```/.test(lines[index].trim())) {
+      while (index < lines.length && !lines[index].trim().startsWith(fence)) {
         advanceLine(lines[index]);
       }
       if (index < lines.length) {
@@ -769,8 +804,8 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
       continue;
     }
 
-    if (/^[-*]\s+\[( |x|X)\]\s+/.test(trimmed)) {
-      while (index < lines.length && /^[-*]\s+\[( |x|X)\]\s+/.test(lines[index].trim())) {
+    if (/^[-*+]\s+\[( |x|X)\]\s+/.test(trimmed)) {
+      while (index < lines.length && /^[-*+]\s+\[( |x|X)\]\s+/.test(lines[index].trim())) {
         const itemStart = currentLineStart();
         advanceLine(lines[index]);
         ranges.push({ start: itemStart, end: offset });
@@ -778,11 +813,11 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
       continue;
     }
 
-    if (/^[-*]\s+/.test(trimmed) || /^\d+\.\s+/.test(trimmed)) {
+    if (/^[-*+]\s+/.test(trimmed) || /^\d+\.\s+/.test(trimmed)) {
       const ordered = /^\d+\.\s+/.test(trimmed);
       while (index < lines.length) {
         const candidate = lines[index].trim();
-        if (ordered ? /^\d+\.\s+/.test(candidate) : /^[-*]\s+/.test(candidate)) {
+        if (ordered ? /^\d+\.\s+/.test(candidate) : /^[-*+]\s+/.test(candidate)) {
           const itemStart = currentLineStart();
           advanceLine(lines[index]);
           ranges.push({ start: itemStart, end: offset });
@@ -802,11 +837,11 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
         /^!\[([^\]]*)\]\(([^)]+)\)$/.test(candidate) ||
         /^<table\b/i.test(candidate) ||
         (candidate.includes("|") && index + 1 < lines.length && isTableDivider(lines[index + 1].trim())) ||
-        /^[-*]\s+\[( |x|X)\]\s+/.test(candidate) ||
-        /^[-*]\s+/.test(candidate) ||
+        /^[-*+]\s+\[( |x|X)\]\s+/.test(candidate) ||
+        /^[-*+]\s+/.test(candidate) ||
         /^\d+\.\s+/.test(candidate) ||
         /^(-{3,}|\*{3,}|_{3,})$/.test(candidate) ||
-        /^```/.test(candidate)
+        /^(```|~~~)/.test(candidate)
       ) {
         break;
       }
