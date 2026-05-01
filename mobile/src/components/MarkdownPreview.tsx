@@ -11,16 +11,12 @@ type TableColumnWidth = {
   flexGrow: number;
 };
 
-type ListItem = {
-  children: Block[];
-  checked?: boolean;
-};
-
 type Block =
   | { type: "heading"; level: number; text: string }
   | { type: "paragraph"; text: string }
-  | { type: "blockquote"; children: Block[]; level: number }
-  | { type: "list"; ordered: boolean; level: number; start?: number; loose: boolean; items: ListItem[] }
+  | { type: "blockquote"; paragraphs: string[]; level: number }
+  | { type: "list_item"; ordered: boolean; level: number; text: string; orderIndex: number; orderNumber?: number }
+  | { type: "checklist_item"; checked: boolean; level: number; text: string }
   | { type: "image"; alt: string; src: string }
   | { type: "table"; headers: string[]; aligns: TableAlign[]; rows: string[][] }
   | { type: "html_table"; headers: string[]; rows: string[][]; rawHtml: string }
@@ -38,48 +34,13 @@ function markdownIndent(level: number): ViewStyle {
   return { marginLeft: MARKDOWN_INDENT_UNIT * (Math.max(0, level) + 1) };
 }
 
-function markdownListIndent(level: number, inQuote: boolean): ViewStyle {
-  if (inQuote) {
-    return { marginLeft: MARKDOWN_INDENT_UNIT * Math.max(0, level) };
-  }
-  return markdownIndent(level);
-}
-
-function isEscaped(value: string, index: number): boolean {
-  let slashCount = 0;
-  for (let cursor = index - 1; cursor >= 0 && value[cursor] === "\\"; cursor -= 1) {
-    slashCount += 1;
-  }
-  return slashCount % 2 === 1;
-}
-
 function splitTableRow(line: string): string[] {
-  let source = line.trim();
-  if (source.startsWith("|")) {
-    source = source.slice(1);
-  }
-  if (source.endsWith("|") && !isEscaped(source, source.length - 1)) {
-    source = source.slice(0, -1);
-  }
-
-  const cells: string[] = [];
-  let current = "";
-  let inCode = false;
-  for (let index = 0; index < source.length; index += 1) {
-    const char = source[index];
-    if (char === "`" && !isEscaped(source, index)) {
-      inCode = !inCode;
-    }
-    if (char === "|" && !inCode && !isEscaped(source, index)) {
-      cells.push(current);
-      current = "";
-      continue;
-    }
-    current += char;
-  }
-  cells.push(current);
-
-  return cells.map((cell) => cell.trim().replace(/\\\|/g, "|").replace(/<br\s*\/?>/gi, "\n"));
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim().replace(/<br\s*\/?>/gi, "\n"));
 }
 
 function isTableDivider(line: string): boolean {
@@ -329,48 +290,6 @@ function getListBullet(level: number, ordered: boolean, itemIndex: number, order
   return "◦";
 }
 
-function getListMarker(line: string) {
-  return line.match(/^(\s*)((?:[-+])|(?:\d+\.))\s+(?:\[( |x|X)\]\s+)?(.*)$/);
-}
-
-function isBlockStart(line: string, nextLine?: string): boolean {
-  const trimmed = line.trim();
-  return (
-    /^(#{1,6})\s+/.test(trimmed) ||
-    /^(\s*)>\s?/.test(line) ||
-    /^!\[([^\]]*)\]\(([^)]+)\)$/.test(trimmed) ||
-    /^<table\b/i.test(trimmed) ||
-    (trimmed.includes("|") && !!nextLine && isTableDivider(nextLine.trim())) ||
-    /^[-+]\s+\[( |x|X)\]\s+/.test(trimmed) ||
-    /^(\d+\.|[-+])\s+/.test(trimmed) ||
-    /^(-{3,}|\*{3,}|_{3,})$/.test(trimmed) ||
-    /^(```|~~~)/.test(trimmed)
-  );
-}
-
-function stripIndent(line: string, count: number): string {
-  let remaining = count;
-  let cursor = 0;
-  while (cursor < line.length && remaining > 0) {
-    if (line[cursor] === " ") {
-      cursor += 1;
-      remaining -= 1;
-      continue;
-    }
-    if (line[cursor] === "\t") {
-      cursor += 1;
-      remaining -= 2;
-      continue;
-    }
-    break;
-  }
-  return line.slice(cursor);
-}
-
-function parseInlineUrl(value: string): string {
-  return value.replace(/[),.;:!?]+$/, "");
-}
-
 function openExternalLink(url: string): void {
   if (Platform.OS === "web" && typeof window !== "undefined") {
     window.open(url, "_blank", "noopener,noreferrer");
@@ -380,8 +299,7 @@ function openExternalLink(url: string): void {
 }
 
 function renderInlineMarkdown(text: string, textStyle: object, keyPrefix: string, isDarkMode = false) {
-  const pattern =
-    /(\\[\\`*_[\]()>#+.!-]|!\[[^\]]*\]\([^)]+\)|\*\*\*[^*]+\*\*\*|___[^_]+___|\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|\*[^*]+\*|_[^_]+_|`[^`]+`|\[[^\]]+\]\([^)]+\)|<https?:\/\/[^>\s]+>|https?:\/\/[^\s<]+)/g;
+  const pattern = /(\*\*[^*]+\*\*|~~[^~]+~~|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
   const lineParts = text.split(/<br\s*\/?>/gi);
 
   return (
@@ -393,17 +311,6 @@ function renderInlineMarkdown(text: string, textStyle: object, keyPrefix: string
             {lineIndex > 0 ? "\n" : null}
             {matches.map((part, index) => {
               const key = `${keyPrefix}-${lineIndex}-${index}`;
-              const escaped = part.match(/^\\([\\`*_[\]()>#+.!-])$/);
-              if (escaped) {
-                return <Text key={key}>{escaped[1]}</Text>;
-              }
-              if (/^(\*\*\*[^*]+\*\*\*|___[^_]+___)$/.test(part)) {
-                return (
-                  <Text key={key} style={[styles.markdownStrong, isDarkMode && styles.markdownStrongDark, styles.markdownEmphasis]}>
-                    {part.slice(3, -3)}
-                  </Text>
-                );
-              }
               if (/^\*\*[^*]+\*\*$/.test(part)) {
                 return (
                   <Text key={key} style={[styles.markdownStrong, isDarkMode && styles.markdownStrongDark]}>
@@ -411,21 +318,7 @@ function renderInlineMarkdown(text: string, textStyle: object, keyPrefix: string
                   </Text>
                 );
               }
-              if (/^__[^_]+__$/.test(part)) {
-                return (
-                  <Text key={key} style={[styles.markdownStrong, isDarkMode && styles.markdownStrongDark]}>
-                    {part.slice(2, -2)}
-                  </Text>
-                );
-              }
               if (/^\*[^*]+\*$/.test(part)) {
-                return (
-                  <Text key={key} style={styles.markdownEmphasis}>
-                    {part.slice(1, -1)}
-                  </Text>
-                );
-              }
-              if (/^_[^_]+_$/.test(part)) {
                 return (
                   <Text key={key} style={styles.markdownEmphasis}>
                     {part.slice(1, -1)}
@@ -446,18 +339,6 @@ function renderInlineMarkdown(text: string, textStyle: object, keyPrefix: string
                   </Text>
                 );
               }
-              const inlineImageMatch = part.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
-              if (inlineImageMatch) {
-                return (
-                  <Text
-                    key={key}
-                    style={[styles.markdownLink, isDarkMode && styles.markdownLinkDark]}
-                    onPress={() => openExternalLink(inlineImageMatch[2])}
-                  >
-                    {inlineImageMatch[1] || "이미지"}
-                  </Text>
-                );
-              }
               const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
               if (linkMatch) {
                 return (
@@ -468,30 +349,6 @@ function renderInlineMarkdown(text: string, textStyle: object, keyPrefix: string
                   >
                     {linkMatch[1]}
                   </Text>
-                );
-              }
-              const bracketAutolinkMatch = part.match(/^<(https?:\/\/[^>\s]+)>$/);
-              if (bracketAutolinkMatch) {
-                return (
-                  <Text
-                    key={key}
-                    style={[styles.markdownLink, isDarkMode && styles.markdownLinkDark]}
-                    onPress={() => openExternalLink(bracketAutolinkMatch[1])}
-                  >
-                    {bracketAutolinkMatch[1]}
-                  </Text>
-                );
-              }
-              if (/^https?:\/\/[^\s<]+$/.test(part)) {
-                const url = parseInlineUrl(part);
-                const suffix = part.slice(url.length);
-                return (
-                  <React.Fragment key={key}>
-                    <Text style={[styles.markdownLink, isDarkMode && styles.markdownLinkDark]} onPress={() => openExternalLink(url)}>
-                      {url}
-                    </Text>
-                    {suffix ? <Text>{suffix}</Text> : null}
-                  </React.Fragment>
                 );
               }
               return <Text key={key}>{part}</Text>;
@@ -551,88 +408,34 @@ function MarkdownImage({ alt, src, isDarkMode = false }: { alt: string; src: str
   );
 }
 
-function parseMarkdown(markdown: string, depth = 0, preserveSoftBreaks = false): Block[] {
+function parseMarkdown(markdown: string): Block[] {
   const lines = markdown.replace(/\r\n/g, "\n").split("\n");
   const blocks: Block[] = [];
   let index = 0;
-
-  function parseListBlock(): Block | null {
-    const firstMatch = getListMarker(lines[index]);
-    if (!firstMatch) {
-      return null;
-    }
-    const baseIndent = firstMatch[1].length;
-    const ordered = /^\d+\.$/.test(firstMatch[2]);
-    const start = ordered ? Number(firstMatch[2].slice(0, -1)) : undefined;
-    const level = Math.min(3, Math.floor(baseIndent / 2));
-    const items: ListItem[] = [];
-    let loose = false;
-
-    while (index < lines.length) {
-      const match = getListMarker(lines[index]);
-      if (!match) {
-        break;
-      }
-      const indent = match[1].length;
-      const marker = match[2];
-      const currentOrdered = /^\d+\.$/.test(marker);
-      if (indent !== baseIndent || currentOrdered !== ordered) {
-        break;
-      }
-
-      const checked = match[3] ? match[3].toLowerCase() === "x" : undefined;
-      const itemLines: string[] = [match[4]];
-      let sawBlankLine = false;
-      index += 1;
-      while (index < lines.length) {
-        const nextLine = lines[index];
-        const nextMatch = getListMarker(nextLine);
-        if (nextMatch && nextMatch[1].length === baseIndent && (/^\d+\.$/.test(nextMatch[2]) === ordered)) {
-          break;
-        }
-        if (!nextLine.trim()) {
-          loose = true;
-          sawBlankLine = true;
-          itemLines.push("");
-          index += 1;
-          continue;
-        }
-        const nextIndent = nextLine.match(/^\s*/)?.[0].length || 0;
-        if (sawBlankLine && nextIndent <= baseIndent) {
-          break;
-        }
-        if (nextIndent <= baseIndent && isBlockStart(nextLine, lines[index + 1])) {
-          break;
-        }
-        sawBlankLine = false;
-        itemLines.push(stripIndent(nextLine, baseIndent + 2));
-        index += 1;
-      }
-
-      const childSource = itemLines.join("\n").trim();
-      const children = childSource ? parseMarkdown(childSource, depth + 1, preserveSoftBreaks) : [{ type: "paragraph", text: "" } satisfies Block];
-      items.push({ children, checked });
-    }
-
-    return { type: "list", ordered, level, start, loose, items };
-  }
+  let blankRun = 0;
+  const orderedSequenceByLevel = new Map<number, number>();
 
   while (index < lines.length) {
     const rawLine = lines[index];
     const trimmed = rawLine.trim();
 
     if (!trimmed) {
+      blankRun += 1;
+      if (blankRun >= 2) {
+        orderedSequenceByLevel.clear();
+      }
       index += 1;
       continue;
     }
 
-    const codeFenceMatch = trimmed.match(/^(```|~~~)\s*([^`]*)$/);
+    blankRun = 0;
+
+    const codeFenceMatch = trimmed.match(/^```([\w-]+)?$/);
     if (codeFenceMatch) {
       const codeLines: string[] = [];
-      const fence = codeFenceMatch[1];
-      const language = codeFenceMatch[2]?.trim().split(/\s+/)[0] || null;
+      const language = codeFenceMatch[1] || null;
       index += 1;
-      while (index < lines.length && !lines[index].trim().startsWith(fence)) {
+      while (index < lines.length && !/^```/.test(lines[index].trim())) {
         codeLines.push(lines[index]);
         index += 1;
       }
@@ -640,24 +443,6 @@ function parseMarkdown(markdown: string, depth = 0, preserveSoftBreaks = false):
         index += 1;
       }
       blocks.push({ type: "code", language, lines: codeLines });
-      continue;
-    }
-
-    if (/^( {4}|\t)/.test(rawLine)) {
-      const codeLines: string[] = [];
-      while (index < lines.length) {
-        if (!lines[index].trim()) {
-          codeLines.push("");
-          index += 1;
-          continue;
-        }
-        if (!/^( {4}|\t)/.test(lines[index])) {
-          break;
-        }
-        codeLines.push(stripIndent(lines[index], 4));
-        index += 1;
-      }
-      blocks.push({ type: "code", language: null, lines: codeLines });
       continue;
     }
 
@@ -669,16 +454,6 @@ function parseMarkdown(markdown: string, depth = 0, preserveSoftBreaks = false):
         text: headingMatch[2].trim(),
       });
       index += 1;
-      continue;
-    }
-
-    if (index + 1 < lines.length && /^(=+|-+)\s*$/.test(lines[index + 1].trim()) && trimmed && !isBlockStart(rawLine, lines[index + 1])) {
-      blocks.push({
-        type: "heading",
-        level: lines[index + 1].trim().startsWith("=") ? 1 : 2,
-        text: trimmed,
-      });
-      index += 2;
       continue;
     }
 
@@ -707,8 +482,30 @@ function parseMarkdown(markdown: string, depth = 0, preserveSoftBreaks = false):
         quoteLines.push(currentQuoteMatch[2]);
         index += 1;
       }
-      const children = depth >= 8 ? [{ type: "paragraph", text: quoteLines.join("\n").trim() } satisfies Block] : parseMarkdown(quoteLines.join("\n"), depth + 1, true);
-      blocks.push({ type: "blockquote", children: children.length ? children : [{ type: "paragraph", text: "" }], level: quoteLevel });
+      const quotedHtml = quoteLines.join("\n").trim();
+      if (/<table\b[\s\S]*<\/table>/i.test(quotedHtml) || /^<table\b/i.test(quotedHtml) || /^<tr\b/i.test(quotedHtml)) {
+        const parsed = parseHtmlTableBlock(quotedHtml);
+        if (parsed) {
+          blocks.push({ type: "html_table", headers: parsed.headers, rows: parsed.rows, rawHtml: parsed.rawHtml });
+          continue;
+        }
+      }
+      const paragraphs: string[] = [];
+      let paragraphBuffer: string[] = [];
+      for (const line of quoteLines) {
+        if (!line.trim()) {
+          if (paragraphBuffer.length) {
+            paragraphs.push(paragraphBuffer.join("\n"));
+            paragraphBuffer = [];
+          }
+          continue;
+        }
+        paragraphBuffer.push(line);
+      }
+      if (paragraphBuffer.length) {
+        paragraphs.push(paragraphBuffer.join("\n"));
+      }
+      blocks.push({ type: "blockquote", paragraphs: paragraphs.length ? paragraphs : [""], level: quoteLevel });
       continue;
     }
 
@@ -775,10 +572,71 @@ function parseMarkdown(markdown: string, depth = 0, preserveSoftBreaks = false):
       continue;
     }
 
-    if (getListMarker(rawLine)) {
-      const listBlock = parseListBlock();
-      if (listBlock) {
-        blocks.push(listBlock);
+    if (/^[-*]\s+\[( |x|X)\]\s+/.test(trimmed)) {
+      while (index < lines.length) {
+        const rawCandidate = lines[index];
+        const candidate = rawCandidate.trim();
+        const match = candidate.match(/^[-*]\s+\[( |x|X)\]\s+(.*)$/);
+        if (!match) {
+          break;
+        }
+        const indent = rawCandidate.match(/^\s*/)?.[0].length || 0;
+        const level = Math.min(3, Math.floor(indent / 2));
+        blocks.push({
+          type: "checklist_item",
+          checked: match[1].toLowerCase() === "x",
+          level,
+          text: match[2].trim(),
+        });
+        index += 1;
+      }
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(trimmed) || /^\d+\.\s+/.test(trimmed)) {
+      const ordered = /^\d+\.\s+/.test(trimmed);
+      let orderIndex = 0;
+      while (index < lines.length) {
+        const rawCandidate = lines[index];
+        const candidate = rawCandidate.trim();
+        const indent = rawCandidate.match(/^\s*/)?.[0].length || 0;
+        const level = Math.min(3, Math.floor(indent / 2));
+        if (ordered && /^\d+\.\s+/.test(candidate)) {
+          const orderedMatch = candidate.match(/^(\d+)\.\s+(.*)$/);
+          if (!orderedMatch) {
+            break;
+          }
+          for (const existingLevel of [...orderedSequenceByLevel.keys()]) {
+            if (existingLevel > level) {
+              orderedSequenceByLevel.delete(existingLevel);
+            }
+          }
+          const sourceNumber = Number(orderedMatch[1]);
+          orderedSequenceByLevel.set(level, sourceNumber);
+          blocks.push({
+            type: "list_item",
+            ordered: true,
+            level,
+            text: orderedMatch[2].trim(),
+            orderIndex,
+            orderNumber: sourceNumber,
+          });
+          orderIndex += 1;
+          index += 1;
+          continue;
+        }
+        if (!ordered && /^[-*]\s+/.test(candidate)) {
+          blocks.push({
+            type: "list_item",
+            ordered: false,
+            level,
+            text: candidate.replace(/^[-*]\s+/, "").trim(),
+            orderIndex,
+          });
+          index += 1;
+          continue;
+        }
+        break;
       }
       continue;
     }
@@ -795,17 +653,18 @@ function parseMarkdown(markdown: string, depth = 0, preserveSoftBreaks = false):
         /^!\[([^\]]*)\]\(([^)]+)\)$/.test(candidate) ||
         /^<table\b/i.test(candidate) ||
         (candidate.includes("|") && index + 1 < lines.length && isTableDivider(lines[index + 1].trim())) ||
-        /^[-+]\s+\[( |x|X)\]\s+/.test(candidate) ||
-        /^(\d+\.|[-+])\s+/.test(candidate) ||
+        /^[-*]\s+\[( |x|X)\]\s+/.test(candidate) ||
+        /^[-*]\s+/.test(candidate) ||
+        /^\d+\.\s+/.test(candidate) ||
         /^(-{3,}|\*{3,}|_{3,})$/.test(candidate) ||
-        /^(```|~~~)/.test(candidate)
+        /^```/.test(candidate)
       ) {
         break;
       }
       paragraphLines.push(candidate);
       index += 1;
     }
-    blocks.push({ type: "paragraph", text: paragraphLines.join(preserveSoftBreaks ? "\n" : " ") });
+    blocks.push({ type: "paragraph", text: paragraphLines.join(" ") });
   }
 
   return blocks;
@@ -837,11 +696,9 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
       continue;
     }
 
-    const fenceMatch = trimmed.match(/^(```|~~~)\s*([\w-]+)?\s*$/);
-    if (fenceMatch) {
-      const fence = fenceMatch[1];
+    if (/^```([\w-]+)?$/.test(trimmed)) {
       advanceLine(rawLine);
-      while (index < lines.length && !lines[index].trim().startsWith(fence)) {
+      while (index < lines.length && !/^```/.test(lines[index].trim())) {
         advanceLine(lines[index]);
       }
       if (index < lines.length) {
@@ -912,39 +769,27 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
       continue;
     }
 
-    const listStart = getListMarker(rawLine);
-    if (listStart) {
-      const baseIndent = listStart[1].length;
-      const ordered = /^\d+\.$/.test(listStart[2]);
-      let sawBlankLine = false;
-      while (index < lines.length) {
-        const currentLine = lines[index];
-        const currentMarker = getListMarker(currentLine);
-        if (currentMarker) {
-          const currentIndent = currentMarker[1].length;
-          const currentOrdered = /^\d+\.$/.test(currentMarker[2]);
-          if (currentIndent < baseIndent || (currentIndent === baseIndent && currentOrdered !== ordered)) {
-            break;
-          }
-          advanceLine(lines[index]);
-          continue;
-        }
-        if (!currentLine.trim()) {
-          sawBlankLine = true;
-          advanceLine(currentLine);
-          continue;
-        }
-        const currentIndent = currentLine.match(/^\s*/)?.[0].length || 0;
-        if (sawBlankLine && currentIndent <= baseIndent) {
-          break;
-        }
-        if (currentIndent <= baseIndent && isBlockStart(currentLine, lines[index + 1])) {
-          break;
-        }
-        sawBlankLine = false;
-        advanceLine(currentLine);
+    if (/^[-*]\s+\[( |x|X)\]\s+/.test(trimmed)) {
+      while (index < lines.length && /^[-*]\s+\[( |x|X)\]\s+/.test(lines[index].trim())) {
+        const itemStart = currentLineStart();
+        advanceLine(lines[index]);
+        ranges.push({ start: itemStart, end: offset });
       }
-      ranges.push({ start: blockStart, end: offset });
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(trimmed) || /^\d+\.\s+/.test(trimmed)) {
+      const ordered = /^\d+\.\s+/.test(trimmed);
+      while (index < lines.length) {
+        const candidate = lines[index].trim();
+        if (ordered ? /^\d+\.\s+/.test(candidate) : /^[-*]\s+/.test(candidate)) {
+          const itemStart = currentLineStart();
+          advanceLine(lines[index]);
+          ranges.push({ start: itemStart, end: offset });
+          continue;
+        }
+        break;
+      }
       continue;
     }
 
@@ -957,11 +802,11 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
         /^!\[([^\]]*)\]\(([^)]+)\)$/.test(candidate) ||
         /^<table\b/i.test(candidate) ||
         (candidate.includes("|") && index + 1 < lines.length && isTableDivider(lines[index + 1].trim())) ||
-        /^[-+]\s+\[( |x|X)\]\s+/.test(candidate) ||
-        /^[-+]\s+/.test(candidate) ||
+        /^[-*]\s+\[( |x|X)\]\s+/.test(candidate) ||
+        /^[-*]\s+/.test(candidate) ||
         /^\d+\.\s+/.test(candidate) ||
         /^(-{3,}|\*{3,}|_{3,})$/.test(candidate) ||
-        /^(```|~~~)/.test(candidate)
+        /^```/.test(candidate)
       ) {
         break;
       }
@@ -1007,286 +852,6 @@ export function MarkdownPreview({
     onBlockLayout?.(blockIndex, event.nativeEvent.layout.y);
   }
 
-  function renderBlock(block: Block, blockIndex: number, key: string, options: { trackLayout?: boolean; inQuote?: boolean; listDepth?: number } = {}): React.ReactNode {
-    const trackLayout = options.trackLayout ?? false;
-    const inQuote = options.inQuote ?? false;
-    const listDepth = options.listDepth ?? 0;
-    const isActive = trackLayout && blockIndex === activeBlockIndex;
-    const blockHighlightStyle = isActive ? [styles.markdownActiveBlock, isDarkMode && styles.markdownActiveBlockDark] : undefined;
-    const layoutProps = trackLayout ? { onLayout: (event: LayoutChangeEvent) => handleBlockLayout(blockIndex, event) } : {};
-
-    if (block.type === "heading") {
-      return (
-        <View key={key} style={blockHighlightStyle} {...layoutProps}>
-          {renderHeadingMarkdown(block.text, block.level, key, isDarkMode, inQuote)}
-        </View>
-      );
-    }
-
-    if (block.type === "paragraph") {
-      return (
-        <View key={key} style={blockHighlightStyle} {...layoutProps}>
-          {renderInlineMarkdown(
-            block.text,
-            [
-              inQuote ? styles.markdownQuoteText : styles.markdownParagraph,
-              isDarkMode && (inQuote ? styles.markdownQuoteTextDark : styles.markdownParagraphDark),
-            ] as unknown as object,
-            key,
-            isDarkMode,
-          )}
-        </View>
-      );
-    }
-
-    if (block.type === "blockquote") {
-      return (
-        <View
-          key={key}
-          style={[
-            styles.markdownQuote,
-            isDarkMode && styles.markdownQuoteDark,
-            markdownIndent(block.level),
-            blockHighlightStyle,
-          ]}
-          {...layoutProps}
-        >
-          {block.children.map((child, childIndex) =>
-            renderBlock(child, childIndex, `${key}-quote-${childIndex}`, { inQuote: true, listDepth }),
-          )}
-        </View>
-      );
-    }
-
-    if (block.type === "list") {
-      const effectiveLevel = listDepth + block.level;
-      if (inQuote && listDepth > 0) {
-        return (
-          <View key={key} style={[styles.markdownList, blockHighlightStyle]} {...layoutProps}>
-            {block.items.map((item, itemIndex) => {
-              const marker = typeof item.checked === "boolean"
-                ? `- [${item.checked ? "x" : " "}]`
-                : block.ordered
-                  ? `${block.start ? block.start + itemIndex : itemIndex + 1}.`
-                  : "-";
-              const paragraphChildren = item.children.filter((child) => child.type === "paragraph") as Extract<Block, { type: "paragraph" }>[];
-              const firstParagraph = paragraphChildren[0]?.text || "";
-              const remainingChildren = firstParagraph
-                ? item.children.filter((child) => child !== paragraphChildren[0])
-                : item.children;
-
-              return (
-                <View key={`${key}-text-item-${itemIndex}`} style={markdownListIndent(effectiveLevel, true)}>
-                  {renderInlineMarkdown(
-                    `${marker}${firstParagraph ? ` ${firstParagraph}` : ""}`,
-                    [
-                      styles.markdownQuoteText,
-                      isDarkMode && styles.markdownQuoteTextDark,
-                      item.checked && styles.markdownChecklistDone,
-                      item.checked && isDarkMode && styles.markdownChecklistDoneDark,
-                    ] as unknown as object,
-                    `${key}-text-item-${itemIndex}`,
-                    isDarkMode,
-                  )}
-                  {remainingChildren.map((child, childIndex) =>
-                    renderBlock(child, childIndex, `${key}-text-item-${itemIndex}-child-${childIndex}`, {
-                      inQuote,
-                      listDepth: effectiveLevel + 1,
-                    }),
-                  )}
-                </View>
-              );
-            })}
-          </View>
-        );
-      }
-      return (
-        <View key={key} style={[styles.markdownList, blockHighlightStyle]} {...layoutProps}>
-          {block.items.map((item, itemIndex) => {
-            const marker = getListBullet(effectiveLevel, block.ordered, itemIndex, block.start ? block.start + itemIndex : undefined);
-            const paragraphChildren = item.children.filter((child) => child.type === "paragraph") as Extract<Block, { type: "paragraph" }>[];
-            const compactParagraphOnly = item.children.length === 1 && paragraphChildren.length === 1;
-
-            return (
-              <View key={`${key}-item-${itemIndex}`} style={[styles.markdownListItem, markdownListIndent(effectiveLevel, inQuote)]}>
-                {typeof item.checked === "boolean" ? (
-                  <View style={[styles.markdownCheckbox, isDarkMode && styles.markdownCheckboxDark, item.checked && styles.markdownCheckboxChecked]}>
-                    {item.checked ? <Text style={[styles.markdownCheckboxMark, isDarkMode && styles.markdownCheckboxMarkDark]}>✓</Text> : null}
-                  </View>
-                ) : (
-                  <Text style={[styles.markdownListBullet, isDarkMode && styles.markdownListBulletDark]}>{marker}</Text>
-                )}
-                <View style={styles.markdownListTextWrap}>
-                  {compactParagraphOnly
-                    ? renderInlineMarkdown(
-                        paragraphChildren[0].text,
-                        [
-                          inQuote ? styles.markdownQuoteText : styles.markdownListText,
-                          isDarkMode && (inQuote ? styles.markdownQuoteTextDark : styles.markdownListTextDark),
-                          item.checked && styles.markdownChecklistDone,
-                          item.checked && isDarkMode && styles.markdownChecklistDoneDark,
-                        ] as unknown as object,
-                        `${key}-item-${itemIndex}`,
-                        isDarkMode,
-                      )
-                    : item.children.map((child, childIndex) =>
-                        renderBlock(child, childIndex, `${key}-item-${itemIndex}-child-${childIndex}`, {
-                          inQuote,
-                          listDepth: effectiveLevel + 1,
-                        }),
-                      )}
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      );
-    }
-
-    if (block.type === "image") {
-      return (
-        <View key={key} style={blockHighlightStyle} {...layoutProps}>
-          <MarkdownImage alt={block.alt} src={block.src} isDarkMode={isDarkMode} />
-        </View>
-      );
-    }
-
-    if (block.type === "table" || block.type === "html_table") {
-      const aligns = block.type === "table" ? block.aligns : [];
-      const columnCount = Math.max(
-        block.headers.length,
-        aligns.length,
-        ...block.rows.map((row) => row.length),
-      );
-      const columnWidths = computeTableColumnWidths(block.headers, block.rows, columnCount);
-      const tableMinimumWidth = columnWidths.reduce((sum, column) => sum + column.minWidth, 0);
-      const needsHorizontalScroll =
-        containerWidth > 0 && tableMinimumWidth > Math.max(0, containerWidth - 12);
-
-      if (block.type === "html_table" && Platform.OS === "web") {
-        const HtmlShell = needsHorizontalScroll ? ScrollView : View;
-        const htmlShellProps = needsHorizontalScroll
-          ? {
-              horizontal: true,
-              showsHorizontalScrollIndicator: true,
-              style: styles.markdownTableWrap,
-              contentContainerStyle: styles.markdownTableScrollContent,
-            }
-          : {
-              style: styles.markdownTableWrap,
-            };
-        return (
-          <View key={key} style={blockHighlightStyle} {...layoutProps}>
-            <HtmlShell {...htmlShellProps}>
-              <HtmlTableFrame
-                html={block.rawHtml}
-                isDarkMode={isDarkMode}
-                minWidth={needsHorizontalScroll ? tableMinimumWidth : undefined}
-              />
-            </HtmlShell>
-          </View>
-        );
-      }
-
-      const TableShell = needsHorizontalScroll ? ScrollView : View;
-      const tableShellProps = needsHorizontalScroll
-        ? {
-            horizontal: true,
-            showsHorizontalScrollIndicator: true,
-            style: styles.markdownTableWrap,
-            contentContainerStyle: styles.markdownTableScrollContent,
-          }
-        : {
-            style: styles.markdownTableWrap,
-          };
-
-      return (
-        <View key={key} style={blockHighlightStyle} {...layoutProps}>
-          <TableShell {...tableShellProps}>
-            <View
-              style={[
-                styles.markdownTable,
-                isDarkMode && styles.markdownTableDark,
-                needsHorizontalScroll && { minWidth: tableMinimumWidth },
-              ]}
-            >
-              <View style={[styles.markdownTableRow, isDarkMode && styles.markdownTableRowDark, styles.markdownTableHeaderRow, isDarkMode && styles.markdownTableHeaderRowDark]}>
-                {Array.from({ length: columnCount }).map((_, columnIndex) => (
-                  <View
-                    key={`${key}-header-${columnIndex}`}
-                    style={[
-                      styles.markdownTableCell,
-                      needsHorizontalScroll
-                        ? ({ width: columnWidths[columnIndex].preferredWidth, minWidth: columnWidths[columnIndex].minWidth, flexGrow: 0 } satisfies ViewStyle)
-                        : columnWidths[columnIndex],
-                      styles.markdownTableHeaderCell,
-                      isDarkMode && styles.markdownTableCellDark,
-                      isDarkMode && styles.markdownTableHeaderCellDark,
-                      columnIndex === columnCount - 1 && styles.markdownTableCellLast,
-                    ]}
-                  >
-                    {renderInlineMarkdown(
-                      block.headers[columnIndex] || "",
-                      [styles.markdownTableHeaderText, isDarkMode && styles.markdownTableHeaderTextDark, textAlignStyle(aligns[columnIndex] || "left")] as unknown as object,
-                      `${key}-header-${columnIndex}`,
-                      isDarkMode,
-                    )}
-                  </View>
-                ))}
-              </View>
-              {block.rows.map((row, rowIndex) => (
-                <View
-                  key={`${key}-row-${rowIndex}`}
-                  style={[
-                    styles.markdownTableRow,
-                    isDarkMode && styles.markdownTableRowDark,
-                    rowIndex === block.rows.length - 1 && styles.markdownTableRowLast,
-                  ]}
-                >
-                  {Array.from({ length: columnCount }).map((_, columnIndex) => (
-                    <View
-                      key={`${key}-${rowIndex}-${columnIndex}`}
-                      style={[
-                        styles.markdownTableCell,
-                        needsHorizontalScroll
-                          ? ({ width: columnWidths[columnIndex].preferredWidth, minWidth: columnWidths[columnIndex].minWidth, flexGrow: 0 } satisfies ViewStyle)
-                          : columnWidths[columnIndex],
-                        isDarkMode && styles.markdownTableCellDark,
-                        columnIndex === columnCount - 1 && styles.markdownTableCellLast,
-                      ]}
-                    >
-                      {renderInlineMarkdown(
-                        row[columnIndex] || "",
-                        [styles.markdownTableCellText, isDarkMode && styles.markdownTableCellTextDark, textAlignStyle(aligns[columnIndex] || "left")] as unknown as object,
-                        `${key}-${rowIndex}-${columnIndex}`,
-                        isDarkMode,
-                      )}
-                    </View>
-                  ))}
-                </View>
-              ))}
-            </View>
-          </TableShell>
-        </View>
-      );
-    }
-
-    if (block.type === "rule") {
-      return <View key={key} style={[styles.markdownRule, isDarkMode && styles.markdownRuleDark, blockHighlightStyle]} {...layoutProps} />;
-    }
-
-    return (
-      <View key={key} style={[styles.markdownCodeBlock, blockHighlightStyle]} {...layoutProps}>
-        {block.language ? <Text style={styles.markdownCodeLanguage}>{block.language}</Text> : null}
-        {block.lines.map((line, lineIndex) => (
-          <Text key={`${key}-${lineIndex}`} style={styles.markdownCodeLine}>
-            {line || " "}
-          </Text>
-        ))}
-      </View>
-    );
-  }
-
   if (!blocks.length) {
     return <Text style={[styles.previewEmpty, isDarkMode && styles.previewEmptyDark]}>표시할 Markdown 내용이 없습니다.</Text>;
   }
@@ -1301,7 +866,277 @@ export function MarkdownPreview({
         }
       }}
     >
-      {blocks.map((block, blockIndex) => renderBlock(block, blockIndex, `${block.type}-${blockIndex}`, { trackLayout: true }))}
+      {blocks.map((block, blockIndex) => {
+        const key = `${block.type}-${blockIndex}`;
+        const isActive = blockIndex === activeBlockIndex;
+        const blockHighlightStyle = isActive ? [styles.markdownActiveBlock, isDarkMode && styles.markdownActiveBlockDark] : undefined;
+
+        if (block.type === "heading") {
+          return (
+            <View key={key} style={blockHighlightStyle} onLayout={(event) => handleBlockLayout(blockIndex, event)}>
+              {renderInlineMarkdown(
+                block.text,
+                [
+                  styles.markdownHeading,
+                  isDarkMode && styles.markdownHeadingDark,
+                  block.level === 1 && styles.markdownHeading1,
+                  block.level === 2 && styles.markdownHeading2,
+                  block.level === 3 && styles.markdownHeading3,
+                  block.level === 4 && styles.markdownHeading4,
+                  block.level >= 5 && styles.markdownHeading5,
+                ] as unknown as object,
+                key,
+                isDarkMode,
+              )}
+            </View>
+          );
+        }
+
+        if (block.type === "paragraph") {
+          return (
+            <View key={key} style={blockHighlightStyle} onLayout={(event) => handleBlockLayout(blockIndex, event)}>
+              {renderInlineMarkdown(block.text, [styles.markdownParagraph, isDarkMode && styles.markdownParagraphDark] as unknown as object, key, isDarkMode)}
+            </View>
+          );
+        }
+
+        if (block.type === "blockquote") {
+          return (
+            <View
+              key={key}
+              style={[
+                styles.markdownQuote,
+                isDarkMode && styles.markdownQuoteDark,
+                markdownIndent(block.level),
+                blockHighlightStyle,
+              ]}
+              onLayout={(event) => handleBlockLayout(blockIndex, event)}
+              >
+                {block.paragraphs.map((paragraph, paragraphIndex) => (
+                  <View
+                    key={`${key}-paragraph-${paragraphIndex}`}
+                    style={paragraphIndex > 0 ? styles.markdownQuoteParagraph : undefined}
+                  >
+                    {paragraph.split("\n").map((quoteLine, quoteLineIndex) => (
+                      <View
+                        key={`${key}-paragraph-${paragraphIndex}-line-${quoteLineIndex}`}
+                        style={quoteLineIndex > 0 ? styles.markdownQuoteLine : undefined}
+                      >
+                        {(() => {
+                          const headingMatch = quoteLine.trim().match(/^(#{1,6})\s+(.*)$/);
+                          if (headingMatch) {
+                            return renderHeadingMarkdown(
+                              headingMatch[2].trim(),
+                              headingMatch[1].length,
+                              `${key}-${paragraphIndex}-${quoteLineIndex}`,
+                              isDarkMode,
+                              true,
+                            );
+                          }
+
+                          return renderInlineMarkdown(
+                            quoteLine,
+                            [styles.markdownQuoteText, isDarkMode && styles.markdownQuoteTextDark] as unknown as object,
+                            `${key}-${paragraphIndex}-${quoteLineIndex}`,
+                            isDarkMode,
+                          );
+                        })()}
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            );
+        }
+
+        if (block.type === "list_item") {
+          return (
+            <View key={key} style={[styles.markdownList, blockHighlightStyle]} onLayout={(event) => handleBlockLayout(blockIndex, event)}>
+              <View
+                style={[
+                  styles.markdownListItem,
+                  markdownIndent(block.level),
+                ]}
+              >
+                <Text style={[styles.markdownListBullet, isDarkMode && styles.markdownListBulletDark]}>
+                  {getListBullet(block.level, block.ordered, block.orderIndex, block.orderNumber)}
+                </Text>
+                <View style={styles.markdownListTextWrap}>
+                  {renderInlineMarkdown(block.text, [styles.markdownListText, isDarkMode && styles.markdownListTextDark] as unknown as object, key, isDarkMode)}
+                </View>
+              </View>
+            </View>
+          );
+        }
+
+        if (block.type === "checklist_item") {
+          return (
+            <View key={key} style={[styles.markdownList, blockHighlightStyle]} onLayout={(event) => handleBlockLayout(blockIndex, event)}>
+              <View
+                style={[
+                  styles.markdownListItem,
+                  markdownIndent(block.level),
+                ]}
+              >
+                <View style={[styles.markdownCheckbox, isDarkMode && styles.markdownCheckboxDark, block.checked && styles.markdownCheckboxChecked]}>
+                  {block.checked ? <Text style={[styles.markdownCheckboxMark, isDarkMode && styles.markdownCheckboxMarkDark]}>✓</Text> : null}
+                </View>
+                <View style={styles.markdownListTextWrap}>
+                  {renderInlineMarkdown(
+                    block.text,
+                    [styles.markdownListText, isDarkMode && styles.markdownListTextDark, block.checked && styles.markdownChecklistDone, block.checked && isDarkMode && styles.markdownChecklistDoneDark] as unknown as object,
+                    key,
+                    isDarkMode,
+                  )}
+                </View>
+              </View>
+            </View>
+          );
+        }
+
+        if (block.type === "image") {
+          return (
+            <View key={key} style={blockHighlightStyle} onLayout={(event) => handleBlockLayout(blockIndex, event)}>
+              <MarkdownImage alt={block.alt} src={block.src} isDarkMode={isDarkMode} />
+            </View>
+          );
+        }
+
+        if (block.type === "table" || block.type === "html_table") {
+          const aligns = block.type === "table" ? block.aligns : [];
+          const columnCount = Math.max(
+            block.headers.length,
+            aligns.length,
+            ...block.rows.map((row) => row.length),
+          );
+          const columnWidths = computeTableColumnWidths(block.headers, block.rows, columnCount);
+          const tableMinimumWidth = columnWidths.reduce((sum, column) => sum + column.minWidth, 0);
+          const needsHorizontalScroll =
+            containerWidth > 0 && tableMinimumWidth > Math.max(0, containerWidth - 12);
+
+          if (block.type === "html_table" && Platform.OS === "web") {
+            const HtmlShell = needsHorizontalScroll ? ScrollView : View;
+            const htmlShellProps = needsHorizontalScroll
+              ? {
+                  horizontal: true,
+                  showsHorizontalScrollIndicator: true,
+                  style: styles.markdownTableWrap,
+                  contentContainerStyle: styles.markdownTableScrollContent,
+                }
+              : {
+                  style: styles.markdownTableWrap,
+                };
+            return (
+              <View key={key} style={blockHighlightStyle} onLayout={(event) => handleBlockLayout(blockIndex, event)}>
+                <HtmlShell {...htmlShellProps}>
+                  <HtmlTableFrame
+                    html={block.rawHtml}
+                    isDarkMode={isDarkMode}
+                    minWidth={needsHorizontalScroll ? tableMinimumWidth : undefined}
+                  />
+                </HtmlShell>
+              </View>
+            );
+          }
+
+          const TableShell = needsHorizontalScroll ? ScrollView : View;
+          const tableShellProps = needsHorizontalScroll
+            ? {
+                horizontal: true,
+                showsHorizontalScrollIndicator: true,
+                style: styles.markdownTableWrap,
+                contentContainerStyle: styles.markdownTableScrollContent,
+              }
+            : {
+                style: styles.markdownTableWrap,
+              };
+
+          return (
+            <View key={key} style={blockHighlightStyle} onLayout={(event) => handleBlockLayout(blockIndex, event)}>
+              <TableShell {...tableShellProps}>
+                <View
+                  style={[
+                    styles.markdownTable,
+                    isDarkMode && styles.markdownTableDark,
+                    needsHorizontalScroll && { minWidth: tableMinimumWidth },
+                  ]}
+                >
+                  <View style={[styles.markdownTableRow, isDarkMode && styles.markdownTableRowDark, styles.markdownTableHeaderRow, isDarkMode && styles.markdownTableHeaderRowDark]}>
+                    {Array.from({ length: columnCount }).map((_, columnIndex) => (
+                      <View
+                        key={`${key}-header-${columnIndex}`}
+                        style={[
+                          styles.markdownTableCell,
+                          needsHorizontalScroll
+                            ? ({ width: columnWidths[columnIndex].preferredWidth, minWidth: columnWidths[columnIndex].minWidth, flexGrow: 0 } satisfies ViewStyle)
+                            : columnWidths[columnIndex],
+                          styles.markdownTableHeaderCell,
+                          isDarkMode && styles.markdownTableCellDark,
+                          isDarkMode && styles.markdownTableHeaderCellDark,
+                          columnIndex === columnCount - 1 && styles.markdownTableCellLast,
+                        ]}
+                        >
+                        {renderInlineMarkdown(
+                          block.headers[columnIndex] || "",
+                          [styles.markdownTableHeaderText, isDarkMode && styles.markdownTableHeaderTextDark, textAlignStyle(aligns[columnIndex] || "left")] as unknown as object,
+                          `${key}-header-${columnIndex}`,
+                          isDarkMode,
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                  {block.rows.map((row, rowIndex) => (
+                    <View
+                      key={`${key}-row-${rowIndex}`}
+                      style={[
+                        styles.markdownTableRow,
+                        isDarkMode && styles.markdownTableRowDark,
+                        rowIndex === block.rows.length - 1 && styles.markdownTableRowLast,
+                      ]}
+                    >
+                      {Array.from({ length: columnCount }).map((_, columnIndex) => (
+                        <View
+                          key={`${key}-${rowIndex}-${columnIndex}`}
+                          style={[
+                            styles.markdownTableCell,
+                            needsHorizontalScroll
+                              ? ({ width: columnWidths[columnIndex].preferredWidth, minWidth: columnWidths[columnIndex].minWidth, flexGrow: 0 } satisfies ViewStyle)
+                              : columnWidths[columnIndex],
+                            isDarkMode && styles.markdownTableCellDark,
+                            columnIndex === columnCount - 1 && styles.markdownTableCellLast,
+                          ]}
+                        >
+                          {renderInlineMarkdown(
+                            row[columnIndex] || "",
+                            [styles.markdownTableCellText, isDarkMode && styles.markdownTableCellTextDark, textAlignStyle(aligns[columnIndex] || "left")] as unknown as object,
+                            `${key}-${rowIndex}-${columnIndex}`,
+                            isDarkMode,
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  ))}
+                </View>
+              </TableShell>
+            </View>
+          );
+        }
+
+        if (block.type === "rule") {
+          return <View key={key} style={[styles.markdownRule, isDarkMode && styles.markdownRuleDark, blockHighlightStyle]} onLayout={(event) => handleBlockLayout(blockIndex, event)} />;
+        }
+
+        return (
+          <View key={key} style={[styles.markdownCodeBlock, blockHighlightStyle]} onLayout={(event) => handleBlockLayout(blockIndex, event)}>
+            {block.language ? <Text style={styles.markdownCodeLanguage}>{block.language}</Text> : null}
+            {block.lines.map((line, lineIndex) => (
+              <Text key={`${key}-${lineIndex}`} style={styles.markdownCodeLine}>
+                {line || " "}
+              </Text>
+            ))}
+          </View>
+        );
+      })}
     </View>
   );
 }
