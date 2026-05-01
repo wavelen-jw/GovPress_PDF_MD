@@ -365,11 +365,7 @@ function renderInlineMarkdown(text: string, textStyle: object, keyPrefix: string
                 );
               }
               if (/^`[^`]+`$/.test(part)) {
-                return (
-                  <Text key={key} style={[styles.markdownInlineCode, isDarkMode && styles.markdownInlineCodeDark]}>
-                    {part.slice(1, -1)}
-                  </Text>
-                );
+                return <Text key={key}>{part}</Text>;
               }
               const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
               if (linkMatch) {
