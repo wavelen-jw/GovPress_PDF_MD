@@ -11,9 +11,9 @@ const DIST_INDEX = path.resolve(__dirname, "..", "dist", "index.html");
 
 const HEAD_INJECTION = `
     <link rel="manifest" href="./manifest.webmanifest">
-    <meta name="theme-color" content="#b75e1f">
-    <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
-    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+    <meta name="theme-color" content="#143e70">
+    <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png?v=20260501-logo">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png?v=20260501-logo">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="읽힘">
@@ -26,7 +26,7 @@ const SW_REGISTER = `
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", function () {
-          navigator.serviceWorker.register("./sw.js").catch(function (error) {
+          navigator.serviceWorker.register("./sw.js?v=20260501-logo").catch(function (error) {
             console.warn("[pwa] service worker register failed:", error);
           });
         });
