@@ -57,6 +57,17 @@ jobs:
           mv mobile/dist/_expo mobile/dist/app/_expo
           mv mobile/dist/index.html mobile/dist/app/index.html
           mv mobile/dist/metadata.json mobile/dist/app/metadata.json
+          # PWA assets must live next to /app/index.html so manifest scope and
+          # relative href="./..." resolve correctly under govpress.cloud/app/.
+          if [ -f mobile/dist/manifest.webmanifest ]; then
+            mv mobile/dist/manifest.webmanifest mobile/dist/app/manifest.webmanifest
+          fi
+          if [ -f mobile/dist/sw.js ]; then
+            mv mobile/dist/sw.js mobile/dist/app/sw.js
+          fi
+          if [ -d mobile/dist/icons ]; then
+            mv mobile/dist/icons mobile/dist/app/icons
+          fi
           python - <<'PY'
           from pathlib import Path
 
