@@ -1,11 +1,19 @@
 import { Platform } from "react-native";
-import * as DocumentPicker from "expo-document-picker";
 
 import {
   getFallbackBaseUrls,
   POLICY_BRIEFING_LIST_TIMEOUT_MS,
   SERVER_FALLBACK_TIMEOUT_MS,
 } from "../constants";
+
+// Minimal asset shape uploadPdf needs. Compatible with both expo-document-
+// picker's DocumentPickerAsset and the platform-abstraction PickedAsset.
+type UploadableAsset = {
+  uri: string;
+  name: string;
+  mimeType?: string;
+  file?: File;
+};
 import type {
   AppConfig,
   HwpxTableMode,
@@ -163,11 +171,11 @@ function isRetryableUploadError(error: unknown): boolean {
   return false;
 }
 
-function buildUploadBody(asset: DocumentPicker.DocumentPickerAsset, hwpxTableMode: HwpxTableMode): FormData {
+function buildUploadBody(asset: UploadableAsset, hwpxTableMode: HwpxTableMode): FormData {
   const form = new FormData();
   form.append("source", "mobile");
   form.append("hwpx_table_mode", hwpxTableMode);
-  const webFile = (asset as DocumentPicker.DocumentPickerAsset & { file?: File }).file;
+  const webFile = asset.file;
   if (Platform.OS === "web" && webFile) {
     form.append("file", webFile);
   } else {
@@ -250,7 +258,7 @@ export async function fetchResult(config: AppConfig, jobId: string, editToken: s
 
 export async function uploadPdf(
   config: AppConfig,
-  asset: DocumentPicker.DocumentPickerAsset,
+  asset: UploadableAsset,
   hwpxTableMode: HwpxTableMode,
 ): Promise<UploadResult> {
   const attempts = getFallbackBaseUrls(config.baseUrl);
