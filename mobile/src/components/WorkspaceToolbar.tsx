@@ -36,7 +36,7 @@ export function WorkspaceToolbar({
   onSaveMarkdownFile,
   onToggleDarkMode,
 }: Props) {
-  const brandIconUri = "./icons/icon-192.png";
+  const brandIconUri = "./icons/icon-192.png?v=20260501-logo5";
 
   return (
     <View style={[styles.workspaceToolbar, isDarkMode && styles.workspaceToolbarDark]}>

@@ -5,7 +5,7 @@
 //   - Other GET requests → network-first with cache fallback (covers static assets fetched at runtime).
 // Bumping CACHE_VERSION invalidates old caches on next activate.
 
-const CACHE_VERSION = "v7";
+const CACHE_VERSION = "v8";
 const APP_SHELL_CACHE = `readhim-app-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `readhim-runtime-${CACHE_VERSION}`;
 const SHARED_MARKDOWN_URL = "./shared-markdown";
@@ -13,13 +13,13 @@ const SHARED_MARKDOWN_URL = "./shared-markdown";
 const APP_SHELL_URLS = [
   "./",
   "./index.html",
-  "./manifest.webmanifest",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
-  "./icons/icon-192-maskable.png",
-  "./icons/icon-512-maskable.png",
-  "./icons/apple-touch-icon.png",
-  "./icons/favicon-32.png",
+  "./manifest.webmanifest?v=20260501-logo5",
+  "./icons/icon-192.png?v=20260501-logo5",
+  "./icons/icon-512.png?v=20260501-logo5",
+  "./icons/icon-192-maskable.png?v=20260501-logo5",
+  "./icons/icon-512-maskable.png?v=20260501-logo5",
+  "./icons/apple-touch-icon.png?v=20260501-logo5",
+  "./icons/favicon-32.png?v=20260501-logo5",
 ];
 
 self.addEventListener("install", (event) => {
