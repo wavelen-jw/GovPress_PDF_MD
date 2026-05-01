@@ -2,6 +2,7 @@
 """Generate PWA icon assets from the canonical logo PNG."""
 from __future__ import annotations
 
+from collections import deque
 from pathlib import Path
 
 from PIL import Image
@@ -15,10 +16,69 @@ ICON_DIR = ROOT / "public" / "icons"
 def _load_logo() -> Image.Image:
     if not SOURCE_LOGO.exists():
         raise FileNotFoundError(f"Missing source logo: {SOURCE_LOGO}")
-    return _crop_empty_margin(Image.open(SOURCE_LOGO).convert("RGBA"))
+    source = Image.open(SOURCE_LOGO).convert("RGBA")
+    if source.getchannel("A").getextrema()[0] == 255:
+        source = _remove_edge_background(source)
+    return _crop_empty_margin(source)
+
+
+def _is_baked_transparency_pixel(pixel: tuple[int, int, int]) -> bool:
+    high = min(pixel) >= 205
+    neutral = max(pixel) - min(pixel) <= 55
+    return high and neutral
+
+
+def _remove_edge_background(source: Image.Image) -> Image.Image:
+    rgba = source.convert("RGBA")
+    rgb = rgba.convert("RGB")
+    width, height = rgb.size
+    rgb_pixels = rgb.load()
+    visited: set[tuple[int, int]] = set()
+    queue: deque[tuple[int, int]] = deque()
+
+    for x in range(width):
+        queue.append((x, 0))
+        queue.append((x, height - 1))
+    for y in range(1, height - 1):
+        queue.append((0, y))
+        queue.append((width - 1, y))
+
+    alpha = rgba.getchannel("A")
+    alpha_pixels = alpha.load()
+
+    while queue:
+        x, y = queue.popleft()
+        if (x, y) in visited:
+            continue
+        visited.add((x, y))
+        if not _is_baked_transparency_pixel(rgb_pixels[x, y]):
+            continue
+        alpha_pixels[x, y] = 0
+        if x > 0:
+            queue.append((x - 1, y))
+        if x < width - 1:
+            queue.append((x + 1, y))
+        if y > 0:
+            queue.append((x, y - 1))
+        if y < height - 1:
+            queue.append((x, y + 1))
+
+    rgba.putalpha(alpha)
+    return rgba
 
 
 def _crop_empty_margin(source: Image.Image) -> Image.Image:
+    if source.mode == "RGBA":
+        bbox = source.getchannel("A").getbbox()
+        if bbox:
+            left, top, right, bottom = bbox
+            margin = round(max(right - left, bottom - top) * 0.015)
+            left = max(0, left - margin)
+            top = max(0, top - margin)
+            right = min(source.width, right + margin)
+            bottom = min(source.height, bottom + margin)
+            return source.crop((left, top, right, bottom))
+
     rgb = source.convert("RGB")
     width, height = rgb.size
     background = rgb.getpixel((0, 0))
