@@ -15,18 +15,31 @@ REMOTE_CODE = r"""
 import hashlib
 import json
 import sys
+import time
 import urllib.error
 import urllib.request
 
 
 def request_json(url, headers, data=None):
-    request = urllib.request.Request(url, headers=headers, data=data)
-    try:
-        with urllib.request.urlopen(request, timeout=120) as response:
-            return json.load(response)
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")[:1000]
-        raise RuntimeError("HTTP %s for %s: %s" % (exc.code, url, body)) from exc
+    retryable_statuses = {502, 503, 504}
+    last_error = None
+    for attempt in range(1, 7):
+        request = urllib.request.Request(url, headers=headers, data=data)
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")[:1000]
+            last_error = "HTTP %s for %s: %s" % (exc.code, url, body)
+            if exc.code not in retryable_statuses or attempt == 6:
+                raise RuntimeError(last_error) from exc
+        except urllib.error.URLError as exc:
+            last_error = "URL error for %s: %s" % (url, exc)
+            if attempt == 6:
+                raise RuntimeError(last_error) from exc
+        print("request_retry attempt=%s url=%s error=%s" % (attempt, url, last_error), file=sys.stderr)
+        time.sleep(5)
+    raise RuntimeError(last_error or "request failed for %s" % url)
 
 
 def runtime_probe(base_url, admin_key):
@@ -35,11 +48,10 @@ def runtime_probe(base_url, admin_key):
             base_url + "/v1/admin/runtime/converter",
             headers={"X-Admin-Key": admin_key},
         )
-    except urllib.error.HTTPError as exc:
+    except Exception as exc:
         return {
             "available": False,
-            "probe_error": "HTTP %s" % exc.code,
-            "probe_body": exc.read().decode("utf-8", errors="replace")[:500],
+            "probe_error": str(exc)[:500],
         }
 
 
