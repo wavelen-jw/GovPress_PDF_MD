@@ -29,6 +29,7 @@ export type MarkdownBlockRange = {
 };
 
 const MARKDOWN_INDENT_UNIT = 16;
+const MAX_ORDERED_LIST_NUMBER = 17;
 
 function markdownIndent(level: number): ViewStyle {
   return { marginLeft: MARKDOWN_INDENT_UNIT * (Math.max(0, level) + 1) };
@@ -40,6 +41,22 @@ function isEscaped(value: string, index: number): boolean {
     slashCount += 1;
   }
   return slashCount % 2 === 1;
+}
+
+function matchOrderedListMarker(line: string): RegExpMatchArray | null {
+  const match = line.match(/^(\d+)\.\s+(.*)$/);
+  if (!match) {
+    return null;
+  }
+  const markerNumber = Number(match[1]);
+  if (!Number.isInteger(markerNumber) || markerNumber < 1 || markerNumber > MAX_ORDERED_LIST_NUMBER) {
+    return null;
+  }
+  return match;
+}
+
+function isOrderedListLine(line: string): boolean {
+  return matchOrderedListMarker(line) !== null;
 }
 
 function splitTableRow(line: string): string[] {
@@ -622,16 +639,16 @@ function parseMarkdown(markdown: string): Block[] {
       continue;
     }
 
-    if (/^[-*+]\s+/.test(trimmed) || /^\d+\.\s+/.test(trimmed)) {
-      const ordered = /^\d+\.\s+/.test(trimmed);
+    if (/^[-*+]\s+/.test(trimmed) || isOrderedListLine(trimmed)) {
+      const ordered = isOrderedListLine(trimmed);
       let orderIndex = 0;
       while (index < lines.length) {
         const rawCandidate = lines[index];
         const candidate = rawCandidate.trim();
         const indent = rawCandidate.match(/^\s*/)?.[0].length || 0;
         const level = Math.min(3, Math.floor(indent / 2));
-        if (ordered && /^\d+\.\s+/.test(candidate)) {
-          const orderedMatch = candidate.match(/^(\d+)\.\s+(.*)$/);
+        if (ordered && isOrderedListLine(candidate)) {
+          const orderedMatch = matchOrderedListMarker(candidate);
           if (!orderedMatch) {
             break;
           }
@@ -684,7 +701,7 @@ function parseMarkdown(markdown: string): Block[] {
         (candidate.includes("|") && index + 1 < lines.length && isTableDivider(lines[index + 1].trim())) ||
         /^[-*+]\s+\[( |x|X)\]\s+/.test(candidate) ||
         /^[-*+]\s+/.test(candidate) ||
-        /^\d+\.\s+/.test(candidate) ||
+        isOrderedListLine(candidate) ||
         /^(-{3,}|\*{3,}|_{3,})$/.test(candidate) ||
         /^(```|~~~)/.test(candidate)
       ) {
@@ -809,11 +826,11 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
       continue;
     }
 
-    if (/^[-*+]\s+/.test(trimmed) || /^\d+\.\s+/.test(trimmed)) {
-      const ordered = /^\d+\.\s+/.test(trimmed);
+    if (/^[-*+]\s+/.test(trimmed) || isOrderedListLine(trimmed)) {
+      const ordered = isOrderedListLine(trimmed);
       while (index < lines.length) {
         const candidate = lines[index].trim();
-        if (ordered ? /^\d+\.\s+/.test(candidate) : /^[-*+]\s+/.test(candidate)) {
+        if (ordered ? isOrderedListLine(candidate) : /^[-*+]\s+/.test(candidate)) {
           const itemStart = currentLineStart();
           advanceLine(lines[index]);
           ranges.push({ start: itemStart, end: offset });
@@ -835,7 +852,7 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
         (candidate.includes("|") && index + 1 < lines.length && isTableDivider(lines[index + 1].trim())) ||
         /^[-*+]\s+\[( |x|X)\]\s+/.test(candidate) ||
         /^[-*+]\s+/.test(candidate) ||
-        /^\d+\.\s+/.test(candidate) ||
+        isOrderedListLine(candidate) ||
         /^(-{3,}|\*{3,}|_{3,})$/.test(candidate) ||
         /^(```|~~~)/.test(candidate)
       ) {
