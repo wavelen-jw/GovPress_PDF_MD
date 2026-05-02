@@ -188,6 +188,19 @@ const tauriImpl: FileIoImpl = {
     }
 
     void (async () => {
+      // Cold-start argv files: emitted in setup() before the React tree is
+      // mounted, so a regular event.listen would miss them. Drain a Rust-
+      // side queue instead.
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        const pending = await invoke<string[]>("drain_pending_files");
+        for (const arg of pending) {
+          if (looksLikeOpenableFile(arg)) void deliver(arg);
+        }
+      } catch (error) {
+        console.warn("[fileio.tauri] drain_pending_files failed:", error);
+      }
+
       try {
         const event = await loadEvent();
         const argvUnlisten = await event.listen<string[]>("tauri://file-opened-from-argv", (e) => {
@@ -200,8 +213,23 @@ const tauriImpl: FileIoImpl = {
         const fileUnlisten = await event.listen<string>("tauri://file-opened", (e) => {
           if (typeof e.payload === "string") void deliver(e.payload);
         });
+        // Native window drag-drop. Tauri 2 fires tauri://drag-drop with
+        // { paths: string[], position } once dragDropEnabled is on (set in
+        // tauri.conf.json). Browser-level dataTransfer events never fire
+        // inside the webview when the OS handles the drop, so this is the
+        // only delivery path.
+        const dragUnlisten = await event.listen<{ paths?: string[] }>(
+          "tauri://drag-drop",
+          (e) => {
+            const paths = e.payload && Array.isArray(e.payload.paths) ? e.payload.paths : [];
+            for (const p of paths) {
+              if (looksLikeOpenableFile(p)) void deliver(p);
+            }
+          },
+        );
         cleanups.push(() => argvUnlisten());
         cleanups.push(() => fileUnlisten());
+        cleanups.push(() => dragUnlisten());
       } catch (error) {
         console.warn("[fileio.tauri] event listen failed:", error);
       }

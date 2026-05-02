@@ -4,27 +4,48 @@
 //   running window instead of being dropped when a duplicate launch is
 //   collapsed.
 
+use std::sync::Mutex;
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, State};
 
-fn forward_argv(app: &AppHandle, argv: Vec<String>) {
-    // Skip argv[0] (the binary path itself).
-    let files: Vec<String> = argv
-        .into_iter()
+#[derive(Default)]
+struct PendingFiles(Mutex<Vec<String>>);
+
+fn argv_to_files(argv: Vec<String>) -> Vec<String> {
+    argv.into_iter()
         .skip(1)
         .filter(|arg| !arg.starts_with("--"))
         .filter(|arg| {
             let lower = arg.to_lowercase();
             lower.ends_with(".md") || lower.ends_with(".pdf") || lower.ends_with(".hwpx")
         })
-        .collect();
+        .collect()
+}
+
+fn forward_argv(app: &AppHandle, argv: Vec<String>) {
+    let files = argv_to_files(argv);
     if files.is_empty() {
         return;
+    }
+    // Always stash into pending state — frontend drains on mount, which
+    // covers cold-start (frontend not yet listening when we'd emit). Then
+    // also emit for the warm-start / second-instance case where the React
+    // tree is already mounted with a listener.
+    if let Some(state) = app.try_state::<PendingFiles>() {
+        if let Ok(mut buf) = state.0.lock() {
+            buf.extend(files.iter().cloned());
+        }
     }
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.emit("tauri://file-opened-from-argv", files);
         let _ = window.set_focus();
     }
+}
+
+#[tauri::command]
+fn drain_pending_files(state: State<'_, PendingFiles>) -> Vec<String> {
+    let mut buf = state.0.lock().expect("PendingFiles mutex poisoned");
+    std::mem::take(&mut *buf)
 }
 
 fn build_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
@@ -118,6 +139,8 @@ fn handle_menu_event(app: &AppHandle, event_id: &str) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(PendingFiles::default())
+        .invoke_handler(tauri::generate_handler![drain_pending_files])
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             forward_argv(app, argv);
         }))

@@ -21,6 +21,10 @@
     "fs:allow-read-file",
     "fs:allow-write-text-file",
     "fs:allow-read-text-file",
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "**" }]
+    },
 
     {
       "identifier": "http:default",
