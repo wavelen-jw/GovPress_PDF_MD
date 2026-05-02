@@ -801,12 +801,18 @@ else
   else
     "$DEPLOY_DIR/.venv/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" --require-package-backend
   fi
+  echo "baremetal_service_restart=$SERVICE"
   cleanup_baremetal_port_owners 8013 "$SERVICE"
+  echo "baremetal_port_cleanup_status=done"
   systemctl --user restart "$SERVICE"
+  echo "baremetal_service_restart_status=done"
   systemctl --user status --no-pager "$SERVICE" || true
+  echo "baremetal_service_active_check=$SERVICE"
   systemctl --user is-active --quiet "$SERVICE"
+  echo "baremetal_service_active_status=active"
   sleep 3
   build_and_verify_dashboard_assets baremetal "${GOVPRESS_QC_EXPORT_ROOT:-$DEPLOY_DIR/../gov-md-converter/exports/policy_briefing_qc}"
+  echo "baremetal_dashboard_status=done"
 fi
 
 # WSL rebuilds can take noticeably longer than VPS restarts.
