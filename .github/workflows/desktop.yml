@@ -106,7 +106,11 @@ jobs:
             - Linux AppImage: `chmod +x` 후 더블클릭. .deb 는 `apt install ./파일.deb`.
 
             변환은 `api.govpress.cloud` 를 통해 서버에서 처리됩니다.
-          releaseDraft: true
+          # Auto-publish so the updater endpoint
+          # https://github.com/.../releases/latest/download/latest.json
+          # actually resolves. Drafts return 404 there and silently break the
+          # in-app update prompt.
+          releaseDraft: false
           prerelease: false
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}

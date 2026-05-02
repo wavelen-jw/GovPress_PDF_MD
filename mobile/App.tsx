@@ -18,6 +18,7 @@ import { JobDetailPanel } from "./src/components/JobDetailPanel";
 import { SettingsModal } from "./src/components/SettingsModal";
 import { WorkspaceToolbar } from "./src/components/WorkspaceToolbar";
 import { DesktopMenuBar } from "./src/desktop/DesktopMenuBar";
+import { UpdateChecker } from "./src/desktop/UpdateChecker";
 import {
   DEFAULT_CONFIG,
   getServerLabel,
@@ -1677,6 +1678,7 @@ export default function App(): React.JSX.Element {
   return (
     <SafeAreaView style={[styles.safeArea, isDarkMode && styles.safeAreaDark]}>
       <DesktopMenuBar isDarkMode={isDarkMode} />
+      <UpdateChecker isDarkMode={isDarkMode} />
       {/* Fixed top toolbar — outside ScrollView so it stays pinned */}
       <View style={styles.toolbarShell}>
         <WorkspaceToolbar
