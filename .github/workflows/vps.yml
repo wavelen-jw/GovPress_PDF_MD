@@ -103,7 +103,7 @@ jobs:
                   ;;
                 deploy/wsl/README.md|deploy/wsl/.env.example)
                   ;;
-                .github/workflows/vps.yml|deploy/common/*|requirements.txt|server/*|src/*|deploy/converter.version)
+                .github/workflows/vps.yml|deploy/common/*|requirements.txt|server/*|src/*|deploy/converter.version|scripts/compare_converter_runtime*.py)
                   deploy_v=true
                   deploy_hw=true
                   run_drift=true
