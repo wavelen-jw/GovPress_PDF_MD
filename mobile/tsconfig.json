@@ -4,5 +4,5 @@
     "strict": true,
     "noEmit": true
   },
-  "exclude": ["dist", "node_modules"]
+  "exclude": ["dist", "dist-desktop", "node_modules", "src-tauri"]
 }

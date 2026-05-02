@@ -1,6 +1,6 @@
 [package]
 name = "govpress-desktop"
-version = "0.1.5"
+version = "0.1.6"
 description = "읽힘 데스크탑 — 정부 보도자료 Markdown 변환·편집"
 authors = ["wavelen-jw"]
 edition = "2021"

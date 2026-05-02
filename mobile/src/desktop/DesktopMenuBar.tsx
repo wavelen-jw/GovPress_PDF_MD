@@ -99,6 +99,36 @@ export function DesktopMenuBar({ isDarkMode }: { isDarkMode?: boolean }): React.
     if (typeof window !== "undefined") window.history.forward();
   };
 
+  // The whole bar acts as the OS title bar (decorations: false in
+  // tauri.conf.json). Buttons are interactive; the empty middle region
+  // carries the data-tauri-drag-region attribute so users can drag the
+  // window from there. Window controls (min / max / close) live on the
+  // far right and replace the OS-supplied ones we just hid.
+  const minimizeWindow = async () => {
+    try {
+      const win = await import("@tauri-apps/api/window");
+      await win.getCurrentWindow().minimize();
+    } catch (e) {
+      console.warn("[DesktopMenuBar] minimize failed:", e);
+    }
+  };
+  const toggleMaximize = async () => {
+    try {
+      const win = await import("@tauri-apps/api/window");
+      await win.getCurrentWindow().toggleMaximize();
+    } catch (e) {
+      console.warn("[DesktopMenuBar] toggleMaximize failed:", e);
+    }
+  };
+  const closeWindow = async () => {
+    try {
+      const win = await import("@tauri-apps/api/window");
+      await win.getCurrentWindow().close();
+    } catch (e) {
+      console.warn("[DesktopMenuBar] close failed:", e);
+    }
+  };
+
   return (
     <View style={[styles.bar, dark && styles.barDark]}>
       <Pressable
@@ -124,6 +154,48 @@ export function DesktopMenuBar({ isDarkMode }: { isDarkMode?: boolean }): React.
         accessibilityRole="button"
       >
         <Text style={[styles.iconGlyph, dark && styles.iconGlyphDark]}>→</Text>
+      </Pressable>
+      <View
+        // RN Web converts dataSet keys to data-* attributes; Tauri's drag
+        // region detector keys off the attribute presence.
+        // @ts-expect-error -- web-only prop forwarded by react-native-web
+        dataSet={{ tauriDragRegion: "" }}
+        style={styles.dragArea}
+      />
+      <Pressable
+        style={({ pressed }) => [styles.controlButton, pressed && styles.iconButtonPressed]}
+        onPress={() => void minimizeWindow()}
+        accessibilityLabel="창 최소화"
+        accessibilityRole="button"
+      >
+        <Text style={[styles.controlGlyph, dark && styles.iconGlyphDark]}>—</Text>
+      </Pressable>
+      <Pressable
+        style={({ pressed }) => [styles.controlButton, pressed && styles.iconButtonPressed]}
+        onPress={() => void toggleMaximize()}
+        accessibilityLabel="창 크기 전환"
+        accessibilityRole="button"
+      >
+        <Text style={[styles.controlGlyph, dark && styles.iconGlyphDark]}>▢</Text>
+      </Pressable>
+      <Pressable
+        style={({ pressed }) => [styles.controlButton, pressed && styles.controlButtonClosePressed]}
+        onPress={() => void closeWindow()}
+        accessibilityLabel="창 닫기"
+        accessibilityRole="button"
+      >
+        {({ pressed }) => (
+          <Text
+            style={[
+              styles.controlGlyph,
+              styles.controlGlyphClose,
+              dark && !pressed && styles.iconGlyphDark,
+              pressed && styles.controlGlyphClosePressed,
+            ]}
+          >
+            ✕
+          </Text>
+        )}
       </Pressable>
       {open ? (
         <View
@@ -193,6 +265,33 @@ const styles = StyleSheet.create({
   },
   iconGlyphDark: {
     color: "#d4d4d8",
+  },
+  dragArea: {
+    flex: 1,
+    height: "100%",
+    // Empty filler whose only purpose is to host the
+    // data-tauri-drag-region attribute. Cursor stays default; the OS
+    // window manager handles the drag once Tauri starts it.
+  },
+  controlButton: {
+    width: 44,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  controlButtonClosePressed: {
+    backgroundColor: "#dc2626",
+  },
+  controlGlyph: {
+    fontSize: 14,
+    color: "#3f3f46",
+    lineHeight: 16,
+  },
+  controlGlyphClose: {
+    fontSize: 12,
+  },
+  controlGlyphClosePressed: {
+    color: "#ffffff",
   },
   dropdown: {
     position: "absolute",
