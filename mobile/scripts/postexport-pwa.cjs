@@ -81,6 +81,44 @@ function patchDesktop(html) {
   return out;
 }
 
+function patchDesktopBundleAssets(distDir) {
+  // Expo's Metro web bundler bakes `experiments.baseUrl` into the JS bundle
+  // for dynamic chunk URLs (e.g. /GovPress_PDF_MD/app/_expo/static/js/web/
+  // event-*.js). Under tauri://localhost those absolute paths 404, so we
+  // strip the prefix from every text asset Tauri ships next to index.html.
+  const exts = new Set([".js", ".css", ".map", ".html"]);
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      const ext = path.extname(entry.name).toLowerCase();
+      if (!exts.has(ext)) continue;
+      const original = fs.readFileSync(full, "utf8");
+      if (!original.includes("/GovPress_PDF_MD/")) continue;
+      // Keep absolute paths absolute (Tauri serves dist root at /). Match
+      // only when the leading "/" is the very first slash of a URL path —
+      // i.e. preceded by quote, paren, comma, equals, semicolon, whitespace,
+      // or start of string. This skips github.com URLs (https://...) and
+      // regex literals (which use escaped \/).
+      const replaced = original.replace(
+        /(^|[\s"'`,;=()])(\/GovPress_PDF_MD\/app\/)/g,
+        "$1/",
+      ).replace(
+        /(^|[\s"'`,;=()])(\/GovPress_PDF_MD\/)/g,
+        "$1/",
+      );
+      if (replaced !== original) {
+        fs.writeFileSync(full, replaced, "utf8");
+        console.log(`[postexport-pwa]   rewrote ${path.relative(distDir, full)}`);
+      }
+    }
+  };
+  walk(distDir);
+}
+
 function main() {
   if (!fs.existsSync(DIST_INDEX)) {
     console.error(`[postexport-pwa] missing ${DIST_INDEX}; did expo export run?`);
@@ -92,6 +130,9 @@ function main() {
   console.log(
     `[postexport-pwa] patched ${DIST_INDEX} (${desktopMode ? "desktop" : "pwa"} mode)`,
   );
+  if (desktopMode) {
+    patchDesktopBundleAssets(DIST_DIR);
+  }
 }
 
 main();
