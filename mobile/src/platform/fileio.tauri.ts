@@ -213,25 +213,28 @@ const tauriImpl: FileIoImpl = {
         const fileUnlisten = await event.listen<string>("tauri://file-opened", (e) => {
           if (typeof e.payload === "string") void deliver(e.payload);
         });
-        // Native window drag-drop. Tauri 2 fires tauri://drag-drop with
-        // { paths: string[], position } once dragDropEnabled is on (set in
-        // tauri.conf.json). Browser-level dataTransfer events never fire
-        // inside the webview when the OS handles the drop, so this is the
-        // only delivery path.
-        const dragUnlisten = await event.listen<{ paths?: string[] }>(
-          "tauri://drag-drop",
-          (e) => {
-            const paths = e.payload && Array.isArray(e.payload.paths) ? e.payload.paths : [];
-            for (const p of paths) {
-              if (looksLikeOpenableFile(p)) void deliver(p);
-            }
-          },
-        );
         cleanups.push(() => argvUnlisten());
         cleanups.push(() => fileUnlisten());
-        cleanups.push(() => dragUnlisten());
       } catch (error) {
         console.warn("[fileio.tauri] event listen failed:", error);
+      }
+      // Native drag-drop. Tauri 2 emits drag-drop on the *webview* channel,
+      // not the global event bus, so a plain event.listen("tauri://drag-drop")
+      // never fires. getCurrentWebview().onDragDropEvent() registers on the
+      // right channel and yields a typed payload with `type: "enter" | "over"
+      // | "drop" | "leave"`. Requires dragDropEnabled in tauri.conf.json.
+      try {
+        const webview = await import("@tauri-apps/api/webview");
+        const off = await webview.getCurrentWebview().onDragDropEvent((e) => {
+          if (e.payload.type !== "drop") return;
+          const paths = Array.isArray(e.payload.paths) ? e.payload.paths : [];
+          for (const p of paths) {
+            if (looksLikeOpenableFile(p)) void deliver(p);
+          }
+        });
+        cleanups.push(() => off());
+      } catch (error) {
+        console.warn("[fileio.tauri] drag-drop subscribe failed:", error);
       }
       try {
         const deepLink = await loadDeepLink();

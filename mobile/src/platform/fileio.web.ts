@@ -1,6 +1,13 @@
 // Browser/PWA implementation of the fileio abstraction.
 // Mirrors the previous inline web behavior in App.tsx (handleSaveMarkdownFile,
 // handleShareMarkdown, handleCopyMarkdown, openLocalMarkdown).
+//
+// Metro's web bundler resolves `import "./fileio"` to this file (.web.ts wins
+// over .ts on the web platform) — and the Tauri desktop build is also a web
+// bundle. So this module is responsible for runtime-dispatching to the Tauri
+// implementation when __TAURI_INTERNALS__ is present. Statically importing
+// fileio.tauri here ensures its code (and the "drain_pending_files" / drag-
+// drop wiring) actually ships in the bundle.
 
 import type {
   ExternalFileOpenHandler,
@@ -11,6 +18,7 @@ import type {
   ShareFileOptions,
   Unsubscribe,
 } from "./fileio";
+import * as tauriImpl from "./fileio.tauri";
 
 type ShowSaveFilePicker = (options: {
   suggestedName?: string;
@@ -184,19 +192,23 @@ const webImpl: FileIoImpl = {
   },
 };
 
-export const pickFileForOpen = webImpl.pickFileForOpen;
-export const readFileAsText = webImpl.readFileAsText;
-export const saveTextFileAs = webImpl.saveTextFileAs;
-export const shareTextFile = webImpl.shareTextFile;
-export const copyTextToClipboard = webImpl.copyTextToClipboard;
-export const onExternalFileOpen = webImpl.onExternalFileOpen;
-
-// Mirrors fileio.ts. Metro resolves "./fileio" to fileio.web.ts when bundling
-// for the web platform (which includes the Tauri desktop build), so this
-// export must exist here too — otherwise consumers see undefined and crash.
 export function isTauriRuntime(): boolean {
   return (
     typeof window !== "undefined" &&
     (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== undefined
   );
 }
+
+// Each export checks at call-time so the same JS bundle works for both PWA
+// (browser) and Tauri (desktop webview) without a build-time switch. Bind the
+// pair eagerly (`isTauriRuntime()` is stable for the app lifetime) for a
+// micro-optimization and to make it obvious in the bundle which impl is live.
+const impl: FileIoImpl = isTauriRuntime() ? tauriImpl : webImpl;
+
+export const pickFileForOpen: FileIoImpl["pickFileForOpen"] = (options) => impl.pickFileForOpen(options);
+export const readFileAsText: FileIoImpl["readFileAsText"] = (asset) => impl.readFileAsText(asset);
+export const saveTextFileAs: FileIoImpl["saveTextFileAs"] = (suggestedName, content, mimeType) =>
+  impl.saveTextFileAs(suggestedName, content, mimeType);
+export const shareTextFile: FileIoImpl["shareTextFile"] = (options) => impl.shareTextFile(options);
+export const copyTextToClipboard: FileIoImpl["copyTextToClipboard"] = (text) => impl.copyTextToClipboard(text);
+export const onExternalFileOpen: FileIoImpl["onExternalFileOpen"] = (handler) => impl.onExternalFileOpen(handler);

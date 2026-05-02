@@ -18,9 +18,18 @@
     "dialog:allow-open",
     "dialog:allow-save",
 
-    "fs:allow-read-file",
-    "fs:allow-write-text-file",
-    "fs:allow-read-text-file",
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [{ "path": "**" }]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "**" }]
+    },
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [{ "path": "**" }]
+    },
     {
       "identifier": "fs:scope",
       "allow": [{ "path": "**" }]
