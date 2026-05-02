@@ -110,3 +110,10 @@ export const saveTextFileAs = nativeImpl.saveTextFileAs;
 export const shareTextFile = nativeImpl.shareTextFile;
 export const copyTextToClipboard = nativeImpl.copyTextToClipboard;
 export const onExternalFileOpen = nativeImpl.onExternalFileOpen;
+
+// React Native (iOS/Android) is never the Tauri webview. Mirrored here so
+// the same import surface works regardless of which platform variant Metro
+// resolves "./fileio" to.
+export function isTauriRuntime(): boolean {
+  return false;
+}

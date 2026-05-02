@@ -190,3 +190,13 @@ export const saveTextFileAs = webImpl.saveTextFileAs;
 export const shareTextFile = webImpl.shareTextFile;
 export const copyTextToClipboard = webImpl.copyTextToClipboard;
 export const onExternalFileOpen = webImpl.onExternalFileOpen;
+
+// Mirrors fileio.ts. Metro resolves "./fileio" to fileio.web.ts when bundling
+// for the web platform (which includes the Tauri desktop build), so this
+// export must exist here too — otherwise consumers see undefined and crash.
+export function isTauriRuntime(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== undefined
+  );
+}
