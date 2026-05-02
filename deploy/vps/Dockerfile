@@ -18,8 +18,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/requirements.txt
+COPY deploy/converter.version /tmp/govpress-converter.version
 RUN pip install -r /app/requirements.txt \
     && pip install -U opendataloader-pdf \
+    && echo "govpress-converter target: $(cat /tmp/govpress-converter.version)" \
     && if [ -n "$GOVPRESS_CONVERTER_SPEC" ] && [ "$GOVPRESS_CONVERTER_SPEC" != "-" ]; then pip install --upgrade --force-reinstall "$GOVPRESS_CONVERTER_SPEC"; fi
 
 COPY . /app
