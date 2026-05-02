@@ -788,12 +788,23 @@ else
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
   fi
   if [ ! -x "$DEPLOY_DIR/.venv/bin/python" ]; then
+    echo "baremetal_venv_create=start"
     python3 -m venv "$DEPLOY_DIR/.venv"
+    echo "baremetal_venv_create=done"
   fi
-  "$DEPLOY_DIR/.venv/bin/python" -m pip install -U pip -q
-  "$DEPLOY_DIR/.venv/bin/python" -m pip install -r "$DEPLOY_DIR/requirements.txt" -q
-  "$DEPLOY_DIR/.venv/bin/python" -m pip install -U opendataloader-pdf -q
-  "$DEPLOY_DIR/.venv/bin/python" -m pip install --upgrade --force-reinstall "$CONVERTER_SPEC" -q
+  echo "baremetal_pip_upgrade=start"
+  "$DEPLOY_DIR/.venv/bin/python" -m pip install -U pip
+  echo "baremetal_pip_upgrade=done"
+  echo "baremetal_requirements_install=start"
+  "$DEPLOY_DIR/.venv/bin/python" -m pip install -r "$DEPLOY_DIR/requirements.txt"
+  echo "baremetal_requirements_install=done"
+  echo "baremetal_opendataloader_install=start"
+  "$DEPLOY_DIR/.venv/bin/python" -m pip install -U opendataloader-pdf
+  echo "baremetal_opendataloader_install=done"
+  echo "baremetal_converter_install=start"
+  "$DEPLOY_DIR/.venv/bin/python" -m pip install --upgrade --force-reinstall "$CONVERTER_SPEC"
+  echo "baremetal_converter_install=done"
+  echo "baremetal_converter_check=start"
   if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
     "$DEPLOY_DIR/.venv/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" \
       --require-package-backend \
@@ -801,6 +812,7 @@ else
   else
     "$DEPLOY_DIR/.venv/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" --require-package-backend
   fi
+  echo "baremetal_converter_check=done"
   echo "baremetal_service_restart=$SERVICE"
   cleanup_baremetal_port_owners 8013 "$SERVICE"
   echo "baremetal_port_cleanup_status=done"

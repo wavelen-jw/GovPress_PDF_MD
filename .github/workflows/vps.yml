@@ -134,6 +134,8 @@ jobs:
       branch:          ${{ vars.GOVPRESS_VPS_BRANCH || 'web' }}
       service:         ${{ vars.GOVPRESS_VPS_SERVICE }}
       healthcheck_url: ${{ vars.GOVPRESS_VPS_HEALTHCHECK_URL || 'http://127.0.0.1:8013/health' }}
+      deploy_poll_attempts: "120"
+      deploy_poll_interval_seconds: "5"
     secrets:
       host:    ${{ secrets.GOVPRESS_VPS_HOST }}
       user:    ${{ secrets.GOVPRESS_VPS_USER }}
