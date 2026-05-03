@@ -171,8 +171,13 @@ def build_router(
             if item is None:
                 raise KeyError(payload.news_item_id)
             cached = policy_briefing_cache.get(item.news_item_id)
-            if cached is None or cached.original_content is None:
-                cached = policy_briefing_cache.warm_item(item)
+            if cached is None or not cached.original_content:
+                resolved_date = payload.date or date.today()
+                cached = policy_briefing_cache.warm_item_with_catalog_retry(
+                    item,
+                    catalog=policy_briefing_catalog,
+                    target_date=resolved_date,
+                )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="캐시된 기사 목록에서 항목을 찾지 못했습니다.") from exc
         except Exception as exc:

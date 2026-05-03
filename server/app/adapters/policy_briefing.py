@@ -330,6 +330,16 @@ class PolicyBriefingCatalog:
     def refresh_today(self, target_date: date) -> list[PolicyBriefingItem]:
         return self.list_cached_items(target_date=target_date, ensure_fresh=True)
 
+    def force_refresh_day(self, target_date: date) -> list[PolicyBriefingItem]:
+        fetched_items = self._client.list_items(target_date)
+        store = {"items": {item.news_item_id: _serialize_item(item) for item in fetched_items}}
+        self._save_day_store(target_date, store)
+        return [
+            item
+            for item in sorted(fetched_items, key=_item_sort_key, reverse=True)
+            if _matches_target_date(item, target_date)
+        ]
+
     def iter_cached_items(self) -> list[PolicyBriefingItem]:
         self._migrate_legacy_store_if_needed()
         items: list[PolicyBriefingItem] = []
@@ -453,11 +463,17 @@ class PolicyBriefingCache:
         self._save_index(index)
         return cached
 
-    def _build_missing_hwpx_notice(self, item: PolicyBriefingItem, *, file_name: str, detail: str) -> PolicyBriefingCachedDocument:
+    def _build_unavailable_hwpx_notice(
+        self,
+        item: PolicyBriefingItem,
+        *,
+        file_name: str,
+        message: str,
+        description: str,
+        detail: str,
+    ) -> PolicyBriefingCachedDocument:
         title = item.title.strip() or file_name
         department = item.department.strip() or None
-        message = "국정브리핑에 HWPX 파일이 없습니다."
-        description = "제공기관 첨부가 HWP 형식이거나 HWPX가 제공되지 않아 자동 변환을 진행할 수 없습니다."
         detail_line = detail.strip()
         markdown_lines = [
             f"# {title}",
@@ -491,18 +507,45 @@ class PolicyBriefingCache:
             original_content=b"",
         )
 
-    def warm_item(self, item: PolicyBriefingItem) -> PolicyBriefingCachedDocument:
+    def _build_missing_hwpx_notice(self, item: PolicyBriefingItem, *, file_name: str, detail: str) -> PolicyBriefingCachedDocument:
+        return self._build_unavailable_hwpx_notice(
+            item,
+            file_name=file_name,
+            message="국정브리핑에 HWPX 파일이 없습니다.",
+            description="제공기관 첨부가 HWP 형식이거나 HWPX가 제공되지 않아 자동 변환을 진행할 수 없습니다.",
+            detail=detail,
+        )
+
+    def _build_hwpx_download_failed_notice(self, item: PolicyBriefingItem, *, file_name: str, detail: str) -> PolicyBriefingCachedDocument:
+        return self._build_unavailable_hwpx_notice(
+            item,
+            file_name=file_name,
+            message="국정브리핑 HWPX 첨부를 다운로드하지 못했습니다.",
+            description="제공기관 첨부 URL이 갱신되었거나 일시적으로 다운로드할 수 없어 자동 변환을 진행할 수 없습니다.",
+            detail=detail,
+        )
+
+    def warm_item(self, item: PolicyBriefingItem, *, notice_on_download_error: bool = True) -> PolicyBriefingCachedDocument:
         cached = self.get(item.news_item_id)
-        if cached is not None and cached.original_content is not None:
+        if cached is not None and cached.original_content:
             return cached
-        try:
-            downloaded = self._client.download_item_hwpx(item)
-        except ValueError:
-            fallback_name = item.primary_hwpx.file_name if item.primary_hwpx else (item.primary_pdf.file_name if item.primary_pdf else f"{item.title}.hwpx")
+        if item.primary_hwpx is None:
+            fallback_name = item.primary_pdf.file_name if item.primary_pdf else f"{item.title}.hwpx"
             return self._build_missing_hwpx_notice(
                 item,
                 file_name=fallback_name,
                 detail="국정브리핑 제공 첨부에 변환 가능한 HWPX 원문이 없습니다.",
+            )
+        try:
+            downloaded = self._client.download_item_hwpx(item)
+        except ValueError as exc:
+            if not notice_on_download_error:
+                raise
+            fallback_name = item.primary_hwpx.file_name
+            return self._build_hwpx_download_failed_notice(
+                item,
+                file_name=fallback_name,
+                detail=str(exc).strip() or "HWPX 첨부 다운로드에 실패했습니다.",
             )
         if not downloaded.is_zip_container:
             return self._build_missing_hwpx_notice(
@@ -551,6 +594,27 @@ class PolicyBriefingCache:
             department=department,
             original_content=downloaded.content,
         )
+
+    def warm_item_with_catalog_retry(
+        self,
+        item: PolicyBriefingItem,
+        *,
+        catalog: PolicyBriefingCatalog,
+        target_date: date,
+    ) -> PolicyBriefingCachedDocument:
+        cached = self.get(item.news_item_id)
+        if cached is not None and cached.original_content:
+            return cached
+        try:
+            return self.warm_item(item, notice_on_download_error=False)
+        except ValueError:
+            if item.primary_hwpx is None:
+                return self.warm_item(item)
+            catalog.force_refresh_day(target_date)
+            refreshed_item = catalog.get_cached_item(item.news_item_id, target_date=target_date)
+            if refreshed_item is None:
+                raise KeyError(item.news_item_id)
+            return self.warm_item(refreshed_item)
 
     def warm_items(self, items: list[PolicyBriefingItem]) -> list[PolicyBriefingCachedDocument]:
         warmed: list[PolicyBriefingCachedDocument] = []

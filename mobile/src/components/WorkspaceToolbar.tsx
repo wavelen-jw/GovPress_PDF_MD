@@ -11,6 +11,7 @@ type Props = {
   isPdfPickReady: boolean;
   editing: boolean;
   onDiscardEdit: () => void;
+  onOpenLanding: () => void;
   onOpenInfo: () => void;
   onPickPdf: () => void;
   onOpenPolicyBriefings: () => void;
@@ -28,19 +29,29 @@ export function WorkspaceToolbar({
   isPdfPickReady,
   editing,
   onDiscardEdit,
+  onOpenLanding,
   onOpenInfo,
   onPickPdf,
   onOpenPolicyBriefings,
   onSaveMarkdownFile,
   onToggleDarkMode,
 }: Props) {
-  const infoIconUri = "https://thumb.mt.co.kr/cdn-cgi/image/f=avif/21/2025/06/2025061011200349911_1.jpg";
+  const brandIconUri = "./icons/icon-192.png?v=20260501-logo5";
 
   return (
     <View style={[styles.workspaceToolbar, isDarkMode && styles.workspaceToolbarDark]}>
 
       {/* ── Brand ── */}
-      <Text style={[styles.tbarBrand, isDarkMode && styles.tbarBrandDark]}>읽힘</Text>
+      <Pressable
+        onPress={onOpenLanding}
+        accessibilityRole="link"
+        accessibilityLabel="읽힘 랜딩페이지로 이동"
+        style={styles.tbarBrandLink}
+        {...webTitle("읽힘 랜딩페이지로 이동")}
+      >
+        <Image source={{ uri: brandIconUri }} style={styles.tbarBrandIcon} />
+        <Text style={[styles.tbarBrand, isDarkMode && styles.tbarBrandDark]}>읽힘</Text>
+      </Pressable>
       <Text style={[styles.tbarSep, isDarkMode && styles.tbarSepDark]}>|</Text>
 
       {/* ── Document name ── */}
@@ -127,9 +138,7 @@ export function WorkspaceToolbar({
         accessibilityLabel="정보"
         {...webTitle("정보")}
       >
-        <View style={styles.utilityInfoCrop}>
-          <Image source={{ uri: infoIconUri }} style={styles.utilityInfoImage} />
-        </View>
+        <Text style={[styles.tbarInfoIcon, isDarkMode && styles.tbarInfoIconDark]}>i</Text>
       </Pressable>
     </View>
   );

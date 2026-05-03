@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @font-face {
+      font-family: NanumSquare;
+      src: url("file:///usr/share/fonts/truetype/nanum/NanumSquareR.ttf");
+      font-weight: 400;
+    }
+    @font-face {
+      font-family: NanumSquare;
+      src: url("file:///usr/share/fonts/truetype/nanum/NanumSquareB.ttf");
+      font-weight: 800;
+    }
+    * { box-sizing: border-box; }
+    body {
+      width: 1200px;
+      height: 630px;
+      margin: 0;
+      overflow: hidden;
+      background: #0d0d0d;
+      font-family: NanumSquare, sans-serif;
+      color: #f8f8f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 78px;
+    }
+    .eyebrow {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.32em;
+      color: rgba(248,248,245,.45);
+    }
+    .title {
+      font-size: 220px;
+      line-height: 1;
+      font-weight: 800;
+      margin: 60px 0 36px;
+      letter-spacing: -0.02em;
+    }
+    .tag-sub {
+      font-size: 30px;
+      font-weight: 400;
+      color: rgba(248,248,245,.66);
+      margin: 0 0 12px;
+    }
+    .tag-main {
+      font-size: 38px;
+      font-weight: 800;
+      margin: 0;
+    }
+    .flow {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-top: auto;
+      margin-bottom: 56px;
+    }
+    .chip {
+      padding: 0 22px;
+      height: 56px;
+      border: 2px solid rgba(248,248,245,.32);
+      border-radius: 10px;
+      color: rgba(248,248,245,.86);
+      font-size: 24px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+    }
+    .glue {
+      color: rgba(248,248,245,.5);
+      font-size: 24px;
+      font-weight: 800;
+    }
+    .arrow {
+      color: rgba(248,248,245,.62);
+      font-size: 24px;
+      font-weight: 800;
+    }
+    .result {
+      padding: 0 22px;
+      height: 56px;
+      background: #22c55e;
+      color: #0d0d0d;
+      border-radius: 10px;
+      font-size: 24px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="eyebrow">GOVERNMENT DOCUMENT CONVERTER</div>
+  <h1 class="title">읽힘</h1>
+  <p class="tag-sub">정부문서가 막힌 곳에서,</p>
+  <p class="tag-main">사람과 AI 모두 통하게 한다.</p>
+  <div class="flow" aria-hidden="true">
+    <div class="chip">.hwpx</div>
+    <div class="glue">+</div>
+    <div class="chip">.pdf</div>
+    <div class="glue">+</div>
+    <div class="chip">HTML API</div>
+    <div class="arrow">→</div>
+    <div class="result">.md ✓</div>
+  </div>
+</body>
+</html>

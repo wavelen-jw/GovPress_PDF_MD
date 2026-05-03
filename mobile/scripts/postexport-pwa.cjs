@@ -23,10 +23,10 @@ const DIST_DIR = path.resolve(__dirname, "..", distRel);
 const DIST_INDEX = path.join(DIST_DIR, "index.html");
 
 const PWA_HEAD_INJECTION = `
-    <link rel="manifest" href="./manifest.webmanifest">
-    <meta name="theme-color" content="#b75e1f">
-    <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
-    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+    <link rel="manifest" href="./manifest.webmanifest?v=20260501-logo5">
+    <meta name="theme-color" content="#143e70">
+    <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png?v=20260501-logo5">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png?v=20260501-logo5">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="읽힘">
@@ -42,7 +42,7 @@ const PWA_SW_REGISTER = `
         !location.protocol.startsWith("tauri")
       ) {
         window.addEventListener("load", function () {
-          navigator.serviceWorker.register("./sw.js").catch(function (error) {
+          navigator.serviceWorker.register("./sw.js?v=20260501-logo5").catch(function (error) {
             console.warn("[pwa] service worker register failed:", error);
           });
         });

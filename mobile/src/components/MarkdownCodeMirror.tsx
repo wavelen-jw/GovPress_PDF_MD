@@ -33,6 +33,12 @@ const appTheme = EditorView.theme({
     overflowX: "hidden",
     overflowY: "auto",
   },
+  "@supports (-webkit-touch-callout: none)": {
+    ".cm-scroller, .cm-content, .cm-line": {
+      fontSize: "16px",
+      lineHeight: "24px",
+    },
+  },
   ".cm-gutters": {
     backgroundColor: "transparent",
     borderRight: "1px solid rgba(255,255,255,0.1)",

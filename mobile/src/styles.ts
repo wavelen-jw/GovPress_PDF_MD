@@ -277,6 +277,17 @@ export const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.09)",
   },
   // ── Flat toolbar (tbar*) ─────────────────────────────────
+  tbarBrandLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
+  },
+  tbarBrandIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+  },
   tbarBrand: {
     fontSize: 17,
     lineHeight: 20,
@@ -351,6 +362,23 @@ export const styles = StyleSheet.create({
     color: "#5a3f2a",
   },
   tbarIconLabelDark: { color: "rgba(255,255,255,0.65)" },
+  tbarInfoIcon: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#5a3f2a",
+    color: "#5a3f2a",
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "800",
+    textAlign: "center",
+    fontFamily: FONT_SANS,
+  },
+  tbarInfoIconDark: {
+    borderColor: "rgba(255,255,255,0.65)",
+    color: "rgba(255,255,255,0.65)",
+  },
   tbarDivider: {
     width: 1,
     height: 28,
@@ -481,18 +509,6 @@ export const styles = StyleSheet.create({
   utilityIconLabel: {
     fontSize: 14,
     lineHeight: 16,
-  },
-  utilityInfoImage: {
-    width: 40,
-    height: 40,
-    marginLeft: -5,
-    marginTop: -2,
-  },
-  utilityInfoCrop: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    overflow: "hidden",
   },
   utilityButtonLabelDark: {
     color: "#e6d2bb",
@@ -1366,6 +1382,8 @@ export const styles = StyleSheet.create({
     padding: 0,
     paddingTop: 2,
     paddingRight: 4,
+    fontSize: 16,
+    lineHeight: 24,
   },
   // ── Concept panel layout ─────────────────────────────────
   panelTabBar: {
@@ -1459,8 +1477,8 @@ export const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingLeft: 8,
     paddingRight: 14,
-    fontSize: 13,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 24,
     textAlignVertical: "top",
     backgroundColor: "transparent",
     borderWidth: 0,
@@ -2009,6 +2027,7 @@ export const styles = StyleSheet.create({
   },
   markdownImageWrap: {
     gap: 8,
+    alignItems: "center",
   },
   markdownImageFallback: {
     borderWidth: 1,
@@ -2037,9 +2056,10 @@ export const styles = StyleSheet.create({
     color: "#c3b29f",
   },
   markdownImage: {
-    width: "100%",
-    minHeight: 180,
-    maxHeight: 320,
+    width: "92%",
+    maxWidth: 720,
+    height: 240,
+    maxHeight: 280,
     borderRadius: 12,
     backgroundColor: "#f7f2eb",
   },

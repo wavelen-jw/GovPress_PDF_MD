@@ -52,15 +52,22 @@
     .section-copy { margin: 0 0 18px; max-width: 940px; color: var(--muted); font-size: 15px; line-height: 1.68; }
     .layout { display: grid; grid-template-columns: 420px minmax(0,1fr); gap: 18px; align-items: start; }
     .doc-list { display: grid; gap: 10px; }
+    .doc-card {
+      border: 1px solid var(--line); border-radius: 8px;
+      background: rgba(255,255,255,0.62); padding: 14px;
+      display: grid; gap: 8px;
+    }
+    .doc-card.active { border-color: rgba(13,106,87,0.35); background: rgba(13,106,87,0.08); }
     .doc-button {
       width: 100%; text-align: left; border: 1px solid var(--line); border-radius: 8px;
-      background: rgba(255,255,255,0.62); padding: 14px; cursor: pointer; color: var(--text);
+      background: transparent; border: 0; padding: 0; cursor: pointer; color: var(--text);
       font: inherit;
     }
-    .doc-button.active { border-color: rgba(13,106,87,0.35); background: rgba(13,106,87,0.08); }
     .doc-rank { color: var(--accent); font-size: 12px; font-weight: 900; letter-spacing: .08em; }
     .doc-title { margin-top: 5px; font-weight: 850; font-size: 14px; line-height: 1.42; }
-    .doc-meta { margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .doc-department { margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.4; font-weight: 750; }
+    .doc-source { color: var(--accent); font-size: 12px; font-weight: 800; text-decoration: none; width: fit-content; }
+    .doc-source:hover { text-decoration: underline; }
     .detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
     .detail-title { margin: 0; font-size: clamp(22px, 3vw, 34px); line-height: 1.18; letter-spacing: -0.03em; }
     .source-link {
@@ -68,10 +75,6 @@
       background: rgba(13,106,87,0.1); color: var(--accent); font-size: 13px; font-weight: 800;
       text-decoration: none;
     }
-    .info-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 16px; }
-    .info-card { padding: 13px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,0.55); }
-    .info-card strong { display: block; font-size: 12px; margin-bottom: 5px; color: var(--muted); }
-    .info-card span { font-size: 13px; line-height: 1.5; font-weight: 700; }
     .point-box { padding: 16px; border-radius: 8px; background: rgba(170,76,36,0.06); border: 1px solid rgba(170,76,36,0.14); margin-bottom: 16px; }
     .point-box p { margin: 6px 0 0; color: #5f453b; line-height: 1.64; font-size: 14px; }
     .engine-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -80,32 +83,65 @@
       border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer;
     }
     .engine-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .engine-assessment {
+      margin: -2px 0 12px; padding: 11px 13px; border-radius: 8px;
+      background: rgba(13,106,87,0.06); border: 1px solid rgba(13,106,87,0.12);
+      color: #345349; font-size: 13px; line-height: 1.55; font-weight: 750;
+    }
     .result-card { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: rgba(255,255,255,0.62); }
     .result-head { display: flex; justify-content: space-between; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
     .result-label { font-weight: 900; }
     .result-note { margin-top: 4px; color: var(--muted); font-size: 12px; }
     .status { color: var(--muted); font-size: 12px; font-weight: 800; }
-    .dual-view { display: grid; grid-template-columns: 1fr 1fr; min-height: 620px; max-height: 760px; }
+    .dual-view { display: grid; grid-template-columns: 1fr 1fr; height: min(78vh, 900px); min-height: 620px; overflow: hidden; }
     .md-pane, .preview-pane { overflow: auto; padding: 18px; }
     .md-pane { background: #171412; color: #efe7dd; border-right: 1px solid rgba(255,255,255,0.08); }
     .pane-eyebrow { display: inline-block; margin-bottom: 12px; font-size: 11px; font-weight: 850; letter-spacing: .05em; text-transform: uppercase; }
     .md-pane .pane-eyebrow { color: rgba(255,255,255,.45); }
     .preview-pane .pane-eyebrow { color: var(--muted); }
     pre { margin: 0; white-space: pre-wrap; font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    .rendered { line-height: 1.72; font-size: 14px; color: #2b2622; }
-    .rendered h1, .rendered h2, .rendered h3, .rendered h4 { margin: 1.1em 0 .45em; line-height: 1.24; }
-    .rendered h1 { font-size: 1.45em; }
-    .rendered h2 { font-size: 1.16em; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
-    .rendered h3 { font-size: 1.04em; }
-    .rendered p { margin: .65em 0; }
-    .rendered ul, .rendered ol { padding-left: 1.5em; }
-    .rendered blockquote { margin: .8em 0; padding: 8px 14px; border-left: 3px solid var(--accent); background: rgba(13,106,87,.04); border-radius: 0 8px 8px 0; }
-    .rendered table { width: 100%; border-collapse: collapse; margin: .8em 0; display: block; overflow-x: auto; font-size: 12px; }
-    .rendered th, .rendered td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; vertical-align: top; }
+    .rendered {
+      font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", sans-serif;
+      font-size: 17px; color: #333333; line-height: 1.58;
+    }
+    .rendered h1, .rendered h2, .rendered h3, .rendered h4 {
+      color: #2f2f2f; font-weight: 700; letter-spacing: -0.02em;
+      margin-top: 1.25em; margin-bottom: 0.58em; line-height: 1.28;
+    }
+    .rendered h1 { font-size: 2.35em; margin-top: 0; margin-bottom: 0.6em; }
+    .rendered h2 { font-size: 1.62em; margin-top: 1.45em; }
+    .rendered h3 { font-size: 1.18em; margin-top: 1.1em; }
+    .rendered h4 { font-size: 1.32em; margin-top: 0.95em; margin-bottom: 0.42em; }
+    .rendered h1:first-child, .rendered h2:first-child, .rendered h3:first-child, .rendered p:first-child { margin-top: 0; }
+    .rendered p { margin: 0.18em 0 1.08em; line-height: 1.52; }
+    .rendered li { line-height: 1.52; }
+    .rendered ul, .rendered ol { margin: 0.28em 0 1.05em; padding-left: 1.25em; }
+    .rendered li + li { margin-top: 0.18em; }
+    .rendered li p { margin: 0.1em 0; }
+    .rendered hr { border: 0; border-top: 2px solid #000000; margin: 0.55em 0 0.7em; }
+    .rendered blockquote {
+      border-left: 5px solid #000000; color: #555555;
+      margin: 0.95em 0 1.05em; padding: 0.05em 0 0.05em 0.95em;
+      background: transparent; border-radius: 0;
+    }
+    .rendered blockquote p { margin: 0.16em 0; }
+    .rendered code, .rendered pre {
+      background: #f5f5f5;
+      font-family: "D2Coding", "Consolas", "Courier New", monospace;
+    }
+    .rendered pre { padding: 12px 14px; overflow-x: auto; border: 1px solid #ebebeb; border-radius: 4px; }
+    .rendered code { padding: 0.12em 0.35em; border-radius: 4px; }
+    .rendered table {
+      border-collapse: collapse; width: 100%; margin: 0.45em 0 1.3em;
+      font-size: 0.98em; display: block; overflow-x: auto;
+    }
+    .rendered th, .rendered td { border: 1px solid #cbd5e1; padding: 8px 10px; vertical-align: top; text-align: left; }
+    .rendered th { background: #f7f7f7; font-weight: 700; }
+    .rendered img { display: block; max-width: min(92%, 720px); max-height: 420px; width: auto; height: auto; object-fit: contain; margin: .85em auto 1.1em; border-radius: 6px; }
     .empty { padding: 60px 20px; text-align: center; color: var(--muted); line-height: 1.7; }
     @media (max-width: 980px) {
       .hero, .layout { grid-template-columns: 1fr; }
-      .info-grid, .dual-view { grid-template-columns: 1fr; }
+      .dual-view { grid-template-columns: 1fr; height: 78vh; }
       .md-pane { border-right: 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
     }
   </style>
@@ -119,7 +155,7 @@
       <p class="lead" id="page-subtitle">표, 붙임, 각주가 복잡하게 섞인 정책브리핑 문서를 여러 변환 도구로 비교합니다.</p>
     </div>
     <div class="summary-box">
-      <strong>기준일 2026-04-29 · 최근 2주 정책브리핑</strong>
+      <strong>기준일 2026-04-29 · 최근 2주간 정책브리핑 + 일부 과거 보도자료</strong>
       <p>대형 통계표, 긴 붙임, 표 내부 목록, 각주성 문장이 섞인 실제 보도자료를 골랐습니다. 결과는 변환 품질을 눈으로 검토하기 위한 정적 비교 자료입니다.</p>
     </div>
   </section>
@@ -129,22 +165,17 @@
     <p class="section-copy">왼쪽에서 문서를 고르고, 오른쪽에서 변환 엔진을 바꿔 보세요. Markdown 원문과 렌더링 Preview를 함께 확인할 수 있습니다.</p>
     <div class="layout">
       <aside class="doc-list" id="doc-list"></aside>
-      <section>
+      <section id="comparison-section">
         <div class="detail-head">
           <h2 class="detail-title" id="detail-title"></h2>
           <a class="source-link" id="source-link" target="_blank" rel="noreferrer">원문 보기</a>
         </div>
-        <div class="info-grid">
-          <div class="info-card"><strong>QC 상태</strong><span id="qc-status"></span></div>
-          <div class="info-card"><strong>입력 파일</strong><span id="input-status"></span></div>
-          <div class="info-card"><strong>문서 ID</strong><span id="news-id"></span></div>
-        </div>
         <div class="point-box">
           <strong>난이도 근거</strong>
           <p id="difficulty-reason"></p>
-          <p id="qc-point"></p>
         </div>
         <div class="engine-tabs" id="engine-tabs"></div>
+        <div class="engine-assessment" id="engine-assessment"></div>
         <article class="result-card">
           <div class="result-head">
             <div>
@@ -173,7 +204,7 @@
   function statusLabel(status) {
     return {
       available: "결과 있음",
-      missing_input: "입력 파일 없음",
+      missing_input: "결과 없음",
       manual_missing: "결과 준비 중",
       missing_tool: "도구 미설치",
       failed: "변환 실패",
@@ -185,30 +216,39 @@
     const root = document.getElementById("doc-list");
     root.innerHTML = "";
     DATA.documents.forEach((doc, index) => {
+      const card = document.createElement("div");
+      card.className = "doc-card" + (index === selectedDocIndex ? " active" : "");
       const button = document.createElement("button");
-      button.className = "doc-button" + (index === selectedDocIndex ? " active" : "");
+      button.className = "doc-button";
       button.innerHTML = `
         <div class="doc-rank">#${doc.rank}</div>
         <div class="doc-title">${doc.title}</div>
-        <div class="doc-meta">${doc.qc_status} · ${doc.news_id}</div>
+        <div class="doc-department">${doc.department || ""}</div>
       `;
       button.addEventListener("click", () => {
         selectedDocIndex = index;
         selectedEngineKey = "readhim";
         render();
+        requestAnimationFrame(() => {
+          document.getElementById("comparison-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
       });
-      root.appendChild(button);
+      const sourceLink = document.createElement("a");
+      sourceLink.className = "doc-source";
+      sourceLink.href = doc.source_url;
+      sourceLink.target = "_blank";
+      sourceLink.rel = "noreferrer";
+      sourceLink.textContent = "원문 보기";
+      card.appendChild(button);
+      card.appendChild(sourceLink);
+      root.appendChild(card);
     });
   }
 
   function renderDetailShell(doc) {
     document.getElementById("detail-title").textContent = doc.title;
     document.getElementById("source-link").href = doc.source_url;
-    document.getElementById("qc-status").textContent = doc.qc_status;
-    document.getElementById("input-status").textContent = `${doc.has_hwpx ? "HWPX" : ""}${doc.has_hwpx && doc.has_pdf ? " · " : ""}${doc.has_pdf ? "PDF" : ""}` || "없음";
-    document.getElementById("news-id").textContent = doc.news_id;
-    document.getElementById("difficulty-reason").textContent = doc.difficulty_reason || "";
-    document.getElementById("qc-point").textContent = doc.details?.qc_point ? `QC 포인트: ${doc.details.qc_point}` : "";
+    document.getElementById("difficulty-reason").textContent = doc.difficulty_note || "";
   }
 
   function renderEngineTabs(doc) {
@@ -222,9 +262,19 @@
         selectedEngineKey = engine.key;
         renderEngine(doc);
         renderEngineTabs(doc);
+        renderEngineAssessment(doc);
       });
       root.appendChild(button);
     });
+  }
+
+  function engineAssessment(doc) {
+    const engine = doc.engines.find((item) => item.key === selectedEngineKey) || doc.engines[0];
+    return `ChatGPT 5.5의 평가: ${engine?.assessment || "아직 비교할 변환 결과가 준비되지 않았습니다."}`;
+  }
+
+  function renderEngineAssessment(doc) {
+    document.getElementById("engine-assessment").textContent = engineAssessment(doc);
   }
 
   async function loadMarkdown(engine) {
@@ -260,7 +310,7 @@
   async function renderEngine(doc) {
     const engine = doc.engines.find((item) => item.key === selectedEngineKey) || doc.engines[0];
     document.getElementById("engine-label").textContent = engine.label;
-    document.getElementById("engine-note").textContent = `${engine.input} 기반 변환 결과`;
+    document.getElementById("engine-note").textContent = "변환 결과";
     document.getElementById("engine-status").textContent = statusLabel(engine.status);
     const body = document.getElementById("result-body");
     const markdownTarget = document.getElementById("markdown-output");
@@ -290,6 +340,7 @@
     renderDocs();
     renderDetailShell(doc);
     renderEngineTabs(doc);
+    renderEngineAssessment(doc);
     renderEngine(doc);
   }
 

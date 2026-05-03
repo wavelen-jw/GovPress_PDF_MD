@@ -361,6 +361,7 @@ export default function App(): React.JSX.Element {
   const [currentEditToken, setCurrentEditToken] = useState<string | null>(null);
   const [selectedJobBaseUrl, setSelectedJobBaseUrl] = useState<string>(DEFAULT_CONFIG.baseUrl);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [selectedPolicyBriefingOriginalUrl, setSelectedPolicyBriefingOriginalUrl] = useState<string | null>(null);
   const [result, setResult] = useState<ResultPayload | null>(null);
   const [editorText, setEditorText] = useState("");
   const deferredEditorText = useDeferredValue(editorText);
@@ -606,6 +607,23 @@ export default function App(): React.JSX.Element {
         input:focus, textarea:focus, button:focus {
           outline: none;
           box-shadow: none;
+        }
+        @supports (-webkit-touch-callout: none) {
+          html {
+            -webkit-text-size-adjust: 100%;
+          }
+          input,
+          textarea,
+          [contenteditable="true"],
+          .cm-content,
+          .cm-line {
+            font-size: 16px !important;
+            line-height: 24px !important;
+          }
+          .cm-scroller {
+            font-size: 16px !important;
+            line-height: 24px !important;
+          }
         }
         * {
           scrollbar-color: var(--govpress-scrollbar-thumb) var(--govpress-scrollbar-track);
@@ -865,6 +883,7 @@ export default function App(): React.JSX.Element {
             startTransition(() => {
               setSelectedJobId(null);
               setSelectedJob(null);
+              setSelectedPolicyBriefingOriginalUrl(null);
               setResult(null);
               setEditorText("");
               setEditing(false);
@@ -885,6 +904,7 @@ export default function App(): React.JSX.Element {
           startTransition(() => {
             setSelectedJobId(null);
             setSelectedJob(null);
+            setSelectedPolicyBriefingOriginalUrl(null);
             setResult(null);
             setEditorText("");
             setEditing(false);
@@ -919,6 +939,42 @@ export default function App(): React.JSX.Element {
     return () => clearInterval(interval);
   }, [config.baseUrl, currentEditToken, result, selectedJob?.status, selectedJobBaseUrl, selectedJobId]);
 
+  // PWA share target: when launched from another app via "Share to 읽힘",
+  // the service worker stores the file under ./shared-markdown and appends
+  // ?sharedFile=1. Read the file, hand it to the same openLocalMarkdown
+  // path the OS file picker uses, then strip the query so a refresh doesn't
+  // re-open it. Skipped in non-web runtimes (Tauri/native).
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("sharedFile") !== "1") {
+      return;
+    }
+    const sharedFileUrl = new URL("./shared-markdown", window.location.href).toString();
+    void fetch(sharedFileUrl)
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`shared file HTTP ${response.status}`);
+        }
+        const encodedName = response.headers.get("x-readhim-file-name") || "shared.md";
+        const name = decodeURIComponent(encodedName);
+        const markdown = await response.text();
+        await openLocalMarkdown({
+          uri: sharedFileUrl,
+          name: name.toLowerCase().endsWith(".md") || name.toLowerCase().endsWith(".markdown") ? name : `${name}.md`,
+          mimeType: "text/markdown",
+          size: markdown.length,
+          file: new File([markdown], name, { type: "text/markdown" }),
+        });
+        params.delete("sharedFile");
+        const query = params.toString();
+        window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+      })
+      .catch((error) => showError("공유된 Markdown 파일을 열지 못했습니다.", error));
+  }, []);
+
   async function openLocalMarkdown(asset: PickedAsset): Promise<void> {
     const markdown = await readFileAsText(asset);
 
@@ -949,6 +1005,7 @@ export default function App(): React.JSX.Element {
       setSelectedJobId(localJobId);
       setCurrentEditToken(null);
       setSelectedJob(localJob);
+      setSelectedPolicyBriefingOriginalUrl(null);
       setResult(localResult);
       setLoadedTableMode("text");
       setSelectedTableMode("text");
@@ -991,6 +1048,7 @@ export default function App(): React.JSX.Element {
         setSelectedJobId(job.job_id);
         setCurrentEditToken(job.edit_token);
         setSelectedJob(job);
+        setSelectedPolicyBriefingOriginalUrl(null);
         setSelectedJobBaseUrl(resolvedBaseUrl);
         setResult(null);
         setLoadedTableMode(hwpxTableMode);
@@ -1142,6 +1200,7 @@ export default function App(): React.JSX.Element {
       setSelectedJobId(imported.job_id);
       setCurrentEditToken(imported.edit_token);
       setSelectedJob(imported);
+      setSelectedPolicyBriefingOriginalUrl(imported.original_url || null);
       setSelectedJobBaseUrl(resolvedBaseUrl);
       setResult(null);
       setLoadedTableMode("text");
@@ -1616,6 +1675,7 @@ export default function App(): React.JSX.Element {
     setCurrentEditToken(null);
     setSelectedJobBaseUrl(config.baseUrl);
     setSelectedJob(null);
+    setSelectedPolicyBriefingOriginalUrl(null);
     setResult(null);
     setEditorText("");
     setEditing(false);
@@ -1654,6 +1714,15 @@ export default function App(): React.JSX.Element {
     setIsDarkMode((current) => !current);
   }
 
+  function handleOpenLanding(): void {
+    if (Platform.OS !== "web" || typeof window === "undefined") {
+      return;
+    }
+    confirmDiscardChanges(() => {
+      window.location.assign(new URL("../", window.location.href).toString());
+    });
+  }
+
   // Wire the latest closures into the menu-event ref. Refs assignment in
   // render body is safe — it doesn't cause re-render and the menu listener
   // reads .current at the moment the user clicks the menu item.
@@ -1664,8 +1733,9 @@ export default function App(): React.JSX.Element {
     onOpenBriefings: handleOpenPolicyBriefings,
     onAbout: handleOpenInfo,
     onOpenGithub: handleOpenGithub,
-    // Desktop title-bar nav: clear the active job to drop back to the
-    // recent-jobs landing state, or flip into editor mode if a job is loaded.
+    // Desktop title-bar nav: in Tauri there's no separate landing.html to
+    // navigate to, so 랜딩 just clears the active job and drops back to
+    // the recent-jobs starting state. 편집기 flips into editor mode.
     onGoLanding: () => {
       setSelectedJobId(null);
       setSelectedJob(null);
@@ -1706,6 +1776,7 @@ export default function App(): React.JSX.Element {
           isPdfPickReady={isPdfPickReady}
           editing={editing}
           onDiscardEdit={handleDiscardEdit}
+          onOpenLanding={handleOpenLanding}
           onOpenInfo={handleOpenInfo}
           onPickPdf={() => void handlePickPdf()}
           onOpenPolicyBriefings={() => void handleOpenPolicyBriefings()}
@@ -1740,6 +1811,7 @@ export default function App(): React.JSX.Element {
             hideTopTabs={!isWideLayout}
             result={result}
             selectedJob={selectedJob}
+            originalUrl={selectedPolicyBriefingOriginalUrl}
             selectedResultText={previewMarkdown}
             onApplyEditorAction={applyEditorAction}
             onBack={() => {
@@ -1747,6 +1819,7 @@ export default function App(): React.JSX.Element {
                   setSelectedJobId(null);
                   setCurrentEditToken(null);
                   setSelectedJob(null);
+                  setSelectedPolicyBriefingOriginalUrl(null);
                   setResult(null);
                   setActiveTab("preview");
                 setEditing(false);
@@ -1815,6 +1888,7 @@ export default function App(): React.JSX.Element {
               hideTopTabs={!isWideLayout}
               result={result}
               selectedJob={selectedJob}
+              originalUrl={selectedPolicyBriefingOriginalUrl}
               selectedResultText={previewMarkdown}
               onApplyEditorAction={applyEditorAction}
               onBack={() => {
@@ -1822,6 +1896,7 @@ export default function App(): React.JSX.Element {
                     setSelectedJobId(null);
                     setCurrentEditToken(null);
                     setSelectedJob(null);
+                    setSelectedPolicyBriefingOriginalUrl(null);
                     setResult(null);
                     setActiveTab("preview");
                   setEditing(false);
@@ -1886,6 +1961,7 @@ export default function App(): React.JSX.Element {
                           setSelectedJobId(entry.jobId);
                           setCurrentEditToken(entry.editToken);
                           setSelectedJobBaseUrl(entry.baseUrl);
+                          setSelectedPolicyBriefingOriginalUrl(null);
                           setResult(null);
                           setEditorText("");
                           setSelectedTableMode("text");
