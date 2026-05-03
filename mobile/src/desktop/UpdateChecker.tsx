@@ -22,31 +22,105 @@ export function UpdateChecker({ isDarkMode }: { isDarkMode?: boolean }): React.J
   const [progress, setProgress] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  // Manual-check-only states. Boot-time check stays silent on no-update so
+  // the user isn't pestered. Triggering "업데이트 확인" from the menu sets
+  // these so they get visible feedback even when nothing is available.
+  const [noUpdateInfo, setNoUpdateInfo] = useState<string | null>(null);
+  const [manualError, setManualError] = useState<string | null>(null);
 
+  // Run a single check. `verbose` controls whether negative results
+  // (no-update / error) surface a modal — used for the manual menu trigger.
+  const runCheck = async (verbose: boolean) => {
+    try {
+      const updater = await import("@tauri-apps/plugin-updater");
+      const found = await updater.check();
+      if (found) {
+        setUpdate(found as unknown as UpdateLike);
+        setDismissed(false);
+        return;
+      }
+      if (verbose) {
+        const app = await import("@tauri-apps/api/app");
+        const current = await app.getVersion().catch(() => "");
+        setNoUpdateInfo(current ? `현재 v${current} — 최신 버전입니다.` : "최신 버전입니다.");
+      }
+    } catch (e) {
+      const msg = (e as Error)?.message ?? String(e);
+      console.warn("[UpdateChecker] check failed:", msg);
+      if (verbose) setManualError(msg);
+    }
+  };
+
+  // Boot-time silent check.
   useEffect(() => {
     if (!isTauriRuntime()) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    timer = setTimeout(() => {
-      void (async () => {
-        try {
-          const updater = await import("@tauri-apps/plugin-updater");
-          const found = await updater.check();
-          if (cancelled || !found) return;
-          // Tauri 2's check() resolves to null when no update is available.
-          // The returned object also has an `available` field on some
-          // versions; treat any non-null result as "update found".
-          setUpdate(found as unknown as UpdateLike);
-        } catch (e) {
-          console.warn("[UpdateChecker] check failed:", e);
-        }
-      })();
+    const timer = setTimeout(() => {
+      void runCheck(false);
     }, CHECK_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Manual trigger from the dropdown menu (menu://check-update). Verbose
+  // mode shows feedback regardless of result so users running this for
+  // diagnostics can tell the call actually happened.
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let off: (() => void) | null = null;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const event = await import("@tauri-apps/api/event");
+        const unlisten = await event.listen("menu://check-update", () => {
+          void runCheck(true);
+        });
+        if (cancelled) unlisten();
+        else off = () => unlisten();
+      } catch (e) {
+        console.warn("[UpdateChecker] menu listen failed:", e);
+      }
+    })();
     return () => {
       cancelled = true;
-      if (timer) clearTimeout(timer);
+      if (off) off();
     };
   }, []);
+
+  const dark = !!isDarkMode;
+
+  // Manual-check feedback modal: "최신 버전입니다" or error, neither tied
+  // to an UpdateLike object. Shown above the install modal logic below.
+  if (noUpdateInfo || manualError) {
+    return (
+      <View
+        style={[styles.backdrop, { position: "fixed" as unknown as "absolute" }]}
+        pointerEvents="auto"
+      >
+        <View style={[styles.card, dark && styles.cardDark]}>
+          <Text style={[styles.title, dark && styles.titleDark]}>
+            {manualError ? "업데이트 확인 실패" : "업데이트 확인"}
+          </Text>
+          <Text style={[styles.body, dark && styles.bodyDark]}>
+            {manualError ?? noUpdateInfo}
+          </Text>
+          <View style={styles.actions}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.button,
+                styles.buttonPrimary,
+                pressed && styles.buttonPrimaryPressed,
+              ]}
+              onPress={() => {
+                setNoUpdateInfo(null);
+                setManualError(null);
+              }}
+            >
+              <Text style={styles.buttonPrimaryText}>닫기</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   if (!update || dismissed) return null;
 
@@ -78,8 +152,6 @@ export function UpdateChecker({ isDarkMode }: { isDarkMode?: boolean }): React.J
       setProgress("");
     }
   };
-
-  const dark = !!isDarkMode;
 
   return (
     <View

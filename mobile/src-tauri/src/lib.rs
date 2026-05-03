@@ -102,11 +102,14 @@ pub fn run() {
 }
 
 fn percent_decode(input: &str) -> String {
-    // Minimal percent-decoder for common file path characters; avoids pulling
-    // in a separate crate just for this. Falls back to the original byte on
-    // any malformed escape.
-    let mut out = String::with_capacity(input.len());
+    // Decode %xx sequences into a byte buffer first, then interpret the
+    // result as UTF-8. The previous version cast each decoded byte directly
+    // to a `char`, which corrupts multi-byte sequences (Korean filenames
+    // etc.) into mojibake. Falls back to the original byte on any malformed
+    // escape, and to a lossy UTF-8 decode if the assembled bytes aren't
+    // valid UTF-8 (matches what most browsers do for file:// URLs).
     let bytes = input.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
         let b = bytes[i];
@@ -114,13 +117,13 @@ fn percent_decode(input: &str) -> String {
             let hi = (bytes[i + 1] as char).to_digit(16);
             let lo = (bytes[i + 2] as char).to_digit(16);
             if let (Some(hi), Some(lo)) = (hi, lo) {
-                out.push(((hi * 16 + lo) as u8) as char);
+                out.push((hi * 16 + lo) as u8);
                 i += 3;
                 continue;
             }
         }
-        out.push(b as char);
+        out.push(b);
         i += 1;
     }
-    out
+    String::from_utf8(out).unwrap_or_else(|e| String::from_utf8_lossy(&e.into_bytes()).into_owned())
 }

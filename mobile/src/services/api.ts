@@ -234,6 +234,31 @@ async function fetchJsonWithFallback<T>(
   throw new Error(`모든 서버 요청에 실패했습니다. ${failures.join(" | ")}`);
 }
 
+export type ServerVersion = {
+  api_version: string;
+  converter_version: string | null;
+};
+
+export async function fetchServerVersion(config: AppConfig): Promise<ServerVersion | null> {
+  // Best-effort: returns null if the endpoint isn't deployed yet, the
+  // server is unreachable, or the response shape doesn't match. The About
+  // modal renders "—" in that case rather than blocking the dialog.
+  try {
+    const response = await httpFetch(`${config.baseUrl}/v1/version`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    const json = (await response.json()) as Partial<ServerVersion>;
+    if (typeof json.api_version !== "string") return null;
+    return {
+      api_version: json.api_version,
+      converter_version: typeof json.converter_version === "string" ? json.converter_version : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchJob(config: AppConfig, jobId: string, editToken: string): Promise<Job> {
   const { payload } = await fetchJsonWithFallback<Job>(
     config,

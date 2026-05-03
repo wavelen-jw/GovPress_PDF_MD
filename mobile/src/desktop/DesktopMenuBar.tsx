@@ -15,6 +15,7 @@ const MENU_ENTRIES: MenuEntry[] = [
   { kind: "item", id: "menu://copy-markdown", label: "Markdown 클립보드 복사", shortcut: "Ctrl+Shift+C" },
   { kind: "separator", id: "sep2" },
   { kind: "item", id: "menu://reload", label: "새로 고침", shortcut: "Ctrl+R" },
+  { kind: "item", id: "menu://check-update", label: "업데이트 확인" },
   { kind: "item", id: "menu://about", label: "정보" },
   { kind: "item", id: "menu://open-github", label: "GitHub 저장소 열기" },
   { kind: "separator", id: "sep3" },
@@ -50,9 +51,10 @@ export function DesktopMenuBar({ isDarkMode }: { isDarkMode?: boolean }): React.
 
   // Keyboard shortcuts. The native menu used to provide these via accelerators;
   // now we register them ourselves on the document level so they work whether
-  // the dropdown is open or not.
+  // the dropdown is open or not. Gated to Tauri so PWA browser users keep
+  // their default Ctrl+O / Ctrl+S / Ctrl+R behaviour.
   useEffect(() => {
-    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    if (!isTauriRuntime() || typeof document === "undefined") return;
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
       const key = e.key.toLowerCase();

@@ -131,6 +131,19 @@ def create_app(
     def health_head() -> None:
         return None
 
+    @app.get("/v1/version")
+    def version_info() -> dict[str, str | None]:
+        # Surfaces the deployed API + converter versions to the desktop
+        # client's About modal. CONVERTER_VERSION is injected by the
+        # update-converter-version.yml workflow on each converter bump;
+        # falls back to None when not set so the client can render "—".
+        import os
+
+        return {
+            "api_version": app.version,
+            "converter_version": os.environ.get("CONVERTER_VERSION"),
+        }
+
     app.state.job_service = job_service
     app.state.result_service = result_service
     app.state.worker = worker
