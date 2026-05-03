@@ -81,6 +81,26 @@ async function probeServerApiReachability(url: string, apiKey: string, timeoutMs
   }
 }
 
+async function probeConverterRuntime(url: string, timeoutMs: number): Promise<string> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${url}/v1/runtime/converter?_t=${Date.now()}`, {
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return "";
+    }
+    const payload = (await response.json()) as HealthConverterPayload;
+    return formatConverterDetail(payload);
+  } catch {
+    return "";
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export function SettingsModal({
   visible,
   draft,
@@ -134,6 +154,9 @@ export function SettingsModal({
             converterDetail = formatConverterDetail(payload.converter);
           } catch {
             converterDetail = "";
+          }
+          if (!converterDetail) {
+            converterDetail = await probeConverterRuntime(url, timeoutMs);
           }
           return { ok: true, detail: `HTTP ${response.status}`, converterDetail };
         }

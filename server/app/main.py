@@ -128,6 +128,10 @@ def create_app(
     def health() -> dict[str, object]:
         return {"status": "ok", "converter": conversion_engine.runtime_summary()}
 
+    @app.get("/v1/runtime/converter")
+    def converter_runtime() -> dict[str, object]:
+        return conversion_engine.runtime_summary()
+
     @app.head("/health")
     def health_head() -> None:
         return None
