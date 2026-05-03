@@ -415,6 +415,8 @@ export default function App(): React.JSX.Element {
     onOpenBriefings?: () => void | Promise<void>;
     onAbout?: () => void;
     onOpenGithub?: () => void;
+    onGoLanding?: () => void;
+    onGoEditor?: () => void;
   }>({});
   const selectedJobConfig = useMemo<AppConfig>(() => {
     const baseUrl = selectedJobBaseUrl || config.baseUrl;
@@ -1294,6 +1296,8 @@ export default function App(): React.JSX.Element {
         });
         await wire("menu://about", () => menuHandlersRef.current.onAbout?.());
         await wire("menu://open-github", () => menuHandlersRef.current.onOpenGithub?.());
+        await wire("menu://go-landing", () => menuHandlersRef.current.onGoLanding?.());
+        await wire("menu://go-editor", () => menuHandlersRef.current.onGoEditor?.());
       } catch (error) {
         console.warn("[menu] subscribe failed:", error);
       }
@@ -1660,6 +1664,19 @@ export default function App(): React.JSX.Element {
     onOpenBriefings: handleOpenPolicyBriefings,
     onAbout: handleOpenInfo,
     onOpenGithub: handleOpenGithub,
+    // Desktop title-bar nav: clear the active job to drop back to the
+    // recent-jobs landing state, or flip into editor mode if a job is loaded.
+    onGoLanding: () => {
+      setSelectedJobId(null);
+      setSelectedJob(null);
+      setEditing(false);
+      setResult(null);
+      setEditorText("");
+      setNotice(null);
+    },
+    onGoEditor: () => {
+      setEditing(true);
+    },
   };
 
   const showDetailPanel = isWideLayout || !mobileShowList;
