@@ -10,6 +10,7 @@ from .api import jobs as jobs_api
 from .api import admin_runtime as admin_runtime_api
 from .api import policy_briefings as policy_briefings_api
 from .api import results as results_api
+from .adapters import conversion_engine
 from .adapters.policy_briefing import PolicyBriefingCache, PolicyBriefingCatalog, PolicyBriefingClient
 from .adapters.policy_briefing_qc import resolve_qc_export_root
 from .core.config import load_settings
@@ -124,8 +125,8 @@ def create_app(
     )
 
     @app.get("/health")
-    def health() -> dict[str, str]:
-        return {"status": "ok"}
+    def health() -> dict[str, object]:
+        return {"status": "ok", "converter": conversion_engine.runtime_summary()}
 
     @app.head("/health")
     def health_head() -> None:

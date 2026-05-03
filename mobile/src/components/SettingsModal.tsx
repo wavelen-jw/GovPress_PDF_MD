@@ -9,6 +9,15 @@ type ServerKey = (typeof SERVER_PRESETS)[number]["key"];
 type ServerProbeResult = {
   ok: boolean;
   detail: string;
+  converterDetail?: string;
+};
+type HealthConverterPayload = {
+  available?: boolean;
+  version?: string | null;
+  backend?: string | null;
+};
+type HealthPayload = {
+  converter?: HealthConverterPayload | null;
 };
 
 function isRetryableProbeFailure(detail: string): boolean {
@@ -32,6 +41,24 @@ function formatProbeError(error: unknown): string {
     return message || error.name || "fetch failed";
   }
   return String(error || "fetch failed");
+}
+
+function formatConverterDetail(converter?: HealthConverterPayload | null): string {
+  if (!converter) {
+    return "";
+  }
+  if (converter.available === false) {
+    return "확인 불가";
+  }
+  const version = (converter.version || "").trim();
+  const backend = (converter.backend || "").trim();
+  if (version && backend) {
+    return `v${version} · ${backend}`;
+  }
+  if (version) {
+    return `v${version}`;
+  }
+  return backend;
 }
 
 async function probeServerApiReachability(url: string, apiKey: string, timeoutMs: number): Promise<ServerProbeResult> {
@@ -77,6 +104,11 @@ export function SettingsModal({
     serverW: "",
     serverH: "",
   });
+  const [converterDetails, setConverterDetails] = useState<Record<ServerKey, string>>({
+    serverV: "",
+    serverW: "",
+    serverH: "",
+  });
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [lastCheckedAt, setLastCheckedAt] = useState<string>("");
 
@@ -96,7 +128,14 @@ export function SettingsModal({
           cache: "no-store",
         });
         if (response.ok) {
-          return { ok: true, detail: `HTTP ${response.status}` };
+          let converterDetail = "";
+          try {
+            const payload = (await response.json()) as HealthPayload;
+            converterDetail = formatConverterDetail(payload.converter);
+          } catch {
+            converterDetail = "";
+          }
+          return { ok: true, detail: `HTTP ${response.status}`, converterDetail };
         }
         lastFailure = `HTTP ${response.status}`;
         if (attempt === attempts - 1) {
@@ -132,6 +171,11 @@ export function SettingsModal({
       serverW: "",
       serverH: "",
     });
+    setConverterDetails({
+      serverV: "",
+      serverW: "",
+      serverH: "",
+    });
     const results = await Promise.all(
       SERVER_PRESETS.map(async (preset) => {
         const result = await probeServerHealth(preset.url, draft.apiKey, SERVER_FALLBACK_TIMEOUT_MS);
@@ -150,6 +194,11 @@ export function SettingsModal({
       serverV: results.find((item) => item.key === "serverV")?.detail ?? "",
       serverW: results.find((item) => item.key === "serverW")?.detail ?? "",
       serverH: results.find((item) => item.key === "serverH")?.detail ?? "",
+    });
+    setConverterDetails({
+      serverV: results.find((item) => item.key === "serverV")?.converterDetail ?? "",
+      serverW: results.find((item) => item.key === "serverW")?.converterDetail ?? "",
+      serverH: results.find((item) => item.key === "serverH")?.converterDetail ?? "",
     });
     setLastCheckedAt(new Date().toLocaleTimeString("ko-KR", { hour12: false }));
     setCheckingStatus(false);
@@ -211,6 +260,13 @@ export function SettingsModal({
                         : serverStatus[preset.key] === false
                           ? `실패 · ${serverDetails[preset.key]}`
                           : "확인 중"}
+                    </Text>
+                    <Text style={styles.settingsStatusText}>
+                      {serverStatus[preset.key] === true
+                        ? `변환기 · ${converterDetails[preset.key] || "확인 불가"}`
+                        : serverStatus[preset.key] === false
+                          ? "변환기 · 확인 불가"
+                          : "변환기 · 확인 중"}
                     </Text>
                   </View>
                 </Pressable>

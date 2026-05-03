@@ -4,6 +4,7 @@ import importlib
 import inspect
 import os
 from functools import lru_cache
+from importlib import metadata
 from pathlib import Path
 import sys
 from typing import Callable
@@ -106,6 +107,37 @@ def reset_backend_cache() -> None:
 def backend_name() -> str:
     backend, _, _ = _load_backend()
     return backend
+
+
+def _normalize_version(raw: str | None) -> str | None:
+    value = (raw or "").strip()
+    if not value:
+        return None
+    if value.startswith("v"):
+        return value[1:]
+    return value
+
+
+def runtime_summary() -> dict[str, object]:
+    try:
+        backend, _, _ = _load_backend()
+        package = importlib.import_module("govpress_converter")
+        version = _normalize_version(getattr(package, "__version__", None))
+        try:
+            dist_version = _normalize_version(metadata.version("govpress-converter"))
+        except metadata.PackageNotFoundError:
+            dist_version = None
+        return {
+            "available": True,
+            "version": dist_version or version or "0.0.0",
+            "backend": backend,
+        }
+    except Exception:
+        return {
+            "available": False,
+            "version": "",
+            "backend": "unavailable",
+        }
 
 
 def convert_hwpx(path: str | Path, *, table_mode: str = "text") -> str:
