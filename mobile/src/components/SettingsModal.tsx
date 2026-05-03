@@ -51,14 +51,10 @@ function formatConverterDetail(converter?: HealthConverterPayload | null): strin
     return "확인 불가";
   }
   const version = (converter.version || "").trim();
-  const backend = (converter.backend || "").trim();
-  if (version && backend) {
-    return `v${version} · ${backend}`;
-  }
   if (version) {
     return `v${version}`;
   }
-  return backend;
+  return "";
 }
 
 async function probeServerApiReachability(url: string, apiKey: string, timeoutMs: number): Promise<ServerProbeResult> {
@@ -118,11 +114,6 @@ export function SettingsModal({
     serverV: null,
     serverW: null,
     serverH: null,
-  });
-  const [serverDetails, setServerDetails] = useState<Record<ServerKey, string>>({
-    serverV: "",
-    serverW: "",
-    serverH: "",
   });
   const [converterDetails, setConverterDetails] = useState<Record<ServerKey, string>>({
     serverV: "",
@@ -189,11 +180,6 @@ export function SettingsModal({
       serverW: null,
       serverH: null,
     });
-    setServerDetails({
-      serverV: "",
-      serverW: "",
-      serverH: "",
-    });
     setConverterDetails({
       serverV: "",
       serverW: "",
@@ -212,11 +198,6 @@ export function SettingsModal({
       serverV: results.find((item) => item.key === "serverV")?.ok ?? null,
       serverW: results.find((item) => item.key === "serverW")?.ok ?? null,
       serverH: results.find((item) => item.key === "serverH")?.ok ?? null,
-    });
-    setServerDetails({
-      serverV: results.find((item) => item.key === "serverV")?.detail ?? "",
-      serverW: results.find((item) => item.key === "serverW")?.detail ?? "",
-      serverH: results.find((item) => item.key === "serverH")?.detail ?? "",
     });
     setConverterDetails({
       serverV: results.find((item) => item.key === "serverV")?.converterDetail ?? "",
@@ -279,17 +260,10 @@ export function SettingsModal({
                     <Text style={[styles.settingsPresetUrl, active && styles.settingsPresetUrlActive]}>{preset.url}</Text>
                     <Text style={styles.settingsStatusText}>
                       {serverStatus[preset.key] === true
-                        ? `정상 · ${serverDetails[preset.key]}`
+                        ? `정상 · ${converterDetails[preset.key] || "버전 확인 불가"}`
                         : serverStatus[preset.key] === false
-                          ? `실패 · ${serverDetails[preset.key]}`
+                          ? "실패"
                           : "확인 중"}
-                    </Text>
-                    <Text style={styles.settingsStatusText}>
-                      {serverStatus[preset.key] === true
-                        ? `변환기 · ${converterDetails[preset.key] || "확인 불가"}`
-                        : serverStatus[preset.key] === false
-                          ? "변환기 · 확인 불가"
-                          : "변환기 · 확인 중"}
                     </Text>
                   </View>
                 </Pressable>
