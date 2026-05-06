@@ -43,6 +43,15 @@ function isEscaped(value: string, index: number): boolean {
   return slashCount % 2 === 1;
 }
 
+function hasClosingBacktick(value: string, startIndex: number): boolean {
+  for (let index = startIndex + 1; index < value.length; index += 1) {
+    if (value[index] === "`" && !isEscaped(value, index)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function matchOrderedListMarker(line: string): RegExpMatchArray | null {
   const match = line.match(/^(\d+)\.\s+(.*)$/);
   if (!match) {
@@ -74,7 +83,9 @@ function splitTableRow(line: string): string[] {
   for (let index = 0; index < source.length; index += 1) {
     const char = source[index];
     if (char === "`" && !isEscaped(source, index)) {
-      inCode = !inCode;
+      if (inCode || hasClosingBacktick(source, index)) {
+        inCode = !inCode;
+      }
     }
     if (char === "|" && !inCode && !isEscaped(source, index)) {
       cells.push(current);
