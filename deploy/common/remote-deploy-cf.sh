@@ -312,11 +312,13 @@ run_host_proxy_compose_up() {
     if run_compose up -d --no-build --remove-orphans api worker >"$log_file" 2>&1; then
       cat "$log_file"
       if host_proxy_services_running; then
+        cleanup_host_proxy_stale_api_port_proxy
         return 0
       fi
       echo "host_proxy_reconcile_attempt=${attempt}"
       docker start govpress-api govpress-worker >/dev/null 2>&1 || true
       if host_proxy_services_running; then
+        cleanup_host_proxy_stale_api_port_proxy
         return 0
       fi
       docker inspect --format 'name={{.Name}} state={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' govpress-api govpress-worker 2>/dev/null || true
@@ -403,12 +405,58 @@ cleanup_host_proxy_docker_port_conflicts() {
   fi
 }
 
+cleanup_host_proxy_stale_api_port_proxy() {
+  local current_ip=""
+  local pids=""
+  local pid=""
+  local args=""
+  local proxy_ip=""
+  local cleaned=0
+  if ! docker inspect govpress-api >/dev/null 2>&1; then
+    return 0
+  fi
+  current_ip="$(
+    docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' govpress-api 2>/dev/null || true
+  )"
+  if [ -z "$current_ip" ]; then
+    return 0
+  fi
+  pids="$(
+    {
+      sudo -n lsof -tiTCP:8013 -sTCP:LISTEN 2>/dev/null || true
+      sudo -n ss -ltnp "( sport = :8013 )" 2>/dev/null \
+        | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' || true
+    } | sort -u | tr '\n' ' '
+  )"
+  for pid in $pids; do
+    args="$(sudo -n ps -p "$pid" -o args= 2>/dev/null || true)"
+    if ! printf '%s' "$args" | grep -q 'docker-proxy'; then
+      continue
+    fi
+    if ! printf '%s' "$args" | grep -q -- '-host-port 8013'; then
+      continue
+    fi
+    proxy_ip="$(printf '%s' "$args" | sed -n 's/.*-container-ip \([^ ]*\).*/\1/p')"
+    if [ -n "$proxy_ip" ] && [ "$proxy_ip" != "$current_ip" ]; then
+      echo "host_proxy_stale_api_proxy=${pid}:${proxy_ip}->${current_ip}"
+      sudo -n kill "$pid" >/dev/null 2>&1 || true
+      cleaned=1
+    fi
+  done
+  if [ "$cleaned" = "1" ]; then
+    sleep 1
+    docker restart govpress-api >/dev/null 2>&1 || true
+    echo "host_proxy_stale_api_proxy_cleanup=1"
+  fi
+}
+
 cleanup_host_proxy_orphans() {
   docker rm -f govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
   cleanup_host_proxy_temp_containers
   cleanup_host_proxy_backup_containers
   cleanup_host_proxy_stalled_services
   cleanup_host_proxy_docker_port_conflicts
+  cleanup_host_proxy_stale_api_port_proxy
   echo "host_proxy_orphan_cleanup=1"
 }
 
