@@ -343,9 +343,26 @@ function openExternalLink(url: string): void {
   void Linking.openURL(url);
 }
 
+const MARKDOWN_ESCAPE_START = "\uE000";
+const MARKDOWN_ESCAPE_END = "\uE001";
+
+function protectMarkdownEscapes(text: string): { text: string; restore: (value: string) => string } {
+  const escapedValues: string[] = [];
+  const protectedText = text.replace(/\\([\\`*_[\]()>#+.!-])/g, (_, escaped: string) => {
+    const index = escapedValues.push(escaped) - 1;
+    return `${MARKDOWN_ESCAPE_START}${index}${MARKDOWN_ESCAPE_END}`;
+  });
+  const restore = (value: string) =>
+    value.replace(new RegExp(`${MARKDOWN_ESCAPE_START}(\\d+)${MARKDOWN_ESCAPE_END}`, "g"), (_, rawIndex: string) => {
+      return escapedValues[Number(rawIndex)] ?? "";
+    });
+  return { text: protectedText, restore };
+}
+
 function renderInlineMarkdown(text: string, textStyle: object, keyPrefix: string, isDarkMode = false) {
-  const pattern = /(\\[\\`*_[\]()>#+.!-]|\*\*[^*]+\*\*|~~[^~]+~~|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
-  const lineParts = text.split(/<br\s*\/?>/gi);
+  const { text: escapedText, restore } = protectMarkdownEscapes(text);
+  const pattern = /(\*\*[^*]+\*\*|~~[^~]+~~|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
+  const lineParts = escapedText.split(/<br\s*\/?>/gi);
 
   return (
     <Text style={textStyle}>
@@ -356,47 +373,45 @@ function renderInlineMarkdown(text: string, textStyle: object, keyPrefix: string
             {lineIndex > 0 ? "\n" : null}
             {matches.map((part, index) => {
               const key = `${keyPrefix}-${lineIndex}-${index}`;
-              const escaped = part.match(/^\\([\\`*_[\]()>#+.!-])$/);
-              if (escaped) {
-                return <Text key={key}>{escaped[1]}</Text>;
-              }
               if (/^\*\*[^*]+\*\*$/.test(part)) {
                 return (
                   <Text key={key} style={[styles.markdownStrong, isDarkMode && styles.markdownStrongDark]}>
-                    {part.slice(2, -2)}
+                    {restore(part.slice(2, -2))}
                   </Text>
                 );
               }
               if (/^\*[^*]+\*$/.test(part)) {
                 return (
                   <Text key={key} style={styles.markdownEmphasis}>
-                    {part.slice(1, -1)}
+                    {restore(part.slice(1, -1))}
                   </Text>
                 );
               }
               if (/^~~[^~]+~~$/.test(part)) {
                 return (
                   <Text key={key} style={[styles.markdownStrike, isDarkMode && styles.markdownStrikeDark]}>
-                    {part.slice(2, -2)}
+                    {restore(part.slice(2, -2))}
                   </Text>
                 );
               }
               if (/^`[^`]+`$/.test(part)) {
-                return <Text key={key}>{part}</Text>;
+                return <Text key={key}>{restore(part)}</Text>;
               }
               const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
               if (linkMatch) {
+                const label = restore(linkMatch[1]);
+                const href = restore(linkMatch[2]);
                 return (
                   <Text
                     key={key}
                     style={[styles.markdownLink, isDarkMode && styles.markdownLinkDark]}
-                    onPress={() => openExternalLink(linkMatch[2])}
+                    onPress={() => openExternalLink(href)}
                   >
-                    {linkMatch[1]}
+                    {label}
                   </Text>
                 );
               }
-              return <Text key={key}>{part}</Text>;
+              return <Text key={key}>{restore(part)}</Text>;
             })}
           </React.Fragment>
         );
