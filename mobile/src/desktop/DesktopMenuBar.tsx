@@ -125,11 +125,6 @@ export function DesktopMenuBar({ isDarkMode }: { isDarkMode?: boolean }): React.
     }
   };
 
-  // Navigation events emitted to the same menu://* channel as the
-  // dropdown items, so App.tsx routes them through menuHandlersRef.
-  const goLanding = () => void dispatch("menu://go-landing");
-  const goEditor = () => void dispatch("menu://go-editor");
-
   return (
     <View style={[styles.bar, dark && styles.barDark]}>
       <Pressable
@@ -139,22 +134,6 @@ export function DesktopMenuBar({ isDarkMode }: { isDarkMode?: boolean }): React.
         accessibilityRole="button"
       >
         <Text style={[styles.iconGlyph, dark && styles.iconGlyphDark]}>≡</Text>
-      </Pressable>
-      <Pressable
-        style={({ pressed }) => [styles.navButton, pressed && styles.iconButtonPressed]}
-        onPress={goLanding}
-        accessibilityLabel="랜딩 페이지로"
-        accessibilityRole="button"
-      >
-        <Text style={[styles.navLabel, dark && styles.navLabelDark]}>랜딩</Text>
-      </Pressable>
-      <Pressable
-        style={({ pressed }) => [styles.navButton, pressed && styles.iconButtonPressed]}
-        onPress={goEditor}
-        accessibilityLabel="편집기로"
-        accessibilityRole="button"
-      >
-        <Text style={[styles.navLabel, dark && styles.navLabelDark]}>편집기</Text>
       </Pressable>
       <View
         // RN Web converts dataSet keys to data-* attributes; Tauri's drag
@@ -265,22 +244,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   iconGlyphDark: {
-    color: "#d4d4d8",
-  },
-  navButton: {
-    height: 28,
-    paddingHorizontal: 10,
-    marginHorizontal: 1,
-    borderRadius: 4,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  navLabel: {
-    fontSize: 13,
-    color: "#3f3f46",
-    lineHeight: 16,
-  },
-  navLabelDark: {
     color: "#d4d4d8",
   },
   dragArea: {

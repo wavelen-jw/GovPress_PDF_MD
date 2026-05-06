@@ -420,8 +420,6 @@ export default function App(): React.JSX.Element {
     onOpenBriefings?: () => void | Promise<void>;
     onAbout?: () => void;
     onOpenGithub?: () => void;
-    onGoLanding?: () => void;
-    onGoEditor?: () => void;
   }>({});
   const selectedJobConfig = useMemo<AppConfig>(() => {
     const baseUrl = selectedJobBaseUrl || config.baseUrl;
@@ -1392,8 +1390,6 @@ export default function App(): React.JSX.Element {
         });
         await wire("menu://about", () => menuHandlersRef.current.onAbout?.());
         await wire("menu://open-github", () => menuHandlersRef.current.onOpenGithub?.());
-        await wire("menu://go-landing", () => menuHandlersRef.current.onGoLanding?.());
-        await wire("menu://go-editor", () => menuHandlersRef.current.onGoEditor?.());
       } catch (error) {
         console.warn("[menu] subscribe failed:", error);
       }
@@ -1770,20 +1766,6 @@ export default function App(): React.JSX.Element {
     onOpenBriefings: handleOpenPolicyBriefings,
     onAbout: handleOpenInfo,
     onOpenGithub: handleOpenGithub,
-    // Desktop title-bar nav: in Tauri there's no separate landing.html to
-    // navigate to, so 랜딩 just clears the active job and drops back to
-    // the recent-jobs starting state. 편집기 flips into editor mode.
-    onGoLanding: () => {
-      setSelectedJobId(null);
-      setSelectedJob(null);
-      setEditing(false);
-      setResult(null);
-      setEditorText("");
-      setNotice(null);
-    },
-    onGoEditor: () => {
-      setEditing(true);
-    },
   };
 
   const showDetailPanel = isWideLayout || !mobileShowList;
