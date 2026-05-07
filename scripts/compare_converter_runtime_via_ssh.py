@@ -55,6 +55,36 @@ def runtime_probe(base_url, admin_key):
         }
 
 
+def job_status(base_url, api_key, job_id, edit_token):
+    return request_json(
+        base_url + "/v1/jobs/%s" % job_id,
+        headers={"X-API-Key": api_key, "X-Edit-Token": edit_token},
+    )
+
+
+def retry_job(base_url, api_key, job_id, edit_token):
+    return request_json(
+        base_url + "/v1/jobs/%s/retry" % job_id,
+        headers={"X-API-Key": api_key, "X-Edit-Token": edit_token},
+        data=b"",
+    )
+
+
+def wait_for_completed_job(base_url, api_key, job_id, edit_token):
+    last_status = None
+    for attempt in range(1, 31):
+        status_payload = job_status(base_url, api_key, job_id, edit_token)
+        last_status = status_payload.get("status")
+        if last_status == "completed":
+            return status_payload
+        if last_status == "failed" and attempt == 1:
+            retry_job(base_url, api_key, job_id, edit_token)
+        elif last_status == "failed":
+            raise RuntimeError("job %s failed after retry: %s" % (job_id, status_payload))
+        time.sleep(2)
+    raise RuntimeError("job %s did not complete, last_status=%s" % (job_id, last_status))
+
+
 def main():
     config = json.loads(sys.stdin.read())
     base_url = config["base_url"].rstrip("/")
@@ -75,10 +105,18 @@ def main():
     )
     job_id = str(created["job_id"])
     edit_token = str(created["edit_token"])
+    wait_for_completed_job(base_url, api_key, job_id, edit_token)
     result = request_json(
         base_url + "/v1/jobs/%s/result" % job_id,
         headers={"X-API-Key": api_key, "X-Edit-Token": edit_token},
     )
+    if result.get("status") != "completed" or not result.get("meta", {}).get("title"):
+        retry_job(base_url, api_key, job_id, edit_token)
+        wait_for_completed_job(base_url, api_key, job_id, edit_token)
+        result = request_json(
+            base_url + "/v1/jobs/%s/result" % job_id,
+            headers={"X-API-Key": api_key, "X-Edit-Token": edit_token},
+        )
     text = str(result["table_variants"]["text"]["markdown"])
     html = str(result["table_variants"]["html"]["markdown"])
     print(json.dumps({
