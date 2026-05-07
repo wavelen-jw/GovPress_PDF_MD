@@ -8,6 +8,8 @@ type MenuEntry =
   | { kind: "separator"; id: string };
 
 const MENU_ENTRIES: MenuEntry[] = [
+  { kind: "item", id: "menu:new-window", label: "새 창", shortcut: "Ctrl+N" },
+  { kind: "separator", id: "sep0" },
   { kind: "item", id: "menu://open-file", label: "열기...", shortcut: "Ctrl+O" },
   { kind: "item", id: "menu://open-briefings", label: "정책브리핑 열기...", shortcut: "Ctrl+B" },
   { kind: "separator", id: "sep1" },
@@ -29,6 +31,30 @@ async function dispatch(id: string): Promise<void> {
       await win.getCurrentWindow().close();
     } catch (error) {
       console.warn("[DesktopMenuBar] quit failed:", error);
+    }
+    return;
+  }
+  if (id === "menu:new-window") {
+    // Multi-window: each "새 창" spawns an independent React tree at
+    // tauri://localhost/, mirroring the OS-level "open in new window"
+    // pattern. State is per-window — no cross-tab routing logic in App.tsx.
+    try {
+      const mod = await import("@tauri-apps/api/webviewWindow");
+      // Unique label per window — Tauri rejects duplicates and the main
+      // window already owns "main".
+      const label = `window-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      new mod.WebviewWindow(label, {
+        url: "/",
+        title: "읽힘",
+        width: 1280,
+        height: 820,
+        minWidth: 720,
+        minHeight: 480,
+        decorations: false,
+        dragDropEnabled: true,
+      });
+    } catch (error) {
+      console.warn("[DesktopMenuBar] open new window failed:", error);
     }
     return;
   }
@@ -60,6 +86,7 @@ export function DesktopMenuBar({ isDarkMode }: { isDarkMode?: boolean }): React.
       const key = e.key.toLowerCase();
       let id: string | null = null;
       if (e.shiftKey && key === "c") id = "menu://copy-markdown";
+      else if (!e.shiftKey && key === "n") id = "menu:new-window";
       else if (!e.shiftKey && key === "o") id = "menu://open-file";
       else if (!e.shiftKey && key === "s") id = "menu://save-file";
       else if (!e.shiftKey && key === "b") id = "menu://open-briefings";
