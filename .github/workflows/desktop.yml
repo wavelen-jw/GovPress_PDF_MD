@@ -27,12 +27,18 @@ jobs:
           - platform: ubuntu-22.04
             label: linux
             args: ""
-          - platform: macos-14
-            label: macos-arm64
-            args: "--target aarch64-apple-darwin"
-          - platform: macos-14
-            label: macos-intel
-            args: "--target x86_64-apple-darwin"
+          # macOS jobs temporarily disabled — they were producing unsigned
+          # .dmg files and no .app.tar.gz, which made tauri-action skip
+          # latest.json generation entirely (the manifest aggregator waits
+          # for all matrix platforms). Re-enable once we diagnose the
+          # macOS-side signing path; in the meantime Windows + Linux
+          # auto-update keeps working.
+          # - platform: macos-14
+          #   label: macos-arm64
+          #   args: "--target aarch64-apple-darwin"
+          # - platform: macos-14
+          #   label: macos-intel
+          #   args: "--target x86_64-apple-darwin"
           - platform: windows-latest
             label: windows
             args: ""
