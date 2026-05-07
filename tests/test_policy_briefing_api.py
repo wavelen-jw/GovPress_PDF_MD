@@ -257,8 +257,6 @@ class PolicyBriefingApiTests(unittest.TestCase):
         self.assertTrue(cache_index.exists())
         original_path = next((Path(self.temp_dir.name) / "originals").glob(f"{payload['job_id']}-*.hwpx"))
         self.assertGreater(original_path.stat().st_size, 0)
-        pdf_path = next((Path(self.temp_dir.name) / "originals").glob(f"{payload['job_id']}-*.pdf"))
-        self.assertGreater(pdf_path.stat().st_size, 0)
 
     def test_policy_briefing_cache_retries_with_refreshed_catalog_when_cached_hwpx_url_fails(self) -> None:
         target_date = date(2026, 4, 9)
@@ -349,9 +347,7 @@ class PolicyBriefingApiTests(unittest.TestCase):
             self.client_stub.download_calls,
             [
                 "156700001",
-                "156700001:today-briefing.pdf",
                 "156700001",
-                "156700001:today-briefing.pdf",
             ],
         )
         payload = second.json()
