@@ -223,15 +223,10 @@ class PolicyBriefingClient:
             raise ValueError("첨부파일 URL이 비어 있습니다.")
 
         headers = _build_attachment_request_headers(item)
-        request = urllib.request.Request(
-            attachment.file_url,
-            headers=headers,
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
-                content = response.read()
-        except Exception:
-            content = self._download_attachment_with_curl(attachment.file_url, headers=headers)
+        # curl's --max-time covers DNS/connect/read together. urllib's timeout
+        # can still leave this synchronous API path stuck in resolver/connect
+        # edge cases, which makes the host proxy return 502 while import waits.
+        content = self._download_attachment_with_curl(attachment.file_url, headers=headers)
         if not content:
             raise ValueError("첨부파일 다운로드 결과가 비어 있습니다.")
         if _looks_like_html_error(content):
@@ -260,6 +255,7 @@ class PolicyBriefingClient:
             command,
             check=False,
             capture_output=True,
+            timeout=self._timeout_seconds + 3,
         )
         if result.returncode != 0:
             stderr = result.stderr.decode("utf-8", errors="replace").strip()
