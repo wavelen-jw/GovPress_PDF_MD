@@ -291,6 +291,21 @@ host_proxy_services_running() {
   [ "$(printf '%s\n' "$states" | grep -cx 'running')" -eq 2 ]
 }
 
+host_proxy_api_healthy() {
+  curl -fsS --max-time 10 http://127.0.0.1:8013/health >/dev/null 2>&1
+}
+
+force_recreate_host_proxy_services() {
+  local log_file="${1:-/tmp/govpress-compose-force-recreate.log}"
+  echo "host_proxy_force_recreate=api worker"
+  run_compose logs --tail=120 api worker || true
+  run_compose up -d --no-build --force-recreate api worker >"$log_file" 2>&1 || {
+    cat "$log_file"
+    return 1
+  }
+  cat "$log_file"
+}
+
 run_host_proxy_compose_up() {
   local log_file="${1:-/tmp/govpress-compose-up.log}"
   local build_log="${log_file}.build"
@@ -313,13 +328,31 @@ run_host_proxy_compose_up() {
       cat "$log_file"
       if host_proxy_services_running; then
         cleanup_host_proxy_stale_api_port_proxy
-        return 0
+        if host_proxy_api_healthy; then
+          return 0
+        fi
+        echo "host_proxy_api_health=wedged"
+        if force_recreate_host_proxy_services "${log_file}.force"; then
+          cleanup_host_proxy_stale_api_port_proxy
+          if host_proxy_services_running && host_proxy_api_healthy; then
+            return 0
+          fi
+        fi
       fi
       echo "host_proxy_reconcile_attempt=${attempt}"
       docker start govpress-api govpress-worker >/dev/null 2>&1 || true
       if host_proxy_services_running; then
         cleanup_host_proxy_stale_api_port_proxy
-        return 0
+        if host_proxy_api_healthy; then
+          return 0
+        fi
+        echo "host_proxy_api_health=wedged_after_start"
+        if force_recreate_host_proxy_services "${log_file}.force"; then
+          cleanup_host_proxy_stale_api_port_proxy
+          if host_proxy_services_running && host_proxy_api_healthy; then
+            return 0
+          fi
+        fi
       fi
       docker inspect --format 'name={{.Name}} state={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' govpress-api govpress-worker 2>/dev/null || true
       run_compose logs --tail=80 api worker || true
@@ -334,7 +367,16 @@ run_host_proxy_compose_up() {
       docker start govpress-worker >/dev/null 2>&1 || true
     fi
     if host_proxy_services_running; then
-      return 0
+      if host_proxy_api_healthy; then
+        return 0
+      fi
+      echo "host_proxy_api_health=wedged_after_failed_up"
+      if force_recreate_host_proxy_services "${log_file}.force"; then
+        cleanup_host_proxy_stale_api_port_proxy
+        if host_proxy_services_running && host_proxy_api_healthy; then
+          return 0
+        fi
+      fi
     fi
     docker inspect --format 'name={{.Name}} state={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' govpress-api govpress-worker 2>/dev/null || true
     run_compose logs --tail=80 api worker || true
