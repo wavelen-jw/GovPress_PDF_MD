@@ -945,6 +945,11 @@ if [ "${RUN_POLICY_PROBE:-1}" = "1" ]; then
   echo "deploy_probe_code=${policy_probe_code}"
   test "${policy_probe_code}" = "200"
   if [ -n "${PUBLIC_PROBE_URL:-}" ]; then
+    public_health_probe_code="$(curl -sS -o /tmp/govpress-public-health.txt -w '%{http_code}' "${PUBLIC_PROBE_URL%/}/health" || true)"
+    echo "public_health_probe_url=${PUBLIC_PROBE_URL%/}/health"
+    echo "public_health_probe_code=${public_health_probe_code}"
+    echo "public_health_probe_body=$(head -c 200 /tmp/govpress-public-health.txt | tr '\n' ' ' || true)"
+    test "${public_health_probe_code}" = "200"
     public_policy_probe_code="$(curl -sS -o /tmp/govpress-public-policy.txt -w '%{http_code}' "${policy_probe_header[@]}" "${PUBLIC_PROBE_URL%/}/v1/policy-briefings/today?date=2026-04-08" || true)"
     echo "public_policy_probe_url=${PUBLIC_PROBE_URL%/}/v1/policy-briefings/today?date=2026-04-08"
     echo "public_policy_probe_code=${public_policy_probe_code}"

@@ -215,7 +215,7 @@ curl -i https://api.govpress.cloud/health
 - `host_proxy` 배포는 기존 `govpress-api`/`govpress-worker`를 새 컨테이너가 검증되기 전에 삭제하면 안 됩니다.
 - `host_proxy` 충돌 정리는 `8080`이 우선이지만, `127.0.0.1:8013`을 다른 프로세스가 점유해 새 `govpress-api` 컨테이너 publish가 막히는 경우에는 제한된 root cleanup을 허용합니다.
 - `8080` listener cleanup은 `host_proxy.py` 프로세스를 죽이면 안 됩니다.
-- 성공 판정은 단순 `/health 200`이 아니라 인증된 `policy-briefings/today` API `200`입니다.
+- 성공 판정은 local `/health 200`, public `/health 200`, 인증된 `policy-briefings/today` API `200`을 분리해서 모두 확인해야 합니다.
 - deploy 실패 시 기존 API 컨테이너를 rollback 또는 유지해야 하며, 실패가 곧 서비스 공백으로 이어지면 안 됩니다.
 - 배포 외 원인으로 `govpress-api/worker`가 사라져도 `govpress-watchdog.timer`가 1분 내 reconcile 해야 합니다.
 - `deploy/wsl/bin/watchdog_reconcile.sh`는 반드시 `deploy/wsl/bin/compose.sh`를 직접 가리켜야 하며, 경로가 깨지면 watchdog이 매분 실패하면서 장시간 API down이 발생합니다.
@@ -231,10 +231,12 @@ curl -i https://api.govpress.cloud/health
 4. 새 `govpress-api`/`govpress-worker`를 `up -d --no-build`로 activate
 5. `govpress-caddy.service`, `govpress-cloudflared.service` 확인
 6. `govpress-watchdog.timer` 활성 확인
-7. authenticated `policy-briefings/today` smoke test `200`
-8. H/W/V 동일 샘플 변환 hash smoke 일치
-9. 성공 시 backup 컨테이너 삭제
-10. 실패 시 새 컨테이너 제거 후 backup 컨테이너를 원래 이름으로 restore/start
+7. local `/health` smoke test `200`
+8. public `/health` smoke test `200`
+9. authenticated `policy-briefings/today` smoke test `200`
+10. H/W/V 동일 샘플 변환 hash smoke 일치
+11. 성공 시 backup 컨테이너 삭제
+12. 실패 시 새 컨테이너 제거 후 backup 컨테이너를 원래 이름으로 restore/start
 
 이 순서가 깨지면, 오늘 같은 “deploy 실패 = 장시간 API down” 사고가 다시 납니다.
 
@@ -252,7 +254,7 @@ curl -i https://api.govpress.cloud/health
 
 - `docker rm -f govpress-api govpress-worker` 재도입
 - `run_compose up -d --build`를 activate 단계에 직접 사용
-- `health_probe_code=200`만으로 success 처리
+- `health_probe_code=200`만으로 success 처리하거나 public `/health`와 authenticated policy probe를 하나의 신호로 섞는 변경
 - `git checkout branch && reset --hard origin/branch`로 되돌리기
 - `8013` 포트 cleanup을 무제한 kill로 되돌리는 변경
 - `watchdog_reconcile.sh`에서 `compose.sh` 상대 경로를 다시 조합하는 변경
@@ -505,6 +507,8 @@ cloudflared access ssh --hostname ssh-work.govpress.cloud
 - 배포 실패 알림과 런타임 장애 알림은 Telegram에서 별도 prefix로 구분합니다.
   - `[Deploy Alert]`: CI/CD 실패
   - `[Runtime Alert]`: 실제 API 장애/복구
+  - 런타임 모니터는 public `/health`와 authenticated policy probe를 모두 검사합니다. 하나라도 실패하면 해당 서버는 degraded/down으로 전이됩니다.
+  - public `/health` 실패는 Cloudflare/tunnel/host-proxy 계층, authenticated policy 실패는 API 인증/앱 기능 계층을 우선 의심합니다.
   - `GET /v1/policy-briefings/qc/dashboard`
   - `GET /v1/policy-briefings/qc/dashboard.json`
   - dashboard 산출물과 curated sample root는 `gov-md-converter` 기준 경로를 사용합니다.

@@ -338,6 +338,8 @@ jobs:
           deploy_probe_code="$(sed -n 's/^deploy_probe_code=//p' remote-deploy.log | tail -n1)"
           policy_probe_code="$(sed -n 's/^policy_probe_code=//p' remote-deploy.log | tail -n1)"
           policy_probe_body="$(sed -n 's/^policy_probe_body=//p' remote-deploy.log | tail -n1)"
+          public_health_probe_code="$(sed -n 's/^public_health_probe_code=//p' remote-deploy.log | tail -n1)"
+          public_health_probe_body="$(sed -n 's/^public_health_probe_body=//p' remote-deploy.log | tail -n1)"
           public_policy_probe_code="$(sed -n 's/^public_policy_probe_code=//p' remote-deploy.log | tail -n1)"
           public_policy_probe_body="$(sed -n 's/^public_policy_probe_body=//p' remote-deploy.log | tail -n1)"
 
@@ -355,6 +357,8 @@ jobs:
             echo "deploy_probe_code=${deploy_probe_code}"
             echo "policy_probe_code=${policy_probe_code}"
             echo "policy_probe_body=${policy_probe_body}"
+            echo "public_health_probe_code=${public_health_probe_code}"
+            echo "public_health_probe_body=${public_health_probe_body}"
             echo "public_policy_probe_code=${public_policy_probe_code}"
             echo "public_policy_probe_body=${public_policy_probe_body}"
           } > remote-diagnostics.env
@@ -376,10 +380,12 @@ jobs:
           git_head="$(sed -n 's/^git_head=//p' remote-diagnostics.env | tail -n1)"
           policy_probe_code="$(sed -n 's/^policy_probe_code=//p' remote-diagnostics.env | tail -n1)"
           policy_probe_body="$(sed -n 's/^policy_probe_body=//p' remote-diagnostics.env | tail -n1)"
+          public_health_probe_code="$(sed -n 's/^public_health_probe_code=//p' remote-diagnostics.env | tail -n1)"
+          public_health_probe_body="$(sed -n 's/^public_health_probe_body=//p' remote-diagnostics.env | tail -n1)"
           public_policy_probe_code="$(sed -n 's/^public_policy_probe_code=//p' remote-diagnostics.env | tail -n1)"
           public_policy_probe_body="$(sed -n 's/^public_policy_probe_body=//p' remote-diagnostics.env | tail -n1)"
 
-          message="remote_host=${remote_host:-unknown}; deploy_dir=${deploy_dir:-unknown}; git_branch=${git_branch:-unknown}; target_sha=${target_sha:-unknown}; git_head=${git_head:-unknown}; policy_probe_code=${policy_probe_code:-unknown}; policy_probe_body=${policy_probe_body:-unknown}; public_policy_probe_code=${public_policy_probe_code:-unknown}; public_policy_probe_body=${public_policy_probe_body:-unknown}"
+          message="remote_host=${remote_host:-unknown}; deploy_dir=${deploy_dir:-unknown}; git_branch=${git_branch:-unknown}; target_sha=${target_sha:-unknown}; git_head=${git_head:-unknown}; policy_probe_code=${policy_probe_code:-unknown}; policy_probe_body=${policy_probe_body:-unknown}; public_health_probe_code=${public_health_probe_code:-unknown}; public_health_probe_body=${public_health_probe_body:-unknown}; public_policy_probe_code=${public_policy_probe_code:-unknown}; public_policy_probe_body=${public_policy_probe_body:-unknown}"
           echo "::warning file=.github,title=remote diagnostics::$message"
 
       - name: Emit remote deploy log tail
