@@ -170,28 +170,30 @@ def build_router(
                 item = policy_briefing_catalog.get_cached_item(payload.news_item_id, target_date=resolved_date)
             if item is None:
                 raise KeyError(payload.news_item_id)
-            cached = policy_briefing_cache.get(item.news_item_id)
-            if cached is None or not cached.original_content:
+            if item.primary_hwpx is None:
+                raise ValueError("HWPX 첨부파일이 없는 기사입니다.")
+            try:
+                downloaded = policy_briefing_client.download_item_hwpx(item)
+            except ValueError:
                 resolved_date = payload.date or date.today()
-                cached = policy_briefing_cache.warm_item_with_catalog_retry(
-                    item,
-                    catalog=policy_briefing_catalog,
-                    target_date=resolved_date,
-                )
+                policy_briefing_catalog.force_refresh_day(resolved_date)
+                refreshed_item = policy_briefing_catalog.get_cached_item(item.news_item_id, target_date=resolved_date)
+                if refreshed_item is None:
+                    raise KeyError(item.news_item_id)
+                item = refreshed_item
+                downloaded = policy_briefing_client.download_item_hwpx(item)
+            if not downloaded.is_zip_container:
+                raise ValueError("국정브리핑 첨부는 .hwpx 확장자이지만 실제로는 HWP 형식입니다.")
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="캐시된 기사 목록에서 항목을 찾지 못했습니다.") from exc
         except Exception as exc:
             raise HTTPException(status_code=502, detail=_describe_policy_briefing_error(exc)) from exc
-        record = job_service.create_completed_job(
-            file_name=cached.file_name,
-            markdown_text=cached.markdown_text,
-            markdown_html=cached.markdown_html,
-            html_preview_text=cached.html_preview_text,
-            html_preview_html=cached.html_preview_html,
-            title=cached.title,
-            department=cached.department,
-            original_content=cached.original_content,
+        record = job_service.create_job(
+            file_name=downloaded.attachment.file_name,
+            content=downloaded.content,
             source="policy-briefing-cache",
+            hwpx_table_mode="text",
+            client_request_id=f"policy-briefing:{item.news_item_id}:{downloaded.attachment.file_url}",
         )
         return PolicyBriefingImportResponse(
             job_id=record.job_id,

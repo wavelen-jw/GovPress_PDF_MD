@@ -251,10 +251,8 @@ class PolicyBriefingApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["news_item_id"], "156700001")
-        self.assertEqual(payload["status"], "completed")
+        self.assertEqual(payload["status"], "queued")
         self.assertEqual(payload["file_name"], "today-briefing.hwpx")
-        cache_index = Path(self.temp_dir.name) / "policy_briefing_cache" / "index.json"
-        self.assertTrue(cache_index.exists())
         original_path = next((Path(self.temp_dir.name) / "originals").glob(f"{payload['job_id']}-*.hwpx"))
         self.assertGreater(original_path.stat().st_size, 0)
 
@@ -324,17 +322,13 @@ class PolicyBriefingApiTests(unittest.TestCase):
         )
         self.assertEqual(self.client_stub.list_calls, [target_date, target_date])
 
-    def test_import_policy_briefing_recovers_missing_cached_original(self) -> None:
+    def test_import_policy_briefing_is_idempotent_for_same_source(self) -> None:
         first = self.client.post(
             "/v1/policy-briefings/import",
             json={"news_item_id": "156700001", "date": "2026-04-09"},
             headers=self.headers,
         )
         self.assertEqual(first.status_code, 200)
-
-        cached_originals_dir = Path(self.temp_dir.name) / "policy_briefing_cache" / "originals"
-        for path in cached_originals_dir.glob("*"):
-            path.unlink()
 
         second = self.client.post(
             "/v1/policy-briefings/import",
@@ -343,6 +337,7 @@ class PolicyBriefingApiTests(unittest.TestCase):
         )
 
         self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.json()["job_id"], first.json()["job_id"])
         self.assertEqual(
             self.client_stub.download_calls,
             [
@@ -350,9 +345,6 @@ class PolicyBriefingApiTests(unittest.TestCase):
                 "156700001",
             ],
         )
-        payload = second.json()
-        original_path = next((Path(self.temp_dir.name) / "originals").glob(f"{payload['job_id']}-*.hwpx"))
-        self.assertGreater(original_path.stat().st_size, 0)
 
     def test_reset_policy_briefing_cache_requires_admin_key(self) -> None:
         self.client.post(
