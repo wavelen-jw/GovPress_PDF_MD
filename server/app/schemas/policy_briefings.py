@@ -38,6 +38,7 @@ class PolicyBriefingRecentListResponse(BaseModel):
 class PolicyBriefingImportRequest(BaseModel):
     news_item_id: str
     date: date_type | None = None
+    force_reprocess: bool = False
 
 
 class PolicyBriefingImportResponse(BaseModel):

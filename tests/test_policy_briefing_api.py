@@ -346,6 +346,23 @@ class PolicyBriefingApiTests(unittest.TestCase):
             ],
         )
 
+    def test_import_policy_briefing_force_reprocess_creates_new_job(self) -> None:
+        first = self.client.post(
+            "/v1/policy-briefings/import",
+            json={"news_item_id": "156700001", "date": "2026-04-09"},
+            headers=self.headers,
+        )
+        self.assertEqual(first.status_code, 200)
+
+        second = self.client.post(
+            "/v1/policy-briefings/import",
+            json={"news_item_id": "156700001", "date": "2026-04-09", "force_reprocess": True},
+            headers=self.headers,
+        )
+
+        self.assertEqual(second.status_code, 200)
+        self.assertNotEqual(second.json()["job_id"], first.json()["job_id"])
+
     def test_reset_policy_briefing_cache_requires_admin_key(self) -> None:
         self.client.post(
             "/v1/policy-briefings/import",
