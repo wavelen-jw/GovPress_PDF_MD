@@ -105,6 +105,7 @@ def main():
     )
     job_id = str(created["job_id"])
     edit_token = str(created["edit_token"])
+    retry_job(base_url, api_key, job_id, edit_token)
     wait_for_completed_job(base_url, api_key, job_id, edit_token)
     result = request_json(
         base_url + "/v1/jobs/%s/result" % job_id,
@@ -122,6 +123,7 @@ def main():
     print(json.dumps({
         "runtime": runtime,
         "job_id": job_id,
+        "retried_after_import": True,
         "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
         "html_sha256": hashlib.sha256(html.encode("utf-8")).hexdigest(),
         "title": result.get("meta", {}).get("title"),
