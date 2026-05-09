@@ -35,6 +35,13 @@ function markdownIndent(level: number): ViewStyle {
   return { marginLeft: MARKDOWN_INDENT_UNIT * (Math.max(0, level) + 1) };
 }
 
+function listIndent(level: number, ordered: boolean): ViewStyle {
+  if (ordered && level <= 0) {
+    return { marginLeft: 0 };
+  }
+  return markdownIndent(level);
+}
+
 function isEscaped(value: string, index: number): boolean {
   let slashCount = 0;
   for (let cursor = index - 1; cursor >= 0 && value[cursor] === "\\"; cursor -= 1) {
@@ -1029,7 +1036,7 @@ export function MarkdownPreview({
               <View
                 style={[
                   styles.markdownListItem,
-                  markdownIndent(block.level),
+                  listIndent(block.level, block.ordered),
                 ]}
               >
                 <Text style={[styles.markdownListBullet, isDarkMode && styles.markdownListBulletDark]}>
