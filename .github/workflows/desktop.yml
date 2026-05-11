@@ -1,0 +1,201 @@
+name: Build Desktop (Tauri)
+
+# Tauri desktop builds for the GovPress 읽힘 app. Triggered by pushing a
+# `desktop-v*` tag. Each platform builds in parallel and the resulting
+# installers (.dmg, NSIS .exe, .AppImage, .deb) plus updater manifest
+# (latest.json) are uploaded as a draft GitHub Release.
+#
+# This workflow does NOT do OS code signing. The Tauri updater Ed25519
+# signing key is required if updater publishing is enabled — the workflow
+# silently produces unsigned-update artifacts when the secret is missing.
+
+on:
+  push:
+    tags:
+      - "desktop-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            label: linux
+            args: ""
+          # macOS jobs temporarily disabled — they were producing unsigned
+          # .dmg files and no .app.tar.gz, which made tauri-action skip
+          # latest.json generation entirely (the manifest aggregator waits
+          # for all matrix platforms). Re-enable once we diagnose the
+          # macOS-side signing path; in the meantime Windows + Linux
+          # auto-update keeps working.
+          # - platform: macos-14
+          #   label: macos-arm64
+          #   args: "--target aarch64-apple-darwin"
+          # - platform: macos-14
+          #   label: macos-intel
+          #   args: "--target x86_64-apple-darwin"
+          - platform: windows-latest
+            label: windows
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.4
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.label == 'macos-arm64' && 'aarch64-apple-darwin' || matrix.label == 'macos-intel' && 'x86_64-apple-darwin' || '' }}
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            mobile/src-tauri/target
+          key: ${{ runner.os }}-${{ matrix.label }}-cargo-${{ hashFiles('mobile/src-tauri/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.label }}-cargo-
+
+      - name: Install npm dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Run typecheck
+        working-directory: mobile
+        run: npm run typecheck
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          EXPO_PUBLIC_GOVPRESS_API_KEY: ${{ vars.EXPO_PUBLIC_GOVPRESS_API_KEY }}
+        with:
+          projectPath: mobile
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('desktop-v{0}', github.run_number) }}
+          releaseName: "읽힘 데스크탑 ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', github.run_number) }}"
+          releaseBody: |
+            정부 보도자료 Markdown 변환·편집 데스크탑 앱.
+
+            **첫 실행 안내**
+            - macOS: "확인되지 않은 개발자" 경고가 뜨면 우클릭 → 열기 → 열기 (한 번만).
+            - Windows: SmartScreen 경고가 뜨면 "추가 정보" → "실행".
+            - Linux AppImage: `chmod +x` 후 더블클릭. .deb 는 `apt install ./파일.deb`.
+
+            변환은 `api.govpress.cloud` 를 통해 서버에서 처리됩니다.
+          # Auto-publish so the updater endpoint
+          # https://github.com/.../releases/latest/download/latest.json
+          # actually resolves. Drafts return 404 there and silently break the
+          # in-app update prompt.
+          releaseDraft: false
+          prerelease: false
+          updaterJsonPreferNsis: true
+          args: ${{ matrix.args }}
+
+  # tauri-action@v0 is producing the .sig files but for some reason is not
+  # uploading latest.json. Compose and upload it ourselves from the .sig
+  # files already on the release, so the in-app updater endpoint resolves
+  # regardless of what tauri-action did or didn't do.
+  publish-manifest:
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Compose and upload latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          WORK=$(mktemp -d)
+          cd "$WORK"
+          gh release download "$TAG" --repo "$REPO" --pattern "*.sig"
+          gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name' > assets.txt
+          python3 - <<'PYEOF'
+          import datetime, glob, json, os, re
+
+          tag = os.environ["TAG"]
+          repo = os.environ["REPO"]
+          version = tag.removeprefix("desktop-v")
+          repo_url = f"https://github.com/{repo}/releases/download/{tag}"
+
+          with open("assets.txt") as f:
+              asset_names = [line.strip() for line in f if line.strip()]
+
+          def read_sig(pattern: str) -> str | None:
+              files = glob.glob(pattern)
+              if not files:
+                  return None
+              with open(files[0]) as fp:
+                  return fp.read().strip()
+
+          def find_asset(pattern: str) -> str | None:
+              for name in asset_names:
+                  if re.search(pattern, name):
+                      return name
+              return None
+
+          platforms = {}
+
+          win_sig = read_sig("*x64-setup.exe.sig")
+          win_name = find_asset(r"_x64-setup\.exe$")
+          if win_sig and win_name:
+              platforms["windows-x86_64"] = {
+                  "signature": win_sig,
+                  "url": f"{repo_url}/{win_name}",
+              }
+
+          linux_sig = read_sig("*.AppImage.sig")
+          linux_name = find_asset(r"\.AppImage$")
+          if linux_sig and linux_name:
+              platforms["linux-x86_64"] = {
+                  "signature": linux_sig,
+                  "url": f"{repo_url}/{linux_name}",
+              }
+
+          if not platforms:
+              raise SystemExit("no signed bundles found — refusing to publish empty latest.json")
+
+          manifest = {
+              "version": version,
+              "pub_date": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+              "notes": "",
+              "platforms": platforms,
+          }
+          with open("latest.json", "w") as f:
+              json.dump(manifest, f, indent=2)
+          print(json.dumps(manifest, indent=2))
+          PYEOF
+          gh release upload "$TAG" "latest.json" --repo "$REPO" --clobber

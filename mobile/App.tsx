@@ -4,7 +4,6 @@ import {
   Alert,
   Linking,
   Modal,
-  Share,
   Platform,
   Pressable,
   SafeAreaView,
@@ -14,13 +13,12 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
 
 import { JobDetailPanel } from "./src/components/JobDetailPanel";
 import { SettingsModal } from "./src/components/SettingsModal";
 import { WorkspaceToolbar } from "./src/components/WorkspaceToolbar";
+import { DesktopMenuBar } from "./src/desktop/DesktopMenuBar";
+import { UpdateChecker } from "./src/desktop/UpdateChecker";
 import {
   DEFAULT_CONFIG,
   getServerLabel,
@@ -33,12 +31,17 @@ import {
   fetchJob,
   fetchRecentPolicyBriefings,
   fetchResult,
+  fetchServerVersion,
   fetchTodayPolicyBriefingsDirect,
+  httpFetch,
   importPolicyBriefing,
   retryJob,
   saveResult,
   uploadPdf,
 } from "./src/services/api";
+import type { ServerVersion } from "./src/services/api";
+import { isTauriRuntime, onExternalFileOpen, pickFileForOpen, readFileAsText, saveTextFileAs, shareTextFile, copyTextToClipboard } from "./src/platform/fileio";
+import type { PickedAsset } from "./src/platform/fileio";
 import { clearDraft, loadConfig, loadDraft, persistConfig, persistDraft } from "./src/storage/config";
 import { styles } from "./src/styles";
 import type {
@@ -63,7 +66,7 @@ type RecentJobEntry = {
   loadedAt: number;
 };
 
-type WebDropAsset = DocumentPicker.DocumentPickerAsset & { file?: File };
+type WebDropAsset = PickedAsset;
 type PendingLandingAction =
   | { type: "open-picker" | "open-policy-briefings"; requestedAt: number }
   | { type: "open-briefing-by-id"; newsItemId: string; date?: string; requestedAt: number };
@@ -142,7 +145,7 @@ async function probeServerApiReachability(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(`${url}/v1/policy-briefings/today?date=2026-04-08&_t=${Date.now()}`, {
+    const response = await httpFetch(`${url}/v1/policy-briefings/today?date=2026-04-08&_t=${Date.now()}`, {
       signal: controller.signal,
       cache: "no-store",
       headers: apiKey.trim() ? { "X-API-Key": apiKey.trim() } : undefined,
@@ -169,7 +172,7 @@ async function probeServerHealthStatus(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(`${url}/health?_t=${Date.now()}_${attempt}`, {
+      const response = await httpFetch(`${url}/health?_t=${Date.now()}_${attempt}`, {
         signal: controller.signal,
         cache: "no-store",
       });
@@ -375,6 +378,8 @@ export default function App(): React.JSX.Element {
   const [editing, setEditing] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [infoVisible, setInfoVisible] = useState(false);
+  const [desktopVersion, setDesktopVersion] = useState<string | null>(null);
+  const [serverVersion, setServerVersion] = useState<ServerVersion | null>(null);
   const [policyBriefingVisible, setPolicyBriefingVisible] = useState(false);
   const [policyBriefingStatusVisible, setPolicyBriefingStatusVisible] = useState(false);
   const [hwpxTableMode, setHwpxTableMode] = useState<HwpxTableMode>("text");
@@ -401,6 +406,21 @@ export default function App(): React.JSX.Element {
   const [recentJobs, setRecentJobs] = useState<RecentJobEntry[]>([]);
   const jobRefreshSeqRef = useRef(0);
   const landingIntentHandledRef = useRef(false);
+  // Mutable handle to handleSelectedAsset() for the deep-link / external-open
+  // listener; assigned below the function declaration so the latest closure
+  // is always invoked.
+  const handleSelectedAssetRef = useRef<((asset: PickedAsset) => Promise<void>) | null>(null);
+
+  // Mutable handles to menu-event handlers for the Tauri native menu bar.
+  // Same closure-staleness reasoning as handleSelectedAssetRef.
+  const menuHandlersRef = useRef<{
+    onOpenFile?: () => void | Promise<void>;
+    onSaveFile?: () => void | Promise<void>;
+    onCopyMarkdown?: () => void | Promise<void>;
+    onOpenBriefings?: () => void | Promise<void>;
+    onAbout?: () => void;
+    onOpenGithub?: () => void;
+  }>({});
   const selectedJobConfig = useMemo<AppConfig>(() => {
     const baseUrl = selectedJobBaseUrl || config.baseUrl;
     return { ...config, baseUrl };
@@ -636,6 +656,39 @@ export default function App(): React.JSX.Element {
     }
     document.documentElement.setAttribute("data-theme", isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
+
+  // Pull the desktop binary version from Tauri's runtime API. Skipped in
+  // PWA / native builds — there's no separate desktop build there.
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const tauriApp = await import("@tauri-apps/api/app");
+        const v = await tauriApp.getVersion();
+        if (!cancelled) setDesktopVersion(v);
+      } catch (e) {
+        console.warn("[App] desktop version fetch failed:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Pull the deployed server + converter version from /v1/version. Best
+  // effort — older servers won't have the endpoint and we'll render "—".
+  useEffect(() => {
+    if (loadingConfig) return;
+    let cancelled = false;
+    void (async () => {
+      const v = await fetchServerVersion(config);
+      if (!cancelled) setServerVersion(v);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadingConfig, config.baseUrl]);
 
   useEffect(() => {
     if (!editing || !selectedJobId) {
@@ -921,6 +974,11 @@ export default function App(): React.JSX.Element {
     return () => clearInterval(interval);
   }, [config.baseUrl, currentEditToken, result, selectedJob?.status, selectedJobBaseUrl, selectedJobId]);
 
+  // PWA share target: when launched from another app via "Share to 읽힘",
+  // the service worker stores the file under ./shared-markdown and appends
+  // ?sharedFile=1. Read the file, hand it to the same openLocalMarkdown
+  // path the OS file picker uses, then strip the query so a refresh doesn't
+  // re-open it. Skipped in non-web runtimes (Tauri/native).
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined") {
       return;
@@ -944,7 +1002,7 @@ export default function App(): React.JSX.Element {
           mimeType: "text/markdown",
           size: markdown.length,
           file: new File([markdown], name, { type: "text/markdown" }),
-        } as WebDropAsset);
+        });
         params.delete("sharedFile");
         const query = params.toString();
         window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
@@ -952,22 +1010,8 @@ export default function App(): React.JSX.Element {
       .catch((error) => showError("공유된 Markdown 파일을 열지 못했습니다.", error));
   }, []);
 
-  async function openLocalMarkdown(asset: DocumentPicker.DocumentPickerAsset): Promise<void> {
-    const webFile = (asset as WebDropAsset).file;
-    let markdown = "";
-
-    if (Platform.OS === "web") {
-      if (webFile) {
-        markdown = await webFile.text();
-      } else {
-        const response = await fetch(asset.uri);
-        markdown = await response.text();
-      }
-    } else {
-      markdown = await FileSystem.readAsStringAsync(asset.uri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-    }
+  async function openLocalMarkdown(asset: PickedAsset): Promise<void> {
+    const markdown = await readFileAsText(asset);
 
     const localJobId = `local-md-${Date.now()}`;
     const localJob: Job = {
@@ -1011,7 +1055,7 @@ export default function App(): React.JSX.Element {
     setNotice("Markdown 문서를 열었습니다.");
   }
 
-  async function handleSelectedAsset(asset: DocumentPicker.DocumentPickerAsset): Promise<void> {
+  async function handleSelectedAsset(asset: PickedAsset): Promise<void> {
     const lowerName = asset.name.toLowerCase();
     if (lowerName.endsWith(".md")) {
       await openLocalMarkdown(asset);
@@ -1061,19 +1105,20 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  // Keep the deep-link / external-open listener pointed at the current
+  // closure of handleSelectedAsset (it captures component state).
+  handleSelectedAssetRef.current = handleSelectedAsset;
+
   async function handlePickPdf(): Promise<void> {
     try {
-      const picked = await DocumentPicker.getDocumentAsync({
-        type:
-          Platform.OS === "web"
-            ? [".pdf", ".hwpx", ".md"]
-            : ["application/pdf", "application/octet-stream", "text/markdown"],
-        copyToCacheDirectory: true,
+      const picked = await pickFileForOpen({
+        extensions: ["pdf", "hwpx", "md"],
+        mimeTypes: ["application/pdf", "application/octet-stream", "text/markdown"],
       });
-      if (picked.canceled || !picked.assets.length) {
+      if (!picked) {
         return;
       }
-      await handleSelectedAsset(picked.assets[0]);
+      await handleSelectedAsset(picked);
     } catch (error) {
       showError("파일 업로드에 실패했습니다.", error);
     }
@@ -1299,6 +1344,66 @@ export default function App(): React.JSX.Element {
     }
 
     void hydrateLandingIntent();
+  }, [loadingConfig]);
+
+  // Tauri / desktop wrapper: when the OS asks us to open a file (double-click
+  // in Explorer/Finder, drag onto dock icon, etc.) the file path arrives via
+  // the deep-link / single-instance plugin. Route it through the same handler
+  // as picker/drag-drop. No-op on web/PWA and on iOS/Android.
+  useEffect(() => {
+    if (loadingConfig) return;
+    const off = onExternalFileOpen((asset) => {
+      const handler = handleSelectedAssetRef.current;
+      if (handler) {
+        void handler(asset);
+      }
+    });
+    return off;
+  }, [loadingConfig]);
+
+  // Tauri native menu events. Each File/Help menu item emits a "menu://*"
+  // event from Rust; we subscribe once and dispatch to the corresponding
+  // existing handler via menuHandlersRef.
+  useEffect(() => {
+    if (loadingConfig || !isTauriRuntime()) return;
+    const cleanups: Array<() => void> = [];
+    let cancelled = false;
+    void (async () => {
+      try {
+        const event = await import("@tauri-apps/api/event");
+        const wire = async (name: string, fire: () => void | Promise<void>) => {
+          const off = await event.listen(name, () => {
+            void fire();
+          });
+          if (cancelled) {
+            off();
+          } else {
+            cleanups.push(() => off());
+          }
+        };
+        await wire("menu://open-file", () => menuHandlersRef.current.onOpenFile?.());
+        await wire("menu://save-file", () => menuHandlersRef.current.onSaveFile?.());
+        await wire("menu://copy-markdown", () => menuHandlersRef.current.onCopyMarkdown?.());
+        await wire("menu://open-briefings", () => menuHandlersRef.current.onOpenBriefings?.());
+        await wire("menu://reload", () => {
+          if (typeof window !== "undefined") window.location.reload();
+        });
+        await wire("menu://about", () => menuHandlersRef.current.onAbout?.());
+        await wire("menu://open-github", () => menuHandlersRef.current.onOpenGithub?.());
+      } catch (error) {
+        console.warn("[menu] subscribe failed:", error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      for (const fn of cleanups) {
+        try {
+          fn();
+        } catch {
+          /* ignore */
+        }
+      }
+    };
   }, [loadingConfig]);
 
   async function handleRetry(): Promise<void> {
@@ -1547,33 +1652,16 @@ export default function App(): React.JSX.Element {
     try {
       const documentTitle = result?.meta.title || selectedJob.file_name;
       const shareBody = `# ${documentTitle}\n\n${selectedVariant.markdown}`;
-      if (Platform.OS === "web" && navigator.share) {
-        await navigator.share({
-          title: documentTitle,
-          text: shareBody,
-        });
-        return;
-      }
-      if (Platform.OS !== "web") {
-        await Share.share({
-          title: documentTitle,
-          message: shareBody,
-        });
-        return;
-      }
       const outputName = selectedJob.file_name.replace(/\.(pdf|hwpx)$/i, ".md");
-      const outputPath = `${FileSystem.cacheDirectory}${outputName}`;
-      await FileSystem.writeAsStringAsync(outputPath, shareBody, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-      if (!(await Sharing.isAvailableAsync())) {
-        showError("공유를 지원하지 않습니다.", "이 기기에서는 공유 기능을 사용할 수 없습니다.");
-        return;
-      }
-      await Sharing.shareAsync(outputPath, {
+      const ok = await shareTextFile({
+        fileName: outputName.endsWith(".md") ? outputName : `${outputName}.md`,
+        content: shareBody,
         mimeType: "text/markdown",
         dialogTitle: "Markdown 공유",
       });
+      if (!ok) {
+        showError("공유를 지원하지 않습니다.", "이 환경에서는 공유 기능을 사용할 수 없습니다.");
+      }
     } catch (error) {
       showError("공유에 실패했습니다.", error);
     }
@@ -1586,62 +1674,17 @@ export default function App(): React.JSX.Element {
     }
     const content = editorText || selectedVariant.markdown || "";
     const outputName = selectedJob.file_name.replace(/\.(pdf|hwpx)$/i, ".md");
+    const normalizedName = outputName.endsWith(".md") ? outputName : `${outputName}.md`;
 
-    try {
-      if (Platform.OS === "web" && typeof window !== "undefined") {
-        const normalizedName = outputName.endsWith(".md") ? outputName : `${outputName}.md`;
-        const webWindow = window as Window & {
-          showSaveFilePicker?: (options?: {
-            suggestedName?: string;
-            types?: Array<{ description?: string; accept: Record<string, string[]> }>;
-          }) => Promise<{
-            createWritable: () => Promise<{
-              write: (data: Blob | string) => Promise<void>;
-              close: () => Promise<void>;
-            }>;
-          }>;
-        };
-        if (typeof webWindow.showSaveFilePicker === "function") {
-          const handle = await webWindow.showSaveFilePicker({
-            suggestedName: normalizedName,
-            types: [
-              {
-                description: "Markdown",
-                accept: { "text/markdown": [".md"] },
-              },
-            ],
-          });
-          const writable = await handle.createWritable();
-          await writable.write(content);
-          await writable.close();
-          setNotice("Markdown 파일을 저장했습니다.");
-          return;
-        }
-
-        const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
-        const url = window.URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = normalizedName;
-        anchor.click();
-        window.URL.revokeObjectURL(url);
-        setNotice("브라우저 저장 대화상자를 지원하지 않아 다운로드 방식으로 저장했습니다.");
-        return;
-      }
-
-      const outputPath = `${FileSystem.cacheDirectory}${outputName}`;
-      await FileSystem.writeAsStringAsync(outputPath, content, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(outputPath, {
-          mimeType: "text/markdown",
-          dialogTitle: "Markdown 저장",
-        });
-      }
-    } catch (error) {
-      showError("Markdown 저장에 실패했습니다.", error);
+    const saveResult = await saveTextFileAs(normalizedName, content, "text/markdown");
+    if (saveResult.ok) {
+      setNotice("Markdown 파일을 저장했습니다.");
+      return;
     }
+    if (saveResult.cancelled) {
+      return;
+    }
+    showError("Markdown 저장에 실패했습니다.", saveResult.error);
   }
 
   async function handleCopyMarkdown(): Promise<void> {
@@ -1649,12 +1692,12 @@ export default function App(): React.JSX.Element {
       return;
     }
     const shareBody = `# ${result?.meta.title || selectedJob.file_name}\n\n${selectedVariant.markdown}`;
-    if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.clipboard) {
-      await navigator.clipboard.writeText(shareBody);
+    const ok = await copyTextToClipboard(shareBody);
+    if (ok) {
       setNotice("Markdown를 클립보드에 복사했습니다.");
-      return;
+    } else {
+      setNotice("이 환경에서는 클립보드 복사를 지원하지 않습니다.");
     }
-    setNotice("이 환경에서는 클립보드 복사를 지원하지 않습니다.");
   }
 
   async function handleDeleteJob(): Promise<void> {
@@ -1713,6 +1756,18 @@ export default function App(): React.JSX.Element {
     });
   }
 
+  // Wire the latest closures into the menu-event ref. Refs assignment in
+  // render body is safe — it doesn't cause re-render and the menu listener
+  // reads .current at the moment the user clicks the menu item.
+  menuHandlersRef.current = {
+    onOpenFile: handlePickPdf,
+    onSaveFile: handleSaveMarkdownFile,
+    onCopyMarkdown: handleCopyMarkdown,
+    onOpenBriefings: handleOpenPolicyBriefings,
+    onAbout: handleOpenInfo,
+    onOpenGithub: handleOpenGithub,
+  };
+
   const showDetailPanel = isWideLayout || !mobileShowList;
   const currentDocumentName = selectedJob?.file_name || result?.meta.source_file_name || null;
   const isPdfPickReady = true;
@@ -1728,6 +1783,8 @@ export default function App(): React.JSX.Element {
 
   return (
     <SafeAreaView style={[styles.safeArea, isDarkMode && styles.safeAreaDark]}>
+      <DesktopMenuBar isDarkMode={isDarkMode} />
+      <UpdateChecker isDarkMode={isDarkMode} />
       {/* Fixed top toolbar — outside ScrollView so it stays pinned */}
       <View style={styles.toolbarShell}>
         <WorkspaceToolbar
@@ -2008,6 +2065,22 @@ export default function App(): React.JSX.Element {
               정부문서가 막힌 곳에서, 사람과 AI 모두 통하게 한다.
             </Text>
             <View style={styles.infoMetaList}>
+              {desktopVersion ? (
+                <View style={styles.infoMetaRow}>
+                  <Text style={styles.infoMetaLabel}>데스크탑</Text>
+                  <Text style={styles.infoMetaLink}>v{desktopVersion}</Text>
+                </View>
+              ) : null}
+              <View style={styles.infoMetaRow}>
+                <Text style={styles.infoMetaLabel}>변환기</Text>
+                <Text style={styles.infoMetaLink}>
+                  {serverVersion?.converter_version
+                    ? `v${serverVersion.converter_version}`
+                    : serverVersion?.api_version
+                      ? `v${serverVersion.api_version}`
+                      : "—"}
+                </Text>
+              </View>
               <View style={styles.infoMetaRow}>
                 <Text style={styles.infoMetaLabel}>GitHub</Text>
                 <Pressable onPress={handleOpenGithub}>

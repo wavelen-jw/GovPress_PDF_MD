@@ -1,0 +1,62 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capabilities for the main window of the 읽힘 desktop shell.",
+  "windows": ["main", "window-*"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:event:allow-listen",
+    "core:event:allow-emit",
+    "core:event:allow-unlisten",
+    "core:window:default",
+    "core:window:allow-set-focus",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-is-maximized",
+    "core:webview:default",
+    "core:webview:allow-create-webview-window",
+    "core:app:default",
+
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [{ "path": "**" }]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "**" }]
+    },
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [{ "path": "**" }]
+    },
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "**" }]
+    },
+
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://api.govpress.cloud/*" },
+        { "url": "https://*.govpress.cloud/*" },
+        { "url": "https://github.com/wavelen-jw/*" },
+        { "url": "https://objects.githubusercontent.com/*" }
+      ]
+    },
+
+    "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-read-text",
+
+    "deep-link:default",
+
+    "updater:default",
+    "process:allow-restart"
+  ]
+}

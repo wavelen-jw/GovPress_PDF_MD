@@ -1,11 +1,19 @@
 import { Platform } from "react-native";
-import * as DocumentPicker from "expo-document-picker";
 
 import {
   getFallbackBaseUrls,
   POLICY_BRIEFING_LIST_TIMEOUT_MS,
   SERVER_FALLBACK_TIMEOUT_MS,
 } from "../constants";
+
+// Minimal asset shape uploadPdf needs. Compatible with both expo-document-
+// picker's DocumentPickerAsset and the platform-abstraction PickedAsset.
+type UploadableAsset = {
+  uri: string;
+  name: string;
+  mimeType?: string;
+  file?: File;
+};
 import type {
   AppConfig,
   HwpxTableMode,
@@ -18,6 +26,32 @@ import type {
   ResultPayload,
   UploadResult,
 } from "../types";
+
+// Tauri detection — when running inside the desktop wrapper we route HTTP via
+// @tauri-apps/plugin-http (Rust reqwest) to bypass CORS entirely. The plugin
+// API mirrors the browser fetch signature, so this is a transparent swap.
+function isTauriRuntime(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== undefined
+  );
+}
+
+let tauriFetchPromise: Promise<typeof fetch> | null = null;
+function loadTauriFetch(): Promise<typeof fetch> {
+  if (!tauriFetchPromise) {
+    tauriFetchPromise = import("@tauri-apps/plugin-http").then((mod) => mod.fetch as typeof fetch);
+  }
+  return tauriFetchPromise;
+}
+
+export async function httpFetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+  if (isTauriRuntime()) {
+    const tauriFetch = await loadTauriFetch();
+    return tauriFetch(input as RequestInfo, init);
+  }
+  return fetch(input, init);
+}
 
 export class ApiError extends Error {
   readonly status: number;
@@ -86,7 +120,7 @@ function buildHeaders(config: AppConfig, contentType?: string, editToken?: strin
 }
 
 async function fetchJson<T>(config: AppConfig, path: string, init?: RequestInit, editToken?: string | null): Promise<T> {
-  const response = await fetch(`${config.baseUrl}${path}`, {
+  const response = await httpFetch(`${config.baseUrl}${path}`, {
     ...init,
     headers: {
       ...buildHeaders(config, undefined, editToken),
@@ -106,7 +140,7 @@ async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: num
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(input, { ...init, signal: controller.signal });
+    return await httpFetch(input, { ...init, signal: controller.signal });
   } finally {
     clearTimeout(timeout);
   }
@@ -137,11 +171,11 @@ function isRetryableUploadError(error: unknown): boolean {
   return false;
 }
 
-function buildUploadBody(asset: DocumentPicker.DocumentPickerAsset, hwpxTableMode: HwpxTableMode): FormData {
+function buildUploadBody(asset: UploadableAsset, hwpxTableMode: HwpxTableMode): FormData {
   const form = new FormData();
   form.append("source", "mobile");
   form.append("hwpx_table_mode", hwpxTableMode);
-  const webFile = (asset as DocumentPicker.DocumentPickerAsset & { file?: File }).file;
+  const webFile = asset.file;
   if (Platform.OS === "web" && webFile) {
     form.append("file", webFile);
   } else {
@@ -200,6 +234,31 @@ async function fetchJsonWithFallback<T>(
   throw new Error(`모든 서버 요청에 실패했습니다. ${failures.join(" | ")}`);
 }
 
+export type ServerVersion = {
+  api_version: string;
+  converter_version: string | null;
+};
+
+export async function fetchServerVersion(config: AppConfig): Promise<ServerVersion | null> {
+  // Best-effort: returns null if the endpoint isn't deployed yet, the
+  // server is unreachable, or the response shape doesn't match. The About
+  // modal renders "—" in that case rather than blocking the dialog.
+  try {
+    const response = await httpFetch(`${config.baseUrl}/v1/version`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    const json = (await response.json()) as Partial<ServerVersion>;
+    if (typeof json.api_version !== "string") return null;
+    return {
+      api_version: json.api_version,
+      converter_version: typeof json.converter_version === "string" ? json.converter_version : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchJob(config: AppConfig, jobId: string, editToken: string): Promise<Job> {
   const { payload } = await fetchJsonWithFallback<Job>(
     config,
@@ -224,7 +283,7 @@ export async function fetchResult(config: AppConfig, jobId: string, editToken: s
 
 export async function uploadPdf(
   config: AppConfig,
-  asset: DocumentPicker.DocumentPickerAsset,
+  asset: UploadableAsset,
   hwpxTableMode: HwpxTableMode,
 ): Promise<UploadResult> {
   const attempts = getFallbackBaseUrls(config.baseUrl);
