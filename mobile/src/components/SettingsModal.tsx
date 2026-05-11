@@ -9,6 +9,15 @@ type ServerKey = (typeof SERVER_PRESETS)[number]["key"];
 type ServerProbeResult = {
   ok: boolean;
   detail: string;
+  converterDetail?: string;
+};
+type HealthConverterPayload = {
+  available?: boolean;
+  version?: string | null;
+  backend?: string | null;
+};
+type HealthPayload = {
+  converter?: HealthConverterPayload | null;
 };
 
 function isRetryableProbeFailure(detail: string): boolean {
@@ -34,6 +43,20 @@ function formatProbeError(error: unknown): string {
   return String(error || "fetch failed");
 }
 
+function formatConverterDetail(converter?: HealthConverterPayload | null): string {
+  if (!converter) {
+    return "";
+  }
+  if (converter.available === false) {
+    return "확인 불가";
+  }
+  const version = (converter.version || "").trim();
+  if (version) {
+    return `v${version}`;
+  }
+  return "";
+}
+
 async function probeServerApiReachability(url: string, apiKey: string, timeoutMs: number): Promise<ServerProbeResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -49,6 +72,26 @@ async function probeServerApiReachability(url: string, apiKey: string, timeoutMs
     return { ok: false, detail: `API HTTP ${response.status}` };
   } catch (error) {
     return { ok: false, detail: formatProbeError(error) };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function probeConverterRuntime(url: string, timeoutMs: number): Promise<string> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${url}/v1/runtime/converter?_t=${Date.now()}`, {
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return "";
+    }
+    const payload = (await response.json()) as HealthConverterPayload;
+    return formatConverterDetail(payload);
+  } catch {
+    return "";
   } finally {
     clearTimeout(timeout);
   }
@@ -72,7 +115,7 @@ export function SettingsModal({
     serverW: null,
     serverH: null,
   });
-  const [serverDetails, setServerDetails] = useState<Record<ServerKey, string>>({
+  const [converterDetails, setConverterDetails] = useState<Record<ServerKey, string>>({
     serverV: "",
     serverW: "",
     serverH: "",
@@ -96,7 +139,17 @@ export function SettingsModal({
           cache: "no-store",
         });
         if (response.ok) {
-          return { ok: true, detail: `HTTP ${response.status}` };
+          let converterDetail = "";
+          try {
+            const payload = (await response.json()) as HealthPayload;
+            converterDetail = formatConverterDetail(payload.converter);
+          } catch {
+            converterDetail = "";
+          }
+          if (!converterDetail) {
+            converterDetail = await probeConverterRuntime(url, timeoutMs);
+          }
+          return { ok: true, detail: `HTTP ${response.status}`, converterDetail };
         }
         lastFailure = `HTTP ${response.status}`;
         if (attempt === attempts - 1) {
@@ -127,7 +180,7 @@ export function SettingsModal({
       serverW: null,
       serverH: null,
     });
-    setServerDetails({
+    setConverterDetails({
       serverV: "",
       serverW: "",
       serverH: "",
@@ -146,10 +199,10 @@ export function SettingsModal({
       serverW: results.find((item) => item.key === "serverW")?.ok ?? null,
       serverH: results.find((item) => item.key === "serverH")?.ok ?? null,
     });
-    setServerDetails({
-      serverV: results.find((item) => item.key === "serverV")?.detail ?? "",
-      serverW: results.find((item) => item.key === "serverW")?.detail ?? "",
-      serverH: results.find((item) => item.key === "serverH")?.detail ?? "",
+    setConverterDetails({
+      serverV: results.find((item) => item.key === "serverV")?.converterDetail ?? "",
+      serverW: results.find((item) => item.key === "serverW")?.converterDetail ?? "",
+      serverH: results.find((item) => item.key === "serverH")?.converterDetail ?? "",
     });
     setLastCheckedAt(new Date().toLocaleTimeString("ko-KR", { hour12: false }));
     setCheckingStatus(false);
@@ -207,9 +260,9 @@ export function SettingsModal({
                     <Text style={[styles.settingsPresetUrl, active && styles.settingsPresetUrlActive]}>{preset.url}</Text>
                     <Text style={styles.settingsStatusText}>
                       {serverStatus[preset.key] === true
-                        ? `정상 · ${serverDetails[preset.key]}`
+                        ? `정상 · ${converterDetails[preset.key] || "버전 확인 불가"}`
                         : serverStatus[preset.key] === false
-                          ? `실패 · ${serverDetails[preset.key]}`
+                          ? "실패"
                           : "확인 중"}
                     </Text>
                   </View>

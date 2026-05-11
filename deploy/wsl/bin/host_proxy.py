@@ -44,6 +44,26 @@ def seoul_today_iso() -> str:
     return (datetime.now(UTC) + SEOUL_UTC_OFFSET).date().isoformat()
 
 
+def request_upstream(path: str, headers: dict[str, str] | None = None, *, timeout: int = 5) -> tuple[int, str, str, bytes]:
+    conn_cls = http.client.HTTPSConnection if UPSTREAM.scheme == "https" else http.client.HTTPConnection
+    conn = conn_cls(UPSTREAM.hostname, UPSTREAM.port, timeout=timeout)
+    request_headers = {"Host": UPSTREAM.netloc}
+    if headers:
+        request_headers.update(headers)
+    try:
+        conn.request("GET", path, headers=request_headers)
+        upstream_response = conn.getresponse()
+        payload = upstream_response.read()
+        return (
+            upstream_response.status,
+            upstream_response.reason,
+            upstream_response.getheader("Content-Type", "application/json"),
+            payload,
+        )
+    finally:
+        conn.close()
+
+
 class ProxyHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -82,30 +102,32 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self._proxy()
 
     def _health(self, *, include_body: bool) -> None:
-        conn_cls = http.client.HTTPSConnection if UPSTREAM.scheme == "https" else http.client.HTTPConnection
-        conn = conn_cls(UPSTREAM.hostname, UPSTREAM.port, timeout=5)
-        payload = b""
-        status = 200
-        reason = "OK"
-        content_type = "application/json"
-        request_path = "/health"
-        request_headers = {"Host": UPSTREAM.netloc}
-        if HEALTHCHECK_API_KEY:
-            request_path = f"/v1/policy-briefings/today?date={seoul_today_iso()}"
-            request_headers["X-API-Key"] = HEALTHCHECK_API_KEY
-            request_headers["Accept"] = "application/json"
         try:
-            conn.request("GET", request_path, headers=request_headers)
-            upstream_response = conn.getresponse()
-            payload = upstream_response.read() if include_body else b""
-            status = upstream_response.status
-            reason = upstream_response.reason
-            content_type = upstream_response.getheader("Content-Type", "application/json")
+            status, reason, content_type, payload = request_upstream("/health")
+            if status == 200 and HEALTHCHECK_API_KEY:
+                policy_status, policy_reason, _, policy_payload = request_upstream(
+                    f"/v1/policy-briefings/today?date={seoul_today_iso()}",
+                    {"X-API-Key": HEALTHCHECK_API_KEY, "Accept": "application/json"},
+                )
+                if policy_status != 200:
+                    status = policy_status
+                    reason = policy_reason
+                    content_type = "application/json"
+                    payload = (
+                        b'{"status":"error","reason":"policy_probe_failed",'
+                        + f'"upstream_status":{policy_status}'.encode("ascii")
+                        + b"}"
+                    )
+                elif not policy_payload:
+                    status = 502
+                    reason = "Bad Gateway"
+                    content_type = "application/json"
+                    payload = b'{"status":"error","reason":"empty_policy_probe"}'
+            if not include_body:
+                payload = b""
         except (OSError, socket.timeout) as exc:
             self.send_error(502, f"upstream unavailable: {exc}")
             return
-        finally:
-            conn.close()
 
         self.send_response(status, reason)
         self.send_header("Content-Type", content_type)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+import traceback
 from ..adapters import hwpx_converter
 from ..adapters import opendataloader
 from ..repositories import JobRepository
@@ -82,7 +83,19 @@ class ConverterWorker:
                     final_markdown_path=final_path,
                 )
         except Exception as exc:  # pragma: no cover - exact exceptions vary by runtime
+            traceback_text = traceback.format_exc()
             self._logger.exception("Conversion failed for job %s: %s", job_id, exc)
+            print(
+                f"Conversion failed for job {job_id}: {exc}\n{traceback_text}",
+                flush=True,
+            )
+            try:
+                (self._storage.results_dir / f"{job_id}.error.log").write_text(
+                    f"{exc}\n{traceback_text}",
+                    encoding="utf-8",
+                )
+            except Exception:
+                self._logger.exception("Failed to write conversion error log for job %s", job_id)
             self._jobs.update_status(
                 job_id,
                 status="failed",

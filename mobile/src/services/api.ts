@@ -460,41 +460,32 @@ export async function importPolicyBriefing(
   newsItemId: string,
   date?: string,
 ): Promise<PolicyBriefingImportResult> {
-  const attempts = getFallbackBaseUrls(config.baseUrl);
-  const failures: string[] = [];
-
-  for (const baseUrl of attempts) {
-    try {
-      const response = await fetchWithTimeout(
-        `${baseUrl}/v1/policy-briefings/import`,
-        {
-          method: "POST",
-          headers: buildHeaders(config, "application/json"),
-          body: JSON.stringify({ news_item_id: newsItemId, ...(date ? { date } : {}) }),
-        },
-        SERVER_FALLBACK_TIMEOUT_MS,
-      );
-      if (!response.ok) {
-        const detail = await response.text();
-        if (!isRetryableServerError(response.status)) {
-          throw new ApiError(response.status, detail || `Request failed: ${response.status}`);
-        }
-        throw new ApiError(response.status, detail || `Request failed: ${response.status}`);
-      }
-      return {
-        payload: (await response.json()) as PolicyBriefingImportPayload,
-        resolvedBaseUrl: baseUrl,
-      };
-    } catch (error) {
-      const message = normalizePolicyBriefingFailure(error instanceof Error ? error.message : String(error));
-      failures.push(`${baseUrl}: ${message}`);
-      if (!isRetryableUploadError(error)) {
-        throw error;
-      }
+  const baseUrl = config.baseUrl;
+  try {
+    const response = await fetchWithTimeout(
+      `${baseUrl}/v1/policy-briefings/import`,
+      {
+        method: "POST",
+        headers: buildHeaders(config, "application/json"),
+        body: JSON.stringify({ news_item_id: newsItemId, ...(date ? { date } : {}) }),
+      },
+      SERVER_FALLBACK_TIMEOUT_MS,
+    );
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new ApiError(response.status, detail || `Request failed: ${response.status}`);
     }
+    return {
+      payload: (await response.json()) as PolicyBriefingImportPayload,
+      resolvedBaseUrl: baseUrl,
+    };
+  } catch (error) {
+    if (!isRetryableUploadError(error)) {
+      throw error;
+    }
+    const message = normalizePolicyBriefingFailure(error instanceof Error ? error.message : String(error));
+    throw new Error(buildPolicyBriefingUnavailableMessage("불러오기", [`${baseUrl}: ${message}`]));
   }
-
-  throw new Error(buildPolicyBriefingUnavailableMessage("불러오기", failures));
 }
 
 export async function saveResult(config: AppConfig, jobId: string, markdown: string, editToken: string): Promise<void> {

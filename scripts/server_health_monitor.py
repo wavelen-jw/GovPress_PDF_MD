@@ -82,29 +82,21 @@ def seoul_today_iso() -> str:
     return (datetime.now(UTC) + SEOUL_UTC_OFFSET).date().isoformat()
 
 
-def build_probe_request(url: str, *, api_key: str | None = None) -> tuple[str, Request]:
+def build_probe_request(url: str, *, api_key: str | None = None, path: str = "/health") -> tuple[str, Request]:
+    if path == "policy":
+        path = f"/v1/policy-briefings/today?date={seoul_today_iso()}"
+    if not path.startswith("/"):
+        path = "/" + path
+    endpoint = url.rstrip("/") + path
+    headers = {"User-Agent": "govpress-server-monitor/1.0", "Accept": "application/json"}
     if api_key:
-        endpoint = (
-            url.rstrip("/")
-            + f"/v1/policy-briefings/today?date={seoul_today_iso()}"
-        )
-        request = Request(
-            endpoint,
-            headers={
-                "User-Agent": "govpress-server-monitor/1.0",
-                "Accept": "application/json",
-                "X-API-Key": api_key,
-            },
-        )
-        return endpoint, request
-
-    endpoint = url.rstrip("/") + "/health"
-    request = Request(endpoint, headers={"User-Agent": "govpress-server-monitor/1.0", "Accept": "application/json"})
+        headers["X-API-Key"] = api_key
+    request = Request(endpoint, headers=headers)
     return endpoint, request
 
 
-def fetch_health(url: str, *, timeout: float = 5.0, api_key: str | None = None) -> dict[str, Any]:
-    endpoint, request = build_probe_request(url, api_key=api_key)
+def fetch_probe(url: str, *, timeout: float = 5.0, api_key: str | None = None, path: str = "/health") -> dict[str, Any]:
+    endpoint, request = build_probe_request(url, api_key=api_key, path=path)
     try:
         with urlopen(request, timeout=timeout) as response:
             body = response.read().decode("utf-8", errors="replace")
@@ -145,6 +137,39 @@ def fetch_health(url: str, *, timeout: float = 5.0, api_key: str | None = None) 
             "detail": detail,
             "body": "",
         }
+
+
+def combine_probes(url: str, health: dict[str, Any], policy: dict[str, Any] | None) -> dict[str, Any]:
+    probes = {"health": health}
+    if policy is not None:
+        probes["policy"] = policy
+    failed = [(name, probe) for name, probe in probes.items() if not probe["ok"]]
+    ok = not failed
+    primary = failed[0][1] if failed else health
+    detail_parts = [f"health={health['detail']}"]
+    if policy is not None:
+        detail_parts.append(f"policy={policy['detail']}")
+    return {
+        "ok": ok,
+        "status": primary.get("status"),
+        "error": "" if ok else primary.get("detail", ""),
+        "endpoint": health["endpoint"],
+        "detail": " ".join(detail_parts),
+        "body": health.get("body", ""),
+        "probes": probes,
+        "url": url,
+    }
+
+
+def fetch_health(url: str, *, timeout: float = 5.0, api_key: str | None = None) -> dict[str, Any]:
+    health = fetch_probe(url, timeout=timeout, path="/health")
+    endpoint = url.rstrip("/") + "/health"
+    policy = None
+    if api_key:
+        policy = fetch_probe(url, timeout=timeout, api_key=api_key, path="policy")
+    result = combine_probes(url, health, policy)
+    result["endpoint"] = endpoint
+    return result
 
 
 def resolve_servers() -> list[dict[str, str]]:

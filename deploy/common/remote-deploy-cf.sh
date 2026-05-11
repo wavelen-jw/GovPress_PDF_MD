@@ -291,6 +291,21 @@ host_proxy_services_running() {
   [ "$(printf '%s\n' "$states" | grep -cx 'running')" -eq 2 ]
 }
 
+host_proxy_api_healthy() {
+  curl -fsS --max-time 10 http://127.0.0.1:8013/health >/dev/null 2>&1
+}
+
+force_recreate_host_proxy_services() {
+  local log_file="${1:-/tmp/govpress-compose-force-recreate.log}"
+  echo "host_proxy_force_recreate=api worker"
+  run_compose logs --tail=120 api worker || true
+  run_compose up -d --no-build --force-recreate api worker >"$log_file" 2>&1 || {
+    cat "$log_file"
+    return 1
+  }
+  cat "$log_file"
+}
+
 run_host_proxy_compose_up() {
   local log_file="${1:-/tmp/govpress-compose-up.log}"
   local build_log="${log_file}.build"
@@ -312,12 +327,32 @@ run_host_proxy_compose_up() {
     if run_compose up -d --no-build --remove-orphans api worker >"$log_file" 2>&1; then
       cat "$log_file"
       if host_proxy_services_running; then
-        return 0
+        cleanup_host_proxy_stale_api_port_proxy
+        if host_proxy_api_healthy; then
+          return 0
+        fi
+        echo "host_proxy_api_health=wedged"
+        if force_recreate_host_proxy_services "${log_file}.force"; then
+          cleanup_host_proxy_stale_api_port_proxy
+          if host_proxy_services_running && host_proxy_api_healthy; then
+            return 0
+          fi
+        fi
       fi
       echo "host_proxy_reconcile_attempt=${attempt}"
       docker start govpress-api govpress-worker >/dev/null 2>&1 || true
       if host_proxy_services_running; then
-        return 0
+        cleanup_host_proxy_stale_api_port_proxy
+        if host_proxy_api_healthy; then
+          return 0
+        fi
+        echo "host_proxy_api_health=wedged_after_start"
+        if force_recreate_host_proxy_services "${log_file}.force"; then
+          cleanup_host_proxy_stale_api_port_proxy
+          if host_proxy_services_running && host_proxy_api_healthy; then
+            return 0
+          fi
+        fi
       fi
       docker inspect --format 'name={{.Name}} state={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' govpress-api govpress-worker 2>/dev/null || true
       run_compose logs --tail=80 api worker || true
@@ -332,7 +367,16 @@ run_host_proxy_compose_up() {
       docker start govpress-worker >/dev/null 2>&1 || true
     fi
     if host_proxy_services_running; then
-      return 0
+      if host_proxy_api_healthy; then
+        return 0
+      fi
+      echo "host_proxy_api_health=wedged_after_failed_up"
+      if force_recreate_host_proxy_services "${log_file}.force"; then
+        cleanup_host_proxy_stale_api_port_proxy
+        if host_proxy_services_running && host_proxy_api_healthy; then
+          return 0
+        fi
+      fi
     fi
     docker inspect --format 'name={{.Name}} state={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' govpress-api govpress-worker 2>/dev/null || true
     run_compose logs --tail=80 api worker || true
@@ -403,12 +447,58 @@ cleanup_host_proxy_docker_port_conflicts() {
   fi
 }
 
+cleanup_host_proxy_stale_api_port_proxy() {
+  local current_ip=""
+  local pids=""
+  local pid=""
+  local args=""
+  local proxy_ip=""
+  local cleaned=0
+  if ! docker inspect govpress-api >/dev/null 2>&1; then
+    return 0
+  fi
+  current_ip="$(
+    docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' govpress-api 2>/dev/null || true
+  )"
+  if [ -z "$current_ip" ]; then
+    return 0
+  fi
+  pids="$(
+    {
+      sudo -n lsof -tiTCP:8013 -sTCP:LISTEN 2>/dev/null || true
+      sudo -n ss -ltnp "( sport = :8013 )" 2>/dev/null \
+        | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' || true
+    } | sort -u | tr '\n' ' '
+  )"
+  for pid in $pids; do
+    args="$(sudo -n ps -p "$pid" -o args= 2>/dev/null || true)"
+    if ! printf '%s' "$args" | grep -q 'docker-proxy'; then
+      continue
+    fi
+    if ! printf '%s' "$args" | grep -q -- '-host-port 8013'; then
+      continue
+    fi
+    proxy_ip="$(printf '%s' "$args" | sed -n 's/.*-container-ip \([^ ]*\).*/\1/p')"
+    if [ -n "$proxy_ip" ] && [ "$proxy_ip" != "$current_ip" ]; then
+      echo "host_proxy_stale_api_proxy=${pid}:${proxy_ip}->${current_ip}"
+      sudo -n kill "$pid" >/dev/null 2>&1 || true
+      cleaned=1
+    fi
+  done
+  if [ "$cleaned" = "1" ]; then
+    sleep 1
+    docker restart govpress-api >/dev/null 2>&1 || true
+    echo "host_proxy_stale_api_proxy_cleanup=1"
+  fi
+}
+
 cleanup_host_proxy_orphans() {
   docker rm -f govpress-caddy-host govpress-caddy govpress-cloudflared >/dev/null 2>&1 || true
   cleanup_host_proxy_temp_containers
   cleanup_host_proxy_backup_containers
   cleanup_host_proxy_stalled_services
   cleanup_host_proxy_docker_port_conflicts
+  cleanup_host_proxy_stale_api_port_proxy
   echo "host_proxy_orphan_cleanup=1"
 }
 
@@ -855,6 +945,11 @@ if [ "${RUN_POLICY_PROBE:-1}" = "1" ]; then
   echo "deploy_probe_code=${policy_probe_code}"
   test "${policy_probe_code}" = "200"
   if [ -n "${PUBLIC_PROBE_URL:-}" ]; then
+    public_health_probe_code="$(curl -sS -o /tmp/govpress-public-health.txt -w '%{http_code}' "${PUBLIC_PROBE_URL%/}/health" || true)"
+    echo "public_health_probe_url=${PUBLIC_PROBE_URL%/}/health"
+    echo "public_health_probe_code=${public_health_probe_code}"
+    echo "public_health_probe_body=$(head -c 200 /tmp/govpress-public-health.txt | tr '\n' ' ' || true)"
+    test "${public_health_probe_code}" = "200"
     public_policy_probe_code="$(curl -sS -o /tmp/govpress-public-policy.txt -w '%{http_code}' "${policy_probe_header[@]}" "${PUBLIC_PROBE_URL%/}/v1/policy-briefings/today?date=2026-04-08" || true)"
     echo "public_policy_probe_url=${PUBLIC_PROBE_URL%/}/v1/policy-briefings/today?date=2026-04-08"
     echo "public_policy_probe_code=${public_policy_probe_code}"
