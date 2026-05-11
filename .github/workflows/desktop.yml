@@ -120,3 +120,82 @@ jobs:
           prerelease: false
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
+
+  # tauri-action@v0 is producing the .sig files but for some reason is not
+  # uploading latest.json. Compose and upload it ourselves from the .sig
+  # files already on the release, so the in-app updater endpoint resolves
+  # regardless of what tauri-action did or didn't do.
+  publish-manifest:
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Compose and upload latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          WORK=$(mktemp -d)
+          cd "$WORK"
+          gh release download "$TAG" --repo "$REPO" --pattern "*.sig"
+          gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name' > assets.txt
+          python3 - <<'PYEOF'
+          import datetime, glob, json, os, re
+
+          tag = os.environ["TAG"]
+          repo = os.environ["REPO"]
+          version = tag.removeprefix("desktop-v")
+          repo_url = f"https://github.com/{repo}/releases/download/{tag}"
+
+          with open("assets.txt") as f:
+              asset_names = [line.strip() for line in f if line.strip()]
+
+          def read_sig(pattern: str) -> str | None:
+              files = glob.glob(pattern)
+              if not files:
+                  return None
+              with open(files[0]) as fp:
+                  return fp.read().strip()
+
+          def find_asset(pattern: str) -> str | None:
+              for name in asset_names:
+                  if re.search(pattern, name):
+                      return name
+              return None
+
+          platforms = {}
+
+          win_sig = read_sig("*x64-setup.exe.sig")
+          win_name = find_asset(r"_x64-setup\.exe$")
+          if win_sig and win_name:
+              platforms["windows-x86_64"] = {
+                  "signature": win_sig,
+                  "url": f"{repo_url}/{win_name}",
+              }
+
+          linux_sig = read_sig("*.AppImage.sig")
+          linux_name = find_asset(r"\.AppImage$")
+          if linux_sig and linux_name:
+              platforms["linux-x86_64"] = {
+                  "signature": linux_sig,
+                  "url": f"{repo_url}/{linux_name}",
+              }
+
+          if not platforms:
+              raise SystemExit("no signed bundles found — refusing to publish empty latest.json")
+
+          manifest = {
+              "version": version,
+              "pub_date": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+              "notes": "",
+              "platforms": platforms,
+          }
+          with open("latest.json", "w") as f:
+              json.dump(manifest, f, indent=2)
+          print(json.dumps(manifest, indent=2))
+          PYEOF
+          gh release upload "$TAG" "latest.json" --repo "$REPO" --clobber
