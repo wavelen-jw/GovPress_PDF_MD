@@ -378,7 +378,6 @@ export default function App(): React.JSX.Element {
   const [editing, setEditing] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [infoVisible, setInfoVisible] = useState(false);
-  const [desktopVersion, setDesktopVersion] = useState<string | null>(null);
   const [serverVersion, setServerVersion] = useState<ServerVersion | null>(null);
   const [policyBriefingVisible, setPolicyBriefingVisible] = useState(false);
   const [policyBriefingStatusVisible, setPolicyBriefingStatusVisible] = useState(false);
@@ -656,25 +655,6 @@ export default function App(): React.JSX.Element {
     }
     document.documentElement.setAttribute("data-theme", isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
-
-  // Pull the desktop binary version from Tauri's runtime API. Skipped in
-  // PWA / native builds — there's no separate desktop build there.
-  useEffect(() => {
-    if (!isTauriRuntime()) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const tauriApp = await import("@tauri-apps/api/app");
-        const v = await tauriApp.getVersion();
-        if (!cancelled) setDesktopVersion(v);
-      } catch (e) {
-        console.warn("[App] desktop version fetch failed:", e);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Pull the deployed server + converter version from /v1/version. Best
   // effort — older servers won't have the endpoint and we'll render "—".
@@ -2065,12 +2045,6 @@ export default function App(): React.JSX.Element {
               정부문서가 막힌 곳에서, 사람과 AI 모두 통하게 한다.
             </Text>
             <View style={styles.infoMetaList}>
-              {desktopVersion ? (
-                <View style={styles.infoMetaRow}>
-                  <Text style={styles.infoMetaLabel}>데스크탑</Text>
-                  <Text style={styles.infoMetaLink}>v{desktopVersion}</Text>
-                </View>
-              ) : null}
               <View style={styles.infoMetaRow}>
                 <Text style={styles.infoMetaLabel}>변환기</Text>
                 <Text style={styles.infoMetaLink}>
