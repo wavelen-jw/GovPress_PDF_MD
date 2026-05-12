@@ -31,7 +31,6 @@ import {
   fetchJob,
   fetchRecentPolicyBriefings,
   fetchResult,
-  fetchServerVersion,
   fetchTodayPolicyBriefingsDirect,
   httpFetch,
   importPolicyBriefing,
@@ -39,7 +38,6 @@ import {
   saveResult,
   uploadPdf,
 } from "./src/services/api";
-import type { ServerVersion } from "./src/services/api";
 import { isTauriRuntime, onExternalFileOpen, pickFileForOpen, readFileAsText, saveTextFileAs, shareTextFile, copyTextToClipboard } from "./src/platform/fileio";
 import type { PickedAsset } from "./src/platform/fileio";
 import { clearDraft, loadConfig, loadDraft, persistConfig, persistDraft } from "./src/storage/config";
@@ -379,7 +377,6 @@ export default function App(): React.JSX.Element {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [infoVisible, setInfoVisible] = useState(false);
   const [desktopVersion, setDesktopVersion] = useState<string | null>(null);
-  const [serverVersion, setServerVersion] = useState<ServerVersion | null>(null);
   const [policyBriefingVisible, setPolicyBriefingVisible] = useState(false);
   const [policyBriefingStatusVisible, setPolicyBriefingStatusVisible] = useState(false);
   const [hwpxTableMode, setHwpxTableMode] = useState<HwpxTableMode>("text");
@@ -675,20 +672,6 @@ export default function App(): React.JSX.Element {
       cancelled = true;
     };
   }, []);
-
-  // Pull the deployed server + converter version from /v1/version. Best
-  // effort — older servers won't have the endpoint and we'll render "—".
-  useEffect(() => {
-    if (loadingConfig) return;
-    let cancelled = false;
-    void (async () => {
-      const v = await fetchServerVersion(config);
-      if (!cancelled) setServerVersion(v);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [loadingConfig, config.baseUrl]);
 
   useEffect(() => {
     if (!editing || !selectedJobId) {
@@ -2071,16 +2054,6 @@ export default function App(): React.JSX.Element {
                   <Text style={styles.infoMetaLink}>v{desktopVersion}</Text>
                 </View>
               ) : null}
-              <View style={styles.infoMetaRow}>
-                <Text style={styles.infoMetaLabel}>변환기</Text>
-                <Text style={styles.infoMetaLink}>
-                  {serverVersion?.converter_version
-                    ? `v${serverVersion.converter_version}`
-                    : serverVersion?.api_version
-                      ? `v${serverVersion.api_version}`
-                      : "—"}
-                </Text>
-              </View>
               <View style={styles.infoMetaRow}>
                 <Text style={styles.infoMetaLabel}>GitHub</Text>
                 <Pressable onPress={handleOpenGithub}>
