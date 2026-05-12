@@ -166,7 +166,7 @@ serverW로 연결되는 현재 공개 주소는 `https://api4.govpress.cloud`입
   - 프로덕션/준프로덕션은 반드시 `0`
   - 프로덕션은 `site-packages`에 설치된 package backend만 허용합니다.
   - `scripts/check_converter_runtime.py`가 `distribution_version`, `module_path`, `backend`를 검사하고 `deploy/converter.version`과 다르면 배포를 실패 처리합니다.
-- converter 버전을 올려 배포할 때는 배포 스크립트가 기존 `storage/results/*.md`와 `storage/policy_briefing_cache/*`를 먼저 비워서 이전 엔진 결과가 재사용되지 않게 합니다.
+- converter 버전이 바뀌면 배포 스크립트가 기존 `storage/results/*.md`, `storage/results/*.error.log`, `storage/policy_briefing_cache/index.json`, `storage/policy_briefing_cache/originals/*`를 먼저 비워서 이전 엔진 결과가 재사용되지 않게 합니다. 날짜별 `policy_briefing_catalog/*.json`은 보존합니다.
 - 값이 비어 있으면 기본 허용 origin이 없으므로 브라우저 접근이 막힙니다.
 - 로컬 웹 테스트 중이면 `http://172.25.164.35:8084` 같은 현재 웹 주소를 임시로 추가해야 합니다.
 - GitHub Pages를 쓸 경우 보통 `https://wavelen-jw.github.io/GovPress_PDF_MD` 형식입니다.

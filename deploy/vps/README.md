@@ -246,7 +246,7 @@ worker 컨테이너가 512 MB 한도에 도달하면 OOM으로 재시작됩니�
 - `GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK`
   - 프로덕션은 반드시 `0`
   - private 엔진을 실제로 설치했다면 `scripts/check_converter_runtime.py`가 설치 후 버전, distribution metadata, backend를 검사합니다.
-- converter 버전을 올려 배포할 때는 배포 스크립트가 기존 `storage/results/*.md`와 `storage/policy_briefing_cache/*`를 먼저 비워서 이전 엔진 결과가 재사용되지 않게 합니다.
+- converter 버전이 바뀌면 배포 스크립트가 기존 `storage/results/*.md`, `storage/results/*.error.log`, `storage/policy_briefing_cache/index.json`, `storage/policy_briefing_cache/originals/*`를 먼저 비워서 이전 엔진 결과가 재사용되지 않게 합니다. 날짜별 `policy_briefing_catalog/*.json`은 보존합니다.
 
 `setup-bare.sh` 실행 예:
 

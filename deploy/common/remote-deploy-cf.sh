@@ -75,6 +75,61 @@ if [ "${CONVERTER_SPEC:-}" = "-" ]; then
   CONVERTER_SPEC=""
 fi
 
+reset_converter_cache_if_version_changed() {
+  local current_version="${TRACKED_CONVERTER_VERSION:-${CONVERTER_MIN_VERSION:-}}"
+  if [ -z "$current_version" ]; then
+    echo "converter_cache_reset=skipped_no_tracked_version"
+    return 0
+  fi
+
+  local storage_root marker previous
+  for storage_root in \
+    "$DEPLOY_DIR/storage" \
+    "$DEPLOY_DIR/deploy/wsl/data/storage" \
+    "$DEPLOY_DIR/deploy/vps/data/storage"; do
+    if [ ! -d "$storage_root" ]; then
+      continue
+    fi
+
+    marker="$storage_root/.converter-cache-version"
+    previous="$(tr -d '[:space:]' < "$marker" 2>/dev/null || true)"
+    if [ "$previous" = "$current_version" ]; then
+      echo "converter_cache_reset=skipped storage_root=$storage_root version=$current_version"
+      continue
+    fi
+
+    # Keep the per-day policy briefing catalog. It maps source items, not
+    # converter output, and avoiding a cold catalog fetch makes deploys calmer.
+    rm -f \
+      "$storage_root"/results/*.md \
+      "$storage_root"/results/*.error.log \
+      "$storage_root/policy_briefing_cache/index.json" \
+      "$storage_root"/policy_briefing_cache/originals/* \
+      2>/dev/null || true
+    echo "converter_cache_reset=done storage_root=$storage_root previous=${previous:-none} version=$current_version"
+  done
+}
+
+mark_converter_cache_version() {
+  local current_version="${TRACKED_CONVERTER_VERSION:-${CONVERTER_MIN_VERSION:-}}"
+  if [ -z "$current_version" ]; then
+    return 0
+  fi
+
+  local storage_root marker
+  for storage_root in \
+    "$DEPLOY_DIR/storage" \
+    "$DEPLOY_DIR/deploy/wsl/data/storage" \
+    "$DEPLOY_DIR/deploy/vps/data/storage"; do
+    if [ ! -d "$storage_root" ]; then
+      continue
+    fi
+    marker="$storage_root/.converter-cache-version"
+    printf '%s\n' "$current_version" > "$marker"
+    echo "converter_cache_version_marked storage_root=$storage_root version=$current_version"
+  done
+}
+
 normalize_env_placeholder_spec() {
   local env_file="$1"
   [ -f "$env_file" ] || return 0
@@ -789,22 +844,7 @@ emit_compose_diagnostics() {
 
 trap 'host_proxy_restore_backups; emit_compose_diagnostics' ERR
 
-# Keep deploy-time cache eviction explicit so converter upgrades do not keep
-# serving stale markdown/results from a previous engine build.
-# Preserve the per-day catalog cache so recent-date status checks do not cold-hit
-# the upstream provider immediately after every deploy.
-rm -f \
-  "$DEPLOY_DIR"/storage/results/*.md \
-  "$DEPLOY_DIR/deploy/wsl/data/storage/results/"*.md \
-  "$DEPLOY_DIR/deploy/vps/data/storage/results/"*.md \
-  "$DEPLOY_DIR/storage/policy_briefing_cache/index.json" \
-  "$DEPLOY_DIR"/storage/policy_briefing_cache/originals/* \
-  "$DEPLOY_DIR/deploy/wsl/data/storage/policy_briefing_cache/index.json" \
-  "$DEPLOY_DIR"/deploy/wsl/data/storage/policy_briefing_cache/originals/* \
-  "$DEPLOY_DIR/deploy/vps/data/storage/policy_briefing_cache/index.json" \
-  "$DEPLOY_DIR"/deploy/vps/data/storage/policy_briefing_cache/originals/* \
-  2>/dev/null || true
-echo "converter_cache_reset=results_and_policy_briefing_cache"
+reset_converter_cache_if_version_changed
 
 if [ -n "${COMPOSE_FILE:-}" ]; then
   COMPOSE_PATH="$DEPLOY_DIR/$COMPOSE_FILE"
@@ -981,4 +1021,5 @@ else
 fi
 echo "$runtime_output"
 echo "converter_runtime=$(printf '%s' "$runtime_output" | tr '\n' ' ')"
+mark_converter_cache_version
 echo "deploy-complete"

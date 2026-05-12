@@ -89,7 +89,7 @@ GitHub Actions의 WSL 원격배포는 `long-running ssh` 대신:
 
 조치:
 
-- deploy 시 문서 변환 cache만 초기화
+- converter 버전이 바뀐 deploy에서만 문서 변환 cache 초기화
 - 날짜별 정책브리핑 catalog cache는 보존
 
 의미:
