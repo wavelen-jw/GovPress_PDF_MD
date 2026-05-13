@@ -41,6 +41,7 @@ echo "git_origin=$(git -C "$DEPLOY_DIR" remote get-url origin)"
 HOME_DIR="${HOME:-$(getent passwd $(id -u) | cut -d: -f6)}"
 CONVERTER_VERSION_FILE="$DEPLOY_DIR/deploy/converter.version"
 CONVERTER_SPEC_RESOLVER="$DEPLOY_DIR/deploy/common/resolve_converter_spec.py"
+CONVERTER_CACHE_SCHEMA_VERSION="2"
 
 normalize_converter_spec() {
   if [ -z "${CONVERTER_SPEC:-}" ]; then
@@ -76,11 +77,12 @@ if [ "${CONVERTER_SPEC:-}" = "-" ]; then
 fi
 
 reset_converter_cache_if_version_changed() {
-  local current_version="${TRACKED_CONVERTER_VERSION:-${CONVERTER_MIN_VERSION:-}}"
-  if [ -z "$current_version" ]; then
+  local converter_version="${TRACKED_CONVERTER_VERSION:-${CONVERTER_MIN_VERSION:-}}"
+  if [ -z "$converter_version" ]; then
     echo "converter_cache_reset=skipped_no_tracked_version"
     return 0
   fi
+  local current_version="${converter_version}:cache-schema-${CONVERTER_CACHE_SCHEMA_VERSION}"
 
   local storage_root marker previous
   for storage_root in \
@@ -133,10 +135,11 @@ SQL
 }
 
 mark_converter_cache_version() {
-  local current_version="${TRACKED_CONVERTER_VERSION:-${CONVERTER_MIN_VERSION:-}}"
-  if [ -z "$current_version" ]; then
+  local converter_version="${TRACKED_CONVERTER_VERSION:-${CONVERTER_MIN_VERSION:-}}"
+  if [ -z "$converter_version" ]; then
     return 0
   fi
+  local current_version="${converter_version}:cache-schema-${CONVERTER_CACHE_SCHEMA_VERSION}"
 
   local storage_root marker
   for storage_root in \
