@@ -23,6 +23,17 @@
         flex: 1;
       }
     </style>
+  
+    <link rel="manifest" href="./manifest.webmanifest?v=20260501-logo5">
+    <meta name="theme-color" content="#143e70">
+    <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png?v=20260501-logo5">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png?v=20260501-logo5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="읽힘">
+    <meta name="application-name" content="읽힘">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="format-detection" content="telephone=no">
   </head>
 
   <body>
@@ -32,6 +43,19 @@
     </noscript>
     <!-- The root element for your Expo app. -->
     <div id="root"></div>
-  <script src="/GovPress_PDF_MD/app/_expo/static/js/web/AppEntry-a972435c125004babf48cf9cd63ac60a.js" defer></script>
-</body>
+  <script src="/GovPress_PDF_MD/app/_expo/static/js/web/__expo-metro-runtime-1f8f5d3ca6b7f58204d51e14506d73fb.js" defer></script><script src="/GovPress_PDF_MD/app/_expo/static/js/web/__common-3a5cd7ff0fb9f1b3350c5ced0489fe93.js" defer></script><script src="/GovPress_PDF_MD/app/_expo/static/js/web/AppEntry-d16f059b6d5de241dfbec367331c3958.js" defer></script>
+
+    <script>
+      if (
+        "serviceWorker" in navigator &&
+        !location.protocol.startsWith("tauri")
+      ) {
+        window.addEventListener("load", function () {
+          navigator.serviceWorker.register("./sw.js?v=20260501-logo5").catch(function (error) {
+            console.warn("[pwa] service worker register failed:", error);
+          });
+        });
+      }
+    </script>
+  </body>
 </html>

@@ -311,14 +311,22 @@ function HtmlTableFrame({
     return () => window.removeEventListener("message", handleMessage);
   }, [frameId]);
 
+  const frameWidth = minWidth ? Math.max(minWidth, 320) : undefined;
+
   return (
-    <View style={[styles.markdownHtmlFrameWrap, isDarkMode && styles.markdownHtmlFrameWrapDark]}>
+    <View
+      style={[
+        styles.markdownHtmlFrameWrap,
+        frameWidth ? ({ width: frameWidth } satisfies ViewStyle) : undefined,
+        isDarkMode && styles.markdownHtmlFrameWrapDark,
+      ]}
+    >
       {React.createElement("iframe", {
         key: frameId,
         title: frameId,
         srcDoc: buildHtmlTableDocument(html, isDarkMode, frameId),
         style: {
-          width: minWidth ? `${Math.max(minWidth, 320)}px` : "100%",
+          width: "100%",
           height,
           border: "0",
           display: "block",
@@ -1092,8 +1100,11 @@ export function MarkdownPreview({
           );
           const columnWidths = computeTableColumnWidths(block.headers, block.rows, columnCount);
           const tableMinimumWidth = columnWidths.reduce((sum, column) => sum + column.minWidth, 0);
+          const tablePreferredWidth = columnWidths.reduce((sum, column) => sum + column.preferredWidth, 0);
+          const availableTableWidth = containerWidth > 0 ? Math.max(0, containerWidth - 12) : 0;
           const needsHorizontalScroll =
-            containerWidth > 0 && tableMinimumWidth > Math.max(0, containerWidth - 12);
+            availableTableWidth > 0 && tablePreferredWidth > availableTableWidth;
+          const tableScrollWidth = Math.max(tableMinimumWidth, tablePreferredWidth, availableTableWidth);
 
           if (block.type === "html_table" && Platform.OS === "web") {
             const HtmlShell = needsHorizontalScroll ? ScrollView : View;
@@ -1113,7 +1124,7 @@ export function MarkdownPreview({
                   <HtmlTableFrame
                     html={block.rawHtml}
                     isDarkMode={isDarkMode}
-                    minWidth={needsHorizontalScroll ? tableMinimumWidth : undefined}
+                    minWidth={needsHorizontalScroll ? tableScrollWidth : undefined}
                   />
                 </HtmlShell>
               </View>
@@ -1139,7 +1150,7 @@ export function MarkdownPreview({
                   style={[
                     styles.markdownTable,
                     isDarkMode && styles.markdownTableDark,
-                    needsHorizontalScroll && { minWidth: tableMinimumWidth },
+                    needsHorizontalScroll && ({ width: tableScrollWidth } satisfies ViewStyle),
                   ]}
                 >
                   <View style={[styles.markdownTableRow, isDarkMode && styles.markdownTableRowDark, styles.markdownTableHeaderRow, isDarkMode && styles.markdownTableHeaderRowDark]}>
