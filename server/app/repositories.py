@@ -67,6 +67,8 @@ class JobRepository(Protocol):
 
     def get_by_client_request_id(self, client_request_id: str) -> JobRecord | None: ...
 
+    def release_client_request_id(self, client_request_id: str) -> None: ...
+
     def get(self, job_id: str) -> JobRecord | None: ...
 
     def list_page(
@@ -297,6 +299,14 @@ class SQLiteJobRepository:
                 (client_request_id,),
             ).fetchone()
         return _row_to_record(row) if row else None
+
+    def release_client_request_id(self, client_request_id: str) -> None:
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                "UPDATE jobs SET client_request_id = NULL, updated_at = ? WHERE client_request_id = ?",
+                (utcnow().isoformat(), client_request_id),
+            )
+            conn.commit()
 
     def get(self, job_id: str) -> JobRecord | None:
         with self._lock, self._connect() as conn:
@@ -677,6 +687,13 @@ class InMemoryJobRepository:
         with self._lock:
             job_id = self._client_request_ids.get(client_request_id)
             return self._jobs.get(job_id) if job_id else None
+
+    def release_client_request_id(self, client_request_id: str) -> None:
+        with self._lock:
+            job_id = self._client_request_ids.pop(client_request_id, None)
+            if job_id and job_id in self._jobs:
+                self._jobs[job_id].client_request_id = None
+                self._jobs[job_id].updated_at = utcnow()
 
     def get(self, job_id: str) -> JobRecord | None:
         with self._lock:

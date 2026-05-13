@@ -38,7 +38,9 @@ class JobService:
         if client_request_id:
             existing = self._repository.get_by_client_request_id(client_request_id)
             if existing is not None:
-                return existing
+                if existing.status != "failed":
+                    return existing
+                self._repository.release_client_request_id(client_request_id)
 
         job_id = f"job_{uuid.uuid4().hex[:12]}"
         edit_token = secrets.token_urlsafe(24)

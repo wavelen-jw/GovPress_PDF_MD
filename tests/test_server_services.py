@@ -81,6 +81,33 @@ class ServerServiceTests(unittest.TestCase):
         self.assertEqual(first.job_id, second.job_id)
         mock_enqueue.assert_called_once_with(first.job_id)
 
+    def test_create_job_replaces_failed_duplicate_client_request_id(self) -> None:
+        with patch.object(self.worker, "enqueue"):
+            first = self.job_service.create_job(
+                file_name="sample.pdf",
+                content=b"%PDF-1.4",
+                client_request_id="req-123",
+            )
+        self.repository.update_status(
+            first.job_id,
+            status="failed",
+            progress=100,
+            error_code="CONVERSION_FAILED",
+            error_message="boom",
+        )
+
+        with patch.object(self.worker, "enqueue") as mock_enqueue:
+            second = self.job_service.create_job(
+                file_name="sample.pdf",
+                content=b"%PDF-1.4",
+                client_request_id="req-123",
+            )
+
+        self.assertNotEqual(first.job_id, second.job_id)
+        self.assertEqual(second.status, "queued")
+        self.assertIsNone(self.repository.get(first.job_id).client_request_id)
+        mock_enqueue.assert_called_once_with(second.job_id)
+
     def test_worker_processes_job_and_saves_result(self) -> None:
         with patch.object(self.worker, "enqueue"):
             record = self.job_service.create_job(file_name="sample.pdf", content=b"%PDF-1.4")
