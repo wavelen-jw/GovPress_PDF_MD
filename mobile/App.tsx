@@ -229,6 +229,29 @@ function clearBriefingParamFromUrl(): void {
   window.history.replaceState({}, "", `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`);
 }
 
+function extractPolicyBriefingNewsItemId(value: string): string | null {
+  const raw = value.trim();
+  if (!raw) {
+    return null;
+  }
+  const direct = raw.match(/\b(156\d{6,})\b/);
+  if (!direct) {
+    return null;
+  }
+  try {
+    const parsed = new URL(raw);
+    const host = parsed.hostname.toLowerCase();
+    if ((host === "korea.kr" || host.endsWith(".korea.kr")) && parsed.pathname.toLowerCase().includes("pressreleaseview.do")) {
+      return parsed.searchParams.get("newsId") || direct[1];
+    }
+  } catch {
+    // Shared text may contain a URL among other text. Fall back to the id only
+    // for Korea.kr press release links below.
+  }
+  const koreaUrl = raw.match(/https?:\/\/(?:m\.|www\.)?korea\.kr\/\S*pressReleaseView\.do\?\S*newsId=(156\d{6,})/i);
+  return koreaUrl ? koreaUrl[1] : null;
+}
+
 function consumeLandingAction(): PendingLandingAction | null {
   if (Platform.OS !== "web" || typeof window === "undefined") {
     return null;
@@ -979,6 +1002,14 @@ export default function App(): React.JSX.Element {
         const encodedName = response.headers.get("x-readhim-file-name") || "shared.md";
         const name = decodeURIComponent(encodedName);
         const markdown = await response.text();
+        const sharedNewsItemId = extractPolicyBriefingNewsItemId(markdown);
+        if (sharedNewsItemId) {
+          await loadBriefingByNewsItemId(sharedNewsItemId);
+          params.delete("sharedFile");
+          const query = params.toString();
+          window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+          return;
+        }
         await openLocalMarkdown({
           uri: sharedFileUrl,
           name: name.toLowerCase().endsWith(".md") || name.toLowerCase().endsWith(".markdown") ? name : `${name}.md`,
@@ -1259,7 +1290,7 @@ export default function App(): React.JSX.Element {
     const params = new URLSearchParams(window.location.search);
     const wantsEditor = params.get("editor") === "1";
     const queryIntent = params.get("intent");
-    const briefingId = params.get("briefing");
+    const briefingId = params.get("briefing") || extractPolicyBriefingNewsItemId(window.location.href) || params.get("newsId");
     const briefingDate = params.get("date") || undefined;
     const pendingAction: PendingLandingAction | null = briefingId
       ? { type: "open-briefing-by-id", newsItemId: briefingId, date: briefingDate, requestedAt: Date.now() }

@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+import mimetypes
+import shutil
 import tempfile
 import json
 import os
@@ -13,8 +15,11 @@ import subprocess
 import sys
 import time
 from typing import Any
+import urllib.parse
+import urllib.request
 from urllib.error import URLError
 from urllib.request import urlopen
+import uuid
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -1112,6 +1117,12 @@ def _send_telegram_media(
     account: str = DEFAULT_TELEGRAM_ACCOUNT,
     channel: str = DEFAULT_TELEGRAM_CHANNEL,
 ) -> dict[str, Any]:
+    if shutil.which("openclaw") is None:
+        return _send_telegram_media_via_bot_api(
+            sender_id=sender_id,
+            media_path=media_path,
+            caption=caption,
+        )
     command = [
         "openclaw",
         "message",
@@ -1142,6 +1153,8 @@ def _send_telegram_text(
     account: str = DEFAULT_TELEGRAM_ACCOUNT,
     channel: str = DEFAULT_TELEGRAM_CHANNEL,
 ) -> dict[str, Any]:
+    if shutil.which("openclaw") is None:
+        return _send_telegram_text_via_bot_api(sender_id=sender_id, message=message)
     command = [
         "openclaw",
         "message",
@@ -1159,6 +1172,127 @@ def _send_telegram_text(
     if message_id:
         command.extend(["--reply-to", message_id])
     return _run_subprocess(command, cwd=PROJECT_ROOT)
+
+
+def _telegram_bot_credentials(sender_id: str) -> tuple[str, str]:
+    bot_token = _load_telegram_env_value("TELEGRAM_BOT_TOKEN")
+    chat_id = _load_telegram_env_value("TELEGRAM_CHAT_ID") or sender_id
+    if not bot_token:
+        raise FileNotFoundError("openclaw is not installed and TELEGRAM_BOT_TOKEN is not configured")
+    if not chat_id:
+        raise FileNotFoundError("openclaw is not installed and TELEGRAM_CHAT_ID is not configured")
+    return bot_token, chat_id
+
+
+def _load_telegram_env_value(key: str) -> str:
+    value = os.environ.get(key, "").strip()
+    if value:
+        return value
+    value = _load_deploy_env_value(key).strip()
+    if value:
+        return value
+    for env_path in (DEFAULT_GOV_MD_ROOT / ".local" / "telegram.env", PROJECT_ROOT / ".local" / "telegram.env"):
+        if not env_path.exists():
+            continue
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            raw = line.strip()
+            if not raw or raw.startswith("#") or "=" not in raw:
+                continue
+            name, raw_value = raw.split("=", 1)
+            if name.strip() == key:
+                return raw_value.strip().strip('"').strip("'")
+    return ""
+
+
+def _telegram_api_request(
+    *,
+    bot_token: str,
+    method: str,
+    fields: dict[str, str],
+    file_field: tuple[str, Path] | None = None,
+) -> dict[str, Any]:
+    url = f"https://api.telegram.org/bot{bot_token}/{method}"
+    if file_field is None:
+        body = urllib.parse.urlencode(fields).encode("utf-8")
+        request = urllib.request.Request(url, data=body, method="POST")
+    else:
+        field_name, path = file_field
+        boundary = f"----govpress-qc-{uuid.uuid4().hex}"
+        chunks: list[bytes] = []
+        for key, value in fields.items():
+            chunks.extend(
+                [
+                    f"--{boundary}\r\n".encode("utf-8"),
+                    f'Content-Disposition: form-data; name="{key}"\r\n\r\n'.encode("utf-8"),
+                    value.encode("utf-8"),
+                    b"\r\n",
+                ]
+            )
+        content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        chunks.extend(
+            [
+                f"--{boundary}\r\n".encode("utf-8"),
+                (
+                    f'Content-Disposition: form-data; name="{field_name}"; '
+                    f'filename="{path.name}"\r\n'
+                ).encode("utf-8"),
+                f"Content-Type: {content_type}\r\n\r\n".encode("utf-8"),
+                path.read_bytes(),
+                b"\r\n",
+                f"--{boundary}--\r\n".encode("utf-8"),
+            ]
+        )
+        request = urllib.request.Request(
+            url,
+            data=b"".join(chunks),
+            method="POST",
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("unexpected Telegram response")
+    return payload
+
+
+def _send_telegram_text_via_bot_api(*, sender_id: str, message: str) -> dict[str, Any]:
+    bot_token, chat_id = _telegram_bot_credentials(sender_id)
+    try:
+        payload = _telegram_api_request(
+            bot_token=bot_token,
+            method="sendMessage",
+            fields={"chat_id": chat_id, "text": message},
+        )
+        return {"returncode": 0 if payload.get("ok") else 1, "stdout": json.dumps(payload, ensure_ascii=False), "stderr": "", "command": ["telegram-bot-api", "sendMessage"]}
+    except Exception as exc:
+        return {"returncode": 1, "stdout": "", "stderr": str(exc), "command": ["telegram-bot-api", "sendMessage"]}
+
+
+def _send_telegram_media_via_bot_api(
+    *,
+    sender_id: str,
+    media_path: Path,
+    caption: str | None,
+) -> dict[str, Any]:
+    bot_token, chat_id = _telegram_bot_credentials(sender_id)
+    upload_path = media_path
+    try:
+        with tempfile.TemporaryDirectory(prefix="govpress-qc-telegram-") as temp_dir:
+            if media_path.suffix.lower() in {".json", ".md", ".txt"}:
+                raw = media_path.read_bytes()
+                if not raw.startswith(b"\xef\xbb\xbf"):
+                    raw.decode("utf-8")
+                    upload_path = Path(temp_dir) / media_path.name
+                    upload_path.write_bytes(b"\xef\xbb\xbf" + raw)
+            payload = _telegram_api_request(
+                bot_token=bot_token,
+                method="sendDocument",
+                fields={"chat_id": chat_id, "caption": caption or media_path.name},
+                file_field=("document", upload_path),
+            )
+        return {"returncode": 0 if payload.get("ok") else 1, "stdout": json.dumps(payload, ensure_ascii=False), "stderr": "", "command": ["telegram-bot-api", "sendDocument"]}
+    except Exception as exc:
+        return {"returncode": 1, "stdout": "", "stderr": str(exc), "command": ["telegram-bot-api", "sendDocument"]}
 
 
 def _background_fix_log_dir(state_root: Path) -> Path:
