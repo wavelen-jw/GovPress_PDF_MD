@@ -11,6 +11,12 @@ type TableColumnWidth = {
   flexGrow: number;
 };
 
+type TableLayout = {
+  columnWidths: TableColumnWidth[];
+  needsHorizontalScroll: boolean;
+  tableContentWidth: number;
+};
+
 type Block =
   | { type: "heading"; level: number; text: string }
   | { type: "paragraph"; text: string }
@@ -129,24 +135,49 @@ function parseTableAlignments(line: string): TableAlign[] {
 function estimateColumnCharacterWidth(value: string): number {
   return value
     .split("\n")
-    .map((part) => part.trim().length)
+    .map((part) =>
+      Array.from(part.trim()).reduce((width, char) => {
+        if (/[가-힣ㄱ-ㅎㅏ-ㅣ一-龥]/.test(char)) {
+          return width + 1.65;
+        }
+        if (/[A-Z0-9]/.test(char)) {
+          return width + 1.1;
+        }
+        return width + 0.8;
+      }, 0),
+    )
     .reduce((max, current) => Math.max(max, current), 0);
 }
 
 function computeTableColumnWidths(headers: string[], rows: string[][], columnCount: number): TableColumnWidth[] {
-  const minimum = 84;
-  const maximum = 240;
+  const minimum = 112;
+  const maximum = 280;
 
   return Array.from({ length: columnCount }).map((_, columnIndex) => {
     const samples = [headers[columnIndex] || "", ...rows.map((row) => row[columnIndex] || "")];
     const maxChars = samples.reduce((max, cell) => Math.max(max, estimateColumnCharacterWidth(cell)), 0);
-    const normalizedChars = Math.max(6, Math.min(36, maxChars));
+    const normalizedChars = Math.max(8, Math.min(40, maxChars));
     return {
       minWidth: minimum,
-      preferredWidth: Math.min(maximum, Math.max(minimum, Math.round(normalizedChars * 9 + 28))),
+      preferredWidth: Math.min(maximum, Math.max(minimum, Math.round(normalizedChars * 8 + 36))),
       flexGrow: normalizedChars,
     };
   });
+}
+
+function computeTableLayout(headers: string[], rows: string[][], columnCount: number, containerWidth: number): TableLayout {
+  const columnWidths = computeTableColumnWidths(headers, rows, columnCount);
+  const tableContentWidth = columnWidths.reduce((sum, column) => sum + column.preferredWidth, 0);
+  const availableTableWidth = containerWidth > 0 ? Math.max(0, containerWidth - 12) : 0;
+  const forceReadableScroll = availableTableWidth > 0 && availableTableWidth < 520 && columnCount >= 3;
+  const needsHorizontalScroll =
+    availableTableWidth > 0 && (tableContentWidth > availableTableWidth || forceReadableScroll);
+
+  return {
+    columnWidths,
+    needsHorizontalScroll,
+    tableContentWidth,
+  };
 }
 
 function decodeHtmlEntities(text: string): string {
@@ -1098,13 +1129,12 @@ export function MarkdownPreview({
             aligns.length,
             ...block.rows.map((row) => row.length),
           );
-          const columnWidths = computeTableColumnWidths(block.headers, block.rows, columnCount);
-          const tableMinimumWidth = columnWidths.reduce((sum, column) => sum + column.minWidth, 0);
-          const tablePreferredWidth = columnWidths.reduce((sum, column) => sum + column.preferredWidth, 0);
-          const availableTableWidth = containerWidth > 0 ? Math.max(0, containerWidth - 12) : 0;
-          const needsHorizontalScroll =
-            availableTableWidth > 0 && tablePreferredWidth > availableTableWidth;
-          const tableScrollWidth = Math.max(tableMinimumWidth, tablePreferredWidth, availableTableWidth);
+          const { columnWidths, needsHorizontalScroll, tableContentWidth } = computeTableLayout(
+            block.headers,
+            block.rows,
+            columnCount,
+            containerWidth,
+          );
 
           if (block.type === "html_table" && Platform.OS === "web") {
             const HtmlShell = needsHorizontalScroll ? ScrollView : View;
@@ -1124,7 +1154,7 @@ export function MarkdownPreview({
                   <HtmlTableFrame
                     html={block.rawHtml}
                     isDarkMode={isDarkMode}
-                    minWidth={needsHorizontalScroll ? tableScrollWidth : undefined}
+                    minWidth={needsHorizontalScroll ? tableContentWidth : undefined}
                   />
                 </HtmlShell>
               </View>
@@ -1150,7 +1180,7 @@ export function MarkdownPreview({
                   style={[
                     styles.markdownTable,
                     isDarkMode && styles.markdownTableDark,
-                    needsHorizontalScroll && ({ width: tableScrollWidth } satisfies ViewStyle),
+                    needsHorizontalScroll && ({ width: tableContentWidth } satisfies ViewStyle),
                   ]}
                 >
                   <View style={[styles.markdownTableRow, isDarkMode && styles.markdownTableRowDark, styles.markdownTableHeaderRow, isDarkMode && styles.markdownTableHeaderRowDark]}>
