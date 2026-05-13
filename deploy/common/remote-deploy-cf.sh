@@ -106,6 +106,28 @@ reset_converter_cache_if_version_changed() {
       "$storage_root/policy_briefing_cache/index.json" \
       "$storage_root"/policy_briefing_cache/originals/* \
       2>/dev/null || true
+    if command -v sqlite3 >/dev/null 2>&1 && [ -f "$storage_root/jobs.sqlite3" ]; then
+      sqlite3 "$storage_root/jobs.sqlite3" <<'SQL' || true
+UPDATE jobs
+SET status = 'failed',
+    progress = 0,
+    error_code = 'converter_cache_reset',
+    error_message = 'Converter cache was reset after converter version change. Re-import to regenerate with the current converter.',
+    client_request_id = NULL,
+    final_markdown_path = NULL,
+    markdown = NULL,
+    html_preview = NULL,
+    markdown_text = NULL,
+    markdown_html = NULL,
+    html_preview_text = NULL,
+    html_preview_html = NULL,
+    title = NULL,
+    department = NULL,
+    updated_at = datetime('now')
+WHERE source = 'policy-briefing-cache'
+  AND status = 'completed';
+SQL
+    fi
     echo "converter_cache_reset=done storage_root=$storage_root previous=${previous:-none} version=$current_version"
   done
 }
