@@ -1614,6 +1614,19 @@ export const styles = StyleSheet.create({
   previewLabelDark: {
     color: "#ccb090",
   },
+  previewConverterBadge: {
+    color: "#6f5d49",
+    backgroundColor: "#eadfce",
+    borderRadius: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  previewConverterBadgeDark: {
+    color: "#d6f5df",
+    backgroundColor: "rgba(34,197,94,0.16)",
+  },
   previewScroll: { flex: 1 },
   previewScrollDesktop: {},
   previewScrollTablet: {},

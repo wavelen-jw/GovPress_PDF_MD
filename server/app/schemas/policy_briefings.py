@@ -50,6 +50,7 @@ class PolicyBriefingImportResponse(BaseModel):
     status: str
     file_name: str
     created_at: datetime
+    converter_engine: ConverterEngine = "default"
     news_item_id: str
     title: str
     department: str

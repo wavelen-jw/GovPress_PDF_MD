@@ -74,6 +74,7 @@ def build_router(job_service, settings, verify_api_key) -> APIRouter:
             status=record.status,
             file_name=record.file_name,
             created_at=record.created_at,
+            converter_engine=record.converter_engine,
         )
 
     @router.get("/{job_id}", response_model=JobStatusResponse)
@@ -91,6 +92,7 @@ def build_router(job_service, settings, verify_api_key) -> APIRouter:
             file_name=record.file_name,
             created_at=record.created_at,
             updated_at=record.updated_at,
+            converter_engine=record.converter_engine,
             progress=record.progress,
             error_code=record.error_code,
             error_message=record.error_message,
@@ -112,6 +114,7 @@ def build_router(job_service, settings, verify_api_key) -> APIRouter:
             file_name=record.file_name,
             created_at=record.created_at,
             updated_at=record.updated_at,
+            converter_engine=record.converter_engine,
             progress=record.progress,
             error_code=record.error_code,
             error_message=record.error_message,

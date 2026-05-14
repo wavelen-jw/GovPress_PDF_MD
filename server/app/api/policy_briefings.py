@@ -204,6 +204,7 @@ def build_router(
             status=record.status,
             file_name=record.file_name,
             created_at=record.created_at,
+            converter_engine=record.converter_engine,
             news_item_id=item.news_item_id,
             title=item.title,
             department=item.department,

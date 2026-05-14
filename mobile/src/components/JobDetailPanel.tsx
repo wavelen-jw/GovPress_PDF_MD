@@ -117,9 +117,17 @@ export function JobDetailPanel({
     }
     void Linking.openURL(originalUrl);
   };
+  const converterLabel = selectedJob?.job_id.startsWith("local-md-")
+    ? "로컬"
+    : selectedJob?.converter_engine === "govpress-hwpx-md"
+      ? "새 변환기"
+      : "기본 변환기";
   const renderPreviewHeader = () => (
     <View style={[styles.panelTabBar, isDarkMode ? styles.panelTabBarDark : styles.panelTabBarLight]}>
       <Text style={isDarkMode ? styles.panelTabLabelActive : styles.previewLabel}>미리보기</Text>
+      <Text style={[styles.previewConverterBadge, isDarkMode && styles.previewConverterBadgeDark]}>
+        {converterLabel}
+      </Text>
       <View style={styles.panelTabSpacer} />
       {originalUrl ? (
         <Pressable

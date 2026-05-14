@@ -8,6 +8,7 @@ export type Job = {
   file_name: string;
   created_at: string;
   updated_at?: string | null;
+  converter_engine?: ConverterEngine;
   progress?: number;
   error_code?: string | null;
   error_message?: string | null;
