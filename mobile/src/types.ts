@@ -1,5 +1,6 @@
 export type JobStatus = "queued" | "processing" | "completed" | "failed";
 export type HwpxTableMode = "text" | "html";
+export type ConverterEngine = "default" | "govpress-hwpx-md";
 
 export type Job = {
   job_id: string;
@@ -40,6 +41,7 @@ export type ResultPayload = {
 export type AppConfig = {
   baseUrl: string;
   apiKey: string;
+  converterEngine: ConverterEngine;
 };
 
 export type PolicyBriefingItem = {

@@ -8,6 +8,7 @@ services:
         GOVPRESS_CONVERTER_EXTRA_INDEX_URL: ${GOVPRESS_CONVERTER_EXTRA_INDEX_URL:-}
         GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-0}
         GOVPRESS_CONVERTER_MIN_VERSION: ${GOVPRESS_CONVERTER_MIN_VERSION:-}
+        GOVPRESS_HWPX_MD_SPEC: ${GOVPRESS_HWPX_MD_SPEC:-}
     container_name: govpress-api
     # 저성능 서버: uvicorn 단일 워커, keep-alive 타임아웃 축소
     command: >
@@ -23,6 +24,7 @@ services:
       GOVPRESS_CURATED_QC_ROOT: /gov-md-converter/tests/qc_samples
       GOV_MD_CONVERTER_ROOT: /gov-md-converter
       GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-0}
+      GOVPRESS_HWPX_MD_PYTHON: ${GOVPRESS_HWPX_MD_PYTHON:-/opt/govpress-hwpx-md-venv/bin/python}
     mem_limit: 256m
     volumes:
       - ../../:/app
@@ -41,6 +43,7 @@ services:
         GOVPRESS_CONVERTER_EXTRA_INDEX_URL: ${GOVPRESS_CONVERTER_EXTRA_INDEX_URL:-}
         GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-0}
         GOVPRESS_CONVERTER_MIN_VERSION: ${GOVPRESS_CONVERTER_MIN_VERSION:-}
+        GOVPRESS_HWPX_MD_SPEC: ${GOVPRESS_HWPX_MD_SPEC:-}
     container_name: govpress-worker
     # 저성능 서버: 동시 변환 1개, 폴링 간격 3초로 CPU 부하 완화
     command: >
@@ -56,6 +59,7 @@ services:
       GOVPRESS_CURATED_QC_ROOT: /gov-md-converter/tests/qc_samples
       GOV_MD_CONVERTER_ROOT: /gov-md-converter
       GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-0}
+      GOVPRESS_HWPX_MD_PYTHON: ${GOVPRESS_HWPX_MD_PYTHON:-/opt/govpress-hwpx-md-venv/bin/python}
       # Java 힙 최대 256 MB로 제한하여 OOM 방지
       _JAVA_OPTIONS: "-Xms64m -Xmx256m"
     mem_limit: 512m

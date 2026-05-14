@@ -8,6 +8,7 @@ services:
         GOVPRESS_CONVERTER_EXTRA_INDEX_URL: ${GOVPRESS_CONVERTER_EXTRA_INDEX_URL:-}
         GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-0}
         GOVPRESS_CONVERTER_MIN_VERSION: ${GOVPRESS_CONVERTER_MIN_VERSION:-}
+        GOVPRESS_HWPX_MD_SPEC: ${GOVPRESS_HWPX_MD_SPEC:-}
     container_name: govpress-api
     command: >
       python -m uvicorn server.app.main:app
@@ -22,6 +23,7 @@ services:
       GOVPRESS_CURATED_QC_ROOT: /gov-md-converter/tests/qc_samples
       GOV_MD_CONVERTER_ROOT: /gov-md-converter
       GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-0}
+      GOVPRESS_HWPX_MD_PYTHON: ${GOVPRESS_HWPX_MD_PYTHON:-/opt/govpress-hwpx-md-venv/bin/python}
     mem_limit: 256m
     volumes:
       - ../../:/app
@@ -40,6 +42,7 @@ services:
         GOVPRESS_CONVERTER_EXTRA_INDEX_URL: ${GOVPRESS_CONVERTER_EXTRA_INDEX_URL:-}
         GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-0}
         GOVPRESS_CONVERTER_MIN_VERSION: ${GOVPRESS_CONVERTER_MIN_VERSION:-}
+        GOVPRESS_HWPX_MD_SPEC: ${GOVPRESS_HWPX_MD_SPEC:-}
     container_name: govpress-worker
     command: >
       python -m server.run_worker
@@ -54,6 +57,7 @@ services:
       GOVPRESS_CURATED_QC_ROOT: /gov-md-converter/tests/qc_samples
       GOV_MD_CONVERTER_ROOT: /gov-md-converter
       GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-0}
+      GOVPRESS_HWPX_MD_PYTHON: ${GOVPRESS_HWPX_MD_PYTHON:-/opt/govpress-hwpx-md-venv/bin/python}
       _JAVA_OPTIONS: "-Xms64m -Xmx256m"
     mem_limit: 512m
     volumes:

@@ -152,7 +152,11 @@ class ServerServiceTests(unittest.TestCase):
 
     def test_sqlite_repository_persists_across_instances(self) -> None:
         with patch.object(self.worker, "enqueue"):
-            created = self.job_service.create_job(file_name="sample.pdf", content=b"%PDF-1.4")
+            created = self.job_service.create_job(
+                file_name="sample.pdf",
+                content=b"%PDF-1.4",
+                converter_engine="govpress-hwpx-md",
+            )
 
         reloaded_repo = SQLiteJobRepository(self.storage.root / "jobs.sqlite3")
         fetched = reloaded_repo.get(created.job_id)
@@ -160,6 +164,37 @@ class ServerServiceTests(unittest.TestCase):
         assert fetched is not None
         self.assertEqual(fetched.job_id, created.job_id)
         self.assertEqual(fetched.file_name, "sample.pdf")
+        self.assertEqual(fetched.converter_engine, "govpress-hwpx-md")
+
+    def test_worker_uses_experimental_hwpx_converter_when_selected(self) -> None:
+        with patch.object(self.worker, "enqueue"):
+            record = self.job_service.create_job(
+                file_name="sample.hwpx",
+                content=b"PK\x03\x04",
+                converter_engine="govpress-hwpx-md",
+            )
+
+        with patch(
+            "server.app.workers.converter_worker.experimental_hwpx_md.convert_hwpx",
+            return_value="# 새 변환기\n\n본문",
+        ) as mock_convert, patch(
+            "server.app.workers.converter_worker.hwpx_converter.convert_hwpx",
+        ) as legacy_convert, patch(
+            "server.app.workers.converter_worker.opendataloader.render_preview_html",
+            return_value="<h1>새 변환기</h1><p>본문</p>",
+        ), patch(
+            "server.app.workers.converter_worker.opendataloader.extract_metadata",
+            return_value=("새 변환기", "홍보팀"),
+        ):
+            self.worker.process(record.job_id)
+
+        mock_convert.assert_called_once()
+        legacy_convert.assert_not_called()
+        updated = self.repository.get(record.job_id)
+        assert updated is not None
+        self.assertEqual(updated.status, "completed")
+        self.assertEqual(updated.result.markdown_text, "# 새 변환기\n\n본문")
+        self.assertEqual(updated.result.markdown_html, "# 새 변환기\n\n본문")
 
     def test_list_jobs_returns_cursor_for_next_page(self) -> None:
         with patch.object(self.worker, "enqueue"):

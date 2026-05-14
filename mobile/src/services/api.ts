@@ -16,6 +16,7 @@ type UploadableAsset = {
 };
 import type {
   AppConfig,
+  ConverterEngine,
   HwpxTableMode,
   Job,
   PolicyBriefingImportResult,
@@ -171,10 +172,11 @@ function isRetryableUploadError(error: unknown): boolean {
   return false;
 }
 
-function buildUploadBody(asset: UploadableAsset, hwpxTableMode: HwpxTableMode): FormData {
+function buildUploadBody(asset: UploadableAsset, hwpxTableMode: HwpxTableMode, converterEngine: ConverterEngine): FormData {
   const form = new FormData();
   form.append("source", "mobile");
   form.append("hwpx_table_mode", hwpxTableMode);
+  form.append("converter_engine", converterEngine);
   const webFile = asset.file;
   if (Platform.OS === "web" && webFile) {
     form.append("file", webFile);
@@ -294,7 +296,7 @@ export async function uploadPdf(
       const response = await fetchWithTimeout(`${baseUrl}/v1/jobs`, {
         method: "POST",
         headers: buildHeaders(config),
-        body: buildUploadBody(asset, hwpxTableMode),
+        body: buildUploadBody(asset, hwpxTableMode, config.converterEngine),
       }, SERVER_FALLBACK_TIMEOUT_MS);
       if (!response.ok) {
         const detail = await response.text();
@@ -469,7 +471,11 @@ export async function importPolicyBriefing(
         {
           method: "POST",
           headers: buildHeaders(config, "application/json"),
-          body: JSON.stringify({ news_item_id: newsItemId, ...(date ? { date } : {}) }),
+          body: JSON.stringify({
+            news_item_id: newsItemId,
+            converter_engine: config.converterEngine,
+            ...(date ? { date } : {}),
+          }),
         },
         SERVER_FALLBACK_TIMEOUT_MS,
       );

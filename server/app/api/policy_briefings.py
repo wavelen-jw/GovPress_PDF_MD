@@ -193,9 +193,10 @@ def build_router(
             content=downloaded.content,
             source="policy-briefing-cache",
             hwpx_table_mode="text",
+            converter_engine=payload.converter_engine,
             client_request_id=None
             if payload.force_reprocess
-            else f"policy-briefing:{item.news_item_id}:{downloaded.attachment.file_url}",
+            else f"policy-briefing:{payload.converter_engine}:{item.news_item_id}:{downloaded.attachment.file_url}",
         )
         return PolicyBriefingImportResponse(
             job_id=record.job_id,

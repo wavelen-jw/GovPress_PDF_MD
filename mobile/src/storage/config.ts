@@ -2,10 +2,14 @@ import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
 import { DEFAULT_CONFIG, isHostedWeb, normalizeBaseUrl, STORAGE_KEYS } from "../constants";
-import type { AppConfig } from "../types";
+import type { AppConfig, ConverterEngine } from "../types";
 
 function draftStorageKey(jobId: string): string {
   return `${STORAGE_KEYS.draftPrefix}.${jobId}`;
+}
+
+function normalizeConverterEngine(value: string | null): ConverterEngine {
+  return value === "govpress-hwpx-md" ? "govpress-hwpx-md" : "default";
 }
 
 export async function loadConfig(): Promise<AppConfig> {
@@ -17,16 +21,19 @@ export async function loadConfig(): Promise<AppConfig> {
     return {
       baseUrl: normalizeBaseUrl(window.localStorage.getItem(STORAGE_KEYS.baseUrl)),
       apiKey,
+      converterEngine: normalizeConverterEngine(window.localStorage.getItem(STORAGE_KEYS.converterEngine)),
     };
   }
 
-  const [baseUrl, apiKey] = await Promise.all([
+  const [baseUrl, apiKey, converterEngine] = await Promise.all([
     SecureStore.getItemAsync(STORAGE_KEYS.baseUrl),
     SecureStore.getItemAsync(STORAGE_KEYS.apiKey),
+    SecureStore.getItemAsync(STORAGE_KEYS.converterEngine),
   ]);
   return {
     baseUrl: normalizeBaseUrl(baseUrl),
     apiKey: apiKey || DEFAULT_CONFIG.apiKey,
+    converterEngine: normalizeConverterEngine(converterEngine),
   };
 }
 
@@ -38,12 +45,14 @@ export async function persistConfig(config: AppConfig): Promise<void> {
     } else {
       window.localStorage.setItem(STORAGE_KEYS.apiKey, config.apiKey);
     }
+    window.localStorage.setItem(STORAGE_KEYS.converterEngine, config.converterEngine);
     return;
   }
 
   await Promise.all([
     SecureStore.setItemAsync(STORAGE_KEYS.baseUrl, config.baseUrl),
     SecureStore.setItemAsync(STORAGE_KEYS.apiKey, config.apiKey),
+    SecureStore.setItemAsync(STORAGE_KEYS.converterEngine, config.converterEngine),
   ]);
 }
 

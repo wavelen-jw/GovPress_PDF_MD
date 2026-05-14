@@ -5,6 +5,7 @@ import type { AppConfig, JobStatus } from "./types";
 export const STORAGE_KEYS = {
   baseUrl: "govpress.mobile.baseUrl",
   apiKey: "govpress.mobile.apiKey",
+  converterEngine: "govpress.mobile.converterEngine",
   draftPrefix: "govpress.mobile.draft",
 } as const;
 
@@ -94,6 +95,7 @@ export function getFallbackBaseUrls(baseUrl: string): string[] {
 export const DEFAULT_CONFIG: AppConfig = {
   baseUrl: defaultBaseUrl(),
   apiKey: process.env.EXPO_PUBLIC_GOVPRESS_API_KEY || "898afed2d0b3560ff1e53d3b02fc120bfc23712a951952a7",
+  converterEngine: "default",
 };
 
 export const STATUS_COPY: Record<JobStatus, string> = {

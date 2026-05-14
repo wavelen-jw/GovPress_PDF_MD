@@ -76,6 +76,15 @@ if [ "${CONVERTER_SPEC:-}" = "-" ]; then
   CONVERTER_SPEC=""
 fi
 
+if [ -z "${HWPX_MD_SPEC:-}" ] && [[ "${CONVERTER_SPEC:-}" == *"github.com/wavelen-jw/gov-md-converter.git@"* ]]; then
+  HWPX_MD_SPEC="${CONVERTER_SPEC/github.com\/wavelen-jw\/gov-md-converter.git@*/github.com\/wavelen-jw\/govpress-hwpx-md.git@main}"
+  echo "hwpx_md_spec=derived_from_converter_spec"
+elif [ -n "${HWPX_MD_SPEC:-}" ]; then
+  echo "hwpx_md_spec=configured"
+else
+  echo "hwpx_md_spec=not_configured"
+fi
+
 reset_converter_cache_if_version_changed() {
   local converter_version="${TRACKED_CONVERTER_VERSION:-${CONVERTER_MIN_VERSION:-}}"
   if [ -z "$converter_version" ]; then
@@ -889,6 +898,8 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
   normalize_env_placeholder_spec "$ENV_PATH"
   upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
   upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "0"
+  upsert_env_value "$ENV_PATH" "GOVPRESS_HWPX_MD_SPEC" "${HWPX_MD_SPEC:-}"
+  upsert_env_value "$ENV_PATH" "GOVPRESS_HWPX_MD_PYTHON" "/opt/govpress-hwpx-md-venv/bin/python"
   if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
   fi
@@ -939,6 +950,8 @@ else
   normalize_env_placeholder_spec "$ENV_PATH"
   upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
   upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "0"
+  upsert_env_value "$ENV_PATH" "GOVPRESS_HWPX_MD_SPEC" "${HWPX_MD_SPEC:-}"
+  upsert_env_value "$ENV_PATH" "GOVPRESS_HWPX_MD_PYTHON" "$DEPLOY_DIR/.venv-govpress-hwpx-md/bin/python"
   if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
   fi
@@ -959,6 +972,17 @@ else
   echo "baremetal_converter_install=start"
   "$DEPLOY_DIR/.venv/bin/python" -m pip install --upgrade --force-reinstall "$CONVERTER_SPEC"
   echo "baremetal_converter_install=done"
+  if [ -n "${HWPX_MD_SPEC:-}" ] && [ "${HWPX_MD_SPEC:-}" != "-" ]; then
+    if [ ! -x "$DEPLOY_DIR/.venv-govpress-hwpx-md/bin/python" ]; then
+      echo "baremetal_hwpx_md_venv_create=start"
+      python3 -m venv "$DEPLOY_DIR/.venv-govpress-hwpx-md"
+      echo "baremetal_hwpx_md_venv_create=done"
+    fi
+    echo "baremetal_hwpx_md_install=start"
+    "$DEPLOY_DIR/.venv-govpress-hwpx-md/bin/python" -m pip install -U pip
+    "$DEPLOY_DIR/.venv-govpress-hwpx-md/bin/python" -m pip install --upgrade --force-reinstall "$HWPX_MD_SPEC"
+    echo "baremetal_hwpx_md_install=done"
+  fi
   echo "baremetal_converter_check=start"
   if [ -n "${CONVERTER_MIN_VERSION:-}" ]; then
     "$DEPLOY_DIR/.venv/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" \

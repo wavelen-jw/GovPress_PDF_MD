@@ -4,6 +4,8 @@ from datetime import date as date_type, datetime
 
 from pydantic import BaseModel
 
+from ..models import ConverterEngine
+
 
 class PolicyBriefingItemResponse(BaseModel):
     date: date_type
@@ -39,6 +41,7 @@ class PolicyBriefingImportRequest(BaseModel):
     news_item_id: str
     date: date_type | None = None
     force_reprocess: bool = False
+    converter_engine: ConverterEngine = "default"
 
 
 class PolicyBriefingImportResponse(BaseModel):

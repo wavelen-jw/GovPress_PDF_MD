@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 import traceback
+from ..adapters import experimental_hwpx_md
 from ..adapters import hwpx_converter
 from ..adapters import opendataloader
 from ..repositories import JobRepository
@@ -39,6 +40,24 @@ class ConverterWorker:
             file_path = str(record.artifacts.original_pdf_path)
             ext = Path(file_path).suffix.lower()
             if ext == ".hwpx":
+                if record.converter_engine == "govpress-hwpx-md":
+                    markdown = experimental_hwpx_md.convert_hwpx(file_path)
+                    html_preview = opendataloader.render_preview_html(markdown)
+                    title, department = opendataloader.extract_metadata(markdown)
+                    final_path = self._storage.save_generated_markdown(job_id, markdown)
+                    self._jobs.save_result(
+                        job_id,
+                        markdown=markdown,
+                        html_preview=html_preview,
+                        markdown_text=markdown,
+                        markdown_html=markdown,
+                        html_preview_text=html_preview,
+                        html_preview_html=html_preview,
+                        title=title,
+                        department=department,
+                        final_markdown_path=final_path,
+                    )
+                    return
                 markdown_text = hwpx_converter.convert_hwpx(file_path, table_mode="text")
                 html_preview_text = opendataloader.render_preview_html(markdown_text)
                 title, department = opendataloader.extract_metadata(markdown_text)

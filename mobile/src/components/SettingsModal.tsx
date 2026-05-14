@@ -3,7 +3,7 @@ import { ActivityIndicator, Modal, Pressable, Text, View } from "react-native";
 
 import { PRIMARY_SERVER_KEY, SERVER_FALLBACK_TIMEOUT_MS, SERVER_PRESETS } from "../constants";
 import { styles } from "../styles";
-import type { AppConfig } from "../types";
+import type { AppConfig, ConverterEngine } from "../types";
 
 type ServerKey = (typeof SERVER_PRESETS)[number]["key"];
 type ServerProbeResult = {
@@ -19,6 +19,11 @@ type HealthConverterPayload = {
 type HealthPayload = {
   converter?: HealthConverterPayload | null;
 };
+
+const CONVERTER_OPTIONS: Array<{ value: ConverterEngine; label: string; detail: string }> = [
+  { value: "default", label: "기본", detail: "현재 배포된 안정 변환기" },
+  { value: "govpress-hwpx-md", label: "새 변환기(실험)", detail: "HWPX와 정책브리핑 보도자료에만 적용" },
+];
 
 function isRetryableProbeFailure(detail: string): boolean {
   const lowered = detail.toLowerCase();
@@ -232,6 +237,30 @@ export function SettingsModal({
           <Text style={styles.modalHint}>
             여기 표시되는 색상은 서버의 기본 `/health` 응답 기준이며, 정책브리핑 제공기관 상태와는 별도입니다.
           </Text>
+          <View style={styles.settingsPresetGroup}>
+            {CONVERTER_OPTIONS.map((option) => {
+              const active = draft.converterEngine === option.value;
+              return (
+                <Pressable
+                  key={option.value}
+                  onPress={() => onChange({ ...draft, converterEngine: option.value })}
+                  style={[styles.settingsPresetButton, active && styles.settingsPresetButtonActive]}
+                >
+                  <View style={[styles.settingsPresetRadio, active && styles.settingsPresetRadioActive]} />
+                  <View style={styles.settingsPresetContent}>
+                    <View style={styles.settingsPresetTitleRow}>
+                      <Text style={[styles.settingsPresetLabel, active && styles.settingsPresetLabelActive]}>{option.label}</Text>
+                      <Text style={[styles.settingsPresetBadge, active && styles.settingsPresetBadgeActive]}>
+                        {active ? "선택" : "대기"}
+                      </Text>
+                    </View>
+                    <Text style={[styles.settingsPresetUrl, active && styles.settingsPresetUrlActive]}>{option.detail}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.modalHint}>HWPX와 정책브리핑 보도자료에만 적용됩니다. PDF는 기존 방식으로 변환됩니다.</Text>
           <View style={styles.settingsPresetGroup}>
             {SERVER_PRESETS.map((preset) => {
               const active = selectedKey === preset.key;

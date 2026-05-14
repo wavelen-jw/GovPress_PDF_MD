@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 from typing import Protocol
 
-from .models import HwpxTableMode, JobArtifacts, JobRecord, JobResult, JobStatus, utcnow
+from .models import ConverterEngine, HwpxTableMode, JobArtifacts, JobRecord, JobResult, JobStatus, utcnow
 
 
 def _isoformat(value: datetime | None) -> str | None:
@@ -32,6 +32,7 @@ def _row_to_record(row: sqlite3.Row) -> JobRecord:
         client_request_id=row["client_request_id"],
         result_version=row["result_version"],
         hwpx_table_mode=row["hwpx_table_mode"] or "text",
+        converter_engine=row["converter_engine"] if "converter_engine" in row.keys() and row["converter_engine"] else "default",
         result=JobResult(
             markdown=row["markdown"],
             html_preview=row["html_preview"],
@@ -61,6 +62,7 @@ class JobRepository(Protocol):
         file_name: str,
         source: str,
         hwpx_table_mode: HwpxTableMode,
+        converter_engine: ConverterEngine,
         client_request_id: str | None,
         original_pdf_path: Path,
     ) -> JobRecord: ...
@@ -211,6 +213,8 @@ class SQLiteJobRepository:
                 conn.execute("ALTER TABLE jobs ADD COLUMN html_preview_text TEXT")
             if "html_preview_html" not in columns:
                 conn.execute("ALTER TABLE jobs ADD COLUMN html_preview_html TEXT")
+            if "converter_engine" not in columns:
+                conn.execute("ALTER TABLE jobs ADD COLUMN converter_engine TEXT NOT NULL DEFAULT 'default'")
             conn.execute(
                 """
                 UPDATE jobs
@@ -235,6 +239,7 @@ class SQLiteJobRepository:
         file_name: str,
         source: str,
         hwpx_table_mode: HwpxTableMode,
+        converter_engine: ConverterEngine,
         client_request_id: str | None,
         original_pdf_path: Path,
     ) -> JobRecord:
@@ -250,12 +255,13 @@ class SQLiteJobRepository:
                 INSERT INTO jobs (
                     job_id, edit_token, file_name, source, status, created_at, updated_at,
                     progress, error_code, error_message, client_request_id, hwpx_table_mode,
+                    converter_engine,
                     result_version, original_pdf_path, final_markdown_path,
                     edited_markdown_path, markdown, html_preview, markdown_text,
                     markdown_html, html_preview_text, html_preview_html, title,
                     department, edited_markdown, saved_at
                     , claimed_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job_id,
@@ -270,6 +276,7 @@ class SQLiteJobRepository:
                     None,
                     client_request_id,
                     hwpx_table_mode,
+                    converter_engine,
                     0,
                     str(original_pdf_path),
                     None,
@@ -655,6 +662,7 @@ class InMemoryJobRepository:
         file_name: str,
         source: str,
         hwpx_table_mode: HwpxTableMode,
+        converter_engine: ConverterEngine,
         client_request_id: str | None,
         original_pdf_path: Path,
     ) -> JobRecord:
@@ -675,6 +683,7 @@ class InMemoryJobRepository:
                 progress=0,
                 client_request_id=client_request_id,
                 hwpx_table_mode=hwpx_table_mode,
+                converter_engine=converter_engine,
                 artifacts=JobArtifacts(original_pdf_path=original_pdf_path),
             )
             self._jobs[job_id] = record

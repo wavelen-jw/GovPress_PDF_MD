@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ..models import JobRecord
 from ..models import JobStatus
-from ..models import HwpxTableMode
+from ..models import ConverterEngine, HwpxTableMode
 from ..repositories import JobRepository
 from ..workers.converter_worker import ConverterWorker
 from .storage_service import StorageService
@@ -33,6 +33,7 @@ class JobService:
         content: bytes,
         source: str = "mobile",
         hwpx_table_mode: HwpxTableMode = "text",
+        converter_engine: ConverterEngine = "default",
         client_request_id: str | None = None,
     ) -> JobRecord:
         if client_request_id:
@@ -51,6 +52,7 @@ class JobService:
             file_name=file_name,
             source=source,
             hwpx_table_mode=hwpx_table_mode,
+            converter_engine=converter_engine,
             client_request_id=client_request_id,
             original_pdf_path=original_path,
         )
@@ -81,6 +83,7 @@ class JobService:
             file_name=file_name,
             source=source,
             hwpx_table_mode="text",
+            converter_engine="default",
             client_request_id=None,
             original_pdf_path=original_path,
         )
@@ -117,6 +120,7 @@ class JobService:
         max_upload_bytes: int,
         source: str = "mobile",
         hwpx_table_mode: HwpxTableMode = "text",
+        converter_engine: ConverterEngine = "default",
         client_request_id: str | None = None,
     ) -> JobRecord:
         if client_request_id:
@@ -138,6 +142,7 @@ class JobService:
             file_name=file_name,
             source=source,
             hwpx_table_mode=hwpx_table_mode,
+            converter_engine=converter_engine,
             client_request_id=client_request_id,
             original_pdf_path=original_path,
         )
