@@ -193,6 +193,16 @@ function schedulePreview(scrollToHighlight = false) {
   state.previewTimer = setTimeout(() => renderPreview(scrollToHighlight), PREVIEW_DEBOUNCE_MS);
 }
 
+function wrapTables() {
+  previewContent.querySelectorAll('table').forEach(t => {
+    if (t.parentElement.classList.contains('table-scroll')) return;
+    const w = document.createElement('div');
+    w.className = 'table-scroll';
+    t.parentNode.insertBefore(w, t);
+    w.appendChild(t);
+  });
+}
+
 async function renderPreview(scrollToHighlight = false) {
   const content    = editor.value;
   const cursorLine = state.followCursor ? getCurrentLine() : null;
@@ -202,6 +212,7 @@ async function renderPreview(scrollToHighlight = false) {
 
   if (state.followCursor && scrollToHighlight) {
     previewContent.innerHTML = safeHtml;
+    wrapTables();
     const highlight = previewContent.querySelector('.cursor-highlight');
     if (highlight) {
       highlight.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -209,6 +220,7 @@ async function renderPreview(scrollToHighlight = false) {
   } else {
     const savedTop = scrollEl.scrollTop;
     previewContent.innerHTML = safeHtml;
+    wrapTables();
     scrollEl.scrollTop = savedTop;
   }
 }
