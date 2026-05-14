@@ -104,7 +104,9 @@ export function JobDetailPanel({
   const previewBlockPositionsRef = useRef<Record<number, number>>({});
   const previewViewportHeightRef = useRef(0);
   const previewScrollYRef = useRef(0);
-  const previewMarkdown = useDeferredValue(selectedResultText);
+  const deferredPreviewMarkdown = useDeferredValue(selectedResultText);
+  const isMobileEditingOnly = isCompactLayout && activeTab === "markdown";
+  const previewMarkdown = isCompactLayout ? selectedResultText : deferredPreviewMarkdown;
   const openOriginalUrl = () => {
     if (!originalUrl) {
       return;
@@ -132,11 +134,11 @@ export function JobDetailPanel({
     </View>
   );
   const previewBlockRanges = useMemo(() => {
-    if (!previewMarkdown) {
+    if (!previewMarkdown || isMobileEditingOnly) {
       return [];
     }
     return parseMarkdownBlockRanges(previewMarkdown);
-  }, [previewMarkdown]);
+  }, [isMobileEditingOnly, previewMarkdown]);
   const pendingMessage = selectedJob?.status === "queued"
     ? "대기열에 등록됐습니다. 워커가 파일을 가져가면 자동으로 변환을 시작합니다."
     : "PDF 구조를 분석하고 Markdown 초안을 생성하는 중입니다.";
