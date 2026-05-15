@@ -28,14 +28,6 @@ concurrency:
 #              GOVPRESS_VPS_SERVICE, GOVPRESS_VPS_HEALTHCHECK_URL,
 #              GOVPRESS_VPS_BRANCH
 #
-# 서버H (api.govpress.cloud) — WSL, Cloudflare Tunnel SSH
-#   Secrets : GOVPRESS_H_USER, GOVPRESS_H_SSH_KEY,
-#             CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET
-#   Variables: GOVPRESS_H_SSH_HOST (e.g. ssh-h.govpress.cloud),
-#              GOVPRESS_H_DEPLOY_DIR, GOVPRESS_H_SERVICE,
-#              GOVPRESS_H_HEALTHCHECK_URL, GOVPRESS_H_BRANCH,
-#              GOVPRESS_H_COMPOSE_FILE
-#
 # 서버W (api4.govpress.cloud) — WSL, Cloudflare Tunnel SSH
 #   Secrets : GOVPRESS_W_USER, GOVPRESS_W_SSH_KEY,
 #             CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET (공용)
@@ -44,8 +36,8 @@ concurrency:
 #              GOVPRESS_W_HEALTHCHECK_URL, GOVPRESS_W_BRANCH,
 #              GOVPRESS_W_COMPOSE_FILE
 #
-# 서버H/W는 GOVPRESS_H_DEPLOY_DIR / GOVPRESS_W_DEPLOY_DIR 변수가
-# 설정되어 있을 때만 실행됩니다. 미설정 시 해당 잡은 건너뜁니다.
+# 서버W는 GOVPRESS_W_DEPLOY_DIR 변수가 설정되어 있을 때만 실행됩니다.
+# 미설정 시 해당 잡은 건너뜁니다.
 # WSL 머신이 오프라인이어도 continue-on-error: true 로 전체 워크플로우는
 # 실패하지 않습니다.
 # ────────────────────────────────────────────────────────────────────
@@ -144,33 +136,6 @@ jobs:
       admin_api_key: ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
       policy_briefing_service_key: ${{ secrets.GOVPRESS_POLICY_BRIEFING_SERVICE_KEY }}
 
-  deploy-h:
-    name: "서버H (WSL, CF Tunnel)"
-    needs: detect-targets
-    if: ${{ vars.GOVPRESS_H_DEPLOY_DIR != '' && needs.detect-targets.outputs.deploy_hw == 'true' }}
-    uses: ./.github/workflows/_deploy-server-cf.yml
-    with:
-      target_sha:      ${{ github.sha }}
-      ssh_host:        ${{ vars.GOVPRESS_H_SSH_HOST }}
-      deploy_dir:      ${{ vars.GOVPRESS_H_DEPLOY_DIR }}
-      branch:          ${{ vars.GOVPRESS_H_BRANCH || 'web' }}
-      compose_file:    ${{ vars.GOVPRESS_H_COMPOSE_FILE || 'deploy/wsl/docker-compose.host-proxy.yml' }}
-      deploy_mode:     host_proxy
-      healthcheck_url: ${{ vars.GOVPRESS_H_HEALTHCHECK_URL || 'http://127.0.0.1:8080/health' }}
-      public_probe_url: https://api.govpress.cloud
-      deploy_poll_attempts: "120"
-      deploy_poll_interval_seconds: "5"
-      emit_failure_diagnostics_only: "true"
-      run_policy_probe: "true"
-    secrets:
-      user:             ${{ secrets.GOVPRESS_H_USER }}
-      ssh_key:          ${{ secrets.GOVPRESS_H_SSH_KEY }}
-      cf_client_id:     ${{ secrets.CF_ACCESS_CLIENT_ID }}
-      cf_client_secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-      converter_spec:   ${{ secrets.GOVPRESS_CONVERTER_SPEC }}
-      admin_api_key:    ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
-      policy_briefing_service_key: ${{ secrets.GOVPRESS_POLICY_BRIEFING_SERVICE_KEY }}
-
   deploy-w:
     name: "서버W (WSL, CF Tunnel)"
     needs: detect-targets
@@ -200,11 +165,10 @@ jobs:
 
   converter-drift-smoke:
     name: "Converter Drift Smoke"
-    if: ${{ needs.detect-targets.outputs.run_drift == 'true' && needs.deploy-v.result == 'success' && needs.deploy-h.result == 'success' && needs.deploy-w.result == 'success' }}
+    if: ${{ needs.detect-targets.outputs.run_drift == 'true' && needs.deploy-v.result == 'success' && needs.deploy-w.result == 'success' }}
     needs:
       - detect-targets
       - deploy-v
-      - deploy-h
       - deploy-w
     runs-on: ubuntu-latest
     timeout-minutes: 12
@@ -222,7 +186,6 @@ jobs:
       - name: Materialize smoke SSH keys
         env:
           VPS_KEY: ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
-          H_KEY: ${{ secrets.GOVPRESS_H_SSH_KEY }}
           W_KEY: ${{ secrets.GOVPRESS_W_SSH_KEY }}
         run: |
           set -euo pipefail
@@ -239,7 +202,6 @@ jobs:
             ssh-keygen -y -f "$path" > /dev/null
           }
           write_key "$VPS_KEY" ~/.ssh/smoke_v_key
-          write_key "$H_KEY" ~/.ssh/smoke_h_key
           write_key "$W_KEY" ~/.ssh/smoke_w_key
 
       - name: Configure smoke SSH targets
@@ -247,8 +209,6 @@ jobs:
           VPS_HOST: ${{ secrets.GOVPRESS_VPS_HOST }}
           VPS_USER: ${{ secrets.GOVPRESS_VPS_USER }}
           VPS_PORT: ${{ vars.GOVPRESS_VPS_PORT || '22' }}
-          H_HOST: ${{ vars.GOVPRESS_H_SSH_HOST }}
-          H_USER: ${{ secrets.GOVPRESS_H_USER }}
           W_HOST: ${{ vars.GOVPRESS_W_SSH_HOST }}
           W_USER: ${{ secrets.GOVPRESS_W_USER }}
           CF_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
@@ -259,15 +219,6 @@ jobs:
           ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
           cloudflared access tcp \
-            --hostname "$H_HOST" \
-            --url "127.0.0.1:2222" \
-            --service-token-id "$CF_ID" \
-            --service-token-secret "$CF_SECRET" \
-            --logfile "$HOME/cloudflared-h.log" \
-            >/tmp/cloudflared-h.stdout 2>&1 &
-          echo $! > ~/cloudflared-h.pid
-
-          cloudflared access tcp \
             --hostname "$W_HOST" \
             --url "127.0.0.1:2223" \
             --service-token-id "$CF_ID" \
@@ -276,7 +227,7 @@ jobs:
             >/tmp/cloudflared-w.stdout 2>&1 &
           echo $! > ~/cloudflared-w.pid
 
-          for port in 2222 2223; do
+          for port in 2223; do
             for _ in 1 2 3 4 5 6 7 8 9 10; do
               if ss -ltn | grep -q "127.0.0.1:${port}"; then
                 break
@@ -298,20 +249,6 @@ jobs:
             ServerAliveInterval 15
             ServerAliveCountMax 6
 
-          Host govpress-smoke-h
-            HostName 127.0.0.1
-            User ${H_USER}
-            Port 2222
-            IdentityFile ~/.ssh/smoke_h_key
-            IdentitiesOnly yes
-            BatchMode yes
-            StrictHostKeyChecking accept-new
-            ControlMaster no
-            ControlPath none
-            ConnectTimeout 20
-            ServerAliveInterval 15
-            ServerAliveCountMax 6
-
           Host govpress-smoke-w
             HostName 127.0.0.1
             User ${W_USER}
@@ -328,7 +265,6 @@ jobs:
           EOF
 
           ssh govpress-smoke-v "exit 0"
-          ssh govpress-smoke-h "exit 0"
           ssh govpress-smoke-w "exit 0"
 
       - name: Compare conversion hashes through server-local APIs
@@ -342,7 +278,6 @@ jobs:
             --policy-briefing-id 156754103 \
             --policy-briefing-date 2026-04-12 \
             --require-equal-hashes \
-            --server serverH=govpress-smoke-h=http://127.0.0.1:8080 \
             --server serverW=govpress-smoke-w=http://127.0.0.1:8080 \
             --server serverV=govpress-smoke-v=http://127.0.0.1:8080 \
             | tee converter-drift-smoke.json
@@ -387,11 +322,10 @@ jobs:
 
   notify-deploy-failure:
     name: "Notify Deploy Failure"
-    if: ${{ always() && (needs.deploy-v.result == 'failure' || needs.deploy-h.result == 'failure' || needs.deploy-w.result == 'failure' || needs.converter-drift-smoke.result == 'failure') }}
+    if: ${{ always() && (needs.deploy-v.result == 'failure' || needs.deploy-w.result == 'failure' || needs.converter-drift-smoke.result == 'failure') }}
     needs:
       - detect-targets
       - deploy-v
-      - deploy-h
       - deploy-w
       - converter-drift-smoke
     runs-on: ubuntu-latest
@@ -409,7 +343,7 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
           RESULTS_JSON: >-
-            {"serverV":"${{ needs.deploy-v.result }}","serverH":"${{ needs.deploy-h.result }}","serverW":"${{ needs.deploy-w.result }}","converterSmoke":"${{ needs.converter-drift-smoke.result }}"}
+            {"serverV":"${{ needs.deploy-v.result }}","serverW":"${{ needs.deploy-w.result }}","converterSmoke":"${{ needs.converter-drift-smoke.result }}"}
         run: |
           set -euo pipefail
           python3 scripts/send_deploy_alert.py \
