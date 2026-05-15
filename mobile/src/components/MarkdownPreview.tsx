@@ -150,13 +150,13 @@ function estimateColumnCharacterWidth(value: string): number {
 }
 
 function computeTableColumnWidths(headers: string[], rows: string[][], columnCount: number): TableColumnWidth[] {
-  const minimum = 112;
+  const minimum = 60;
   const maximum = 280;
 
   return Array.from({ length: columnCount }).map((_, columnIndex) => {
     const samples = [headers[columnIndex] || "", ...rows.map((row) => row[columnIndex] || "")];
     const maxChars = samples.reduce((max, cell) => Math.max(max, estimateColumnCharacterWidth(cell)), 0);
-    const normalizedChars = Math.max(8, Math.min(40, maxChars));
+    const normalizedChars = Math.max(3, Math.min(40, maxChars));
     return {
       minWidth: minimum,
       preferredWidth: Math.min(maximum, Math.max(minimum, Math.round(normalizedChars * 8 + 36))),
