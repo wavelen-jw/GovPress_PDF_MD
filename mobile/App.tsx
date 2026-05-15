@@ -88,6 +88,8 @@ type PolicyBriefingServerHealthStatus = {
   detail: string;
 };
 
+const POLICY_BRIEFING_RECENT_DAYS = 7;
+
 const LANDING_ACTION_STORAGE_KEY = "govpress:landing-action";
 const LANDING_UPLOAD_DB = "govpress-landing";
 const LANDING_UPLOAD_STORE = "pending-uploads";
@@ -479,7 +481,7 @@ export default function App(): React.JSX.Element {
       return policyBriefingError;
     }
     if (policyBriefingAnyFetchFailure) {
-      return "최근 15일 조회 중 일부 날짜 요청이 실패했습니다.";
+      return `최근 ${POLICY_BRIEFING_RECENT_DAYS}일 조회 중 일부 날짜 요청이 실패했습니다.`;
     }
     if (policyBriefingServedStale) {
       return "캐시된 정책브리핑 목록이 제공되었습니다.";
@@ -1151,7 +1153,7 @@ export default function App(): React.JSX.Element {
     setPolicyBriefingQuery("");
     try {
       const today = new Date();
-      const dates = Array.from({ length: 15 }, (_, i) => {
+      const dates = Array.from({ length: POLICY_BRIEFING_RECENT_DAYS }, (_, i) => {
         const d = new Date(today);
         d.setDate(d.getDate() - i);
         return d.toISOString().slice(0, 10); // YYYY-MM-DD
@@ -1213,7 +1215,7 @@ export default function App(): React.JSX.Element {
       ]);
       setPolicyBriefingServerHealthStatuses(healthStatusResults);
       setPolicyBriefingServerStatuses(directStatusResults);
-      const recentPayload = await fetchRecentPolicyBriefings(config, 15);
+      const recentPayload = await fetchRecentPolicyBriefings(config, POLICY_BRIEFING_RECENT_DAYS);
       const dedupedItems = dedupePolicyBriefings(recentPayload.items);
       setPolicyBriefings(dedupedItems);
       setPolicyBriefingError(null);
@@ -2127,7 +2129,7 @@ export default function App(): React.JSX.Element {
                 onPress={() => setPolicyBriefingStatusVisible(true)}
                 style={styles.policyBriefingStatusInlineRow}
               >
-                <Text style={styles.policyBriefingMetaText}>{policyBriefings.length}건 · 최근 15일</Text>
+                <Text style={styles.policyBriefingMetaText}>{policyBriefings.length}건 · 최근 {POLICY_BRIEFING_RECENT_DAYS}일</Text>
                 <Text style={styles.policyBriefingMetaText}>|</Text>
                 <Text style={styles.policyBriefingMetaText}>문체부 API</Text>
                 <View
@@ -2237,7 +2239,7 @@ export default function App(): React.JSX.Element {
               <Text style={styles.resultMetaBody}>{policyBriefingStatusSummary}</Text>
             </View>
             <View style={styles.resultMetaCard}>
-              <Text style={styles.resultMetaEyebrow}>최근 15일 조회</Text>
+              <Text style={styles.resultMetaEyebrow}>최근 {POLICY_BRIEFING_RECENT_DAYS}일 조회</Text>
               <Text style={styles.resultMetaBody}>
                 {policyBriefingAnyFetchFailure ? "일부 날짜 요청 실패" : "실패 없음"}
               </Text>
@@ -2286,7 +2288,7 @@ export default function App(): React.JSX.Element {
                         {status.error
                           ? status.error
                           : status.anyFetchFailure
-                            ? "최근 15일 조회 중 일부 날짜 요청 실패"
+                            ? `최근 ${POLICY_BRIEFING_RECENT_DAYS}일 조회 중 일부 날짜 요청 실패`
                             : status.servedStale
                               ? "캐시 제공됨"
                               : status.warning || "정상"}
