@@ -167,10 +167,9 @@ function computeTableColumnWidths(headers: string[], rows: string[][], columnCou
 
 function computeTableLayout(headers: string[], rows: string[][], columnCount: number, containerWidth: number): TableLayout {
   const columnWidths = computeTableColumnWidths(headers, rows, columnCount);
-  const tableContentWidth = columnWidths.reduce((sum, column) => sum + column.preferredWidth, 0);
   const availableTableWidth = containerWidth > 0 ? Math.max(0, containerWidth - 12) : 0;
-  const totalMinWidth = columnWidths.reduce((sum, col) => sum + col.minWidth, 0);
-  const needsHorizontalScroll = availableTableWidth > 0 && totalMinWidth > availableTableWidth;
+  const tableContentWidth = columnWidths.reduce((sum, col) => sum + col.minWidth, 0);
+  const needsHorizontalScroll = availableTableWidth > 0 && tableContentWidth > availableTableWidth;
 
   return {
     columnWidths,
@@ -1189,7 +1188,7 @@ export function MarkdownPreview({
                         style={[
                           styles.markdownTableCell,
                           needsHorizontalScroll
-                            ? ({ width: columnWidths[columnIndex].preferredWidth, minWidth: columnWidths[columnIndex].minWidth, flexGrow: 0 } satisfies ViewStyle)
+                            ? ({ width: columnWidths[columnIndex].minWidth, minWidth: columnWidths[columnIndex].minWidth, flexGrow: 0 } satisfies ViewStyle)
                             : columnWidths[columnIndex],
                           styles.markdownTableHeaderCell,
                           isDarkMode && styles.markdownTableCellDark,
@@ -1221,7 +1220,7 @@ export function MarkdownPreview({
                           style={[
                             styles.markdownTableCell,
                             needsHorizontalScroll
-                              ? ({ width: columnWidths[columnIndex].preferredWidth, minWidth: columnWidths[columnIndex].minWidth, flexGrow: 0 } satisfies ViewStyle)
+                              ? ({ width: columnWidths[columnIndex].minWidth, minWidth: columnWidths[columnIndex].minWidth, flexGrow: 0 } satisfies ViewStyle)
                               : columnWidths[columnIndex],
                             isDarkMode && styles.markdownTableCellDark,
                             columnIndex === columnCount - 1 && styles.markdownTableCellLast,
