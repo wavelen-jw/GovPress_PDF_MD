@@ -9,7 +9,10 @@ function draftStorageKey(jobId: string): string {
 }
 
 function normalizeConverterEngine(value: string | null): ConverterEngine {
-  return value === "govpress-hwpx-md" ? "govpress-hwpx-md" : "default";
+  if (value === "default" || value === "govpress-hwpx-md") {
+    return value;
+  }
+  return DEFAULT_CONFIG.converterEngine;
 }
 
 export async function loadConfig(): Promise<AppConfig> {

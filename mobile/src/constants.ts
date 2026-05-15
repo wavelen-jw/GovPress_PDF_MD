@@ -15,12 +15,12 @@ export const SERVER_FALLBACK_TIMEOUT_MS = 8000;
 export const POLICY_BRIEFING_LIST_TIMEOUT_MS = 30000;
 
 export const SERVER_PRESETS = [
-  { key: "serverH", label: "서버H", shortLabel: "서버H", url: "https://api.govpress.cloud" },
   { key: "serverW", label: "서버W", shortLabel: "서버W", url: "https://api4.govpress.cloud" },
   { key: "serverV", label: "서버V", shortLabel: "서버V", url: "https://api2.govpress.cloud" },
 ] as const;
 
 export const PRIMARY_SERVER_KEY = "serverW" as const;
+const DEPRECATED_SERVER_URLS = new Set(["https://api.govpress.cloud"]);
 
 const HOSTED_WEB_HOSTNAMES = new Set([
   "govpress.cloud",
@@ -54,6 +54,9 @@ export function normalizeBaseUrl(baseUrl: string | null): string {
   const fallback = defaultBaseUrl();
   const value = (baseUrl || "").trim();
   if (!value) {
+    return fallback;
+  }
+  if (DEPRECATED_SERVER_URLS.has(value.replace(/\/+$/, ""))) {
     return fallback;
   }
   if (Platform.OS === "web") {
@@ -95,7 +98,7 @@ export function getFallbackBaseUrls(baseUrl: string): string[] {
 export const DEFAULT_CONFIG: AppConfig = {
   baseUrl: defaultBaseUrl(),
   apiKey: process.env.EXPO_PUBLIC_GOVPRESS_API_KEY || "898afed2d0b3560ff1e53d3b02fc120bfc23712a951952a7",
-  converterEngine: "default",
+  converterEngine: "govpress-hwpx-md",
 };
 
 export const STATUS_COPY: Record<JobStatus, string> = {

@@ -10,7 +10,7 @@ from .api import jobs as jobs_api
 from .api import admin_runtime as admin_runtime_api
 from .api import policy_briefings as policy_briefings_api
 from .api import results as results_api
-from .adapters import conversion_engine
+from .adapters import conversion_engine, experimental_hwpx_md
 from .adapters.policy_briefing import PolicyBriefingCache, PolicyBriefingCatalog, PolicyBriefingClient
 from .adapters.policy_briefing_qc import resolve_qc_export_root
 from .core.config import load_settings
@@ -126,7 +126,16 @@ def create_app(
 
     @app.get("/health")
     def health() -> dict[str, object]:
-        return {"status": "ok", "converter": conversion_engine.runtime_summary()}
+        default_converter = conversion_engine.runtime_summary()
+        experimental_converter = experimental_hwpx_md.runtime_summary()
+        return {
+            "status": "ok",
+            "converter": default_converter,
+            "converters": {
+                "default": default_converter,
+                "govpress-hwpx-md": experimental_converter,
+            },
+        }
 
     @app.get("/v1/runtime/converter")
     def converter_runtime() -> dict[str, object]:

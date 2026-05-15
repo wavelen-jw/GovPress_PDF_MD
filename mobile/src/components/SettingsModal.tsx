@@ -18,11 +18,12 @@ type HealthConverterPayload = {
 };
 type HealthPayload = {
   converter?: HealthConverterPayload | null;
+  converters?: Partial<Record<ConverterEngine, HealthConverterPayload | null>>;
 };
 
-const CONVERTER_OPTIONS: Array<{ value: ConverterEngine; label: string; detail: string }> = [
-  { value: "default", label: "기본", detail: "현재 배포된 안정 변환기" },
-  { value: "govpress-hwpx-md", label: "새 변환기(실험)", detail: "HWPX와 정책브리핑 보도자료에만 적용" },
+const CONVERTER_OPTIONS: Array<{ value: ConverterEngine; label: string }> = [
+  { value: "default", label: "기본" },
+  { value: "govpress-hwpx-md", label: "새 변환기(실험)" },
 ];
 
 function isRetryableProbeFailure(detail: string): boolean {
@@ -60,6 +61,12 @@ function formatConverterDetail(converter?: HealthConverterPayload | null): strin
     return `v${version}`;
   }
   return "";
+}
+
+function formatServerConverterDetails(payload: HealthPayload): string {
+  const defaultDetail = formatConverterDetail(payload.converters?.default ?? payload.converter);
+  const experimentalDetail = formatConverterDetail(payload.converters?.["govpress-hwpx-md"]);
+  return `기본 ${defaultDetail || "확인 불가"} · 새 ${experimentalDetail || "확인 불가"}`;
 }
 
 async function probeServerApiReachability(url: string, apiKey: string, timeoutMs: number): Promise<ServerProbeResult> {
@@ -118,12 +125,10 @@ export function SettingsModal({
   const [serverStatus, setServerStatus] = useState<Record<ServerKey, boolean | null>>({
     serverV: null,
     serverW: null,
-    serverH: null,
   });
   const [converterDetails, setConverterDetails] = useState<Record<ServerKey, string>>({
     serverV: "",
     serverW: "",
-    serverH: "",
   });
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [lastCheckedAt, setLastCheckedAt] = useState<string>("");
@@ -147,7 +152,7 @@ export function SettingsModal({
           let converterDetail = "";
           try {
             const payload = (await response.json()) as HealthPayload;
-            converterDetail = formatConverterDetail(payload.converter);
+            converterDetail = formatServerConverterDetails(payload);
           } catch {
             converterDetail = "";
           }
@@ -183,12 +188,10 @@ export function SettingsModal({
     setServerStatus({
       serverV: null,
       serverW: null,
-      serverH: null,
     });
     setConverterDetails({
       serverV: "",
       serverW: "",
-      serverH: "",
     });
     const results = await Promise.all(
       SERVER_PRESETS.map(async (preset) => {
@@ -202,12 +205,10 @@ export function SettingsModal({
     setServerStatus({
       serverV: results.find((item) => item.key === "serverV")?.ok ?? null,
       serverW: results.find((item) => item.key === "serverW")?.ok ?? null,
-      serverH: results.find((item) => item.key === "serverH")?.ok ?? null,
     });
     setConverterDetails({
       serverV: results.find((item) => item.key === "serverV")?.converterDetail ?? "",
       serverW: results.find((item) => item.key === "serverW")?.converterDetail ?? "",
-      serverH: results.find((item) => item.key === "serverH")?.converterDetail ?? "",
     });
     setLastCheckedAt(new Date().toLocaleTimeString("ko-KR", { hour12: false }));
     setCheckingStatus(false);
@@ -231,12 +232,6 @@ export function SettingsModal({
       <View style={styles.modalBackdrop}>
         <View style={styles.modalCard}>
           <Text style={styles.modalTitle}>서버 설정</Text>
-          <Text style={styles.modalHint}>
-            선택한 서버가 기본 서버가 되며, 다른 서버는 대체 서버로 사용합니다.
-          </Text>
-          <Text style={styles.modalHint}>
-            여기 표시되는 색상은 서버의 기본 `/health` 응답 기준이며, 정책브리핑 제공기관 상태와는 별도입니다.
-          </Text>
           <View style={styles.settingsPresetGroup}>
             {CONVERTER_OPTIONS.map((option) => {
               const active = draft.converterEngine === option.value;
@@ -254,13 +249,11 @@ export function SettingsModal({
                         {active ? "선택" : "대기"}
                       </Text>
                     </View>
-                    <Text style={[styles.settingsPresetUrl, active && styles.settingsPresetUrlActive]}>{option.detail}</Text>
                   </View>
                 </Pressable>
               );
             })}
           </View>
-          <Text style={styles.modalHint}>HWPX와 정책브리핑 보도자료에만 적용됩니다. PDF는 기존 방식으로 변환됩니다.</Text>
           <View style={styles.settingsPresetGroup}>
             {SERVER_PRESETS.map((preset) => {
               const active = selectedKey === preset.key;
@@ -286,7 +279,6 @@ export function SettingsModal({
                         {active ? "기본" : "대체"}
                       </Text>
                     </View>
-                    <Text style={[styles.settingsPresetUrl, active && styles.settingsPresetUrlActive]}>{preset.url}</Text>
                     <Text style={styles.settingsStatusText}>
                       {serverStatus[preset.key] === true
                         ? `정상 · ${converterDetails[preset.key] || "버전 확인 불가"}`
@@ -299,7 +291,6 @@ export function SettingsModal({
               );
             })}
           </View>
-          <Text style={styles.modalHint}>기본 서버 2초 내 무응답 시 대체 서버로 자동 전환됩니다.</Text>
           <View style={styles.settingsStatusBox}>
             {checkingStatus ? <ActivityIndicator size="small" color="#7b664f" /> : <View style={styles.settingsStatusSpacer} />}
             <Pressable onPress={() => void refreshServerStatuses()} style={styles.secondaryButton}>
