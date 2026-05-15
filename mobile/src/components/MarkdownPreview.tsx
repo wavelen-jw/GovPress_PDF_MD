@@ -169,9 +169,8 @@ function computeTableLayout(headers: string[], rows: string[][], columnCount: nu
   const columnWidths = computeTableColumnWidths(headers, rows, columnCount);
   const tableContentWidth = columnWidths.reduce((sum, column) => sum + column.preferredWidth, 0);
   const availableTableWidth = containerWidth > 0 ? Math.max(0, containerWidth - 12) : 0;
-  const forceReadableScroll = availableTableWidth > 0 && availableTableWidth < 520 && columnCount >= 3;
-  const needsHorizontalScroll =
-    availableTableWidth > 0 && (tableContentWidth > availableTableWidth || forceReadableScroll);
+  const totalMinWidth = columnWidths.reduce((sum, col) => sum + col.minWidth, 0);
+  const needsHorizontalScroll = availableTableWidth > 0 && totalMinWidth > availableTableWidth;
 
   return {
     columnWidths,
