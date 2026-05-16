@@ -66,7 +66,7 @@ function formatConverterDetail(converter?: HealthConverterPayload | null): strin
 function formatServerConverterDetails(payload: HealthPayload): string {
   const defaultDetail = formatConverterDetail(payload.converters?.default ?? payload.converter);
   const experimentalDetail = formatConverterDetail(payload.converters?.["govpress-hwpx-md"]);
-  return `기본 ${defaultDetail || "확인 불가"} · 새 ${experimentalDetail || "확인 불가"}`;
+  return `기본 ${defaultDetail || "확인 불가"}\n새 변환기 ${experimentalDetail || "확인 불가"}`;
 }
 
 async function probeServerApiReachability(url: string, apiKey: string, timeoutMs: number): Promise<ServerProbeResult> {
@@ -281,7 +281,7 @@ export function SettingsModal({
                     </View>
                     <Text style={styles.settingsStatusText}>
                       {serverStatus[preset.key] === true
-                        ? `정상 · ${converterDetails[preset.key] || "버전 확인 불가"}`
+                        ? `정상\n${converterDetails[preset.key] || "버전 확인 불가"}`
                         : serverStatus[preset.key] === false
                           ? "실패"
                           : "확인 중"}
