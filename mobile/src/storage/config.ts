@@ -2,17 +2,10 @@ import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
 import { DEFAULT_CONFIG, isHostedWeb, normalizeBaseUrl, STORAGE_KEYS } from "../constants";
-import type { AppConfig, ConverterEngine } from "../types";
+import type { AppConfig } from "../types";
 
 function draftStorageKey(jobId: string): string {
   return `${STORAGE_KEYS.draftPrefix}.${jobId}`;
-}
-
-function normalizeConverterEngine(value: string | null): ConverterEngine {
-  if (value === "default" || value === "govpress-hwpx-md") {
-    return value;
-  }
-  return DEFAULT_CONFIG.converterEngine;
 }
 
 export async function loadConfig(): Promise<AppConfig> {
@@ -21,22 +14,23 @@ export async function loadConfig(): Promise<AppConfig> {
     if (isHostedWeb()) {
       window.localStorage.removeItem(STORAGE_KEYS.apiKey);
     }
+    window.localStorage.removeItem(STORAGE_KEYS.converterEngine);
     return {
       baseUrl: normalizeBaseUrl(window.localStorage.getItem(STORAGE_KEYS.baseUrl)),
       apiKey,
-      converterEngine: normalizeConverterEngine(window.localStorage.getItem(STORAGE_KEYS.converterEngine)),
+      converterEngine: DEFAULT_CONFIG.converterEngine,
     };
   }
 
-  const [baseUrl, apiKey, converterEngine] = await Promise.all([
+  const [baseUrl, apiKey] = await Promise.all([
     SecureStore.getItemAsync(STORAGE_KEYS.baseUrl),
     SecureStore.getItemAsync(STORAGE_KEYS.apiKey),
-    SecureStore.getItemAsync(STORAGE_KEYS.converterEngine),
   ]);
+  await SecureStore.deleteItemAsync(STORAGE_KEYS.converterEngine);
   return {
     baseUrl: normalizeBaseUrl(baseUrl),
     apiKey: apiKey || DEFAULT_CONFIG.apiKey,
-    converterEngine: normalizeConverterEngine(converterEngine),
+    converterEngine: DEFAULT_CONFIG.converterEngine,
   };
 }
 
@@ -48,14 +42,14 @@ export async function persistConfig(config: AppConfig): Promise<void> {
     } else {
       window.localStorage.setItem(STORAGE_KEYS.apiKey, config.apiKey);
     }
-    window.localStorage.setItem(STORAGE_KEYS.converterEngine, config.converterEngine);
+    window.localStorage.removeItem(STORAGE_KEYS.converterEngine);
     return;
   }
 
   await Promise.all([
     SecureStore.setItemAsync(STORAGE_KEYS.baseUrl, config.baseUrl),
     SecureStore.setItemAsync(STORAGE_KEYS.apiKey, config.apiKey),
-    SecureStore.setItemAsync(STORAGE_KEYS.converterEngine, config.converterEngine),
+    SecureStore.deleteItemAsync(STORAGE_KEYS.converterEngine),
   ]);
 }
 
