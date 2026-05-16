@@ -343,10 +343,10 @@ function findLineEnd(text: string, index: number): number {
 
 function extractSectionHeadings(markdown: string): Array<{ title: string; index: number }> {
   const headings: Array<{ title: string; index: number }> = [];
-  const pattern = /^(#{1,6})\s+(.+)$/gm;
+  const pattern = /^(#{1,6})(?:[ \t]+|$)(.*)$/gm;
   let match = pattern.exec(markdown);
   while (match) {
-    headings.push({ title: match[2].trim(), index: match.index });
+    headings.push({ title: match[2].replace(/[ \t]+#+[ \t]*$/, "").trim(), index: match.index });
     match = pattern.exec(markdown);
   }
   return headings;

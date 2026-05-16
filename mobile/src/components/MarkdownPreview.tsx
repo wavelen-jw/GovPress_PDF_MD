@@ -37,6 +37,28 @@ export type MarkdownBlockRange = {
 const MARKDOWN_INDENT_UNIT = 16;
 const MAX_ORDERED_LIST_NUMBER = 17;
 
+function parseAtxHeadingLine(line: string): { level: number; text: string } | null {
+  const match = line.trim().match(/^(#{1,6})(?:[ \t]+|$)(.*)$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    level: match[1].length,
+    text: match[2].replace(/[ \t]+#+[ \t]*$/, "").trim(),
+  };
+}
+
+function getHeadingLevelStyles(level: number) {
+  return [
+    level === 1 && styles.markdownHeading1,
+    level === 2 && styles.markdownHeading2,
+    level === 3 && styles.markdownHeading3,
+    level === 4 && styles.markdownHeading4,
+    level === 5 && styles.markdownHeading5,
+    level >= 6 && styles.markdownHeading6,
+  ];
+}
+
 function markdownIndent(level: number): ViewStyle {
   return { marginLeft: MARKDOWN_INDENT_UNIT * (Math.max(0, level) + 1) };
 }
@@ -482,20 +504,12 @@ function renderHeadingMarkdown(
   isDarkMode = false,
   useQuotePalette = false,
 ) {
-  const headingLevelStyle = [
-    level === 1 && styles.markdownHeading1,
-    level === 2 && styles.markdownHeading2,
-    level === 3 && styles.markdownHeading3,
-    level === 4 && styles.markdownHeading4,
-    level >= 5 && styles.markdownHeading5,
-  ];
-
   return renderInlineMarkdown(
     text,
     [
       useQuotePalette ? styles.markdownQuoteHeading : styles.markdownHeading,
       isDarkMode && (useQuotePalette ? styles.markdownQuoteHeadingDark : styles.markdownHeadingDark),
-      ...headingLevelStyle,
+      ...getHeadingLevelStyles(level),
     ] as unknown as object,
     keyPrefix,
     isDarkMode,
@@ -562,12 +576,12 @@ function parseMarkdown(markdown: string): Block[] {
       continue;
     }
 
-    const headingMatch = trimmed.match(/^(#{1,6})\s+(.*)$/);
+    const headingMatch = parseAtxHeadingLine(trimmed);
     if (headingMatch) {
       blocks.push({
         type: "heading",
-        level: headingMatch[1].length,
-        text: headingMatch[2].trim(),
+        level: headingMatch.level,
+        text: headingMatch.text,
       });
       index += 1;
       continue;
@@ -764,7 +778,7 @@ function parseMarkdown(markdown: string): Block[] {
         break;
       }
       if (
-        /^(#{1,6})\s+/.test(candidate) ||
+        parseAtxHeadingLine(candidate) ||
         /^>\s?/.test(candidate) ||
         /^!\[([^\]]*)\]\(([^)]+)\)$/.test(candidate) ||
         /^<table\b/i.test(candidate) ||
@@ -827,7 +841,7 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
     }
 
     if (
-      /^(#{1,6})\s+/.test(trimmed) ||
+      parseAtxHeadingLine(trimmed) ||
       /^(-{3,}|\*{3,}|_{3,})$/.test(trimmed) ||
       /^!\[([^\]]*)\]\(([^)]+)\)$/.test(trimmed)
     ) {
@@ -915,7 +929,7 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
       const candidate = lines[index].trim();
       if (
         !candidate ||
-        /^(#{1,6})\s+/.test(candidate) ||
+        parseAtxHeadingLine(candidate) ||
         /^>\s?/.test(candidate) ||
         /^!\[([^\]]*)\]\(([^)]+)\)$/.test(candidate) ||
         /^<table\b/i.test(candidate) ||
@@ -934,22 +948,6 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
   }
 
   return ranges;
-}
-
-function renderHeading(level: number, text: string, key: string) {
-  const headingStyle = [
-    styles.markdownHeading,
-    level === 1 && styles.markdownHeading1,
-    level === 2 && styles.markdownHeading2,
-    level === 3 && styles.markdownHeading3,
-    level === 4 && styles.markdownHeading4,
-    level >= 5 && styles.markdownHeading5,
-  ];
-  return (
-    <Text key={key} style={headingStyle}>
-      {text}
-    </Text>
-  );
 }
 
 export function MarkdownPreview({
@@ -997,11 +995,7 @@ export function MarkdownPreview({
                 [
                   styles.markdownHeading,
                   isDarkMode && styles.markdownHeadingDark,
-                  block.level === 1 && styles.markdownHeading1,
-                  block.level === 2 && styles.markdownHeading2,
-                  block.level === 3 && styles.markdownHeading3,
-                  block.level === 4 && styles.markdownHeading4,
-                  block.level >= 5 && styles.markdownHeading5,
+                  ...getHeadingLevelStyles(block.level),
                 ] as unknown as object,
                 key,
                 isDarkMode,
@@ -1041,11 +1035,11 @@ export function MarkdownPreview({
                         style={quoteLineIndex > 0 ? styles.markdownQuoteLine : undefined}
                       >
                         {(() => {
-                          const headingMatch = quoteLine.trim().match(/^(#{1,6})\s+(.*)$/);
+                          const headingMatch = parseAtxHeadingLine(quoteLine);
                           if (headingMatch) {
                             return renderHeadingMarkdown(
-                              headingMatch[2].trim(),
-                              headingMatch[1].length,
+                              headingMatch.text,
+                              headingMatch.level,
                               `${key}-${paragraphIndex}-${quoteLineIndex}`,
                               isDarkMode,
                               true,

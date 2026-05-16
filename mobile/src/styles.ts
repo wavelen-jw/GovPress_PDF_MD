@@ -1762,6 +1762,11 @@ export const styles = StyleSheet.create({
     lineHeight: 24,
     color: "#8b5425",
   },
+  markdownHeading6: {
+    fontSize: 15,
+    lineHeight: 23,
+    color: "#8b5425",
+  },
   markdownParagraph: {
     color: "#2f2318",
     fontSize: 16,
