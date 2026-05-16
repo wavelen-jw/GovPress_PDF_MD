@@ -179,8 +179,35 @@ class PolicyBriefingApiTests(unittest.TestCase):
         payload = response.json()
         self.assertEqual(len(payload["items"]), 1)
         self.assertEqual(payload["items"][0]["news_item_id"], "156700001")
+        self.assertTrue(payload["items"][0]["has_hwpx"])
         self.assertTrue(payload["items"][0]["has_appendix_hwpx"])
         self.assertEqual(len(self.client_stub.list_calls), 1)
+
+    def test_list_today_policy_briefings_marks_items_without_hwpx(self) -> None:
+        self.client_stub.items_by_date[date(2026, 4, 10)] = [
+            PolicyBriefingItem(
+                news_item_id="156700002",
+                title="HWPX 없는 보도자료",
+                department="행정안전부",
+                approve_date="04/10/2026 09:00:00",
+                original_url="https://example.test/briefing/156700002",
+                attachments=(
+                    PolicyBriefingAttachment(
+                        file_name="briefing-only.pdf",
+                        file_url="https://example.test/files/briefing-only.pdf",
+                    ),
+                ),
+            )
+        ]
+
+        response = self.client.get("/v1/policy-briefings/today?date=2026-04-10", headers=self.headers)
+
+        self.assertEqual(response.status_code, 200)
+        item = response.json()["items"][0]
+        self.assertEqual(item["news_item_id"], "156700002")
+        self.assertFalse(item["has_hwpx"])
+        self.assertEqual(item["file_name"], "")
+        self.assertEqual(item["file_url"], "")
 
     def test_list_recent_policy_briefings_returns_combined_items(self) -> None:
         response = self.client.get("/v1/policy-briefings/recent?days=2&endDate=2026-04-09", headers=self.headers)

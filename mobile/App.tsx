@@ -2184,28 +2184,30 @@ export default function App(): React.JSX.Element {
                       {items.map((item) => {
                         const active = importingNewsItemId === item.news_item_id;
                         const approvedTime = formatPolicyBriefingTime(item.approve_date);
+                        const hasHwpx = item.has_hwpx ?? Boolean(item.file_name || item.file_url);
                         return (
                           <Pressable
                             key={item.news_item_id}
                             style={styles.policyBriefingRow}
-                            onPress={() => void handleImportPolicyBriefing(item)}
-                            disabled={!!importingNewsItemId}
+                            onPress={hasHwpx ? () => void handleImportPolicyBriefing(item) : undefined}
+                            disabled={!hasHwpx || !!importingNewsItemId}
                           >
                             <View style={styles.policyBriefingRowBody}>
                               <Text style={styles.policyBriefingTitle}>{item.title}</Text>
                               <Text style={styles.policyBriefingMetaText}>
                                 {item.department}
                                 {approvedTime ? ` · ${approvedTime}` : ""}
-                                {" · "}
-                                {item.file_name}
+                                {item.file_name ? ` · ${item.file_name}` : ""}
                               </Text>
                               {item.has_appendix_hwpx ? (
                                 <Text style={styles.policyBriefingAppendix}>별첨 HWPX 포함</Text>
                               ) : null}
                             </View>
-                            <View style={styles.policyBriefingRowAction}>
-                              {active ? <ActivityIndicator size="small" color="#7b664f" /> : <Text style={styles.loadMoreLabel}>불러오기</Text>}
-                            </View>
+                            {hasHwpx ? (
+                              <View style={styles.policyBriefingRowAction}>
+                                {active ? <ActivityIndicator size="small" color="#7b664f" /> : <Text style={styles.loadMoreLabel}>불러오기</Text>}
+                              </View>
+                            ) : null}
                           </Pressable>
                         );
                       })}

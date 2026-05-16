@@ -69,6 +69,7 @@ def build_router(
             original_url=item.original_url,
             file_name=item.primary_hwpx.file_name if item.primary_hwpx else "",
             file_url=item.primary_hwpx.file_url if item.primary_hwpx else "",
+            has_hwpx=item.primary_hwpx is not None,
             has_appendix_hwpx=any(
                 attachment.is_hwpx and attachment.is_appendix for attachment in item.attachments
             ),

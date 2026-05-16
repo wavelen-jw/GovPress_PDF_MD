@@ -16,6 +16,7 @@ class PolicyBriefingItemResponse(BaseModel):
     original_url: str
     file_name: str
     file_url: str
+    has_hwpx: bool = False
     has_appendix_hwpx: bool = False
 
 

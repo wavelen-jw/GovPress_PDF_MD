@@ -149,7 +149,9 @@ export function JobDetailPanel({
   }, [isMobileEditingOnly, previewMarkdown]);
   const pendingMessage = selectedJob?.status === "queued"
     ? "대기열에 등록됐습니다. 워커가 파일을 가져가면 자동으로 변환을 시작합니다."
-    : "PDF 구조를 분석하고 Markdown 초안을 생성하는 중입니다.";
+    : selectedJob?.file_name.toLowerCase().endsWith(".pdf")
+      ? "PDF 구조를 분석하고 Markdown 초안을 생성하는 중입니다."
+      : "HWPX 문서 구조를 분석하고 Markdown 초안을 생성하는 중입니다.";
   const activePreviewBlockIndex = useMemo(() => {
     if (!previewBlockRanges.length) {
       return -1;

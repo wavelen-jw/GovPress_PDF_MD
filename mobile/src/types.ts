@@ -54,6 +54,7 @@ export type PolicyBriefingItem = {
   original_url: string;
   file_name: string;
   file_url: string;
+  has_hwpx?: boolean;
   has_appendix_hwpx: boolean;
 };
 
