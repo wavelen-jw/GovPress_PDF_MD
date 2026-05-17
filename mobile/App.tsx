@@ -46,6 +46,7 @@ import type {
   AppConfig,
   HwpxTableMode,
   Job,
+  PolicyBriefingAttachment,
   PolicyBriefingItem,
   ResultPayload,
   ResultVariant,
@@ -376,6 +377,50 @@ function getPolicyBriefingDate(item: PolicyBriefingItem): string {
   return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
 
+function getPolicyBriefingHwpxAttachments(item: PolicyBriefingItem): PolicyBriefingAttachment[] {
+  const attachments = (item.attachments || []).filter((attachment) => {
+    const extension = attachment.extension || (attachment.file_name.includes(".") ? `.${attachment.file_name.split(".").pop()}` : "");
+    return attachment.is_hwpx || extension.toLowerCase() === ".hwpx";
+  });
+  if (attachments.length > 0) {
+    return attachments;
+  }
+  if (item.file_name || item.file_url) {
+    return [
+      {
+        file_name: item.file_name,
+        file_url: item.file_url,
+        extension: ".hwpx",
+        is_hwpx: true,
+        is_appendix: item.has_appendix_hwpx,
+      },
+    ];
+  }
+  return [];
+}
+
+function getPolicyBriefingAttachmentLabel(attachment: PolicyBriefingAttachment): string {
+  const name = attachment.file_name || "HWPX";
+  if (name.includes("보도자료") && !name.includes("참고자료")) {
+    return "보도자료";
+  }
+  if (name.includes("참고자료")) {
+    return "참고자료";
+  }
+  if (attachment.is_appendix) {
+    return "별첨";
+  }
+  return name.replace(/\.hwpx$/i, "").replace(/^\d{6,8}[\s_-]*/, "").slice(0, 16) || "HWPX";
+}
+
+function getPolicyBriefingImportKey(item: PolicyBriefingItem, attachment?: PolicyBriefingAttachment): string {
+  return `${item.news_item_id}:${attachment?.file_url || ""}`;
+}
+
+function getPolicyBriefingPrimaryAttachment(item: PolicyBriefingItem, attachments: PolicyBriefingAttachment[]): PolicyBriefingAttachment | undefined {
+  return attachments.find((attachment) => attachment.file_url === item.file_url) || attachments[0];
+}
+
 export default function App(): React.JSX.Element {
   const { width } = useWindowDimensions();
   const isWideLayout = width >= 980;
@@ -421,7 +466,7 @@ export default function App(): React.JSX.Element {
     PolicyBriefingServerHealthStatus[]
   >([]);
   const [policyBriefingQuery, setPolicyBriefingQuery] = useState("");
-  const [importingNewsItemId, setImportingNewsItemId] = useState<string | null>(null);
+  const [importingPolicyBriefingKey, setImportingPolicyBriefingKey] = useState<string | null>(null);
   const [desktopSplitRatio, setDesktopSplitRatio] = useState(0.5);
   const [dragOverlayVisible, setDragOverlayVisible] = useState(false);
   const [mobileShowList, setMobileShowList] = useState(false);
@@ -1234,8 +1279,8 @@ export default function App(): React.JSX.Element {
     }
   }
 
-  async function loadBriefingByNewsItemId(newsItemId: string, date?: string): Promise<void> {
-    const { payload: imported, resolvedBaseUrl } = await importPolicyBriefing(config, newsItemId, date);
+  async function loadBriefingByNewsItemId(newsItemId: string, date?: string, attachmentFileUrl?: string): Promise<void> {
+    const { payload: imported, resolvedBaseUrl } = await importPolicyBriefing(config, newsItemId, date, attachmentFileUrl);
     if (resolvedBaseUrl !== config.baseUrl) {
       const nextConfig = { ...config, baseUrl: resolvedBaseUrl };
       invalidateJobRefreshes();
@@ -1268,16 +1313,16 @@ export default function App(): React.JSX.Element {
     await refreshSelectedJob(imported.job_id, imported.edit_token, false, false, resolvedBaseUrl);
   }
 
-  async function handleImportPolicyBriefing(item: PolicyBriefingItem): Promise<void> {
-    setImportingNewsItemId(item.news_item_id);
+  async function handleImportPolicyBriefing(item: PolicyBriefingItem, attachment?: PolicyBriefingAttachment): Promise<void> {
+    setImportingPolicyBriefingKey(getPolicyBriefingImportKey(item, attachment));
     setBusy(true);
     setNotice("정책브리핑 HWPX를 가져오는 중...");
     try {
-      await loadBriefingByNewsItemId(item.news_item_id, getPolicyBriefingDate(item));
+      await loadBriefingByNewsItemId(item.news_item_id, getPolicyBriefingDate(item), attachment?.file_url);
     } catch (error) {
       showError("정책브리핑 보도자료를 가져오지 못했습니다.", error);
     } finally {
-      setImportingNewsItemId(null);
+      setImportingPolicyBriefingKey(null);
       setBusy(false);
     }
   }
@@ -2182,33 +2227,66 @@ export default function App(): React.JSX.Element {
                         <View style={styles.policyBriefingDateLine} />
                       </View>
                       {items.map((item) => {
-                        const active = importingNewsItemId === item.news_item_id;
+                        const attachments = getPolicyBriefingHwpxAttachments(item);
+                        const primaryAttachment = getPolicyBriefingPrimaryAttachment(item, attachments);
+                        const active = attachments.some((attachment) => importingPolicyBriefingKey === getPolicyBriefingImportKey(item, attachment));
                         const approvedTime = formatPolicyBriefingTime(item.approve_date);
-                        const hasHwpx = item.has_hwpx ?? Boolean(item.file_name || item.file_url);
+                        const hasHwpx = attachments.length > 0 || item.has_hwpx === true;
                         return (
-                          <Pressable
+                          <View
                             key={item.news_item_id}
                             style={styles.policyBriefingRow}
-                            onPress={hasHwpx ? () => void handleImportPolicyBriefing(item) : undefined}
-                            disabled={!hasHwpx || !!importingNewsItemId}
                           >
                             <View style={styles.policyBriefingRowBody}>
                               <Text style={styles.policyBriefingTitle}>{item.title}</Text>
                               <Text style={styles.policyBriefingMetaText}>
                                 {item.department}
                                 {approvedTime ? ` · ${approvedTime}` : ""}
-                                {item.file_name ? ` · ${item.file_name}` : ""}
+                                {primaryAttachment?.file_name ? ` · ${primaryAttachment.file_name}` : ""}
                               </Text>
-                              {item.has_appendix_hwpx ? (
-                                <Text style={styles.policyBriefingAppendix}>별첨 HWPX 포함</Text>
+                              {attachments.length > 1 ? (
+                                <View style={styles.policyBriefingAttachmentRow}>
+                                  {attachments.map((attachment) => {
+                                    const attachmentActive = importingPolicyBriefingKey === getPolicyBriefingImportKey(item, attachment);
+                                    return (
+                                      <Pressable
+                                        key={attachment.file_url || attachment.file_name}
+                                        style={[
+                                          styles.policyBriefingAttachmentButton,
+                                          attachment.file_url === primaryAttachment?.file_url && styles.policyBriefingAttachmentButtonPrimary,
+                                        ]}
+                                        onPress={() => void handleImportPolicyBriefing(item, attachment)}
+                                        disabled={!!importingPolicyBriefingKey}
+                                      >
+                                        <Text style={styles.policyBriefingAttachmentButtonLabel}>
+                                          {attachmentActive ? "불러오는 중" : getPolicyBriefingAttachmentLabel(attachment)}
+                                        </Text>
+                                      </Pressable>
+                                    );
+                                  })}
+                                </View>
+                              ) : item.has_appendix_hwpx ? (
+                                <Text style={styles.policyBriefingAppendix}>별도 HWPX 포함</Text>
                               ) : null}
                             </View>
                             {hasHwpx ? (
                               <View style={styles.policyBriefingRowAction}>
-                                {active ? <ActivityIndicator size="small" color="#7b664f" /> : <Text style={styles.loadMoreLabel}>불러오기</Text>}
+                                {active ? (
+                                  <ActivityIndicator size="small" color="#7b664f" />
+                                ) : attachments.length > 1 ? (
+                                  <Text style={styles.loadMoreLabel}>선택</Text>
+                                ) : (
+                                  <Pressable
+                                    style={styles.policyBriefingSingleLoadButton}
+                                    onPress={primaryAttachment ? () => void handleImportPolicyBriefing(item, primaryAttachment) : undefined}
+                                    disabled={!primaryAttachment || !!importingPolicyBriefingKey}
+                                  >
+                                    <Text style={styles.loadMoreLabel}>불러오기</Text>
+                                  </Pressable>
+                                )}
                               </View>
                             ) : null}
-                          </Pressable>
+                          </View>
                         );
                       })}
                     </View>

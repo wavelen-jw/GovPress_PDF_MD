@@ -77,6 +77,10 @@ class PolicyBriefingAttachment:
         stripped = _normalize_attachment_name_for_kind_check(self.file_name)
         return _ATTACHMENT_APPENDIX_RE.match(stripped) is not None
 
+    @property
+    def is_reference_material(self) -> bool:
+        return "참고자료" in _normalize_attachment_name_for_kind_check(self.file_name)
+
 
 @dataclass(frozen=True)
 class PolicyBriefingItem:
@@ -92,8 +96,14 @@ class PolicyBriefingItem:
         hwpx_files = [attachment for attachment in self.attachments if attachment.is_hwpx]
         if not hwpx_files:
             return None
-        primary = next((attachment for attachment in hwpx_files if not attachment.is_appendix), None)
-        return primary or hwpx_files[0]
+        return sorted(
+            hwpx_files,
+            key=lambda attachment: (
+                attachment.is_appendix,
+                attachment.is_reference_material,
+                "보도자료" not in _normalize_attachment_name_for_kind_check(attachment.file_name),
+            ),
+        )[0]
 
     @property
     def primary_pdf(self) -> PolicyBriefingAttachment | None:

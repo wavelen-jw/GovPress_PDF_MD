@@ -1157,6 +1157,11 @@ export const styles = StyleSheet.create({
     alignItems: "flex-end",
     minWidth: 56,
   },
+  policyBriefingSingleLoadButton: {
+    minHeight: 32,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   policyBriefingTitle: {
     color: "rgba(255,255,255,0.88)",
     fontSize: 14,
@@ -1165,6 +1170,29 @@ export const styles = StyleSheet.create({
   },
   policyBriefingAppendix: {
     color: "#22c55e",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  policyBriefingAttachmentRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4,
+  },
+  policyBriefingAttachmentButton: {
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  policyBriefingAttachmentButtonPrimary: {
+    borderColor: "rgba(74,222,128,0.42)",
+    backgroundColor: "rgba(74,222,128,0.12)",
+  },
+  policyBriefingAttachmentButtonLabel: {
+    color: "rgba(255,255,255,0.82)",
     fontSize: 11,
     fontWeight: "700",
   },

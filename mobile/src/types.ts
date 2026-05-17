@@ -45,6 +45,15 @@ export type AppConfig = {
   converterEngine: ConverterEngine;
 };
 
+export type PolicyBriefingAttachment = {
+  file_name: string;
+  file_url: string;
+  extension: string;
+  is_hwpx?: boolean;
+  is_pdf?: boolean;
+  is_appendix?: boolean;
+};
+
 export type PolicyBriefingItem = {
   date: string;
   news_item_id: string;
@@ -56,6 +65,7 @@ export type PolicyBriefingItem = {
   file_url: string;
   has_hwpx?: boolean;
   has_appendix_hwpx: boolean;
+  attachments?: PolicyBriefingAttachment[];
 };
 
 export type PolicyBriefingListPayload = {

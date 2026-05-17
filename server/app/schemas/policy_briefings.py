@@ -2,9 +2,18 @@ from __future__ import annotations
 
 from datetime import date as date_type, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..models import ConverterEngine
+
+
+class PolicyBriefingAttachmentResponse(BaseModel):
+    file_name: str
+    file_url: str
+    extension: str
+    is_hwpx: bool = False
+    is_pdf: bool = False
+    is_appendix: bool = False
 
 
 class PolicyBriefingItemResponse(BaseModel):
@@ -18,6 +27,7 @@ class PolicyBriefingItemResponse(BaseModel):
     file_url: str
     has_hwpx: bool = False
     has_appendix_hwpx: bool = False
+    attachments: list[PolicyBriefingAttachmentResponse] = Field(default_factory=list)
 
 
 class PolicyBriefingListResponse(BaseModel):
@@ -41,6 +51,7 @@ class PolicyBriefingRecentListResponse(BaseModel):
 class PolicyBriefingImportRequest(BaseModel):
     news_item_id: str
     date: date_type | None = None
+    file_url: str | None = None
     force_reprocess: bool = False
     converter_engine: ConverterEngine = "default"
 

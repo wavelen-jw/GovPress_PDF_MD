@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 
 from ..adapters.policy_briefing_qc import ensure_dashboard_assets, resolve_dashboard_asset_path
 from ..schemas.policy_briefings import (
+    PolicyBriefingAttachmentResponse,
     PolicyBriefingCacheResetResponse,
     PolicyBriefingImportRequest,
     PolicyBriefingImportResponse,
@@ -59,6 +60,16 @@ def build_router(
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/policy-briefings", tags=["policy-briefings"])
 
+    def _serialize_policy_briefing_attachment(attachment) -> PolicyBriefingAttachmentResponse:
+        return PolicyBriefingAttachmentResponse(
+            file_name=attachment.file_name,
+            file_url=attachment.file_url,
+            extension=attachment.extension,
+            is_hwpx=attachment.is_hwpx,
+            is_pdf=attachment.is_pdf,
+            is_appendix=attachment.is_appendix,
+        )
+
     def _serialize_policy_briefing_item(resolved_date: date, item) -> PolicyBriefingItemResponse:
         return PolicyBriefingItemResponse(
             date=resolved_date,
@@ -73,6 +84,7 @@ def build_router(
             has_appendix_hwpx=any(
                 attachment.is_hwpx and attachment.is_appendix for attachment in item.attachments
             ),
+            attachments=[_serialize_policy_briefing_attachment(attachment) for attachment in item.attachments],
         )
 
     @router.get("/today", response_model=PolicyBriefingListResponse)
@@ -171,10 +183,20 @@ def build_router(
                 item = policy_briefing_catalog.get_cached_item(payload.news_item_id, target_date=resolved_date)
             if item is None:
                 raise KeyError(payload.news_item_id)
-            if item.primary_hwpx is None:
+            selected_attachment = item.primary_hwpx
+            if payload.file_url:
+                selected_attachment = next(
+                    (attachment for attachment in item.attachments if attachment.file_url == payload.file_url),
+                    None,
+                )
+                if selected_attachment is None:
+                    raise ValueError("선택한 정책브리핑 첨부파일을 찾지 못했습니다.")
+                if not selected_attachment.is_hwpx:
+                    raise ValueError("선택한 정책브리핑 첨부파일은 HWPX 형식이 아닙니다.")
+            if selected_attachment is None:
                 raise ValueError("HWPX 첨부파일이 없는 기사입니다.")
             try:
-                downloaded = policy_briefing_client.download_item_hwpx(item)
+                downloaded = policy_briefing_client.download_attachment(item, selected_attachment)
             except ValueError:
                 resolved_date = payload.date or date.today()
                 policy_briefing_catalog.force_refresh_day(resolved_date)
@@ -182,7 +204,15 @@ def build_router(
                 if refreshed_item is None:
                     raise KeyError(item.news_item_id)
                 item = refreshed_item
-                downloaded = policy_briefing_client.download_item_hwpx(item)
+                selected_attachment = item.primary_hwpx
+                if payload.file_url:
+                    selected_attachment = next(
+                        (attachment for attachment in item.attachments if attachment.file_url == payload.file_url),
+                        None,
+                    )
+                if selected_attachment is None:
+                    raise ValueError("선택한 정책브리핑 첨부파일을 찾지 못했습니다.")
+                downloaded = policy_briefing_client.download_attachment(item, selected_attachment)
             if not downloaded.is_zip_container:
                 raise ValueError("국정브리핑 첨부는 .hwpx 확장자이지만 실제로는 HWP 형식입니다.")
         except KeyError as exc:

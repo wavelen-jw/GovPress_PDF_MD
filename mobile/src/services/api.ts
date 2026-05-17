@@ -461,6 +461,7 @@ export async function importPolicyBriefing(
   config: AppConfig,
   newsItemId: string,
   date?: string,
+  fileUrl?: string,
 ): Promise<PolicyBriefingImportResult> {
   const attempts = getFallbackBaseUrls(config.baseUrl);
   const failures: string[] = [];
@@ -475,6 +476,7 @@ export async function importPolicyBriefing(
             news_item_id: newsItemId,
             converter_engine: config.converterEngine,
             ...(date ? { date } : {}),
+            ...(fileUrl ? { file_url: fileUrl } : {}),
           }),
         },
         SERVER_FALLBACK_TIMEOUT_MS,
