@@ -504,6 +504,7 @@ export default function App(): React.JSX.Element {
     }
     return { markdown: null, html_preview: null };
   }, [loadedTableMode, result, selectedTableMode]);
+  const editorDocumentKey = `${selectedJobId || "none"}:${selectedTableMode}`;
   const selectedResultText = useMemo(() => {
     if (!selectedVariant.markdown) {
       return "";
@@ -1877,6 +1878,7 @@ export default function App(): React.JSX.Element {
             <JobDetailPanel
               activeTab={activeTab}
               editorSelection={editorSelection}
+              editorDocumentKey={editorDocumentKey}
               editorFocusToken={editorFocusToken}
             hasUnsavedChanges={hasUnsavedChanges}
             isDarkMode={isDarkMode}
@@ -1954,6 +1956,7 @@ export default function App(): React.JSX.Element {
               <JobDetailPanel
                 activeTab={activeTab}
                 editorSelection={editorSelection}
+                editorDocumentKey={editorDocumentKey}
                 editorFocusToken={editorFocusToken}
               hasUnsavedChanges={hasUnsavedChanges}
               isDarkMode={isDarkMode}

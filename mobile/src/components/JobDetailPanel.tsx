@@ -28,6 +28,7 @@ type Props = {
   activeTab: "preview" | "markdown";
   desktopSplitRatio: number;
   editorSelection: { start: number; end: number };
+  editorDocumentKey: string;
   editorFocusToken: number;
   hasUnsavedChanges: boolean;
   isDarkMode?: boolean;
@@ -65,6 +66,7 @@ export function JobDetailPanel({
   activeTab,
   desktopSplitRatio,
   editorSelection,
+  editorDocumentKey,
   editorFocusToken,
   hasUnsavedChanges,
   isDarkMode,
@@ -475,6 +477,7 @@ export function JobDetailPanel({
                       {isDarkMode && Platform.OS === "web" && MarkdownCodeMirror ? (
                         <View style={{ flex: 1, minHeight: 0 }} {...webEditorDropProps}>
                           <MarkdownCodeMirror
+                            key={`cm-wide-${editorDocumentKey}`}
                             value={editorText}
                             onChange={onChangeEditorText}
                             onSelectionChange={onChangeSelection}
@@ -493,6 +496,7 @@ export function JobDetailPanel({
                               ))}
                             </View>
                             <TextInput
+                              key={`text-wide-dark-${editorDocumentKey}`}
                               ref={editorRef}
                               value={editorText}
                               onChangeText={onChangeEditorText}
@@ -512,6 +516,7 @@ export function JobDetailPanel({
                       ) : (
                         <View style={styles.splitPanelBody}>
                           <TextInput
+                            key={`text-wide-${editorDocumentKey}`}
                             ref={editorRef}
                             value={editorText}
                             onChangeText={onChangeEditorText}
@@ -611,6 +616,7 @@ export function JobDetailPanel({
                         {isDarkMode && Platform.OS === "web" && MarkdownCodeMirror ? (
                           <View style={{ flex: 1, minHeight: 0 }} {...webEditorDropProps}>
                             <MarkdownCodeMirror
+                              key={`cm-tablet-${editorDocumentKey}`}
                               value={editorText}
                               onChange={onChangeEditorText}
                               onSelectionChange={onChangeSelection}
@@ -629,6 +635,7 @@ export function JobDetailPanel({
                                 ))}
                               </View>
                               <TextInput
+                                key={`text-tablet-dark-${editorDocumentKey}`}
                                 ref={editorRef}
                                 value={editorText}
                                 onChangeText={onChangeEditorText}
@@ -648,6 +655,7 @@ export function JobDetailPanel({
                         ) : (
                           <View style={styles.splitPanelBody}>
                             <TextInput
+                              key={`text-tablet-${editorDocumentKey}`}
                               ref={editorRef}
                               value={editorText}
                               onChangeText={onChangeEditorText}
@@ -732,6 +740,7 @@ export function JobDetailPanel({
                         {isDarkMode && Platform.OS === "web" && MarkdownCodeMirror ? (
                           <View style={{ flex: 1, minHeight: 0 }}>
                             <MarkdownCodeMirror
+                              key={`cm-mobile-${editorDocumentKey}`}
                               value={editorText}
                               onChange={onChangeEditorText}
                               onSelectionChange={onChangeSelection}
@@ -749,6 +758,7 @@ export function JobDetailPanel({
                                 ))}
                               </View>
                               <TextInput
+                                key={`text-mobile-dark-${editorDocumentKey}`}
                                 ref={editorRef}
                                 value={editorText}
                                 onChangeText={onChangeEditorText}
@@ -768,6 +778,7 @@ export function JobDetailPanel({
                         ) : (
                           <View style={styles.splitPanelBody}>
                             <TextInput
+                              key={`text-mobile-${editorDocumentKey}`}
                               ref={editorRef}
                               value={editorText}
                               onChangeText={onChangeEditorText}
