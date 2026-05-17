@@ -41,7 +41,7 @@ echo "git_origin=$(git -C "$DEPLOY_DIR" remote get-url origin)"
 HOME_DIR="${HOME:-$(getent passwd $(id -u) | cut -d: -f6)}"
 CONVERTER_VERSION_FILE="$DEPLOY_DIR/deploy/converter.version"
 CONVERTER_SPEC_RESOLVER="$DEPLOY_DIR/deploy/common/resolve_converter_spec.py"
-CONVERTER_CACHE_SCHEMA_VERSION="2"
+CONVERTER_CACHE_SCHEMA_VERSION="3"
 
 normalize_converter_spec() {
   if [ -z "${CONVERTER_SPEC:-}" ]; then
