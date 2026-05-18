@@ -1854,6 +1854,31 @@ export const styles = StyleSheet.create({
   markdownStrikeDark: {
     color: "#b8ab9f",
   },
+  markdownSuperscript: {
+    fontSize: 11,
+    lineHeight: 13,
+    position: "relative",
+    top: -4,
+  },
+  markdownSuperscriptDark: {
+    color: "#fff3e6",
+  },
+  markdownSubscript: {
+    fontSize: 11,
+    lineHeight: 13,
+    position: "relative",
+    top: 3,
+  },
+  markdownSubscriptDark: {
+    color: "#fff3e6",
+  },
+  markdownUnderline: {
+    textDecorationLine: "underline",
+    textDecorationStyle: "solid",
+  },
+  markdownUnderlineDark: {
+    color: "#fff3e6",
+  },
   markdownInlineCode: {
     fontFamily: "monospace",
     backgroundColor: "#f1e6d8",
