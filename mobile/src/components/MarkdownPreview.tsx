@@ -103,6 +103,33 @@ function isOrderedListLine(line: string): boolean {
   return matchOrderedListMarker(line) !== null;
 }
 
+function hasHardLineBreakSuffix(line: string): boolean {
+  return /[ \t]{2,}$/.test(line) || /(?<!\\)\\$/.test(line);
+}
+
+function stripHardLineBreakSuffix(line: string): string {
+  if (/[ \t]{2,}$/.test(line)) {
+    return line.replace(/[ \t]+$/, "");
+  }
+  if (/(?<!\\)\\$/.test(line)) {
+    return line.replace(/\\$/, "");
+  }
+  return line;
+}
+
+function joinMarkdownInlineLines(lines: string[]): string {
+  if (!lines.length) {
+    return "";
+  }
+  let result = stripHardLineBreakSuffix(lines[0]);
+  for (let index = 1; index < lines.length; index += 1) {
+    const previous = lines[index - 1];
+    result += hasHardLineBreakSuffix(previous) ? "<br>" : " ";
+    result += stripHardLineBreakSuffix(lines[index]);
+  }
+  return result;
+}
+
 function splitTableRow(line: string): string[] {
   let source = line.trim();
   if (source.startsWith("|")) {
@@ -625,7 +652,7 @@ function parseMarkdown(markdown: string): Block[] {
       for (const line of quoteLines) {
         if (!line.trim()) {
           if (paragraphBuffer.length) {
-            paragraphs.push(paragraphBuffer.join("\n"));
+            paragraphs.push(joinMarkdownInlineLines(paragraphBuffer));
             paragraphBuffer = [];
           }
           continue;
@@ -633,7 +660,7 @@ function parseMarkdown(markdown: string): Block[] {
         paragraphBuffer.push(line);
       }
       if (paragraphBuffer.length) {
-        paragraphs.push(paragraphBuffer.join("\n"));
+        paragraphs.push(joinMarkdownInlineLines(paragraphBuffer));
       }
       blocks.push({ type: "blockquote", paragraphs: paragraphs.length ? paragraphs : [""], level: quoteLevel });
       continue;
@@ -712,11 +739,12 @@ function parseMarkdown(markdown: string): Block[] {
         }
         const indent = rawCandidate.match(/^\s*/)?.[0].length || 0;
         const level = Math.min(3, Math.floor(indent / 2));
+        const text = rawCandidate.replace(/^[-*+]\s+\[( |x|X)\]\s+/, "");
         blocks.push({
           type: "checklist_item",
           checked: match[1].toLowerCase() === "x",
           level,
-          text: match[2].trim(),
+          text: stripHardLineBreakSuffix(text.trimEnd()),
         });
         index += 1;
       }
@@ -747,7 +775,7 @@ function parseMarkdown(markdown: string): Block[] {
             type: "list_item",
             ordered: true,
             level,
-            text: orderedMatch[2].trim(),
+            text: stripHardLineBreakSuffix(rawCandidate.replace(/^(\s*\d+\.\s+)/, "")).trimEnd(),
             orderIndex,
             orderNumber: sourceNumber,
           });
@@ -756,11 +784,12 @@ function parseMarkdown(markdown: string): Block[] {
           continue;
         }
         if (!ordered && /^[-*+]\s+/.test(candidate)) {
+          const rawText = rawCandidate.replace(/^(\s*[-*+]\s+)/, "");
           blocks.push({
             type: "list_item",
             ordered: false,
             level,
-            text: candidate.replace(/^[-*+]\s+/, "").trim(),
+            text: stripHardLineBreakSuffix(rawText).trimEnd(),
             orderIndex,
           });
           index += 1;
@@ -773,7 +802,8 @@ function parseMarkdown(markdown: string): Block[] {
 
     const paragraphLines: string[] = [];
     while (index < lines.length) {
-      const candidate = lines[index].trim();
+      const rawCandidate = lines[index];
+      const candidate = rawCandidate.trim();
       if (!candidate) {
         break;
       }
@@ -791,10 +821,10 @@ function parseMarkdown(markdown: string): Block[] {
       ) {
         break;
       }
-      paragraphLines.push(candidate);
+      paragraphLines.push(rawCandidate);
       index += 1;
     }
-    blocks.push({ type: "paragraph", text: paragraphLines.join(" ") });
+    blocks.push({ type: "paragraph", text: joinMarkdownInlineLines(paragraphLines).trim() });
   }
 
   return blocks;
