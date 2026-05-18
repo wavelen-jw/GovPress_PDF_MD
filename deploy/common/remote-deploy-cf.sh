@@ -77,7 +77,7 @@ if [ "${CONVERTER_SPEC:-}" = "-" ]; then
 fi
 
 if [ -z "${HWPX_MD_SPEC:-}" ] && [[ "${CONVERTER_SPEC:-}" == *"github.com/wavelen-jw/gov-md-converter.git@"* ]]; then
-  HWPX_MD_SPEC="${CONVERTER_SPEC/github.com\/wavelen-jw\/gov-md-converter.git@*/github.com\/wavelen-jw\/govpress-hwpx-md.git@v0.1.6}"
+  HWPX_MD_SPEC="${CONVERTER_SPEC/github.com\/wavelen-jw\/gov-md-converter.git@*/github.com\/wavelen-jw\/govpress-hwpx-md.git@v0.1.7}"
   echo "hwpx_md_spec=derived_from_converter_spec"
 elif [ -n "${HWPX_MD_SPEC:-}" ]; then
   echo "hwpx_md_spec=configured"
