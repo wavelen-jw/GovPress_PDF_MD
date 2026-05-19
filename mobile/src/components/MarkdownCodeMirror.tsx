@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import CodeMirror from "@uiw/react-codemirror";
-import { EditorSelection } from "@codemirror/state";
+import { EditorSelection, Transaction } from "@codemirror/state";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorView, type ViewUpdate } from "@codemirror/view";
@@ -162,6 +162,16 @@ export function MarkdownCodeMirror({
       return;
     }
     if (!viewUpdate.selectionSet && !viewUpdate.docChanged) {
+      return;
+    }
+    if (
+      viewUpdate.selectionSet &&
+      !viewUpdate.docChanged &&
+      viewUpdate.transactions.some((transaction) => {
+        const userEvent = transaction.annotation(Transaction.userEvent);
+        return typeof userEvent === "string" && userEvent.startsWith("select.search");
+      })
+    ) {
       return;
     }
     const main = viewUpdate.state.selection.main;
