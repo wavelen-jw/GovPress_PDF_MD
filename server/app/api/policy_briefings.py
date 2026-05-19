@@ -228,10 +228,9 @@ def build_router(
                     raise ValueError("선택한 정책브리핑 첨부파일을 찾지 못했습니다.")
                 downloaded = policy_briefing_client.download_attachment(item, selected_attachment)
             if not downloaded.is_zip_container:
-                notice = policy_briefing_cache.build_missing_hwpx_notice(
+                notice = policy_briefing_cache.build_mislabeled_hwpx_notice(
                     item,
                     file_name=downloaded.attachment.file_name,
-                    detail="국정브리핑 첨부는 .hwpx 확장자이지만 실제로는 HWP 형식입니다.",
                 )
                 record = job_service.create_completed_job(
                     file_name=notice.file_name,

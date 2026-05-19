@@ -531,6 +531,15 @@ class PolicyBriefingCache:
             detail=detail,
         )
 
+    def _build_mislabeled_hwpx_notice(self, item: PolicyBriefingItem, *, file_name: str) -> PolicyBriefingCachedDocument:
+        return self._build_unavailable_hwpx_notice(
+            item,
+            file_name=file_name,
+            message="이 보도자료는 HWPX로 표시되어 있지만 실제 첨부파일은 HWP 형식입니다.",
+            description="현재 읽힘에서는 해당 원문을 자동 변환할 수 없습니다.",
+            detail="",
+        )
+
     def build_missing_hwpx_notice(
         self,
         item: PolicyBriefingItem,
@@ -539,6 +548,14 @@ class PolicyBriefingCache:
         detail: str,
     ) -> PolicyBriefingCachedDocument:
         return self._build_missing_hwpx_notice(item, file_name=file_name, detail=detail)
+
+    def build_mislabeled_hwpx_notice(
+        self,
+        item: PolicyBriefingItem,
+        *,
+        file_name: str,
+    ) -> PolicyBriefingCachedDocument:
+        return self._build_mislabeled_hwpx_notice(item, file_name=file_name)
 
     def warm_item(self, item: PolicyBriefingItem, *, notice_on_download_error: bool = True) -> PolicyBriefingCachedDocument:
         cached = self.get(item.news_item_id)
