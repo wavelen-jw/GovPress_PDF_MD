@@ -532,12 +532,34 @@ class PolicyBriefingCache:
         )
 
     def _build_mislabeled_hwpx_notice(self, item: PolicyBriefingItem, *, file_name: str) -> PolicyBriefingCachedDocument:
-        return self._build_unavailable_hwpx_notice(
-            item,
+        title = item.title.strip() or file_name
+        department = item.department.strip() or None
+        markdown = (
+            f"# {title}\n\n"
+            "> 이 보도자료는 HWPX로 표시되어 있지만 실제 첨부파일은 **HWP 형식**입니다.\n"
+            ">\n"
+            "> 현재 읽힘에서는 해당 원문을 자동 변환할 수 없습니다.\n"
+        )
+        preview_html = "\n".join(
+            [
+                '<div style="min-height:68vh;display:flex;align-items:center;justify-content:center;padding:24px;">',
+                '<div style="max-width:720px;width:100%;text-align:center;border:1px solid #d8d8d8;border-radius:18px;padding:40px 28px;background:#fff;">',
+                '<div style="font-size:30px;font-weight:700;line-height:1.5;color:#161616;margin-bottom:20px;">이 보도자료는 HWPX로 표시되어 있지만 실제 첨부파일은 <strong>HWP 형식</strong>입니다.</div>',
+                '<div style="font-size:18px;line-height:1.7;color:#424242;">현재 읽힘에서는 해당 원문을 자동 변환할 수 없습니다.</div>',
+                "</div>",
+                "</div>",
+            ]
+        )
+        return self.save(
+            item=item,
             file_name=file_name,
-            message="이 보도자료는 HWPX로 표시되어 있지만 실제 첨부파일은 HWP 형식입니다.",
-            description="현재 읽힘에서는 해당 원문을 자동 변환할 수 없습니다.",
-            detail="",
+            markdown_text=markdown,
+            markdown_html=markdown,
+            html_preview_text=preview_html,
+            html_preview_html=preview_html,
+            title=title,
+            department=department,
+            original_content=b"",
         )
 
     def build_missing_hwpx_notice(
