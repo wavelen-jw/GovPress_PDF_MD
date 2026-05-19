@@ -64,6 +64,22 @@ export class ApiError extends Error {
   }
 }
 
+function parseApiErrorDetail(detail: string): string {
+  const trimmed = detail.trim();
+  if (!trimmed) {
+    return detail;
+  }
+  try {
+    const parsed = JSON.parse(trimmed) as { detail?: unknown };
+    if (typeof parsed.detail === "string" && parsed.detail.trim()) {
+      return parsed.detail;
+    }
+  } catch {
+    return detail;
+  }
+  return detail;
+}
+
 function normalizePolicyBriefingFailure(message: string): string {
   const lowered = message.toLowerCase();
   if (
@@ -130,7 +146,7 @@ async function fetchJson<T>(config: AppConfig, path: string, init?: RequestInit,
   });
 
   if (!response.ok) {
-    const detail = await response.text();
+    const detail = parseApiErrorDetail(await response.text());
     throw new ApiError(response.status, detail || `Request failed: ${response.status}`);
   }
 
@@ -214,7 +230,7 @@ async function fetchJsonWithFallback<T>(
         timeoutMs,
       );
       if (!response.ok) {
-        const detail = await response.text();
+        const detail = parseApiErrorDetail(await response.text());
         if (!isRetryableServerError(response.status)) {
           throw new ApiError(response.status, detail || `Request failed: ${response.status}`);
         }
@@ -299,7 +315,7 @@ export async function uploadPdf(
         body: buildUploadBody(asset, hwpxTableMode, config.converterEngine),
       }, SERVER_FALLBACK_TIMEOUT_MS);
       if (!response.ok) {
-        const detail = await response.text();
+        const detail = parseApiErrorDetail(await response.text());
         throw new ApiError(response.status, detail || `Upload failed: ${response.status}`);
       }
       return {
@@ -345,7 +361,7 @@ export async function fetchTodayPolicyBriefings(config: AppConfig, date?: string
         SERVER_FALLBACK_TIMEOUT_MS,
       );
       if (!response.ok) {
-        const detail = await response.text();
+        const detail = parseApiErrorDetail(await response.text());
         throw new ApiError(response.status, normalizePolicyBriefingFailure(detail || `Request failed: ${response.status}`));
       }
       return (await response.json()) as PolicyBriefingListPayload;
@@ -381,7 +397,7 @@ export async function fetchRecentPolicyBriefings(
         POLICY_BRIEFING_LIST_TIMEOUT_MS,
       );
       if (!response.ok) {
-        const detail = await response.text();
+        const detail = parseApiErrorDetail(await response.text());
         throw new ApiError(response.status, normalizePolicyBriefingFailure(detail || `Request failed: ${response.status}`));
       }
       return (await response.json()) as PolicyBriefingRecentListPayload;
@@ -451,7 +467,7 @@ export async function fetchTodayPolicyBriefingsDirect(
     SERVER_FALLBACK_TIMEOUT_MS,
   );
   if (!response.ok) {
-    const detail = await response.text();
+    const detail = parseApiErrorDetail(await response.text());
     throw new ApiError(response.status, normalizePolicyBriefingFailure(detail || `Request failed: ${response.status}`));
   }
   return (await response.json()) as PolicyBriefingListPayload;
@@ -482,7 +498,7 @@ export async function importPolicyBriefing(
         SERVER_FALLBACK_TIMEOUT_MS,
       );
       if (!response.ok) {
-        const detail = await response.text();
+        const detail = parseApiErrorDetail(await response.text());
         const error = new ApiError(response.status, detail || `Request failed: ${response.status}`);
         if (!isRetryableUploadError(error)) {
           throw error;

@@ -531,6 +531,15 @@ class PolicyBriefingCache:
             detail=detail,
         )
 
+    def build_missing_hwpx_notice(
+        self,
+        item: PolicyBriefingItem,
+        *,
+        file_name: str,
+        detail: str,
+    ) -> PolicyBriefingCachedDocument:
+        return self._build_missing_hwpx_notice(item, file_name=file_name, detail=detail)
+
     def warm_item(self, item: PolicyBriefingItem, *, notice_on_download_error: bool = True) -> PolicyBriefingCachedDocument:
         cached = self.get(item.news_item_id)
         if cached is not None and cached.original_content:

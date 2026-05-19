@@ -60,6 +60,20 @@ def build_router(
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/policy-briefings", tags=["policy-briefings"])
 
+    def _build_import_response(record, item) -> PolicyBriefingImportResponse:
+        return PolicyBriefingImportResponse(
+            job_id=record.job_id,
+            edit_token=record.edit_token,
+            status=record.status,
+            file_name=record.file_name,
+            created_at=record.created_at,
+            converter_engine=record.converter_engine,
+            news_item_id=item.news_item_id,
+            title=item.title,
+            department=item.department,
+            original_url=item.original_url,
+        )
+
     def _serialize_policy_briefing_attachment(attachment) -> PolicyBriefingAttachmentResponse:
         return PolicyBriefingAttachmentResponse(
             file_name=attachment.file_name,
@@ -214,7 +228,24 @@ def build_router(
                     raise ValueError("선택한 정책브리핑 첨부파일을 찾지 못했습니다.")
                 downloaded = policy_briefing_client.download_attachment(item, selected_attachment)
             if not downloaded.is_zip_container:
-                raise ValueError("국정브리핑 첨부는 .hwpx 확장자이지만 실제로는 HWP 형식입니다.")
+                notice = policy_briefing_cache.build_missing_hwpx_notice(
+                    item,
+                    file_name=downloaded.attachment.file_name,
+                    detail="국정브리핑 첨부는 .hwpx 확장자이지만 실제로는 HWP 형식입니다.",
+                )
+                record = job_service.create_completed_job(
+                    file_name=notice.file_name,
+                    markdown_text=notice.markdown_text,
+                    markdown_html=notice.markdown_html,
+                    html_preview_text=notice.html_preview_text,
+                    html_preview_html=notice.html_preview_html,
+                    title=notice.title,
+                    department=notice.department,
+                    original_content=downloaded.content,
+                    source="policy-briefing-cache",
+                    converter_engine=payload.converter_engine,
+                )
+                return _build_import_response(record, item)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="캐시된 기사 목록에서 항목을 찾지 못했습니다.") from exc
         except Exception as exc:
@@ -229,18 +260,7 @@ def build_router(
             if payload.force_reprocess
             else f"policy-briefing:{payload.converter_engine}:{item.news_item_id}:{downloaded.attachment.file_url}",
         )
-        return PolicyBriefingImportResponse(
-            job_id=record.job_id,
-            edit_token=record.edit_token,
-            status=record.status,
-            file_name=record.file_name,
-            created_at=record.created_at,
-            converter_engine=record.converter_engine,
-            news_item_id=item.news_item_id,
-            title=item.title,
-            department=item.department,
-            original_url=item.original_url,
-        )
+        return _build_import_response(record, item)
 
     @router.post("/cache/reset", response_model=PolicyBriefingCacheResetResponse)
     def reset_policy_briefing_cache(

@@ -72,6 +72,7 @@ class JobService:
         department: str | None,
         original_content: bytes | None = None,
         source: str = "policy-briefing-cache",
+        converter_engine: ConverterEngine = "default",
     ) -> JobRecord:
         job_id = f"job_{uuid.uuid4().hex[:12]}"
         edit_token = secrets.token_urlsafe(24)
@@ -83,7 +84,7 @@ class JobService:
             file_name=file_name,
             source=source,
             hwpx_table_mode="text",
-            converter_engine="default",
+            converter_engine=converter_engine,
             client_request_id=None,
             original_pdf_path=original_path,
         )
