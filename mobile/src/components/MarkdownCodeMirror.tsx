@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import CodeMirror from "@uiw/react-codemirror";
 import { EditorSelection } from "@codemirror/state";
@@ -157,7 +157,7 @@ export function MarkdownCodeMirror({
     viewRef.current.focus();
   }, [focusToken]);
 
-  function handleUpdate(viewUpdate: ViewUpdate): void {
+  const handleUpdate = useCallback((viewUpdate: ViewUpdate): void => {
     if (!onSelectionChange) {
       return;
     }
@@ -166,9 +166,9 @@ export function MarkdownCodeMirror({
     }
     const main = viewUpdate.state.selection.main;
     onSelectionChange({ start: main.from, end: main.to });
-  }
+  }, [onSelectionChange]);
 
-  const fileDropHandler = EditorView.domEventHandlers({
+  const fileDropHandler = useMemo(() => EditorView.domEventHandlers({
     dragover: (event) => {
       if (!hasFileDropPayload(event.dataTransfer)) {
         return false;
@@ -199,14 +199,30 @@ export function MarkdownCodeMirror({
       } as WebDropAsset);
       return true;
     },
-  });
+  }), []);
+
+  const extensions = useMemo(
+    () => [markdown(), syntaxHighlighting(markdownHighlightStyle), EditorView.lineWrapping, appTheme, fileDropHandler],
+    [fileDropHandler],
+  );
+
+  const basicSetup = useMemo(
+    () => ({
+      lineNumbers: true,
+      foldGutter: false,
+      dropCursor: false,
+      allowMultipleSelections: false,
+      indentOnInput: false,
+    }),
+    [],
+  );
 
   return (
     <CodeMirror
       value={value}
       height={height}
       theme={dracula}
-      extensions={[markdown(), syntaxHighlighting(markdownHighlightStyle), EditorView.lineWrapping, appTheme, fileDropHandler]}
+      extensions={extensions}
       onChange={onChange}
       onUpdate={handleUpdate}
       onCreateEditor={(view) => {
@@ -218,13 +234,7 @@ export function MarkdownCodeMirror({
         flex: 1,
         minHeight: 0,
       }}
-      basicSetup={{
-        lineNumbers: true,
-        foldGutter: false,
-        dropCursor: false,
-        allowMultipleSelections: false,
-        indentOnInput: false,
-      }}
+      basicSetup={basicSetup}
     />
   );
 }
