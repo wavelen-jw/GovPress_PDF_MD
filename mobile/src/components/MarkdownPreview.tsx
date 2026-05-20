@@ -35,6 +35,7 @@ export type MarkdownBlockRange = {
 };
 
 const MARKDOWN_INDENT_UNIT = 16;
+const MARKDOWN_LIST_BASE_INDENT = 8;
 const MAX_ORDERED_LIST_NUMBER = 17;
 
 function parseAtxHeadingLine(line: string): { level: number; text: string } | null {
@@ -64,10 +65,16 @@ function markdownIndent(level: number): ViewStyle {
 }
 
 function listIndent(level: number, ordered: boolean): ViewStyle {
-  if (ordered && level <= 0) {
-    return { marginLeft: 0 };
-  }
-  return markdownIndent(level);
+  const normalizedLevel = Math.max(0, level);
+  return {
+    marginLeft: MARKDOWN_LIST_BASE_INDENT + MARKDOWN_INDENT_UNIT * normalizedLevel,
+  };
+}
+
+function checklistIndent(level: number): ViewStyle {
+  return {
+    marginLeft: MARKDOWN_LIST_BASE_INDENT + MARKDOWN_INDENT_UNIT * Math.max(0, level),
+  };
 }
 
 function isEscaped(value: string, index: number): boolean {
@@ -1152,7 +1159,7 @@ export function MarkdownPreview({
               <View
                 style={[
                   styles.markdownListItem,
-                  markdownIndent(block.level),
+                  checklistIndent(block.level),
                 ]}
               >
                 <View style={[styles.markdownCheckbox, isDarkMode && styles.markdownCheckboxDark, block.checked && styles.markdownCheckboxChecked]}>
