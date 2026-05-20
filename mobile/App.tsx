@@ -1865,7 +1865,12 @@ export default function App(): React.JSX.Element {
             height: auto !important;
             background: #ffffff !important;
             overflow: visible !important;
+            border: 0 !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            gap: 0 !important;
           }
+          #govpress-print-preview-header,
           #govpress-print-preview-header-actions {
             display: none !important;
           }
@@ -1875,6 +1880,11 @@ export default function App(): React.JSX.Element {
             overflow: visible !important;
             height: auto !important;
             max-height: none !important;
+            margin: 0 !important;
+            padding-top: 0 !important;
+          }
+          #govpress-print-preview [style*="border-radius"] {
+            box-shadow: none !important;
           }
           #govpress-print-preview img {
             max-width: 100% !important;

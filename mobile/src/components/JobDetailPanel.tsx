@@ -132,7 +132,10 @@ export function JobDetailPanel({
     window.print();
   };
   const renderPreviewHeader = () => (
-    <View style={[styles.panelTabBar, isDarkMode ? styles.panelTabBarDark : styles.panelTabBarLight]}>
+    <View
+      nativeID="govpress-print-preview-header"
+      style={[styles.panelTabBar, isDarkMode ? styles.panelTabBarDark : styles.panelTabBarLight]}
+    >
       <Text style={isDarkMode ? styles.panelTabLabelActive : styles.previewLabel}>미리보기</Text>
       <Text style={[styles.previewConverterBadge, isDarkMode && styles.previewConverterBadgeDark]}>
         {converterLabel}
@@ -711,8 +714,11 @@ export function JobDetailPanel({
                         ) : null}
                       </View>
                     ) : null}
-                    <View style={[styles.previewPanel, styles.previewPanelTablet, isDarkMode && styles.previewPanelDark]}>
-                      <View nativeID="govpress-print-preview" style={{ flex: 1 }} {...webPreviewDropProps}>
+                    <View
+                      nativeID="govpress-print-preview"
+                      style={[styles.previewPanel, styles.previewPanelTablet, isDarkMode && styles.previewPanelDark]}
+                    >
+                      <View style={{ flex: 1 }} {...webPreviewDropProps}>
                       {renderPreviewHeader()}
                       <ScrollView
                         nativeID="govpress-print-preview-scroll"
@@ -835,8 +841,11 @@ export function JobDetailPanel({
                         ) : null}
                       </View>
                     ) : (
-                    <View style={[styles.previewPanel, styles.previewPanelMobile, isDarkMode && styles.previewPanelDark]}>
-                      <View nativeID="govpress-print-preview" style={{ flex: 1 }} {...webPreviewDropProps}>
+                    <View
+                      nativeID="govpress-print-preview"
+                      style={[styles.previewPanel, styles.previewPanelMobile, isDarkMode && styles.previewPanelDark]}
+                    >
+                      <View style={{ flex: 1 }} {...webPreviewDropProps}>
                       {renderPreviewHeader()}
                       <ScrollView
                         nativeID="govpress-print-preview-scroll"
