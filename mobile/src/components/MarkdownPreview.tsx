@@ -713,7 +713,6 @@ function parseMarkdown(markdown: string): Block[] {
       if (paragraphBuffer.length) {
         paragraphs.push(joinMarkdownInlineLines(paragraphBuffer));
       }
-      resetListContext();
       blocks.push({ type: "blockquote", paragraphs: paragraphs.length ? paragraphs : [""], level: quoteLevel });
       continue;
     }
