@@ -1600,6 +1600,13 @@ export const styles = StyleSheet.create({
     padding: 0,
     gap: 0,
   },
+  previewPanelPrint: {
+    backgroundColor: "#ffffff",
+    borderWidth: 0,
+    borderRadius: 0,
+    padding: 0,
+    gap: 0,
+  },
   previewPanelDesktop: {
     flexGrow: 1,
     flexShrink: 0,

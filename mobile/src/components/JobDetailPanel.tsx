@@ -103,6 +103,7 @@ export function JobDetailPanel({
   const splitLayoutRef = useRef<View | null>(null);
   const previewScrollRef = useRef<ScrollView | null>(null);
   const [editorContentHeight, setEditorContentHeight] = useState(0);
+  const [isPrinting, setIsPrinting] = useState(false);
   const previewBlockPositionsRef = useRef<Record<number, number>>({});
   const previewViewportHeightRef = useRef(0);
   const previewScrollYRef = useRef(0);
@@ -110,6 +111,7 @@ export function JobDetailPanel({
   const isMobileEditingOnly = isCompactLayout && activeTab === "markdown";
   const previewMarkdown = isCompactLayout ? selectedResultText : deferredPreviewMarkdown;
   const canPrintPreview = Platform.OS === "web" && typeof window !== "undefined";
+  const previewChromeDark = Boolean(isDarkMode && !isPrinting);
   const openOriginalUrl = () => {
     if (!originalUrl) {
       return;
@@ -131,13 +133,28 @@ export function JobDetailPanel({
     }
     window.print();
   };
+
+  useEffect(() => {
+    if (!canPrintPreview) {
+      return;
+    }
+    const handleBeforePrint = () => setIsPrinting(true);
+    const handleAfterPrint = () => setIsPrinting(false);
+    window.addEventListener("beforeprint", handleBeforePrint);
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", handleBeforePrint);
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+  }, [canPrintPreview]);
+
   const renderPreviewHeader = () => (
     <View
       nativeID="govpress-print-preview-header"
-      style={[styles.panelTabBar, isDarkMode ? styles.panelTabBarDark : styles.panelTabBarLight]}
+      style={[styles.panelTabBar, previewChromeDark ? styles.panelTabBarDark : styles.panelTabBarLight]}
     >
-      <Text style={isDarkMode ? styles.panelTabLabelActive : styles.previewLabel}>미리보기</Text>
-      <Text style={[styles.previewConverterBadge, isDarkMode && styles.previewConverterBadgeDark]}>
+      <Text style={previewChromeDark ? styles.panelTabLabelActive : styles.previewLabel}>미리보기</Text>
+      <Text style={[styles.previewConverterBadge, previewChromeDark && styles.previewConverterBadgeDark]}>
         {converterLabel}
       </Text>
       <View style={styles.panelTabSpacer} />
@@ -587,7 +604,8 @@ export function JobDetailPanel({
                         styles.previewPanel,
                         styles.previewPanelDesktop,
                         styles.previewPanelSplit,
-                        isDarkMode && styles.previewPanelDark,
+                        previewChromeDark && styles.previewPanelDark,
+                        isPrinting && styles.previewPanelPrint,
                         { flexBasis: `${(1 - desktopSplitRatio) * 100}%` },
                       ]}
                       {...webPreviewDropProps}
@@ -597,7 +615,7 @@ export function JobDetailPanel({
                         nativeID="govpress-print-preview-scroll"
                         ref={previewScrollRef}
                         style={[styles.previewScroll, styles.previewScrollDesktop]}
-                        contentContainerStyle={[styles.previewScrollContent, isDarkMode && { padding: 16 }]}
+                        contentContainerStyle={[styles.previewScrollContent, previewChromeDark && { padding: 16 }]}
                         onLayout={(event) => {
                           previewViewportHeightRef.current = event.nativeEvent.layout.height;
                         }}
@@ -606,7 +624,7 @@ export function JobDetailPanel({
                         }}
                         scrollEventThrottle={16}
                       >
-                        {isDarkMode ? (
+                        {previewChromeDark ? (
                           <View style={styles.previewCard}>
                             <MarkdownPreview
                               markdown={previewMarkdown}
@@ -716,7 +734,7 @@ export function JobDetailPanel({
                     ) : null}
                     <View
                       nativeID="govpress-print-preview"
-                      style={[styles.previewPanel, styles.previewPanelTablet, isDarkMode && styles.previewPanelDark]}
+                      style={[styles.previewPanel, styles.previewPanelTablet, previewChromeDark && styles.previewPanelDark, isPrinting && styles.previewPanelPrint]}
                     >
                       <View style={{ flex: 1 }} {...webPreviewDropProps}>
                       {renderPreviewHeader()}
@@ -724,7 +742,7 @@ export function JobDetailPanel({
                         nativeID="govpress-print-preview-scroll"
                         ref={previewScrollRef}
                         style={[styles.previewScroll, styles.previewScrollTablet]}
-                        contentContainerStyle={[styles.previewScrollContent, isDarkMode && { padding: 16 }]}
+                        contentContainerStyle={[styles.previewScrollContent, previewChromeDark && { padding: 16 }]}
                         onLayout={(event) => {
                           previewViewportHeightRef.current = event.nativeEvent.layout.height;
                         }}
@@ -733,7 +751,7 @@ export function JobDetailPanel({
                         }}
                         scrollEventThrottle={16}
                       >
-                        {isDarkMode ? (
+                        {previewChromeDark ? (
                           <View style={styles.previewCard}>
                             <MarkdownPreview
                               markdown={previewMarkdown}
@@ -843,7 +861,7 @@ export function JobDetailPanel({
                     ) : (
                     <View
                       nativeID="govpress-print-preview"
-                      style={[styles.previewPanel, styles.previewPanelMobile, isDarkMode && styles.previewPanelDark]}
+                      style={[styles.previewPanel, styles.previewPanelMobile, previewChromeDark && styles.previewPanelDark, isPrinting && styles.previewPanelPrint]}
                     >
                       <View style={{ flex: 1 }} {...webPreviewDropProps}>
                       {renderPreviewHeader()}
@@ -851,7 +869,7 @@ export function JobDetailPanel({
                         nativeID="govpress-print-preview-scroll"
                         ref={previewScrollRef}
                         style={[styles.previewScroll, styles.previewScrollMobile]}
-                        contentContainerStyle={[styles.previewScrollContent, isDarkMode && { padding: 16 }]}
+                        contentContainerStyle={[styles.previewScrollContent, previewChromeDark && { padding: 16 }]}
                         onLayout={(event) => {
                           previewViewportHeightRef.current = event.nativeEvent.layout.height;
                         }}
@@ -860,7 +878,7 @@ export function JobDetailPanel({
                         }}
                         scrollEventThrottle={16}
                       >
-                        {isDarkMode ? (
+                        {previewChromeDark ? (
                           <View style={styles.previewCard}>
                             <MarkdownPreview
                               markdown={previewMarkdown}
