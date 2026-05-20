@@ -21,7 +21,7 @@ type Block =
   | { type: "heading"; level: number; text: string }
   | { type: "paragraph"; text: string }
   | { type: "blockquote"; paragraphs: string[]; level: number }
-  | { type: "list_item"; ordered: boolean; level: number; text: string; orderIndex: number; orderNumber?: number }
+  | { type: "list_item"; ordered: boolean; level: number; visualLevel?: number; text: string; orderIndex: number; orderNumber?: number }
   | { type: "checklist_item"; checked: boolean; level: number; text: string }
   | { type: "image"; alt: string; src: string }
   | { type: "table"; headers: string[]; aligns: TableAlign[]; rows: string[][] }
@@ -611,6 +611,11 @@ function parseMarkdown(markdown: string): Block[] {
   let index = 0;
   let blankRun = 0;
   const orderedSequenceByLevel = new Map<number, number>();
+  let lastOrderedListLevel: number | null = null;
+
+  const resetListContext = () => {
+    lastOrderedListLevel = null;
+  };
 
   while (index < lines.length) {
     const rawLine = lines[index];
@@ -620,6 +625,7 @@ function parseMarkdown(markdown: string): Block[] {
       blankRun += 1;
       if (blankRun >= 2) {
         orderedSequenceByLevel.clear();
+        resetListContext();
       }
       index += 1;
       continue;
@@ -640,12 +646,14 @@ function parseMarkdown(markdown: string): Block[] {
       if (index < lines.length) {
         index += 1;
       }
+      resetListContext();
       blocks.push({ type: "code", language, lines: codeLines });
       continue;
     }
 
     const headingMatch = parseAtxHeadingLine(trimmed);
     if (headingMatch) {
+      resetListContext();
       blocks.push({
         type: "heading",
         level: headingMatch.level,
@@ -656,6 +664,7 @@ function parseMarkdown(markdown: string): Block[] {
     }
 
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+      resetListContext();
       blocks.push({ type: "rule" });
       index += 1;
       continue;
@@ -684,6 +693,7 @@ function parseMarkdown(markdown: string): Block[] {
       if (/<table\b[\s\S]*<\/table>/i.test(quotedHtml) || /^<table\b/i.test(quotedHtml) || /^<tr\b/i.test(quotedHtml)) {
         const parsed = parseHtmlTableBlock(quotedHtml);
         if (parsed) {
+          resetListContext();
           blocks.push({ type: "html_table", headers: parsed.headers, rows: parsed.rows, rawHtml: parsed.rawHtml });
           continue;
         }
@@ -703,12 +713,14 @@ function parseMarkdown(markdown: string): Block[] {
       if (paragraphBuffer.length) {
         paragraphs.push(joinMarkdownInlineLines(paragraphBuffer));
       }
+      resetListContext();
       blocks.push({ type: "blockquote", paragraphs: paragraphs.length ? paragraphs : [""], level: quoteLevel });
       continue;
     }
 
     const imageMatch = trimmed.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
     if (imageMatch) {
+      resetListContext();
       blocks.push({ type: "image", alt: imageMatch[1].trim(), src: imageMatch[2].trim() });
       index += 1;
       continue;
@@ -716,6 +728,7 @@ function parseMarkdown(markdown: string): Block[] {
 
     const inlineHtmlTableMatch = rawLine.match(/<table\b[\s\S]*<\/table>/i);
     if (inlineHtmlTableMatch) {
+      resetListContext();
       const parsed = parseHtmlTableBlock(inlineHtmlTableMatch[0]);
       if (parsed) {
         blocks.push({ type: "html_table", headers: parsed.headers, rows: parsed.rows, rawHtml: parsed.rawHtml });
@@ -727,6 +740,7 @@ function parseMarkdown(markdown: string): Block[] {
     }
 
     if (/^<table\b/i.test(trimmed) || /^<tr\b/i.test(trimmed)) {
+      resetListContext();
       const htmlLines: string[] = [];
       while (index < lines.length) {
         htmlLines.push(lines[index].trim());
@@ -746,6 +760,7 @@ function parseMarkdown(markdown: string): Block[] {
     }
 
     if (trimmed.includes("|") && index + 1 < lines.length && isTableDivider(lines[index + 1].trim())) {
+      resetListContext();
       const headers = splitTableRow(trimmed);
       const aligns = parseTableAlignments(lines[index + 1].trim());
       const rows: string[][] = [];
@@ -771,6 +786,7 @@ function parseMarkdown(markdown: string): Block[] {
     }
 
     if (/^[-*+]\s+\[( |x|X)\]\s+/.test(trimmed)) {
+      resetListContext();
       while (index < lines.length) {
         const rawCandidate = lines[index];
         const candidate = rawCandidate.trim();
@@ -794,6 +810,7 @@ function parseMarkdown(markdown: string): Block[] {
 
     if (/^[-*+]\s+/.test(trimmed) || isOrderedListLine(trimmed)) {
       const ordered = isOrderedListLine(trimmed);
+      const unorderedVisualOffset = !ordered && lastOrderedListLevel !== null ? lastOrderedListLevel + 1 : 0;
       let orderIndex = 0;
       while (index < lines.length) {
         const rawCandidate = lines[index];
@@ -812,6 +829,7 @@ function parseMarkdown(markdown: string): Block[] {
           }
           const sourceNumber = Number(orderedMatch[1]);
           orderedSequenceByLevel.set(level, sourceNumber);
+          lastOrderedListLevel = level;
           blocks.push({
             type: "list_item",
             ordered: true,
@@ -830,6 +848,7 @@ function parseMarkdown(markdown: string): Block[] {
             type: "list_item",
             ordered: false,
             level,
+            visualLevel: level + unorderedVisualOffset,
             text: stripHardLineBreakSuffix(rawText).trimEnd(),
             orderIndex,
           });
@@ -837,6 +856,9 @@ function parseMarkdown(markdown: string): Block[] {
           continue;
         }
         break;
+      }
+      if (!ordered) {
+        resetListContext();
       }
       continue;
     }
@@ -865,6 +887,7 @@ function parseMarkdown(markdown: string): Block[] {
       paragraphLines.push(rawCandidate);
       index += 1;
     }
+    resetListContext();
     blocks.push({ type: "paragraph", text: joinMarkdownInlineLines(paragraphLines).trim() });
   }
 
@@ -1139,7 +1162,7 @@ export function MarkdownPreview({
               <View
                 style={[
                   styles.markdownListItem,
-                  listIndent(block.level, block.ordered),
+                  listIndent(block.visualLevel ?? block.level, block.ordered),
                 ]}
               >
                 <Text style={[styles.markdownListBullet, isDarkMode && styles.markdownListBulletDark]}>
