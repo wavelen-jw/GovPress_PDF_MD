@@ -5,7 +5,7 @@ import type { DocumentPickerAsset } from "expo-document-picker";
 import { styles } from "../styles";
 import type { Job, ResultPayload } from "../types";
 import { EmptyDetailState } from "./EmptyDetailState";
-import { MarkdownPreview, parseMarkdownBlockRanges } from "./MarkdownPreview";
+import { MarkdownPreview, buildPrintDocumentHtml, parseMarkdownBlockRanges } from "./MarkdownPreview";
 
 type WebDropAsset = DocumentPickerAsset & { file?: File };
 
@@ -103,7 +103,6 @@ export function JobDetailPanel({
   const splitLayoutRef = useRef<View | null>(null);
   const previewScrollRef = useRef<ScrollView | null>(null);
   const [editorContentHeight, setEditorContentHeight] = useState(0);
-  const [isPrinting, setIsPrinting] = useState(false);
   const previewBlockPositionsRef = useRef<Record<number, number>>({});
   const previewViewportHeightRef = useRef(0);
   const previewScrollYRef = useRef(0);
@@ -111,7 +110,7 @@ export function JobDetailPanel({
   const isMobileEditingOnly = isCompactLayout && activeTab === "markdown";
   const previewMarkdown = isCompactLayout ? selectedResultText : deferredPreviewMarkdown;
   const canPrintPreview = Platform.OS === "web" && typeof window !== "undefined";
-  const previewChromeDark = Boolean(isDarkMode && !isPrinting);
+  const previewChromeDark = Boolean(isDarkMode);
   const openOriginalUrl = () => {
     if (!originalUrl) {
       return;
@@ -131,26 +130,19 @@ export function JobDetailPanel({
     if (!canPrintPreview) {
       return;
     }
-    window.print();
-  };
-
-  useEffect(() => {
-    if (!canPrintPreview) {
+    const printWindow = window.open("", "_blank", "width=900,height=1200");
+    if (!printWindow) {
       return;
     }
-    const handleBeforePrint = () => setIsPrinting(true);
-    const handleAfterPrint = () => setIsPrinting(false);
-    window.addEventListener("beforeprint", handleBeforePrint);
-    window.addEventListener("afterprint", handleAfterPrint);
-    return () => {
-      window.removeEventListener("beforeprint", handleBeforePrint);
-      window.removeEventListener("afterprint", handleAfterPrint);
-    };
-  }, [canPrintPreview]);
+    const documentTitle = result?.meta.title || selectedJob?.file_name || "읽힘 미리보기";
+    printWindow.document.open();
+    printWindow.document.write(buildPrintDocumentHtml(previewMarkdown, documentTitle));
+    printWindow.document.close();
+    printWindow.focus();
+  };
 
   const renderPreviewHeader = () => (
     <View
-      nativeID="govpress-print-preview-header"
       style={[styles.panelTabBar, previewChromeDark ? styles.panelTabBarDark : styles.panelTabBarLight]}
     >
       <Text style={previewChromeDark ? styles.panelTabLabelActive : styles.previewLabel}>미리보기</Text>
@@ -159,7 +151,7 @@ export function JobDetailPanel({
       </Text>
       <View style={styles.panelTabSpacer} />
       {canPrintPreview ? (
-        <View nativeID="govpress-print-preview-header-actions" style={styles.previewHeaderActions}>
+        <View style={styles.previewHeaderActions}>
           <Pressable
             onPress={handlePrintPreview}
             style={styles.panelTabBtn}
@@ -599,29 +591,25 @@ export function JobDetailPanel({
                       <View style={[styles.desktopResizeTrack, isDarkMode && styles.desktopResizeTrackDark]} />
                     </View>
                     <View
-                      nativeID="govpress-print-preview"
                       style={[
                         styles.previewPanel,
                         styles.previewPanelDesktop,
                         styles.previewPanelSplit,
                         previewChromeDark && styles.previewPanelDark,
-                        isPrinting && styles.previewPanelPrint,
                         { flexBasis: `${(1 - desktopSplitRatio) * 100}%` },
                       ]}
                       {...webPreviewDropProps}
                     >
                       {renderPreviewHeader()}
                       <ScrollView
-                        nativeID="govpress-print-preview-scroll"
                         ref={previewScrollRef}
                         style={[
                           styles.previewScroll,
                           styles.previewScrollDesktop,
-                          previewChromeDark && styles.previewScrollDocument,
                         ]}
                         contentContainerStyle={[
                           styles.previewScrollContent,
-                          previewChromeDark && styles.previewScrollDocumentContent,
+                          previewChromeDark && { padding: 16 },
                         ]}
                         onLayout={(event) => {
                           previewViewportHeightRef.current = event.nativeEvent.layout.height;
@@ -740,22 +728,19 @@ export function JobDetailPanel({
                       </View>
                     ) : null}
                     <View
-                      nativeID="govpress-print-preview"
-                      style={[styles.previewPanel, styles.previewPanelTablet, previewChromeDark && styles.previewPanelDark, isPrinting && styles.previewPanelPrint]}
+                      style={[styles.previewPanel, styles.previewPanelTablet, previewChromeDark && styles.previewPanelDark]}
                     >
                       <View style={{ flex: 1 }} {...webPreviewDropProps}>
                       {renderPreviewHeader()}
                       <ScrollView
-                        nativeID="govpress-print-preview-scroll"
                         ref={previewScrollRef}
                         style={[
                           styles.previewScroll,
                           styles.previewScrollTablet,
-                          previewChromeDark && styles.previewScrollDocument,
                         ]}
                         contentContainerStyle={[
                           styles.previewScrollContent,
-                          previewChromeDark && styles.previewScrollDocumentContent,
+                          previewChromeDark && { padding: 16 },
                         ]}
                         onLayout={(event) => {
                           previewViewportHeightRef.current = event.nativeEvent.layout.height;
@@ -874,22 +859,19 @@ export function JobDetailPanel({
                       </View>
                     ) : (
                     <View
-                      nativeID="govpress-print-preview"
-                      style={[styles.previewPanel, styles.previewPanelMobile, previewChromeDark && styles.previewPanelDark, isPrinting && styles.previewPanelPrint]}
+                      style={[styles.previewPanel, styles.previewPanelMobile, previewChromeDark && styles.previewPanelDark]}
                     >
                       <View style={{ flex: 1 }} {...webPreviewDropProps}>
                       {renderPreviewHeader()}
                       <ScrollView
-                        nativeID="govpress-print-preview-scroll"
                         ref={previewScrollRef}
                         style={[
                           styles.previewScroll,
                           styles.previewScrollMobile,
-                          previewChromeDark && styles.previewScrollDocument,
                         ]}
                         contentContainerStyle={[
                           styles.previewScrollContent,
-                          previewChromeDark && styles.previewScrollDocumentContent,
+                          previewChromeDark && { padding: 16 },
                         ]}
                         onLayout={(event) => {
                           previewViewportHeightRef.current = event.nativeEvent.layout.height;

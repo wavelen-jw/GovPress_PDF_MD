@@ -894,6 +894,185 @@ function parseMarkdown(markdown: string): Block[] {
   return blocks;
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderInlinePrintHtml(text: string, options: { preserveAsteriskLiterals?: boolean } = {}): string {
+  const { text: escapedText, restore } = protectMarkdownEscapes(text);
+  const pattern = options.preserveAsteriskLiterals
+    ? /(<(?:sup|sub|ins|u)>[\s\S]*?<\/(?:sup|sub|ins|u)>|~~[^~]+~~|`[^`]+`|\[[^\]]+\]\([^)]+\))/g
+    : /(<(?:sup|sub|ins|u)>[\s\S]*?<\/(?:sup|sub|ins|u)>|\*\*[^*]+\*\*|~~[^~]+~~|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
+
+  return escapedText
+    .split(/<br\s*\/?>/gi)
+    .map((linePart) =>
+      linePart
+        .split(pattern)
+        .filter(Boolean)
+        .map((part) => {
+          const tagMatch = part.match(/^<(sup|sub|ins|u)>([\s\S]*?)<\/\1>$/i);
+          if (tagMatch) {
+            const tag = tagMatch[1].toLowerCase() === "u" ? "ins" : tagMatch[1].toLowerCase();
+            return `<${tag}>${renderInlinePrintHtml(restore(tagMatch[2]), options)}</${tag}>`;
+          }
+          if (!options.preserveAsteriskLiterals && /^\*\*[^*]+\*\*$/.test(part)) {
+            return `<strong>${escapeHtml(restore(part.slice(2, -2)))}</strong>`;
+          }
+          if (!options.preserveAsteriskLiterals && /^\*[^*]+\*$/.test(part)) {
+            return `<em>${escapeHtml(restore(part.slice(1, -1)))}</em>`;
+          }
+          if (/^~~[^~]+~~$/.test(part)) {
+            return `<del>${escapeHtml(restore(part.slice(2, -2)))}</del>`;
+          }
+          if (/^`[^`]+`$/.test(part)) {
+            return `<code>${escapeHtml(restore(part.slice(1, -1)))}</code>`;
+          }
+          const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+          if (linkMatch) {
+            const label = escapeHtml(restore(linkMatch[1]));
+            const href = escapeHtml(restore(linkMatch[2]));
+            return `<a href="${href}">${label}</a>`;
+          }
+          return escapeHtml(restore(part));
+        })
+        .join(""),
+    )
+    .join("<br>");
+}
+
+function safeRawPrintHtml(html: string): string {
+  return html
+    .replace(/<script\b[\s\S]*?<\/script>/gi, "")
+    .replace(/\son\w+=(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+}
+
+function renderPrintBlockHtml(block: Block, blockIndex: number): string {
+  const key = `block-${blockIndex}`;
+  if (block.type === "heading") {
+    const level = Math.max(1, Math.min(6, block.level));
+    return `<h${level} class="md-heading md-heading-${level}" id="${key}">${renderInlinePrintHtml(block.text)}</h${level}>`;
+  }
+  if (block.type === "paragraph") {
+    return `<p>${renderInlinePrintHtml(block.text)}</p>`;
+  }
+  if (block.type === "blockquote") {
+    const marginClass = `indent-${Math.max(0, Math.min(4, block.level))}`;
+    return `<blockquote class="${marginClass}">${block.paragraphs
+      .map((paragraph) =>
+        paragraph
+          .split("\n")
+          .map((quoteLine) => {
+            const headingMatch = parseAtxHeadingLine(quoteLine);
+            if (headingMatch) {
+              const level = Math.max(1, Math.min(6, headingMatch.level));
+              return `<h${level} class="md-heading md-heading-${level}">${renderInlinePrintHtml(headingMatch.text, { preserveAsteriskLiterals: true })}</h${level}>`;
+            }
+            return `<div>${renderInlinePrintHtml(quoteLine, { preserveAsteriskLiterals: true })}</div>`;
+          })
+          .join(""),
+      )
+      .join("")}</blockquote>`;
+  }
+  if (block.type === "list_item") {
+    const visualLevel = block.visualLevel ?? block.level;
+    const marker = escapeHtml(getListBullet(block.level, block.ordered, block.orderIndex, block.orderNumber));
+    return `<div class="list-item indent-${Math.max(0, Math.min(4, visualLevel))}"><span class="marker">${marker}</span><div>${renderInlinePrintHtml(block.text)}</div></div>`;
+  }
+  if (block.type === "checklist_item") {
+    const marker = block.checked ? "✓" : "";
+    return `<div class="list-item indent-${Math.max(0, Math.min(4, block.level))}"><span class="checkbox">${marker}</span><div>${renderInlinePrintHtml(block.text)}</div></div>`;
+  }
+  if (block.type === "image") {
+    return `<figure><img src="${escapeHtml(block.src)}" alt="${escapeHtml(block.alt)}">${block.alt ? `<figcaption>${escapeHtml(block.alt)}</figcaption>` : ""}</figure>`;
+  }
+  if (block.type === "table") {
+    const columnCount = Math.max(block.headers.length, ...block.rows.map((row) => row.length));
+    const header = `<tr>${Array.from({ length: columnCount })
+      .map((_, index) => `<th>${renderInlinePrintHtml(block.headers[index] || "")}</th>`)
+      .join("")}</tr>`;
+    const rows = block.rows
+      .map((row) => `<tr>${Array.from({ length: columnCount }).map((_, index) => `<td>${renderInlinePrintHtml(row[index] || "")}</td>`).join("")}</tr>`)
+      .join("");
+    return `<table>${header}${rows}</table>`;
+  }
+  if (block.type === "html_table") {
+    return `<div class="table-wrap">${safeRawPrintHtml(block.rawHtml)}</div>`;
+  }
+  if (block.type === "rule") {
+    return "<hr>";
+  }
+  if (block.type === "code") {
+    return `<pre><code>${escapeHtml(block.lines.join("\n"))}</code></pre>`;
+  }
+  return "";
+}
+
+export function buildPrintDocumentHtml(markdown: string, title: string): string {
+  const blocks = parseMarkdown(markdown);
+  const body = blocks.map(renderPrintBlockHtml).join("\n");
+  return `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { margin: 14mm; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #fff; color: #2f2318; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; font-size: 16px; line-height: 1.62; }
+    main { width: 100%; margin: 0; padding: 8px 0 0; background: #fff; border: 0; outline: 0; box-shadow: none; }
+    h1, h2, h3, h4, h5, h6 { color: #7a3e12; margin: 0 0 12px; font-weight: 700; break-after: avoid; }
+    h1 { font-size: 30px; line-height: 1.27; }
+    h2 { font-size: 25px; line-height: 1.32; }
+    h3 { font-size: 20px; line-height: 1.4; }
+    h4 { font-size: 17px; line-height: 1.47; color: #8b5425; }
+    h5 { font-size: 16px; line-height: 1.5; color: #8b5425; }
+    h6 { font-size: 15px; line-height: 1.53; color: #8b5425; }
+    p { margin: 0 0 12px; }
+    a { color: #0f6f6f; text-decoration: underline; }
+    code { font-family: "D2Coding", "Fira Code", Consolas, monospace; background: #f3ebe2; padding: 1px 4px; border-radius: 4px; }
+    pre { white-space: pre-wrap; background: #f7efe6; padding: 12px; break-inside: avoid; }
+    blockquote { margin: 0 0 12px; padding-left: 12px; border-left: 3px solid #c8a77d; color: #5c4632; break-inside: avoid; }
+    blockquote > div + div { margin-top: 4px; }
+    .list-item { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 8px; }
+    .marker { width: 24px; flex: 0 0 24px; text-align: right; color: #8b5425; }
+    .checkbox { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 4px; border: 1px solid #b5a695; border-radius: 4px; text-align: center; line-height: 16px; color: #0f6f6f; }
+    .indent-0 { margin-left: 8px; }
+    .indent-1 { margin-left: 24px; }
+    .indent-2 { margin-left: 40px; }
+    .indent-3 { margin-left: 56px; }
+    .indent-4 { margin-left: 72px; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; break-inside: auto; }
+    tr { break-inside: avoid; }
+    th, td { border: 1px solid #ddd6cc; padding: 8px 10px; vertical-align: top; text-align: left; }
+    th { background: #f4eadf; font-weight: 700; }
+    figure { margin: 12px 0; break-inside: avoid; }
+    img { display: block; max-width: 100%; height: auto; }
+    figcaption { margin-top: 6px; color: #7c6a55; font-size: 13px; }
+    hr { border: 0; border-top: 1px solid #d9c7ad; margin: 16px 0; }
+    ins { text-decoration: underline; }
+    sup { font-size: 0.7em; vertical-align: super; }
+    sub { font-size: 0.7em; vertical-align: sub; }
+  </style>
+</head>
+<body>
+  <main>${body}</main>
+  <script>
+    window.addEventListener("load", () => {
+      window.focus();
+      window.print();
+    });
+  </script>
+</body>
+</html>`;
+}
+
 export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[] {
   const normalized = markdown.replace(/\r\n/g, "\n");
   const lines = normalized.split("\n");
