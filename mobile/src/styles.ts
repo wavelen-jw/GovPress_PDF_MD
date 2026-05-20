@@ -10,7 +10,7 @@ export const styles = StyleSheet.create({
   scrollContent: { padding: 14, gap: 14 },
   scrollContentTablet: {
     paddingHorizontal: 22,
-    paddingTop: 16,
+    paddingTop: 8,
     paddingBottom: 22,
   },
   scrollContentDesktop: {
