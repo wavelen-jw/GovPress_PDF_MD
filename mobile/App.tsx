@@ -1866,9 +1866,20 @@ export default function App(): React.JSX.Element {
             background: #ffffff !important;
             overflow: visible !important;
             border: 0 !important;
+            border-color: transparent !important;
             box-shadow: none !important;
             padding: 0 !important;
             gap: 0 !important;
+            outline: none !important;
+          }
+          #govpress-print-preview > div,
+          #govpress-print-preview > div > div,
+          #govpress-print-preview > div > div > div {
+            background: #ffffff !important;
+            border: 0 !important;
+            border-color: transparent !important;
+            box-shadow: none !important;
+            outline: none !important;
           }
           #govpress-print-preview-header,
           #govpress-print-preview-header-actions {
