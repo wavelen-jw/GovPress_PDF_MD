@@ -109,6 +109,7 @@ export function JobDetailPanel({
   const deferredPreviewMarkdown = useDeferredValue(selectedResultText);
   const isMobileEditingOnly = isCompactLayout && activeTab === "markdown";
   const previewMarkdown = isCompactLayout ? selectedResultText : deferredPreviewMarkdown;
+  const canPrintPreview = Platform.OS === "web" && typeof window !== "undefined";
   const openOriginalUrl = () => {
     if (!originalUrl) {
       return;
@@ -124,6 +125,12 @@ export function JobDetailPanel({
     : selectedJob?.converter_engine === "govpress-hwpx-md"
       ? "새 변환기"
       : "기본 변환기";
+  const handlePrintPreview = () => {
+    if (!canPrintPreview) {
+      return;
+    }
+    window.print();
+  };
   const renderPreviewHeader = () => (
     <View style={[styles.panelTabBar, isDarkMode ? styles.panelTabBarDark : styles.panelTabBarLight]}>
       <Text style={isDarkMode ? styles.panelTabLabelActive : styles.previewLabel}>미리보기</Text>
@@ -131,7 +138,28 @@ export function JobDetailPanel({
         {converterLabel}
       </Text>
       <View style={styles.panelTabSpacer} />
-      {originalUrl ? (
+      {canPrintPreview ? (
+        <View nativeID="govpress-print-preview-header-actions" style={styles.previewHeaderActions}>
+          <Pressable
+            onPress={handlePrintPreview}
+            style={styles.panelTabBtn}
+            accessibilityLabel="렌더링 결과 인쇄"
+          >
+            <Text style={styles.panelTabBtnLabel}>인쇄</Text>
+          </Pressable>
+          {originalUrl ? (
+            <Pressable
+              onPress={openOriginalUrl}
+              style={styles.panelTabBtn}
+              accessibilityRole="link"
+              accessibilityLabel="정책브리핑 원문 열기"
+            >
+              <Text style={styles.panelTabBtnLabel}>원본</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      {!canPrintPreview && originalUrl ? (
         <Pressable
           onPress={openOriginalUrl}
           style={styles.panelTabBtn}
@@ -551,6 +579,7 @@ export function JobDetailPanel({
                       <View style={[styles.desktopResizeTrack, isDarkMode && styles.desktopResizeTrackDark]} />
                     </View>
                     <View
+                      nativeID="govpress-print-preview"
                       style={[
                         styles.previewPanel,
                         styles.previewPanelDesktop,
@@ -562,6 +591,7 @@ export function JobDetailPanel({
                     >
                       {renderPreviewHeader()}
                       <ScrollView
+                        nativeID="govpress-print-preview-scroll"
                         ref={previewScrollRef}
                         style={[styles.previewScroll, styles.previewScrollDesktop]}
                         contentContainerStyle={[styles.previewScrollContent, isDarkMode && { padding: 16 }]}
@@ -682,9 +712,10 @@ export function JobDetailPanel({
                       </View>
                     ) : null}
                     <View style={[styles.previewPanel, styles.previewPanelTablet, isDarkMode && styles.previewPanelDark]}>
-                      <View style={{ flex: 1 }} {...webPreviewDropProps}>
+                      <View nativeID="govpress-print-preview" style={{ flex: 1 }} {...webPreviewDropProps}>
                       {renderPreviewHeader()}
                       <ScrollView
+                        nativeID="govpress-print-preview-scroll"
                         ref={previewScrollRef}
                         style={[styles.previewScroll, styles.previewScrollTablet]}
                         contentContainerStyle={[styles.previewScrollContent, isDarkMode && { padding: 16 }]}
@@ -805,9 +836,10 @@ export function JobDetailPanel({
                       </View>
                     ) : (
                     <View style={[styles.previewPanel, styles.previewPanelMobile, isDarkMode && styles.previewPanelDark]}>
-                      <View style={{ flex: 1 }} {...webPreviewDropProps}>
+                      <View nativeID="govpress-print-preview" style={{ flex: 1 }} {...webPreviewDropProps}>
                       {renderPreviewHeader()}
                       <ScrollView
+                        nativeID="govpress-print-preview-scroll"
                         ref={previewScrollRef}
                         style={[styles.previewScroll, styles.previewScrollMobile]}
                         contentContainerStyle={[styles.previewScrollContent, isDarkMode && { padding: 16 }]}

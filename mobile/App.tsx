@@ -1834,6 +1834,73 @@ export default function App(): React.JSX.Element {
   const currentDocumentName = selectedJob?.file_name || result?.meta.source_file_name || null;
   const isPdfPickReady = true;
 
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") {
+      return;
+    }
+    const styleId = "govpress-print-style";
+    let style = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!style) {
+      style = document.createElement("style");
+      style.id = styleId;
+      style.textContent = `
+        @page {
+          margin: 14mm;
+        }
+        @media print {
+          html, body {
+            background: #ffffff !important;
+          }
+          body * {
+            visibility: hidden !important;
+          }
+          #govpress-print-preview,
+          #govpress-print-preview * {
+            visibility: visible !important;
+          }
+          #govpress-print-preview {
+            position: absolute !important;
+            inset: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            background: #ffffff !important;
+            overflow: visible !important;
+          }
+          #govpress-print-preview-header-actions {
+            display: none !important;
+          }
+          #govpress-print-preview-scroll,
+          #govpress-print-preview-scroll > div,
+          #govpress-print-preview-scroll > div > div {
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+          }
+          #govpress-print-preview img {
+            max-width: 100% !important;
+            height: auto !important;
+            break-inside: avoid;
+          }
+          #govpress-print-preview table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+          }
+          #govpress-print-preview tr,
+          #govpress-print-preview td,
+          #govpress-print-preview th,
+          #govpress-print-preview pre,
+          #govpress-print-preview blockquote {
+            break-inside: avoid;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    return () => {
+      style?.remove();
+    };
+  }, []);
+
   if (loadingConfig) {
     return (
       <SafeAreaView style={styles.loadingShell}>

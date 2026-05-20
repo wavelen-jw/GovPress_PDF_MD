@@ -1448,6 +1448,11 @@ export const styles = StyleSheet.create({
     paddingBottom: 2,
   },
   panelTabSpacer: { flex: 1 },
+  previewHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   panelTabBtn: {
     paddingHorizontal: 8,
     paddingVertical: 3,
