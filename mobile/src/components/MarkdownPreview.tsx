@@ -467,6 +467,7 @@ function renderInlineMarkdownSegment(
   key: string,
   isDarkMode: boolean,
   restore: (value: string) => string,
+  preserveAsteriskLiterals = false,
 ): React.ReactNode {
   const tagMatch = part.match(/^<(sup|sub|ins|u)>([\s\S]*?)<\/\1>$/i);
   if (tagMatch) {
@@ -480,19 +481,19 @@ function renderInlineMarkdownSegment(
           : [styles.markdownUnderline, isDarkMode && styles.markdownUnderlineDark];
     return (
       <Text key={key} style={tagStyle}>
-        {renderInlineMarkdown(inner, {}, `${key}-inner`, isDarkMode)}
+        {renderInlineMarkdown(inner, {}, `${key}-inner`, isDarkMode, { preserveAsteriskLiterals })}
       </Text>
     );
   }
 
-  if (/^\*\*[^*]+\*\*$/.test(part)) {
+  if (!preserveAsteriskLiterals && /^\*\*[^*]+\*\*$/.test(part)) {
     return (
       <Text key={key} style={[styles.markdownStrong, isDarkMode && styles.markdownStrongDark]}>
         {restore(part.slice(2, -2))}
       </Text>
     );
   }
-  if (/^\*[^*]+\*$/.test(part)) {
+  if (!preserveAsteriskLiterals && /^\*[^*]+\*$/.test(part)) {
     return (
       <Text key={key} style={styles.markdownEmphasis}>
         {restore(part.slice(1, -1))}
@@ -526,9 +527,17 @@ function renderInlineMarkdownSegment(
   return <Text key={key}>{restore(part)}</Text>;
 }
 
-function renderInlineMarkdown(text: string, textStyle: object, keyPrefix: string, isDarkMode = false) {
+function renderInlineMarkdown(
+  text: string,
+  textStyle: object,
+  keyPrefix: string,
+  isDarkMode = false,
+  options: { preserveAsteriskLiterals?: boolean } = {},
+) {
   const { text: escapedText, restore } = protectMarkdownEscapes(text);
-  const pattern = /(<(?:sup|sub|ins|u)>[\s\S]*?<\/(?:sup|sub|ins|u)>|\*\*[^*]+\*\*|~~[^~]+~~|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
+  const pattern = options.preserveAsteriskLiterals
+    ? /(<(?:sup|sub|ins|u)>[\s\S]*?<\/(?:sup|sub|ins|u)>|~~[^~]+~~|`[^`]+`|\[[^\]]+\]\([^)]+\))/g
+    : /(<(?:sup|sub|ins|u)>[\s\S]*?<\/(?:sup|sub|ins|u)>|\*\*[^*]+\*\*|~~[^~]+~~|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
   const lineParts = escapedText.split(/<br\s*\/?>/gi);
 
   return (
@@ -540,7 +549,7 @@ function renderInlineMarkdown(text: string, textStyle: object, keyPrefix: string
             {lineIndex > 0 ? "\n" : null}
             {matches.map((part, index) => {
               const key = `${keyPrefix}-${lineIndex}-${index}`;
-              return renderInlineMarkdownSegment(part, key, isDarkMode, restore);
+              return renderInlineMarkdownSegment(part, key, isDarkMode, restore, options.preserveAsteriskLiterals);
             })}
           </React.Fragment>
         );
@@ -1106,6 +1115,7 @@ export function MarkdownPreview({
                             [styles.markdownQuoteText, isDarkMode && styles.markdownQuoteTextDark] as unknown as object,
                             `${key}-${paragraphIndex}-${quoteLineIndex}`,
                             isDarkMode,
+                            { preserveAsteriskLiterals: true },
                           );
                         })()}
                       </View>
