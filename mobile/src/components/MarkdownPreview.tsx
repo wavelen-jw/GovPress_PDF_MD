@@ -1064,6 +1064,9 @@ export function buildPrintDocumentHtml(markdown: string, title: string): string 
 <body>
   <main>${body}</main>
   <script>
+    window.addEventListener("afterprint", () => {
+      window.setTimeout(() => window.close(), 100);
+    });
     window.addEventListener("load", () => {
       window.focus();
       window.print();
