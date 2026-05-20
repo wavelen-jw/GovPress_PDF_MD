@@ -615,7 +615,10 @@ export function JobDetailPanel({
                         nativeID="govpress-print-preview-scroll"
                         ref={previewScrollRef}
                         style={[styles.previewScroll, styles.previewScrollDesktop]}
-                        contentContainerStyle={[styles.previewScrollContent, previewChromeDark && { padding: 16 }]}
+                        contentContainerStyle={[
+                          styles.previewScrollContent,
+                          previewChromeDark && { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, paddingRight: 0 },
+                        ]}
                         onLayout={(event) => {
                           previewViewportHeightRef.current = event.nativeEvent.layout.height;
                         }}
@@ -742,7 +745,10 @@ export function JobDetailPanel({
                         nativeID="govpress-print-preview-scroll"
                         ref={previewScrollRef}
                         style={[styles.previewScroll, styles.previewScrollTablet]}
-                        contentContainerStyle={[styles.previewScrollContent, previewChromeDark && { padding: 16 }]}
+                        contentContainerStyle={[
+                          styles.previewScrollContent,
+                          previewChromeDark && { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, paddingRight: 0 },
+                        ]}
                         onLayout={(event) => {
                           previewViewportHeightRef.current = event.nativeEvent.layout.height;
                         }}
@@ -869,7 +875,10 @@ export function JobDetailPanel({
                         nativeID="govpress-print-preview-scroll"
                         ref={previewScrollRef}
                         style={[styles.previewScroll, styles.previewScrollMobile]}
-                        contentContainerStyle={[styles.previewScrollContent, previewChromeDark && { padding: 16 }]}
+                        contentContainerStyle={[
+                          styles.previewScrollContent,
+                          previewChromeDark && { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, paddingRight: 0 },
+                        ]}
                         onLayout={(event) => {
                           previewViewportHeightRef.current = event.nativeEvent.layout.height;
                         }}

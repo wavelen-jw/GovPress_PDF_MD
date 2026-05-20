@@ -1522,8 +1522,10 @@ export const styles = StyleSheet.create({
   },
   previewCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 0,
+    paddingTop: 0,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
     maxWidth: undefined,
     alignSelf: "stretch",
   },
