@@ -614,10 +614,14 @@ export function JobDetailPanel({
                       <ScrollView
                         nativeID="govpress-print-preview-scroll"
                         ref={previewScrollRef}
-                        style={[styles.previewScroll, styles.previewScrollDesktop]}
+                        style={[
+                          styles.previewScroll,
+                          styles.previewScrollDesktop,
+                          previewChromeDark && styles.previewScrollDocument,
+                        ]}
                         contentContainerStyle={[
                           styles.previewScrollContent,
-                          previewChromeDark && { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, paddingRight: 0 },
+                          previewChromeDark && styles.previewScrollDocumentContent,
                         ]}
                         onLayout={(event) => {
                           previewViewportHeightRef.current = event.nativeEvent.layout.height;
@@ -744,10 +748,14 @@ export function JobDetailPanel({
                       <ScrollView
                         nativeID="govpress-print-preview-scroll"
                         ref={previewScrollRef}
-                        style={[styles.previewScroll, styles.previewScrollTablet]}
+                        style={[
+                          styles.previewScroll,
+                          styles.previewScrollTablet,
+                          previewChromeDark && styles.previewScrollDocument,
+                        ]}
                         contentContainerStyle={[
                           styles.previewScrollContent,
-                          previewChromeDark && { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, paddingRight: 0 },
+                          previewChromeDark && styles.previewScrollDocumentContent,
                         ]}
                         onLayout={(event) => {
                           previewViewportHeightRef.current = event.nativeEvent.layout.height;
@@ -874,10 +882,14 @@ export function JobDetailPanel({
                       <ScrollView
                         nativeID="govpress-print-preview-scroll"
                         ref={previewScrollRef}
-                        style={[styles.previewScroll, styles.previewScrollMobile]}
+                        style={[
+                          styles.previewScroll,
+                          styles.previewScrollMobile,
+                          previewChromeDark && styles.previewScrollDocument,
+                        ]}
                         contentContainerStyle={[
                           styles.previewScrollContent,
-                          previewChromeDark && { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, paddingRight: 0 },
+                          previewChromeDark && styles.previewScrollDocumentContent,
                         ]}
                         onLayout={(event) => {
                           previewViewportHeightRef.current = event.nativeEvent.layout.height;

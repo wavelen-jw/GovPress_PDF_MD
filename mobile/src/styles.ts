@@ -1523,7 +1523,7 @@ export const styles = StyleSheet.create({
   previewCard: {
     backgroundColor: "#ffffff",
     borderRadius: 0,
-    paddingTop: 0,
+    paddingTop: 16,
     paddingBottom: 20,
     paddingHorizontal: 20,
     maxWidth: undefined,
@@ -1670,6 +1670,9 @@ export const styles = StyleSheet.create({
     backgroundColor: "rgba(34,197,94,0.16)",
   },
   previewScroll: { flex: 1 },
+  previewScrollDocument: {
+    backgroundColor: "#ffffff",
+  },
   previewScrollDesktop: {},
   previewScrollTablet: {},
   previewScrollMobile: {},
@@ -1677,6 +1680,13 @@ export const styles = StyleSheet.create({
     paddingTop: 2,
     paddingBottom: 6,
     paddingRight: 10,
+  },
+  previewScrollDocumentContent: {
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 16,
+    paddingRight: 0,
   },
   dragOverlay: {
     position: "absolute",
