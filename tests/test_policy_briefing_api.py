@@ -78,6 +78,7 @@ class PolicyBriefingClientStub:
             ],
         }
         self.raise_on_dates: set[date] = set()
+        self.resolved_original_page_dates: dict[str, date | None] = {}
 
     @property
     def configured(self) -> bool:
@@ -91,6 +92,9 @@ class PolicyBriefingClientStub:
 
     def list_items(self, target_date: date) -> list[PolicyBriefingItem]:
         return self.list_today_hwpx_items(target_date)
+
+    def resolve_item_date_from_original_page(self, news_item_id: str) -> date | None:
+        return self.resolved_original_page_dates.get(news_item_id)
 
     def download_primary_hwpx(self, news_item_id: str, *, target_date: date) -> DownloadedPolicyBriefingFile:
         item = next(entry for entry in self.items if entry.news_item_id == news_item_id)
@@ -135,7 +139,7 @@ class PolicyBriefingApiTests(unittest.TestCase):
         self.headers = {"X-API-Key": "test-api-key"}
         self.convert_hwpx_patcher = patch(
             "server.app.adapters.hwpx_converter.convert_hwpx",
-            side_effect=lambda path, table_mode="text": "# 제목\n\n보도자료\n보도시점: 2026. 4. 9.\n",
+            side_effect=lambda path, table_mode="text", document_metadata=None: "# 제목\n\n보도자료\n보도시점: 2026. 4. 9.\n",
         )
         self.render_preview_patcher = patch(
             "server.app.adapters.opendataloader.render_preview_html",
@@ -145,7 +149,7 @@ class PolicyBriefingApiTests(unittest.TestCase):
             "server.app.adapters.opendataloader.extract_metadata",
             return_value=("제목", "행정안전부"),
         )
-        self.convert_hwpx_patcher.start()
+        self.convert_hwpx_mock = self.convert_hwpx_patcher.start()
         self.render_preview_patcher.start()
         self.extract_metadata_patcher.start()
         self.addCleanup(self.convert_hwpx_patcher.stop)
@@ -283,6 +287,48 @@ class PolicyBriefingApiTests(unittest.TestCase):
         original_path = next((Path(self.temp_dir.name) / "originals").glob(f"{payload['job_id']}-*.hwpx"))
         self.assertGreater(original_path.stat().st_size, 0)
 
+    def test_import_policy_briefing_force_refreshes_requested_date_when_cached_day_is_partial(self) -> None:
+        target_date = date(2026, 4, 9)
+        partial_item = replace(self.client_stub.items[0], news_item_id="156700999")
+        catalog = PolicyBriefingCatalog(
+            client=self.client_stub,
+            cache_path=Path(self.temp_dir.name) / "policy_briefing_catalog.json",
+        )
+        catalog._save_day_store(target_date, {"items": {partial_item.news_item_id: {  # type: ignore[attr-defined]
+            "news_item_id": partial_item.news_item_id,
+            "title": partial_item.title,
+            "department": partial_item.department,
+            "approve_date": partial_item.approve_date,
+            "original_url": partial_item.original_url,
+            "attachments": [
+                {"file_name": attachment.file_name, "file_url": attachment.file_url}
+                for attachment in partial_item.attachments
+            ],
+        }}})
+
+        response = self.client.post(
+            "/v1/policy-briefings/import",
+            json={"news_item_id": "156700001", "date": "2026-04-09"},
+            headers=self.headers,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["news_item_id"], "156700001")
+        self.assertEqual(self.client_stub.list_calls, [target_date])
+
+    def test_import_policy_briefing_resolves_original_page_date_when_date_is_missing(self) -> None:
+        self.client_stub.resolved_original_page_dates["156700000"] = date(2026, 4, 8)
+
+        response = self.client.post(
+            "/v1/policy-briefings/import",
+            json={"news_item_id": "156700000"},
+            headers=self.headers,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["news_item_id"], "156700000")
+        self.assertEqual(self.client_stub.list_calls, [date(2026, 4, 8)])
+
     def test_policy_briefing_cache_retries_with_refreshed_catalog_when_cached_hwpx_url_fails(self) -> None:
         target_date = date(2026, 4, 9)
         stale_item = replace(
@@ -348,6 +394,18 @@ class PolicyBriefingApiTests(unittest.TestCase):
             ],
         )
         self.assertEqual(self.client_stub.list_calls, [target_date, target_date])
+
+    def test_policy_briefing_cache_passes_department_metadata_to_hwpx_converter(self) -> None:
+        cache = PolicyBriefingCache(
+            client=self.client_stub,
+            cache_dir=Path(self.temp_dir.name) / "policy_briefing_metadata_cache",
+        )
+
+        cache.warm_item(self.client_stub.items[0])
+
+        kwargs = self.convert_hwpx_mock.call_args_list[0].kwargs
+        self.assertEqual(kwargs["document_metadata"]["issuer_agency"], "행정안전부")
+        self.assertEqual(kwargs["document_metadata"]["departmentName"], "행정안전부")
 
     def test_import_policy_briefing_is_idempotent_for_same_source(self) -> None:
         first = self.client.post(
@@ -506,6 +564,13 @@ class PolicyBriefingApiTests(unittest.TestCase):
 
     def test_inject_policy_briefing_department_prefixes_press_label(self) -> None:
         markdown = "# 제목\n\n보도자료\n보도시점: 2026. 4. 9.\n"
+
+        injected = _inject_policy_briefing_department(markdown, "행정안전부")
+
+        self.assertEqual(injected, "# 제목\n\n행정안전부 보도자료 /\n보도시점: 2026. 4. 9.\n")
+
+    def test_inject_policy_briefing_department_prefixes_press_label_with_slash(self) -> None:
+        markdown = "# 제목\n\n보도자료 /\n보도시점: 2026. 4. 9.\n"
 
         injected = _inject_policy_briefing_department(markdown, "행정안전부")
 

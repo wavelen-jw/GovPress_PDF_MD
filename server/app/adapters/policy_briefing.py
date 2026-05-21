@@ -14,10 +14,16 @@ import xml.etree.ElementTree as ET
 
 
 PRESS_RELEASE_LIST_URL = "https://apis.data.go.kr/1371000/pressReleaseService/pressReleaseList"
+PRESS_RELEASE_VIEW_URL = "https://www.korea.kr/briefing/pressReleaseView.do"
 _APPENDIX_PREFIXES = ("붙임", "별첨", "첨부")
 _ATTACHMENT_DATE_PREFIX_RE = re.compile(r"^\s*\d{6,8}(?:[\s_-]+)?")
 _ATTACHMENT_APPENDIX_RE = re.compile(r"^(?:[\[<(]\s*)?(?:붙임|별첨|첨부)(?=\b|\d)")
 _PRESS_LABEL_RE = re.compile(r"^(보도자료|보도참고자료)\s*$")
+_PRESS_LABEL_WITH_SLASH_RE = re.compile(r"^(보도자료|보도참고자료)\s*/?$")
+_PRESS_RELEASE_VIEW_DATE_RE = re.compile(
+    r"<div\s+class=[\"']info[\"'][^>]*>.*?<span>\s*(\d{4})\.(\d{2})\.(\d{2})\s*</span>",
+    re.DOTALL | re.IGNORECASE,
+)
 _CATALOG_REFRESH_INTERVAL_SECONDS = 3600
 _ATTACHMENT_HTML_PREFIXES = (b"<!doctype html", b"<html", b"<?xml")
 
@@ -209,6 +215,22 @@ class PolicyBriefingClient:
 
     def list_today_hwpx_items(self, target_date: date) -> list[PolicyBriefingItem]:
         return [item for item in self.list_items(target_date) if item.primary_hwpx is not None]
+
+    def resolve_item_date_from_original_page(self, news_item_id: str) -> date | None:
+        if not news_item_id.strip():
+            return None
+        query = urllib.parse.urlencode({"newsId": news_item_id, "call_from": "openData"})
+        request = urllib.request.Request(
+            f"{PRESS_RELEASE_VIEW_URL}?{query}",
+            headers={"User-Agent": "GovPress/1.0"},
+        )
+        with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
+            html = response.read(512_000).decode("utf-8", errors="ignore")
+        match = _PRESS_RELEASE_VIEW_DATE_RE.search(html)
+        if match is None:
+            return None
+        year, month, day = (int(part) for part in match.groups())
+        return date(year, month, day)
 
     def download_primary_hwpx(self, news_item_id: str, *, target_date: date) -> DownloadedPolicyBriefingFile:
         items = self.list_today_hwpx_items(target_date)
@@ -628,8 +650,17 @@ class PolicyBriefingCache:
             temp_path = Path(handle.name)
             handle.write(downloaded.content)
         try:
-            markdown_text = hwpx_converter.convert_hwpx(str(temp_path), table_mode="text")
-            markdown_html = hwpx_converter.convert_hwpx(str(temp_path), table_mode="html")
+            document_metadata = _policy_briefing_document_metadata(item)
+            markdown_text = hwpx_converter.convert_hwpx(
+                str(temp_path),
+                table_mode="text",
+                document_metadata=document_metadata,
+            )
+            markdown_html = hwpx_converter.convert_hwpx(
+                str(temp_path),
+                table_mode="html",
+                document_metadata=document_metadata,
+            )
         finally:
             temp_path.unlink(missing_ok=True)
 
@@ -796,13 +827,30 @@ def _inject_policy_briefing_department(markdown: str, department: str | None) ->
         stripped = line.strip()
         if not stripped:
             continue
-        match = _PRESS_LABEL_RE.fullmatch(stripped)
+        match = _PRESS_LABEL_WITH_SLASH_RE.fullmatch(stripped)
         if match:
             lines[index] = f"{dept} {match.group(1)} /"
             return "\n".join(lines) + ("\n" if markdown.endswith("\n") else "")
+        if re.match(rf"^{re.escape(dept)}\s+(?:보도자료|보도참고자료)\s*/?$", stripped):
+            return markdown
         if index >= 9:
             break
     return markdown
+
+
+def _policy_briefing_document_metadata(item: PolicyBriefingItem) -> dict[str, object]:
+    department = item.department.strip()
+    title = item.title.strip()
+    return {
+        "issuer_agency": department,
+        "department": department,
+        "departmentName": department,
+        "title": title,
+        "document_metadata": {
+            "issuer_agency": department,
+            "title": title,
+        },
+    }
 
 
 def _deserialize_item(payload: dict[str, object]) -> PolicyBriefingItem:

@@ -192,9 +192,12 @@ def build_router(
         try:
             item = policy_briefing_catalog.get_cached_item(payload.news_item_id, target_date=payload.date)
             if item is None:
-                resolved_date = payload.date or date.today()
-                policy_briefing_catalog.refresh_today(resolved_date)
-                item = policy_briefing_catalog.get_cached_item(payload.news_item_id, target_date=resolved_date)
+                resolved_date = payload.date
+                if resolved_date is None:
+                    resolved_date = policy_briefing_client.resolve_item_date_from_original_page(payload.news_item_id)
+                if resolved_date is not None:
+                    policy_briefing_catalog.force_refresh_day(resolved_date)
+                    item = policy_briefing_catalog.get_cached_item(payload.news_item_id, target_date=resolved_date)
             if item is None:
                 raise KeyError(payload.news_item_id)
             selected_attachment = item.primary_hwpx
