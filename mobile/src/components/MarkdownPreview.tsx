@@ -17,10 +17,14 @@ type TableLayout = {
   tableContentWidth: number;
 };
 
+type QuoteChild =
+  | { type: "quote_text"; paragraphs: string[] }
+  | { type: "blockquote"; children: QuoteChild[]; level: number };
+
 type Block =
   | { type: "heading"; level: number; text: string }
   | { type: "paragraph"; text: string }
-  | { type: "blockquote"; paragraphs: string[]; level: number }
+  | { type: "blockquote"; children: QuoteChild[]; level: number }
   | { type: "list_item"; ordered: boolean; level: number; visualLevel?: number; text: string; orderIndex: number; orderNumber?: number }
   | { type: "checklist_item"; checked: boolean; level: number; text: string }
   | { type: "image"; alt: string; src: string }
@@ -135,6 +139,69 @@ function joinMarkdownInlineLines(lines: string[]): string {
     result += stripHardLineBreakSuffix(lines[index]);
   }
   return result;
+}
+
+function parseQuoteChildren(lines: string[]): QuoteChild[] {
+  const children: QuoteChild[] = [];
+  let index = 0;
+  let paragraphBuffer: string[] = [];
+  let paragraphs: string[] = [];
+
+  const flushParagraph = () => {
+    if (paragraphBuffer.length) {
+      paragraphs.push(joinMarkdownInlineLines(paragraphBuffer));
+      paragraphBuffer = [];
+    }
+  };
+
+  const flushText = () => {
+    flushParagraph();
+    if (paragraphs.length) {
+      children.push({ type: "quote_text", paragraphs });
+      paragraphs = [];
+    }
+  };
+
+  while (index < lines.length) {
+    const line = lines[index];
+    const nestedStartMatch = line.match(/^(\s*)>\s?(.*)$/);
+    if (nestedStartMatch) {
+      flushText();
+      const nestedIndent = nestedStartMatch[1].length;
+      const nestedLevel = Math.min(4, Math.floor(nestedIndent / 2));
+      const nestedLines: string[] = [];
+      while (index < lines.length) {
+        const nestedMatch = lines[index].match(/^(\s*)>\s?(.*)$/);
+        if (!nestedMatch) {
+          break;
+        }
+        const currentLevel = Math.min(4, Math.floor(nestedMatch[1].length / 2));
+        if (currentLevel !== nestedLevel) {
+          break;
+        }
+        nestedLines.push(nestedMatch[2]);
+        index += 1;
+      }
+      children.push({
+        type: "blockquote",
+        children: parseQuoteChildren(nestedLines),
+        level: nestedLevel,
+      });
+      continue;
+    }
+
+    if (!line.trim()) {
+      flushParagraph();
+      index += 1;
+      continue;
+    }
+
+    paragraphBuffer.push(line);
+    index += 1;
+  }
+
+  flushText();
+  return children.length ? children : [{ type: "quote_text", paragraphs: [""] }];
 }
 
 function splitTableRow(line: string): string[] {
@@ -698,22 +765,7 @@ function parseMarkdown(markdown: string): Block[] {
           continue;
         }
       }
-      const paragraphs: string[] = [];
-      let paragraphBuffer: string[] = [];
-      for (const line of quoteLines) {
-        if (!line.trim()) {
-          if (paragraphBuffer.length) {
-            paragraphs.push(joinMarkdownInlineLines(paragraphBuffer));
-            paragraphBuffer = [];
-          }
-          continue;
-        }
-        paragraphBuffer.push(line);
-      }
-      if (paragraphBuffer.length) {
-        paragraphs.push(joinMarkdownInlineLines(paragraphBuffer));
-      }
-      blocks.push({ type: "blockquote", paragraphs: paragraphs.length ? paragraphs : [""], level: quoteLevel });
+      blocks.push({ type: "blockquote", children: parseQuoteChildren(quoteLines), level: quoteLevel });
       continue;
     }
 
@@ -871,7 +923,7 @@ function parseMarkdown(markdown: string): Block[] {
       }
       if (
         parseAtxHeadingLine(candidate) ||
-        /^>\s?/.test(candidate) ||
+        /^\s*>\s?/.test(rawCandidate) ||
         /^!\[([^\]]*)\]\(([^)]+)\)$/.test(candidate) ||
         /^<table\b/i.test(candidate) ||
         (candidate.includes("|") && index + 1 < lines.length && isTableDivider(lines[index + 1].trim())) ||
@@ -951,6 +1003,32 @@ function safeRawPrintHtml(html: string): string {
     .replace(/\son\w+=(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
 }
 
+function renderPrintQuoteChildren(children: QuoteChild[]): string {
+  return children
+    .map((child) => {
+      if (child.type === "blockquote") {
+        const marginClass = `indent-${Math.max(0, Math.min(4, child.level))}`;
+        return `<blockquote class="${marginClass}">${renderPrintQuoteChildren(child.children)}</blockquote>`;
+      }
+      return child.paragraphs
+        .map((paragraph) =>
+          paragraph
+            .split("\n")
+            .map((quoteLine) => {
+              const headingMatch = parseAtxHeadingLine(quoteLine);
+              if (headingMatch) {
+                const level = Math.max(1, Math.min(6, headingMatch.level));
+                return `<h${level} class="md-heading md-heading-${level}">${renderInlinePrintHtml(headingMatch.text, { preserveAsteriskLiterals: true })}</h${level}>`;
+              }
+              return `<div>${renderInlinePrintHtml(quoteLine, { preserveAsteriskLiterals: true })}</div>`;
+            })
+            .join(""),
+        )
+        .join("");
+    })
+    .join("");
+}
+
 function renderPrintBlockHtml(block: Block, blockIndex: number): string {
   const key = `block-${blockIndex}`;
   if (block.type === "heading") {
@@ -962,21 +1040,7 @@ function renderPrintBlockHtml(block: Block, blockIndex: number): string {
   }
   if (block.type === "blockquote") {
     const marginClass = `indent-${Math.max(0, Math.min(4, block.level))}`;
-    return `<blockquote class="${marginClass}">${block.paragraphs
-      .map((paragraph) =>
-        paragraph
-          .split("\n")
-          .map((quoteLine) => {
-            const headingMatch = parseAtxHeadingLine(quoteLine);
-            if (headingMatch) {
-              const level = Math.max(1, Math.min(6, headingMatch.level));
-              return `<h${level} class="md-heading md-heading-${level}">${renderInlinePrintHtml(headingMatch.text, { preserveAsteriskLiterals: true })}</h${level}>`;
-            }
-            return `<div>${renderInlinePrintHtml(quoteLine, { preserveAsteriskLiterals: true })}</div>`;
-          })
-          .join(""),
-      )
-      .join("")}</blockquote>`;
+    return `<blockquote class="${marginClass}">${renderPrintQuoteChildren(block.children)}</blockquote>`;
   }
   if (block.type === "list_item") {
     const visualLevel = block.visualLevel ?? block.level;
@@ -1038,6 +1102,7 @@ export function buildPrintDocumentHtml(markdown: string, title: string): string 
     code { font-family: "D2Coding", "Fira Code", Consolas, monospace; background: #f3ebe2; padding: 1px 4px; border-radius: 4px; }
     pre { white-space: pre-wrap; background: #f7efe6; padding: 12px; break-inside: avoid; }
     blockquote { margin: 0 0 12px; padding-left: 12px; border-left: 3px solid #c8a77d; color: #5c4632; break-inside: avoid; }
+    blockquote blockquote { margin: 6px 0 2px; }
     blockquote > div + div { margin-top: 4px; }
     .list-item { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 8px; }
     .marker { width: 24px; flex: 0 0 24px; text-align: right; color: #8b5425; }
@@ -1243,6 +1308,62 @@ export function MarkdownPreview({
     onBlockLayout?.(blockIndex, event.nativeEvent.layout.y);
   }
 
+  function renderQuoteChildren(children: QuoteChild[], keyPrefix: string): React.ReactNode {
+    return children.map((child, childIndex) => {
+      const childKey = `${keyPrefix}-quote-child-${childIndex}`;
+      if (child.type === "blockquote") {
+        return (
+          <View
+            key={childKey}
+            style={[
+              styles.markdownQuote,
+              styles.markdownNestedQuote,
+              isDarkMode && styles.markdownQuoteDark,
+              child.level > 0 && markdownIndent(child.level - 1),
+            ]}
+          >
+            {renderQuoteChildren(child.children, childKey)}
+          </View>
+        );
+      }
+
+      return child.paragraphs.map((paragraph, paragraphIndex) => (
+        <View
+          key={`${childKey}-paragraph-${paragraphIndex}`}
+          style={paragraphIndex > 0 || childIndex > 0 ? styles.markdownQuoteParagraph : undefined}
+        >
+          {paragraph.split("\n").map((quoteLine, quoteLineIndex) => (
+            <View
+              key={`${childKey}-paragraph-${paragraphIndex}-line-${quoteLineIndex}`}
+              style={quoteLineIndex > 0 ? styles.markdownQuoteLine : undefined}
+            >
+              {(() => {
+                const headingMatch = parseAtxHeadingLine(quoteLine);
+                if (headingMatch) {
+                  return renderHeadingMarkdown(
+                    headingMatch.text,
+                    headingMatch.level,
+                    `${childKey}-${paragraphIndex}-${quoteLineIndex}`,
+                    isDarkMode,
+                    true,
+                  );
+                }
+
+                return renderInlineMarkdown(
+                  quoteLine,
+                  [styles.markdownQuoteText, isDarkMode && styles.markdownQuoteTextDark] as unknown as object,
+                  `${childKey}-${paragraphIndex}-${quoteLineIndex}`,
+                  isDarkMode,
+                  { preserveAsteriskLiterals: true },
+                );
+              })()}
+            </View>
+          ))}
+        </View>
+      ));
+    });
+  }
+
   if (!blocks.length) {
     return <Text style={[styles.previewEmpty, isDarkMode && styles.previewEmptyDark]}>표시할 Markdown 내용이 없습니다.</Text>;
   }
@@ -1299,40 +1420,7 @@ export function MarkdownPreview({
               ]}
               onLayout={(event) => handleBlockLayout(blockIndex, event)}
               >
-                {block.paragraphs.map((paragraph, paragraphIndex) => (
-                  <View
-                    key={`${key}-paragraph-${paragraphIndex}`}
-                    style={paragraphIndex > 0 ? styles.markdownQuoteParagraph : undefined}
-                  >
-                    {paragraph.split("\n").map((quoteLine, quoteLineIndex) => (
-                      <View
-                        key={`${key}-paragraph-${paragraphIndex}-line-${quoteLineIndex}`}
-                        style={quoteLineIndex > 0 ? styles.markdownQuoteLine : undefined}
-                      >
-                        {(() => {
-                          const headingMatch = parseAtxHeadingLine(quoteLine);
-                          if (headingMatch) {
-                            return renderHeadingMarkdown(
-                              headingMatch.text,
-                              headingMatch.level,
-                              `${key}-${paragraphIndex}-${quoteLineIndex}`,
-                              isDarkMode,
-                              true,
-                            );
-                          }
-
-                          return renderInlineMarkdown(
-                            quoteLine,
-                            [styles.markdownQuoteText, isDarkMode && styles.markdownQuoteTextDark] as unknown as object,
-                            `${key}-${paragraphIndex}-${quoteLineIndex}`,
-                            isDarkMode,
-                            { preserveAsteriskLiterals: true },
-                          );
-                        })()}
-                      </View>
-                    ))}
-                  </View>
-                ))}
+                {renderQuoteChildren(block.children, key)}
               </View>
             );
         }

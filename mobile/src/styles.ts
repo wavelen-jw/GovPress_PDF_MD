@@ -1947,6 +1947,10 @@ export const styles = StyleSheet.create({
   markdownQuoteDark: {
     borderLeftColor: "#6a5b4f",
   },
+  markdownNestedQuote: {
+    marginTop: 6,
+    marginBottom: 2,
+  },
   markdownQuoteText: {
     color: "#4f5f6e",
     fontSize: 14,
