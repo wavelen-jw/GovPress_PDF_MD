@@ -21,11 +21,6 @@ type HealthPayload = {
   converters?: Partial<Record<ConverterEngine, HealthConverterPayload | null>>;
 };
 
-const CONVERTER_OPTIONS: Array<{ value: ConverterEngine; label: string }> = [
-  { value: "default", label: "기본" },
-  { value: "govpress-hwpx-md", label: "새 변환기(실험)" },
-];
-
 function isRetryableProbeFailure(detail: string): boolean {
   const lowered = detail.toLowerCase();
   return (
@@ -64,9 +59,8 @@ function formatConverterDetail(converter?: HealthConverterPayload | null): strin
 }
 
 function formatServerConverterDetails(payload: HealthPayload): string {
-  const defaultDetail = formatConverterDetail(payload.converters?.default ?? payload.converter);
   const experimentalDetail = formatConverterDetail(payload.converters?.["govpress-hwpx-md"]);
-  return `기본 ${defaultDetail || "확인 불가"}\n새 변환기 ${experimentalDetail || "확인 불가"}`;
+  return `새 변환기 ${experimentalDetail || "확인 불가"}`;
 }
 
 async function probeServerApiReachability(url: string, apiKey: string, timeoutMs: number): Promise<ServerProbeResult> {
@@ -84,26 +78,6 @@ async function probeServerApiReachability(url: string, apiKey: string, timeoutMs
     return { ok: false, detail: `API HTTP ${response.status}` };
   } catch (error) {
     return { ok: false, detail: formatProbeError(error) };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function probeConverterRuntime(url: string, timeoutMs: number): Promise<string> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(`${url}/v1/runtime/converter?_t=${Date.now()}`, {
-      signal: controller.signal,
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      return "";
-    }
-    const payload = (await response.json()) as HealthConverterPayload;
-    return formatConverterDetail(payload);
-  } catch {
-    return "";
   } finally {
     clearTimeout(timeout);
   }
@@ -155,9 +129,6 @@ export function SettingsModal({
             converterDetail = formatServerConverterDetails(payload);
           } catch {
             converterDetail = "";
-          }
-          if (!converterDetail) {
-            converterDetail = await probeConverterRuntime(url, timeoutMs);
           }
           return { ok: true, detail: `HTTP ${response.status}`, converterDetail };
         }
@@ -232,28 +203,6 @@ export function SettingsModal({
       <View style={styles.modalBackdrop}>
         <View style={styles.modalCard}>
           <Text style={styles.modalTitle}>서버 설정</Text>
-          <View style={styles.settingsPresetGroup}>
-            {CONVERTER_OPTIONS.map((option) => {
-              const active = draft.converterEngine === option.value;
-              return (
-                <Pressable
-                  key={option.value}
-                  onPress={() => onChange({ ...draft, converterEngine: option.value })}
-                  style={[styles.settingsPresetButton, active && styles.settingsPresetButtonActive]}
-                >
-                  <View style={[styles.settingsPresetRadio, active && styles.settingsPresetRadioActive]} />
-                  <View style={styles.settingsPresetContent}>
-                    <View style={styles.settingsPresetTitleRow}>
-                      <Text style={[styles.settingsPresetLabel, active && styles.settingsPresetLabelActive]}>{option.label}</Text>
-                      <Text style={[styles.settingsPresetBadge, active && styles.settingsPresetBadgeActive]}>
-                        {active ? "선택" : "대기"}
-                      </Text>
-                    </View>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
           <View style={styles.settingsPresetGroup}>
             {SERVER_PRESETS.map((preset) => {
               const active = selectedKey === preset.key;
