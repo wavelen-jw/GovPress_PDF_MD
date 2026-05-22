@@ -34,6 +34,32 @@ class OpendataloaderAdapterTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "boom"):
                 opendataloader.convert_pdf("/tmp/sample.pdf")
 
+    def test_extract_metadata_reads_press_label_department(self) -> None:
+        markdown = (
+            "# 「스마트도시 조성・확산 사업」 운영 실태 점검\n\n"
+            "국무조정실 보도자료 /\n"
+            "보도시점: 배포 후 즉시사용 / 배포 2026. 5. 21.(목) 09:00\n"
+        )
+
+        title, department = opendataloader.extract_metadata(markdown)
+
+        self.assertEqual(title, "「스마트도시 조성・확산 사업」 운영 실태 점검")
+        self.assertEqual(department, "국무조정실")
+
+    def test_extract_metadata_reads_other_press_label_types(self) -> None:
+        markdown = "# 제목\n\n국토교통부 보도참고자료 /\n본문\n"
+
+        _, department = opendataloader.extract_metadata(markdown)
+
+        self.assertEqual(department, "국토교통부")
+
+    def test_extract_metadata_keeps_api_joint_department_name(self) -> None:
+        markdown = "# 제목\n\n관계부처 합동 보도자료 /\n본문\n"
+
+        _, department = opendataloader.extract_metadata(markdown)
+
+        self.assertEqual(department, "관계부처 합동")
+
 
 if __name__ == "__main__":
     unittest.main()

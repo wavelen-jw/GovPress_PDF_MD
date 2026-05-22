@@ -329,6 +329,38 @@ class PolicyBriefingApiTests(unittest.TestCase):
         self.assertEqual(response.json()["news_item_id"], "156700000")
         self.assertEqual(self.client_stub.list_calls, [date(2026, 4, 8)])
 
+    def test_import_policy_briefing_uses_resolved_original_date_before_all_date_cache(self) -> None:
+        stale_date = date(2026, 4, 9)
+        resolved_date = date(2026, 4, 8)
+        stale_item = replace(
+            self.client_stub.items[0],
+            news_item_id="156700000",
+            approve_date="04/09/2026 00:00:00",
+            attachments=(
+                PolicyBriefingAttachment(
+                    file_name="stale-briefing.hwpx",
+                    file_url="https://example.test/files/stale-briefing.hwpx",
+                ),
+            ),
+        )
+        fresh_item = self.client_stub.items_by_date[resolved_date][0]
+        self.client_stub.items_by_date[stale_date] = [stale_item]
+        self.client_stub.items_by_date[resolved_date] = [fresh_item]
+        self.client_stub.resolved_original_page_dates["156700000"] = resolved_date
+
+        cached_stale = self.client.get(f"/v1/policy-briefings/today?date={stale_date.isoformat()}", headers=self.headers)
+        response = self.client.post(
+            "/v1/policy-briefings/import",
+            json={"news_item_id": "156700000"},
+            headers=self.headers,
+        )
+
+        self.assertEqual(cached_stale.status_code, 200)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["news_item_id"], "156700000")
+        self.assertEqual(response.json()["file_name"], "yesterday-briefing.hwpx")
+        self.assertEqual(self.client_stub.list_calls, [stale_date, resolved_date])
+
     def test_policy_briefing_cache_retries_with_refreshed_catalog_when_cached_hwpx_url_fails(self) -> None:
         target_date = date(2026, 4, 9)
         stale_item = replace(
@@ -575,6 +607,13 @@ class PolicyBriefingApiTests(unittest.TestCase):
         injected = _inject_policy_briefing_department(markdown, "행정안전부")
 
         self.assertEqual(injected, "# 제목\n\n행정안전부 보도자료 /\n보도시점: 2026. 4. 9.\n")
+
+    def test_inject_policy_briefing_department_prefixes_reference_label(self) -> None:
+        markdown = "# 제목\n\n보도참고자료 /\n보도시점: 2026. 4. 9.\n"
+
+        injected = _inject_policy_briefing_department(markdown, "국토교통부")
+
+        self.assertEqual(injected, "# 제목\n\n국토교통부 보도참고자료 /\n보도시점: 2026. 4. 9.\n")
 
     def test_import_policy_briefing_renders_notice_for_non_zip_hwpx_payload(self) -> None:
         class NonZipClientStub(PolicyBriefingClientStub):

@@ -52,6 +52,35 @@ class HwpxConverterAdapterTests(unittest.TestCase):
             with self.assertRaises(TimeoutError):
                 hwpx_converter.convert_hwpx(sample)
 
+    def test_convert_hwpx_passes_document_metadata_to_subprocess_engine(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            package_dir = Path(temp_dir) / "govpress_converter"
+            package_dir.mkdir()
+            (package_dir / "__init__.py").write_text(
+                textwrap.dedent(
+                    """
+                    def convert_hwpx(path, *, table_mode="text", document_metadata=None):
+                        return f"{table_mode}:{document_metadata['issuer_agency']}"
+
+                    def convert_pdf(path, *, timeout=300):
+                        return "pdf"
+                    """
+                ),
+                encoding="utf-8",
+            )
+            sample = Path(temp_dir) / "sample.hwpx"
+            sample.write_bytes(b"PK\\x03\\x04")
+            os.environ["PYTHONPATH"] = temp_dir
+            os.environ["GOVPRESS_HWPX_CONVERSION_TIMEOUT_SECONDS"] = "5"
+
+            markdown = hwpx_converter.convert_hwpx(
+                sample,
+                table_mode="text",
+                document_metadata={"issuer_agency": "국무조정실"},
+            )
+
+        self.assertEqual(markdown, "text:국무조정실")
+
 
 if __name__ == "__main__":
     unittest.main()

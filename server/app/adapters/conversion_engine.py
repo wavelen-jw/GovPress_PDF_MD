@@ -22,18 +22,24 @@ def _call_convert_hwpx(
     path: str,
     *,
     table_mode: str,
+    document_metadata: dict[str, object] | None = None,
 ) -> str:
     try:
         signature = inspect.signature(fn)
     except (TypeError, ValueError):
         signature = None
     if signature is not None and "table_mode" in signature.parameters:
-        return fn(path, table_mode=table_mode)
+        kwargs: dict[str, object] = {"table_mode": table_mode}
+        if document_metadata is not None and "document_metadata" in signature.parameters:
+            kwargs["document_metadata"] = document_metadata
+        return fn(path, **kwargs)
     if table_mode != "text":
         raise RuntimeError(
             "Configured GovPress conversion engine does not support table_mode; "
             "install a newer converter package build."
         )
+    if signature is not None and document_metadata is not None and "document_metadata" in signature.parameters:
+        return fn(path, document_metadata=document_metadata)
     return fn(path)
 
 
@@ -140,9 +146,14 @@ def runtime_summary() -> dict[str, object]:
         }
 
 
-def convert_hwpx(path: str | Path, *, table_mode: str = "text") -> str:
+def convert_hwpx(
+    path: str | Path,
+    *,
+    table_mode: str = "text",
+    document_metadata: dict[str, object] | None = None,
+) -> str:
     _, convert, _ = _load_backend()
-    return _call_convert_hwpx(convert, str(path), table_mode=table_mode)
+    return _call_convert_hwpx(convert, str(path), table_mode=table_mode, document_metadata=document_metadata)
 
 
 def convert_pdf(path: str | Path, *, timeout: int = 300) -> str:

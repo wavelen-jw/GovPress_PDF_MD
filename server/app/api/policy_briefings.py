@@ -190,14 +190,18 @@ def build_router(
         if not policy_briefing_client.configured:
             raise HTTPException(status_code=503, detail="정책브리핑 API 서비스키가 설정되지 않았습니다.")
         try:
-            item = policy_briefing_catalog.get_cached_item(payload.news_item_id, target_date=payload.date)
-            if item is None:
-                resolved_date = payload.date
-                if resolved_date is None:
-                    resolved_date = policy_briefing_client.resolve_item_date_from_original_page(payload.news_item_id)
-                if resolved_date is not None:
+            resolved_date = payload.date
+            if resolved_date is None:
+                resolved_date = policy_briefing_client.resolve_item_date_from_original_page(payload.news_item_id)
+
+            item = None
+            if resolved_date is not None:
+                item = policy_briefing_catalog.get_cached_item(payload.news_item_id, target_date=resolved_date)
+                if item is None:
                     policy_briefing_catalog.force_refresh_day(resolved_date)
                     item = policy_briefing_catalog.get_cached_item(payload.news_item_id, target_date=resolved_date)
+            if item is None and payload.date is None:
+                item = policy_briefing_catalog.get_cached_item(payload.news_item_id, target_date=None)
             if item is None:
                 raise KeyError(payload.news_item_id)
             selected_attachment = item.primary_hwpx
@@ -215,9 +219,9 @@ def build_router(
             try:
                 downloaded = policy_briefing_client.download_attachment(item, selected_attachment)
             except ValueError:
-                resolved_date = payload.date or date.today()
-                policy_briefing_catalog.force_refresh_day(resolved_date)
-                refreshed_item = policy_briefing_catalog.get_cached_item(item.news_item_id, target_date=resolved_date)
+                retry_date = resolved_date or date.today()
+                policy_briefing_catalog.force_refresh_day(retry_date)
+                refreshed_item = policy_briefing_catalog.get_cached_item(item.news_item_id, target_date=retry_date)
                 if refreshed_item is None:
                     raise KeyError(item.news_item_id)
                 item = refreshed_item

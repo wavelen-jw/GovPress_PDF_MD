@@ -34,6 +34,25 @@ class ConversionEngineTests(unittest.TestCase):
                 )
                 self.assertEqual(conversion_engine.backend_name(), "package")
 
+    def test_passes_document_metadata_when_supported(self) -> None:
+        def convert_hwpx(path, table_mode="text", document_metadata=None):
+            return f"pkg:{path}:{table_mode}:{document_metadata['issuer_agency']}"
+
+        fake = types.SimpleNamespace(
+            convert_hwpx=convert_hwpx,
+            convert_pdf=lambda path, timeout=300: f"pkgpdf:{path}:{timeout}",
+        )
+        with patch.dict(sys.modules, {"govpress_converter": fake}, clear=False):
+            conversion_engine.reset_backend_cache()
+            self.assertEqual(
+                conversion_engine.convert_hwpx(
+                    "/tmp/sample.hwpx",
+                    table_mode="text",
+                    document_metadata={"issuer_agency": "국무조정실"},
+                ),
+                "pkg:/tmp/sample.hwpx:text:국무조정실",
+            )
+
     def test_raises_when_no_backend_available(self) -> None:
         with patch("server.app.adapters.conversion_engine.importlib.import_module", side_effect=ModuleNotFoundError("missing")):
             conversion_engine.reset_backend_cache()

@@ -18,8 +18,8 @@ PRESS_RELEASE_VIEW_URL = "https://www.korea.kr/briefing/pressReleaseView.do"
 _APPENDIX_PREFIXES = ("붙임", "별첨", "첨부")
 _ATTACHMENT_DATE_PREFIX_RE = re.compile(r"^\s*\d{6,8}(?:[\s_-]+)?")
 _ATTACHMENT_APPENDIX_RE = re.compile(r"^(?:[\[<(]\s*)?(?:붙임|별첨|첨부)(?=\b|\d)")
-_PRESS_LABEL_RE = re.compile(r"^(보도자료|보도참고자료)\s*$")
-_PRESS_LABEL_WITH_SLASH_RE = re.compile(r"^(보도자료|보도참고자료)\s*/?$")
+_PRESS_LABEL_RE = re.compile(r"^(보도자료|보도참고자료|보도설명자료|설명자료|동정자료)\s*$")
+_PRESS_LABEL_WITH_SLASH_RE = re.compile(r"^(보도자료|보도참고자료|보도설명자료|설명자료|동정자료)\s*/?$")
 _PRESS_RELEASE_VIEW_DATE_RE = re.compile(
     r"<div\s+class=[\"']info[\"'][^>]*>.*?<span>\s*(\d{4})\.(\d{2})\.(\d{2})\s*</span>",
     re.DOTALL | re.IGNORECASE,
@@ -349,6 +349,7 @@ class PolicyBriefingCatalog:
             payload = day_store["items"].get(news_item_id)
             if payload is not None:
                 return _deserialize_item(payload)
+            return None
         for path in sorted(self._cache_dir.glob("*.json"), reverse=True):
             payload = self._load_store_file(path)["items"].get(news_item_id)
             if payload is not None:
@@ -831,7 +832,7 @@ def _inject_policy_briefing_department(markdown: str, department: str | None) ->
         if match:
             lines[index] = f"{dept} {match.group(1)} /"
             return "\n".join(lines) + ("\n" if markdown.endswith("\n") else "")
-        if re.match(rf"^{re.escape(dept)}\s+(?:보도자료|보도참고자료)\s*/?$", stripped):
+        if re.match(rf"^{re.escape(dept)}\s+(?:보도자료|보도참고자료|보도설명자료|설명자료|동정자료)\s*/?$", stripped):
             return markdown
         if index >= 9:
             break

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -21,21 +22,30 @@ def _conversion_timeout_seconds() -> int:
         return 45
 
 
-def _convert_hwpx_in_subprocess(path: str, *, table_mode: str, timeout: int) -> str:
+def _convert_hwpx_in_subprocess(
+    path: str,
+    *,
+    table_mode: str,
+    timeout: int,
+    document_metadata: dict[str, object] | None,
+) -> str:
     script = """
+import json
 from pathlib import Path
 import sys
 
 from server.app.adapters.conversion_engine import convert_hwpx
 
-markdown = convert_hwpx(sys.argv[1], table_mode=sys.argv[2])
-Path(sys.argv[3]).write_text(markdown, encoding="utf-8")
+metadata = json.loads(sys.argv[3]) if sys.argv[3] else None
+markdown = convert_hwpx(sys.argv[1], table_mode=sys.argv[2], document_metadata=metadata)
+Path(sys.argv[4]).write_text(markdown, encoding="utf-8")
 """
     with tempfile.NamedTemporaryFile(suffix=".md", delete=False) as handle:
         output_path = Path(handle.name)
     try:
+        metadata_json = json.dumps(document_metadata, ensure_ascii=False) if document_metadata else ""
         result = subprocess.run(
-            [sys.executable, "-c", script, path, table_mode, str(output_path)],
+            [sys.executable, "-c", script, path, table_mode, metadata_json, str(output_path)],
             check=False,
             capture_output=True,
             text=True,
@@ -53,8 +63,18 @@ Path(sys.argv[3]).write_text(markdown, encoding="utf-8")
         output_path.unlink(missing_ok=True)
 
 
-def convert_hwpx(path: str | Path, *, table_mode: str = "text") -> str:
+def convert_hwpx(
+    path: str | Path,
+    *,
+    table_mode: str = "text",
+    document_metadata: dict[str, object] | None = None,
+) -> str:
     timeout = _conversion_timeout_seconds()
     if timeout <= 0:
-        return _convert_hwpx(path, table_mode=table_mode)
-    return _convert_hwpx_in_subprocess(str(path), table_mode=table_mode, timeout=timeout)
+        return _convert_hwpx(path, table_mode=table_mode, document_metadata=document_metadata)
+    return _convert_hwpx_in_subprocess(
+        str(path),
+        table_mode=table_mode,
+        timeout=timeout,
+        document_metadata=document_metadata,
+    )
