@@ -1974,7 +1974,13 @@ export const styles = StyleSheet.create({
     marginTop: 2,
   },
   markdownQuoteListBullet: {
+    color: "#4f5f6e",
+    fontSize: 14,
+    fontWeight: "400",
     lineHeight: 22,
+  },
+  markdownQuoteListBulletDark: {
+    color: "#b7c9da",
   },
   markdownQuoteListText: {
     color: "#4f5f6e",

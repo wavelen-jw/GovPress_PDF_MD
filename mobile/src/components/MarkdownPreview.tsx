@@ -1456,7 +1456,7 @@ export function MarkdownPreview({
                 listIndent(child.visualLevel ?? child.level, child.ordered),
               ]}
             >
-              <Text style={[styles.markdownListBullet, styles.markdownQuoteListBullet, isDarkMode && styles.markdownListBulletDark]}>
+              <Text style={[styles.markdownListBullet, styles.markdownQuoteListBullet, isDarkMode && styles.markdownQuoteListBulletDark]}>
                 {getListBullet(child.level, child.ordered, child.orderIndex, child.orderNumber)}
               </Text>
               <View style={styles.markdownListTextWrap}>
