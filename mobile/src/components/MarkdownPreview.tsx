@@ -160,7 +160,7 @@ function parseQuoteListMarker(line: string):
       orderNumber?: number;
     }
   | null {
-  const unorderedMatch = line.match(/^(\s*)([-+])\s+(.*)$/);
+  const unorderedMatch = line.match(/^(\s*)([+])\s+(.*)$/);
   if (unorderedMatch) {
     return {
       ordered: false,
@@ -303,6 +303,7 @@ function parseQuoteChildren(lines: string[]): QuoteChild[] {
 
     if (!line.trim()) {
       flushParagraph();
+      paragraphs.push("");
       index += 1;
       continue;
     }
@@ -1158,6 +1159,9 @@ function renderPrintQuoteChildren(children: QuoteChild[]): string {
                 const level = Math.max(1, Math.min(6, headingMatch.level));
                 return `<h${level} class="md-heading md-heading-${level}">${renderInlinePrintHtml(headingMatch.text, { preserveAsteriskLiterals: true })}</h${level}>`;
               }
+              if (!quoteLine) {
+                return "<div>&nbsp;</div>";
+              }
               return `<div>${renderInlinePrintHtml(quoteLine, { preserveAsteriskLiterals: true })}</div>`;
             })
             .join(""),
@@ -1617,6 +1621,9 @@ export function MarkdownPreview({
                     isDarkMode,
                     true,
                   );
+                }
+                if (!quoteLine) {
+                  return <Text style={[styles.markdownQuoteText, isDarkMode && styles.markdownQuoteTextDark]}>{"\u00A0"}</Text>;
                 }
 
                 return renderInlineMarkdown(
