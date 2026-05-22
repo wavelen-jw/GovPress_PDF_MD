@@ -117,7 +117,12 @@ function isOrderedListLine(line: string): boolean {
 }
 
 function isSubtitleDashLine(line: string, blockCount: number, previousBlockType?: Block["type"]): boolean {
-  return blockCount === 1 && previousBlockType === "heading" && /^-\s+\S/.test(line) && !/^-\s+\[( |x|X)\]\s+/.test(line);
+  return (
+    blockCount <= 2 &&
+    (previousBlockType === "heading" || previousBlockType === "paragraph") &&
+    /^-\s+\S/.test(line) &&
+    !/^-\s+\[( |x|X)\]\s+/.test(line)
+  );
 }
 
 function hasHardLineBreakSuffix(line: string): boolean {
