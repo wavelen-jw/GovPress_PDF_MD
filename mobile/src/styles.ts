@@ -1953,8 +1953,8 @@ export const styles = StyleSheet.create({
   },
   markdownQuoteText: {
     color: "#4f5f6e",
-    fontSize: 16,
-    lineHeight: 26,
+    fontSize: 14,
+    lineHeight: 22,
   },
   markdownQuoteTextDark: {
     color: "#b7c9da",
@@ -1972,6 +1972,17 @@ export const styles = StyleSheet.create({
   },
   markdownQuoteLine: {
     marginTop: 2,
+  },
+  markdownQuoteListBullet: {
+    lineHeight: 22,
+  },
+  markdownQuoteListText: {
+    color: "#4f5f6e",
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  markdownQuoteListTextDark: {
+    color: "#b7c9da",
   },
   markdownList: {
     gap: 8,
