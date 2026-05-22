@@ -19,6 +19,7 @@ type TableLayout = {
 
 type QuoteChild =
   | { type: "quote_text"; paragraphs: string[] }
+  | { type: "quote_list_item"; ordered: boolean; level: number; visualLevel?: number; text: string; orderIndex: number; orderNumber?: number }
   | { type: "blockquote"; children: QuoteChild[]; level: number };
 
 type Block =
@@ -141,11 +142,45 @@ function joinMarkdownInlineLines(lines: string[]): string {
   return result;
 }
 
+function parseQuoteListMarker(line: string):
+  | {
+      ordered: boolean;
+      level: number;
+      text: string;
+      orderNumber?: number;
+    }
+  | null {
+  const unorderedMatch = line.match(/^(\s*)([-+])\s+(.*)$/);
+  if (unorderedMatch) {
+    return {
+      ordered: false,
+      level: Math.min(3, Math.floor(unorderedMatch[1].length / 2)),
+      text: stripHardLineBreakSuffix(unorderedMatch[3]).trimEnd(),
+    };
+  }
+
+  const orderedMatch = line.match(/^(\s*)(\d+)\.\s+(.*)$/);
+  if (!orderedMatch) {
+    return null;
+  }
+  const markerNumber = Number(orderedMatch[2]);
+  if (!Number.isInteger(markerNumber) || markerNumber < 1 || markerNumber > MAX_ORDERED_LIST_NUMBER) {
+    return null;
+  }
+  return {
+    ordered: true,
+    level: Math.min(3, Math.floor(orderedMatch[1].length / 2)),
+    text: stripHardLineBreakSuffix(orderedMatch[3]).trimEnd(),
+    orderNumber: markerNumber,
+  };
+}
+
 function parseQuoteChildren(lines: string[]): QuoteChild[] {
   const children: QuoteChild[] = [];
   let index = 0;
   let paragraphBuffer: string[] = [];
   let paragraphs: string[] = [];
+  let quoteOrderIndex = 0;
 
   const flushParagraph = () => {
     if (paragraphBuffer.length) {
@@ -187,6 +222,35 @@ function parseQuoteChildren(lines: string[]): QuoteChild[] {
         children: parseQuoteChildren(nestedLines),
         level: nestedLevel,
       });
+      continue;
+    }
+
+    const listMarker = parseQuoteListMarker(line);
+    if (listMarker) {
+      flushText();
+      const itemLines = [listMarker.text];
+      index += 1;
+      while (index < lines.length) {
+        const continuation = lines[index];
+        if (!continuation.trim() || continuation.match(/^(\s*)>\s?(.*)$/) || parseQuoteListMarker(continuation)) {
+          break;
+        }
+        const leading = continuation.match(/^\s*/)?.[0].length || 0;
+        if (leading < 2) {
+          break;
+        }
+        itemLines.push(stripHardLineBreakSuffix(continuation.trim()).trimEnd());
+        index += 1;
+      }
+      children.push({
+        type: "quote_list_item",
+        ordered: listMarker.ordered,
+        level: listMarker.level,
+        text: itemLines.join("<br>"),
+        orderIndex: quoteOrderIndex,
+        orderNumber: listMarker.orderNumber,
+      });
+      quoteOrderIndex += 1;
       continue;
     }
 
@@ -1010,6 +1074,10 @@ function renderPrintQuoteChildren(children: QuoteChild[]): string {
         const marginClass = `indent-${Math.max(0, Math.min(4, child.level))}`;
         return `<blockquote class="${marginClass}">${renderPrintQuoteChildren(child.children)}</blockquote>`;
       }
+      if (child.type === "quote_list_item") {
+        const marker = escapeHtml(getListBullet(child.level, child.ordered, child.orderIndex, child.orderNumber));
+        return `<div class="list-item indent-${Math.max(0, Math.min(4, child.visualLevel ?? child.level))}"><span class="marker">${marker}</span><div>${renderInlinePrintHtml(child.text, { preserveAsteriskLiterals: true })}</div></div>`;
+      }
       return child.paragraphs
         .map((paragraph) =>
           paragraph
@@ -1323,6 +1391,31 @@ export function MarkdownPreview({
             ]}
           >
             {renderQuoteChildren(child.children, childKey)}
+          </View>
+        );
+      }
+      if (child.type === "quote_list_item") {
+        return (
+          <View key={childKey} style={childIndex > 0 ? styles.markdownQuoteLine : undefined}>
+            <View
+              style={[
+                styles.markdownListItem,
+                listIndent(child.visualLevel ?? child.level, child.ordered),
+              ]}
+            >
+              <Text style={[styles.markdownListBullet, isDarkMode && styles.markdownListBulletDark]}>
+                {getListBullet(child.level, child.ordered, child.orderIndex, child.orderNumber)}
+              </Text>
+              <View style={styles.markdownListTextWrap}>
+                {renderInlineMarkdown(
+                  child.text,
+                  [styles.markdownListText, isDarkMode && styles.markdownListTextDark] as unknown as object,
+                  childKey,
+                  isDarkMode,
+                  { preserveAsteriskLiterals: true },
+                )}
+              </View>
+            </View>
           </View>
         );
       }
