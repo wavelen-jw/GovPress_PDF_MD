@@ -20,6 +20,7 @@ type TableLayout = {
 type QuoteChild =
   | { type: "quote_text"; paragraphs: string[] }
   | { type: "quote_list_item"; ordered: boolean; level: number; visualLevel?: number; text: string; orderIndex: number; orderNumber?: number }
+  | { type: "quote_table"; headers: string[]; aligns: TableAlign[]; rows: string[][] }
   | { type: "blockquote"; children: QuoteChild[]; level: number };
 
 type Block =
@@ -175,6 +176,35 @@ function parseQuoteListMarker(line: string):
   };
 }
 
+function parseQuoteTable(lines: string[], startIndex: number): { child: QuoteChild; nextIndex: number } | null {
+  if (startIndex + 1 >= lines.length) {
+    return null;
+  }
+  const headerLine = lines[startIndex].trim();
+  const dividerLine = lines[startIndex + 1].trim();
+  if (!headerLine.includes("|") || !isTableDivider(dividerLine)) {
+    return null;
+  }
+
+  const headers = splitTableRow(headerLine);
+  const aligns = parseTableAlignments(dividerLine);
+  const rows: string[][] = [];
+  let index = startIndex + 2;
+  while (index < lines.length) {
+    const candidate = lines[index].trim();
+    if (!candidate || !candidate.includes("|")) {
+      break;
+    }
+    rows.push(splitTableRow(candidate));
+    index += 1;
+  }
+
+  return {
+    child: { type: "quote_table", headers, aligns, rows },
+    nextIndex: index,
+  };
+}
+
 function parseQuoteChildren(lines: string[]): QuoteChild[] {
   const children: QuoteChild[] = [];
   let index = 0;
@@ -222,6 +252,14 @@ function parseQuoteChildren(lines: string[]): QuoteChild[] {
         children: parseQuoteChildren(nestedLines),
         level: nestedLevel,
       });
+      continue;
+    }
+
+    const table = parseQuoteTable(lines, index);
+    if (table) {
+      flushText();
+      children.push(table.child);
+      index = table.nextIndex;
       continue;
     }
 
@@ -1078,6 +1116,21 @@ function renderPrintQuoteChildren(children: QuoteChild[]): string {
         const marker = escapeHtml(getListBullet(child.level, child.ordered, child.orderIndex, child.orderNumber));
         return `<div class="list-item indent-${Math.max(0, Math.min(4, child.visualLevel ?? child.level))}"><span class="marker">${marker}</span><div>${renderInlinePrintHtml(child.text, { preserveAsteriskLiterals: true })}</div></div>`;
       }
+      if (child.type === "quote_table") {
+        const columnCount = Math.max(child.headers.length, child.aligns.length, ...child.rows.map((row) => row.length));
+        const header = `<thead><tr>${Array.from({ length: columnCount })
+          .map((_, index) => `<th>${renderInlinePrintHtml(child.headers[index] || "")}</th>`)
+          .join("")}</tr></thead>`;
+        const body = `<tbody>${child.rows
+          .map(
+            (row) =>
+              `<tr>${Array.from({ length: columnCount })
+                .map((_, index) => `<td>${renderInlinePrintHtml(row[index] || "")}</td>`)
+                .join("")}</tr>`,
+          )
+          .join("")}</tbody>`;
+        return `<table>${header}${body}</table>`;
+      }
       return child.paragraphs
         .map((paragraph) =>
           paragraph
@@ -1416,6 +1469,100 @@ export function MarkdownPreview({
                 )}
               </View>
             </View>
+          </View>
+        );
+      }
+      if (child.type === "quote_table") {
+        const columnCount = Math.max(
+          child.headers.length,
+          child.aligns.length,
+          ...child.rows.map((row) => row.length),
+        );
+        const { columnWidths, needsHorizontalScroll, tableContentWidth } = computeTableLayout(
+          child.headers,
+          child.rows,
+          columnCount,
+          containerWidth,
+        );
+        const TableShell = needsHorizontalScroll ? ScrollView : View;
+        const tableShellProps = needsHorizontalScroll
+          ? {
+              horizontal: true,
+              showsHorizontalScrollIndicator: true,
+              style: styles.markdownTableWrap,
+              contentContainerStyle: styles.markdownTableScrollContent,
+            }
+          : {
+              style: styles.markdownTableWrap,
+            };
+
+        return (
+          <View key={childKey} style={childIndex > 0 ? styles.markdownQuoteParagraph : undefined}>
+            <TableShell {...tableShellProps}>
+              <View
+                style={[
+                  styles.markdownTable,
+                  isDarkMode && styles.markdownTableDark,
+                  needsHorizontalScroll && ({ width: tableContentWidth } satisfies ViewStyle),
+                ]}
+              >
+                <View style={[styles.markdownTableRow, isDarkMode && styles.markdownTableRowDark, styles.markdownTableHeaderRow, isDarkMode && styles.markdownTableHeaderRowDark]}>
+                  {Array.from({ length: columnCount }).map((_, columnIndex) => (
+                    <View
+                      key={`${childKey}-header-${columnIndex}`}
+                      style={[
+                        styles.markdownTableCell,
+                        needsHorizontalScroll
+                          ? ({ width: columnWidths[columnIndex].minWidth, minWidth: columnWidths[columnIndex].minWidth, flexGrow: 0 } satisfies ViewStyle)
+                          : columnWidths[columnIndex],
+                        styles.markdownTableHeaderCell,
+                        isDarkMode && styles.markdownTableCellDark,
+                        isDarkMode && styles.markdownTableHeaderCellDark,
+                        columnIndex === columnCount - 1 && styles.markdownTableCellLast,
+                      ]}
+                    >
+                      {renderInlineMarkdown(
+                        child.headers[columnIndex] || "",
+                        [styles.markdownTableHeaderText, isDarkMode && styles.markdownTableHeaderTextDark, textAlignStyle(child.aligns[columnIndex] || "left")] as unknown as object,
+                        `${childKey}-header-${columnIndex}`,
+                        isDarkMode,
+                      )}
+                    </View>
+                  ))}
+                </View>
+                {child.rows.map((row, rowIndex) => (
+                  <View
+                    key={`${childKey}-row-${rowIndex}`}
+                    style={[
+                      styles.markdownTableRow,
+                      isDarkMode && styles.markdownTableRowDark,
+                      rowIndex === child.rows.length - 1 && styles.markdownTableRowLast,
+                    ]}
+                  >
+                    {Array.from({ length: columnCount }).map((_, columnIndex) => (
+                      <View
+                        key={`${childKey}-${rowIndex}-${columnIndex}`}
+                        style={[
+                          styles.markdownTableCell,
+                          needsHorizontalScroll
+                            ? ({ width: columnWidths[columnIndex].minWidth, minWidth: columnWidths[columnIndex].minWidth, flexGrow: 0 } satisfies ViewStyle)
+                            : columnWidths[columnIndex],
+                          isDarkMode && styles.markdownTableCellDark,
+                          columnIndex === columnCount - 1 && styles.markdownTableCellLast,
+                        ]}
+                      >
+                        {renderInlineMarkdown(
+                          row[columnIndex] || "",
+                          [styles.markdownTableCellText, isDarkMode && styles.markdownTableCellTextDark, textAlignStyle(child.aligns[columnIndex] || "left")] as unknown as object,
+                          `${childKey}-${rowIndex}-${columnIndex}`,
+                          isDarkMode,
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            </TableShell>
           </View>
         );
       }
