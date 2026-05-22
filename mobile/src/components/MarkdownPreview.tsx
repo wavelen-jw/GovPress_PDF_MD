@@ -116,6 +116,10 @@ function isOrderedListLine(line: string): boolean {
   return matchOrderedListMarker(line) !== null;
 }
 
+function isSubtitleDashLine(line: string, blockCount: number, previousBlockType?: Block["type"]): boolean {
+  return blockCount === 1 && previousBlockType === "heading" && /^-\s+\S/.test(line) && !/^-\s+\[( |x|X)\]\s+/.test(line);
+}
+
 function hasHardLineBreakSuffix(line: string): boolean {
   return /[ \t]{2,}$/.test(line) || /(?<!\\)\\$/.test(line);
 }
@@ -789,6 +793,7 @@ function parseMarkdown(markdown: string): Block[] {
   while (index < lines.length) {
     const rawLine = lines[index];
     const trimmed = rawLine.trim();
+    const previousBlockType = blocks[blocks.length - 1]?.type;
 
     if (!trimmed) {
       blankRun += 1;
@@ -938,6 +943,13 @@ function parseMarkdown(markdown: string): Block[] {
       continue;
     }
 
+    if (isSubtitleDashLine(trimmed, blocks.length, previousBlockType)) {
+      resetListContext();
+      blocks.push({ type: "paragraph", text: stripHardLineBreakSuffix(trimmed) });
+      index += 1;
+      continue;
+    }
+
     if (/^[-*+]\s+\[( |x|X)\]\s+/.test(trimmed)) {
       resetListContext();
       while (index < lines.length) {
@@ -1030,7 +1042,7 @@ function parseMarkdown(markdown: string): Block[] {
         /^<table\b/i.test(candidate) ||
         (candidate.includes("|") && index + 1 < lines.length && isTableDivider(lines[index + 1].trim())) ||
         /^[-*+]\s+\[( |x|X)\]\s+/.test(candidate) ||
-        /^[-*+]\s+/.test(candidate) ||
+        (/^[-*+]\s+/.test(candidate) && !isSubtitleDashLine(candidate, blocks.length, blocks[blocks.length - 1]?.type)) ||
         isOrderedListLine(candidate) ||
         /^(-{3,}|\*{3,}|_{3,})$/.test(candidate) ||
         /^(```|~~~)/.test(candidate)
@@ -1267,6 +1279,8 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
   const ranges: MarkdownBlockRange[] = [];
   let index = 0;
   let offset = 0;
+  let emittedBlockCount = 0;
+  let previousBlockType: Block["type"] | undefined;
 
   const currentLineStart = () => offset;
   const advanceLine = (line: string) => {
@@ -1275,6 +1289,11 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
       offset += 1;
     }
     index += 1;
+  };
+  const pushRange = (range: MarkdownBlockRange, blockType: Block["type"]) => {
+    ranges.push(range);
+    emittedBlockCount += 1;
+    previousBlockType = blockType;
   };
 
   while (index < lines.length) {
@@ -1297,17 +1316,17 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
       if (index < lines.length) {
         advanceLine(lines[index]);
       }
-      ranges.push({ start: blockStart, end: offset });
+      pushRange({ start: blockStart, end: offset }, "code");
       continue;
     }
 
-    if (
-      parseAtxHeadingLine(trimmed) ||
-      /^(-{3,}|\*{3,}|_{3,})$/.test(trimmed) ||
-      /^!\[([^\]]*)\]\(([^)]+)\)$/.test(trimmed)
-    ) {
+    const headingMatch = parseAtxHeadingLine(trimmed);
+    if (headingMatch || /^(-{3,}|\*{3,}|_{3,})$/.test(trimmed) || /^!\[([^\]]*)\]\(([^)]+)\)$/.test(trimmed)) {
       advanceLine(rawLine);
-      ranges.push({ start: blockStart, end: offset });
+      pushRange(
+        { start: blockStart, end: offset },
+        headingMatch ? "heading" : /^!\[([^\]]*)\]\(([^)]+)\)$/.test(trimmed) ? "image" : "rule",
+      );
       continue;
     }
 
@@ -1325,7 +1344,7 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
         }
         advanceLine(lines[index]);
       }
-      ranges.push({ start: blockStart, end: offset });
+      pushRange({ start: blockStart, end: offset }, "blockquote");
       continue;
     }
 
@@ -1336,7 +1355,7 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
           break;
         }
       }
-      ranges.push({ start: blockStart, end: offset });
+      pushRange({ start: blockStart, end: offset }, "html_table");
       continue;
     }
 
@@ -1358,7 +1377,13 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
         }
         advanceLine(lines[index]);
       }
-      ranges.push({ start: blockStart, end: offset });
+      pushRange({ start: blockStart, end: offset }, "table");
+      continue;
+    }
+
+    if (isSubtitleDashLine(trimmed, emittedBlockCount, previousBlockType)) {
+      advanceLine(rawLine);
+      pushRange({ start: blockStart, end: offset }, "paragraph");
       continue;
     }
 
@@ -1366,7 +1391,7 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
       while (index < lines.length && /^[-*+]\s+\[( |x|X)\]\s+/.test(lines[index].trim())) {
         const itemStart = currentLineStart();
         advanceLine(lines[index]);
-        ranges.push({ start: itemStart, end: offset });
+        pushRange({ start: itemStart, end: offset }, "checklist_item");
       }
       continue;
     }
@@ -1378,7 +1403,7 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
         if (ordered ? isOrderedListLine(candidate) : /^[-*+]\s+/.test(candidate)) {
           const itemStart = currentLineStart();
           advanceLine(lines[index]);
-          ranges.push({ start: itemStart, end: offset });
+          pushRange({ start: itemStart, end: offset }, "list_item");
           continue;
         }
         break;
@@ -1396,7 +1421,7 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
         /^<table\b/i.test(candidate) ||
         (candidate.includes("|") && index + 1 < lines.length && isTableDivider(lines[index + 1].trim())) ||
         /^[-*+]\s+\[( |x|X)\]\s+/.test(candidate) ||
-        /^[-*+]\s+/.test(candidate) ||
+        (/^[-*+]\s+/.test(candidate) && !isSubtitleDashLine(candidate, emittedBlockCount, previousBlockType)) ||
         isOrderedListLine(candidate) ||
         /^(-{3,}|\*{3,}|_{3,})$/.test(candidate) ||
         /^(```|~~~)/.test(candidate)
@@ -1405,7 +1430,7 @@ export function parseMarkdownBlockRanges(markdown: string): MarkdownBlockRange[]
       }
       advanceLine(lines[index]);
     }
-    ranges.push({ start: blockStart, end: offset });
+    pushRange({ start: blockStart, end: offset }, "paragraph");
   }
 
   return ranges;
