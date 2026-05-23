@@ -14,6 +14,12 @@ from ..workers.converter_worker import ConverterWorker
 from .storage_service import StorageService
 
 
+def _normalize_converter_engine(file_name: str, converter_engine: ConverterEngine) -> ConverterEngine:
+    if Path(file_name).suffix.lower() == ".hwpx":
+        return "govpress-hwpx-md"
+    return converter_engine
+
+
 class JobService:
     def __init__(
         self,
@@ -47,6 +53,7 @@ class JobService:
         job_id = f"job_{uuid.uuid4().hex[:12]}"
         edit_token = secrets.token_urlsafe(24)
         original_path = self._storage.save_original_pdf(job_id, file_name, content)
+        converter_engine = _normalize_converter_engine(file_name, converter_engine)
         record = self._repository.create(
             job_id=job_id,
             edit_token=edit_token,
@@ -140,6 +147,7 @@ class JobService:
             upload,
             max_bytes=max_upload_bytes,
         )
+        converter_engine = _normalize_converter_engine(file_name, converter_engine)
         record = self._repository.create(
             job_id=job_id,
             edit_token=edit_token,

@@ -53,7 +53,7 @@ class PolicyBriefingImportRequest(BaseModel):
     date: date_type | None = None
     file_url: str | None = None
     force_reprocess: bool = False
-    converter_engine: ConverterEngine = "default"
+    converter_engine: ConverterEngine = "govpress-hwpx-md"
 
 
 class PolicyBriefingImportResponse(BaseModel):
