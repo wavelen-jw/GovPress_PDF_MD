@@ -189,15 +189,16 @@ PY
 ensure_converter_checkout() {
   local converter_root="${GOV_MD_CONVERTER_ROOT:-$(cd "$DEPLOY_DIR/.." && pwd)/gov-md-converter}"
   local parse_output
+  local checkout_spec="${HWPX_MD_SPEC:-${CONVERTER_SPEC:-}}"
   local repo_url=""
   local repo_ref=""
 
-  if [ -z "${CONVERTER_SPEC:-}" ]; then
+  if [ -z "$checkout_spec" ]; then
     echo "converter_checkout=skipped_no_spec"
     return
   fi
 
-  parse_output="$(python3 - <<'PY' "${CONVERTER_SPEC}"
+  parse_output="$(python3 - <<'PY' "$checkout_spec"
 import sys
 spec = sys.argv[1].strip()
 if spec.startswith("git+"):
@@ -223,6 +224,8 @@ PY
   if [ ! -d "$converter_root/.git" ]; then
     rm -rf "$converter_root"
     git clone "$repo_url" "$converter_root"
+  else
+    git -C "$converter_root" remote set-url origin "$repo_url"
   fi
   git -C "$converter_root" fetch --tags origin
   if [ -n "$repo_ref" ]; then
