@@ -9,8 +9,10 @@ COMPOSE_DIR="$DEPLOY_DIR/deploy/vps"
 REPO_URL="https://github.com/wavelen-jw/GovPress_PDF_MD.git"
 TARGET_BRANCH="${GOVPRESS_DEPLOY_BRANCH:-}"
 VENV="$DEPLOY_DIR/.venv"
+HWPX_MD_VENV="$DEPLOY_DIR/.venv-govpress-hwpx-md"
 ENV_FILE="$COMPOSE_DIR/.env"
 CONVERTER_SPEC="${GOVPRESS_CONVERTER_SPEC:-}"
+HWPX_MD_SPEC="${GOVPRESS_HWPX_MD_SPEC:-}"
 CONVERTER_EXTRA_INDEX_URL="${GOVPRESS_CONVERTER_EXTRA_INDEX_URL:-}"
 CONVERTER_ALLOW_LOCAL_FALLBACK="${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-0}"
 CONVERTER_MIN_VERSION="${GOVPRESS_CONVERTER_MIN_VERSION:-}"
@@ -179,11 +181,11 @@ else
   fi
 fi
 
-if [[ -n "$CONVERTER_SPEC" && -f "$CONVERTER_VERSION_FILE" && -f "$CONVERTER_SPEC_RESOLVER" ]]; then
-  CONVERTER_SPEC="$(python3 "$CONVERTER_SPEC_RESOLVER" --spec "$CONVERTER_SPEC" --version-file "$CONVERTER_VERSION_FILE")"
+if [[ -z "$HWPX_MD_SPEC" && "$CONVERTER_SPEC" == *"github.com/wavelen-jw/gov-md-converter.git@"* ]]; then
+  HWPX_MD_SPEC="${CONVERTER_SPEC/github.com\/wavelen-jw\/gov-md-converter.git@/github.com\/wavelen-jw\/govpress-hwpx-md.git@}"
 fi
-if [[ -z "$CONVERTER_MIN_VERSION" && -f "$CONVERTER_VERSION_FILE" ]]; then
-  CONVERTER_MIN_VERSION="$(sed -e 's/^v//' "$CONVERTER_VERSION_FILE" | tr -d '\n')"
+if [[ -n "$HWPX_MD_SPEC" && -f "$CONVERTER_VERSION_FILE" && -f "$CONVERTER_SPEC_RESOLVER" ]]; then
+  HWPX_MD_SPEC="$(python3 "$CONVERTER_SPEC_RESOLVER" --spec "$HWPX_MD_SPEC" --version-file "$CONVERTER_VERSION_FILE")"
 fi
 if [[ -z "$CONVERTER_SPEC" || "$CONVERTER_SPEC" = "-" ]]; then
   error "GOVPRESS_CONVERTER_SPEC is required for package-only production installs"
@@ -218,6 +220,16 @@ if [[ -n "$CONVERTER_MIN_VERSION" ]]; then
 else
   sudo -u "$SERVICE_USER" "$VENV/bin/python" "$DEPLOY_DIR/scripts/check_converter_runtime.py" --require-package-backend
 fi
+if [[ -n "$HWPX_MD_SPEC" && "$HWPX_MD_SPEC" != "-" ]]; then
+  sudo -u "$SERVICE_USER" python3 -m venv "$HWPX_MD_VENV"
+  sudo -u "$SERVICE_USER" "$HWPX_MD_VENV/bin/pip" install --quiet --upgrade pip
+  if [[ -n "$CONVERTER_EXTRA_INDEX_URL" ]]; then
+    PIP_EXTRA_INDEX_URL="$CONVERTER_EXTRA_INDEX_URL" \
+      sudo -u "$SERVICE_USER" "$HWPX_MD_VENV/bin/pip" install --quiet --upgrade --force-reinstall "$HWPX_MD_SPEC"
+  else
+    sudo -u "$SERVICE_USER" "$HWPX_MD_VENV/bin/pip" install --quiet --upgrade --force-reinstall "$HWPX_MD_SPEC"
+  fi
+fi
 
 # ── 6. 스토리지 디렉터리 ─────────────────────────────────────────────────────
 STORAGE_DIR="$DEPLOY_DIR/storage"
@@ -236,6 +248,8 @@ fi
 
 upsert_env_value "$ENV_FILE" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
 upsert_env_value "$ENV_FILE" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "$CONVERTER_ALLOW_LOCAL_FALLBACK"
+upsert_env_value "$ENV_FILE" "GOVPRESS_HWPX_MD_SPEC" "$HWPX_MD_SPEC"
+upsert_env_value "$ENV_FILE" "GOVPRESS_HWPX_MD_PYTHON" "$HWPX_MD_VENV/bin/python"
 if [[ -n "$CONVERTER_MIN_VERSION" ]]; then
   upsert_env_value "$ENV_FILE" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
 fi

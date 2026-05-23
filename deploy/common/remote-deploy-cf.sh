@@ -43,27 +43,21 @@ CONVERTER_VERSION_FILE="$DEPLOY_DIR/deploy/converter.version"
 CONVERTER_SPEC_RESOLVER="$DEPLOY_DIR/deploy/common/resolve_converter_spec.py"
 CONVERTER_CACHE_SCHEMA_VERSION="4"
 
-normalize_converter_spec() {
-  if [ -z "${CONVERTER_SPEC:-}" ]; then
-    return
-  fi
+resolve_tracked_spec() {
+  local raw_spec="${1:-}"
   if [ ! -f "$CONVERTER_VERSION_FILE" ] || [ ! -f "$CONVERTER_SPEC_RESOLVER" ]; then
+    printf '%s\n' "$raw_spec"
     return
   fi
-  CONVERTER_SPEC="$(python3 "$CONVERTER_SPEC_RESOLVER" \
-    --spec "$CONVERTER_SPEC" \
-    --version-file "$CONVERTER_VERSION_FILE")"
-  echo "converter_version=$(cat "$CONVERTER_VERSION_FILE")"
+  python3 "$CONVERTER_SPEC_RESOLVER" \
+    --spec "$raw_spec" \
+    --version-file "$CONVERTER_VERSION_FILE"
 }
 
-normalize_converter_spec
-
-TRACKED_CONVERTER_VERSION=""
+TRACKED_HWPX_MD_VERSION=""
 if [ -f "$CONVERTER_VERSION_FILE" ]; then
-  TRACKED_CONVERTER_VERSION="$(sed -e 's/^v//' "$CONVERTER_VERSION_FILE" | tr -d '\n')"
-fi
-if [ -z "${CONVERTER_MIN_VERSION:-}" ] && [ -n "$TRACKED_CONVERTER_VERSION" ]; then
-  CONVERTER_MIN_VERSION="$TRACKED_CONVERTER_VERSION"
+  TRACKED_HWPX_MD_VERSION="$(sed -e 's/^v//' "$CONVERTER_VERSION_FILE" | tr -d '\n')"
+  echo "converter_version=$(cat "$CONVERTER_VERSION_FILE")"
 fi
 if [ -z "${CONVERTER_SPEC:-}" ] || [ "${CONVERTER_SPEC}" = "-" ]; then
   echo "converter_spec_missing=1"
@@ -78,15 +72,17 @@ fi
 
 if [ -z "${HWPX_MD_SPEC:-}" ] && [[ "${CONVERTER_SPEC:-}" == *"github.com/wavelen-jw/gov-md-converter.git@"* ]]; then
   HWPX_MD_SPEC="${CONVERTER_SPEC/github.com\/wavelen-jw\/gov-md-converter.git@/github.com\/wavelen-jw\/govpress-hwpx-md.git@}"
+  HWPX_MD_SPEC="$(resolve_tracked_spec "$HWPX_MD_SPEC")"
   echo "hwpx_md_spec=derived_from_converter_spec"
 elif [ -n "${HWPX_MD_SPEC:-}" ]; then
+  HWPX_MD_SPEC="$(resolve_tracked_spec "$HWPX_MD_SPEC")"
   echo "hwpx_md_spec=configured"
 else
   echo "hwpx_md_spec=not_configured"
 fi
 
 reset_converter_cache_if_version_changed() {
-  local converter_version="${TRACKED_CONVERTER_VERSION:-${CONVERTER_MIN_VERSION:-}}"
+  local converter_version="${TRACKED_HWPX_MD_VERSION:-${CONVERTER_MIN_VERSION:-}}"
   if [ -z "$converter_version" ]; then
     echo "converter_cache_reset=skipped_no_tracked_version"
     return 0
@@ -144,7 +140,7 @@ SQL
 }
 
 mark_converter_cache_version() {
-  local converter_version="${TRACKED_CONVERTER_VERSION:-${CONVERTER_MIN_VERSION:-}}"
+  local converter_version="${TRACKED_HWPX_MD_VERSION:-${CONVERTER_MIN_VERSION:-}}"
   if [ -z "$converter_version" ]; then
     return 0
   fi
@@ -189,7 +185,7 @@ PY
 ensure_converter_checkout() {
   local converter_root="${GOV_MD_CONVERTER_ROOT:-$(cd "$DEPLOY_DIR/.." && pwd)/gov-md-converter}"
   local parse_output
-  local checkout_spec="${HWPX_MD_SPEC:-${CONVERTER_SPEC:-}}"
+  local checkout_spec="${CONVERTER_SPEC:-}"
   local repo_url=""
   local repo_ref=""
 

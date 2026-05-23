@@ -59,16 +59,16 @@ lines = env_path.read_text(encoding="utf-8").splitlines()
 updated: list[str] = []
 changed = False
 for line in lines:
-    if line.startswith("GOVPRESS_CONVERTER_SPEC="):
+    if line.startswith("GOVPRESS_HWPX_MD_SPEC="):
         spec = line.split("=", 1)[1]
-        if spec.strip() == "-":
+        if not spec.strip() or spec.strip() == "-":
             normalized = ""
         else:
             normalized = subprocess.check_output(
                 [sys.executable, str(resolver), "--spec", spec, "--version-file", str(version_file)],
                 text=True,
             ).strip()
-        updated.append(f"GOVPRESS_CONVERTER_SPEC={normalized}")
+        updated.append(f"GOVPRESS_HWPX_MD_SPEC={normalized}")
         changed = changed or normalized != spec
     else:
         updated.append(line)
