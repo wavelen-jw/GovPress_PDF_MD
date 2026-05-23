@@ -41,7 +41,10 @@ class ConverterWorker:
             ext = Path(file_path).suffix.lower()
             if ext == ".hwpx":
                 if record.converter_engine == "govpress-hwpx-md":
-                    markdown = experimental_hwpx_md.convert_hwpx(file_path)
+                    markdown = experimental_hwpx_md.convert_hwpx(
+                        file_path,
+                        document_metadata=record.document_metadata,
+                    )
                     html_preview = opendataloader.render_preview_html(markdown)
                     title, department = opendataloader.extract_metadata(markdown)
                     final_path = self._storage.save_generated_markdown(job_id, markdown)
@@ -58,7 +61,11 @@ class ConverterWorker:
                         final_markdown_path=final_path,
                     )
                     return
-                markdown_text = hwpx_converter.convert_hwpx(file_path, table_mode="text")
+                markdown_text = hwpx_converter.convert_hwpx(
+                    file_path,
+                    table_mode="text",
+                    document_metadata=record.document_metadata,
+                )
                 html_preview_text = opendataloader.render_preview_html(markdown_text)
                 title, department = opendataloader.extract_metadata(markdown_text)
                 final_path = self._storage.save_generated_markdown(job_id, markdown_text)
@@ -70,7 +77,11 @@ class ConverterWorker:
                     department=department,
                     final_markdown_path=final_path,
                 )
-                markdown_html = hwpx_converter.convert_hwpx(file_path, table_mode="html")
+                markdown_html = hwpx_converter.convert_hwpx(
+                    file_path,
+                    table_mode="html",
+                    document_metadata=record.document_metadata,
+                )
                 html_preview_html = opendataloader.render_preview_html(markdown_html)
                 final_html_path = self._storage.save_generated_markdown(job_id, markdown_html)
                 self._jobs.save_html_variant(

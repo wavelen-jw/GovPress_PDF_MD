@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import json
 import sqlite3
 import threading
 from pathlib import Path
@@ -18,6 +19,14 @@ def _fromisoformat(value: str | None) -> datetime | None:
 
 
 def _row_to_record(row: sqlite3.Row) -> JobRecord:
+    document_metadata = None
+    if "document_metadata" in row.keys() and row["document_metadata"]:
+        try:
+            parsed_metadata = json.loads(row["document_metadata"])
+        except json.JSONDecodeError:
+            parsed_metadata = None
+        if isinstance(parsed_metadata, dict):
+            document_metadata = parsed_metadata
     return JobRecord(
         job_id=row["job_id"],
         edit_token=row["edit_token"],
@@ -33,6 +42,7 @@ def _row_to_record(row: sqlite3.Row) -> JobRecord:
         result_version=row["result_version"],
         hwpx_table_mode=row["hwpx_table_mode"] or "text",
         converter_engine=row["converter_engine"] if "converter_engine" in row.keys() and row["converter_engine"] else "default",
+        document_metadata=document_metadata,
         result=JobResult(
             markdown=row["markdown"],
             html_preview=row["html_preview"],
@@ -65,6 +75,7 @@ class JobRepository(Protocol):
         converter_engine: ConverterEngine,
         client_request_id: str | None,
         original_pdf_path: Path,
+        document_metadata: dict[str, object] | None = None,
     ) -> JobRecord: ...
 
     def get_by_client_request_id(self, client_request_id: str) -> JobRecord | None: ...
@@ -191,7 +202,8 @@ class SQLiteJobRepository:
                     department TEXT,
                     edited_markdown TEXT,
                     saved_at TEXT,
-                    claimed_by TEXT
+                    claimed_by TEXT,
+                    document_metadata TEXT
                 )
                 """
             )
@@ -215,6 +227,8 @@ class SQLiteJobRepository:
                 conn.execute("ALTER TABLE jobs ADD COLUMN html_preview_html TEXT")
             if "converter_engine" not in columns:
                 conn.execute("ALTER TABLE jobs ADD COLUMN converter_engine TEXT NOT NULL DEFAULT 'default'")
+            if "document_metadata" not in columns:
+                conn.execute("ALTER TABLE jobs ADD COLUMN document_metadata TEXT")
             conn.execute(
                 """
                 UPDATE jobs
@@ -242,6 +256,7 @@ class SQLiteJobRepository:
         converter_engine: ConverterEngine,
         client_request_id: str | None,
         original_pdf_path: Path,
+        document_metadata: dict[str, object] | None = None,
     ) -> JobRecord:
         with self._lock, self._connect() as conn:
             if client_request_id:
@@ -260,8 +275,8 @@ class SQLiteJobRepository:
                     edited_markdown_path, markdown, html_preview, markdown_text,
                     markdown_html, html_preview_text, html_preview_html, title,
                     department, edited_markdown, saved_at
-                    , claimed_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    , claimed_by, document_metadata
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job_id,
@@ -292,6 +307,7 @@ class SQLiteJobRepository:
                     None,
                     None,
                     None,
+                    json.dumps(document_metadata, ensure_ascii=False) if document_metadata else None,
                 ),
             )
             conn.commit()
@@ -665,6 +681,7 @@ class InMemoryJobRepository:
         converter_engine: ConverterEngine,
         client_request_id: str | None,
         original_pdf_path: Path,
+        document_metadata: dict[str, object] | None = None,
     ) -> JobRecord:
         with self._lock:
             if client_request_id and client_request_id in self._client_request_ids:
@@ -684,6 +701,7 @@ class InMemoryJobRepository:
                 client_request_id=client_request_id,
                 hwpx_table_mode=hwpx_table_mode,
                 converter_engine=converter_engine,
+                document_metadata=document_metadata,
                 artifacts=JobArtifacts(original_pdf_path=original_pdf_path),
             )
             self._jobs[job_id] = record

@@ -156,6 +156,7 @@ class ServerServiceTests(unittest.TestCase):
                 file_name="sample.pdf",
                 content=b"%PDF-1.4",
                 converter_engine="govpress-hwpx-md",
+                document_metadata={"issuer_agency": "행정안전부"},
             )
 
         reloaded_repo = SQLiteJobRepository(self.storage.root / "jobs.sqlite3")
@@ -165,6 +166,7 @@ class ServerServiceTests(unittest.TestCase):
         self.assertEqual(fetched.job_id, created.job_id)
         self.assertEqual(fetched.file_name, "sample.pdf")
         self.assertEqual(fetched.converter_engine, "govpress-hwpx-md")
+        self.assertEqual(fetched.document_metadata, {"issuer_agency": "행정안전부"})
 
     def test_worker_uses_experimental_hwpx_converter_when_selected(self) -> None:
         with patch.object(self.worker, "enqueue"):
@@ -172,6 +174,7 @@ class ServerServiceTests(unittest.TestCase):
                 file_name="sample.hwpx",
                 content=b"PK\x03\x04",
                 converter_engine="govpress-hwpx-md",
+                document_metadata={"issuer_agency": "행정안전부"},
             )
 
         with patch(
@@ -188,13 +191,40 @@ class ServerServiceTests(unittest.TestCase):
         ):
             self.worker.process(record.job_id)
 
-        mock_convert.assert_called_once()
+        mock_convert.assert_called_once_with(
+            str(record.artifacts.original_pdf_path),
+            document_metadata={"issuer_agency": "행정안전부"},
+        )
         legacy_convert.assert_not_called()
         updated = self.repository.get(record.job_id)
         assert updated is not None
         self.assertEqual(updated.status, "completed")
         self.assertEqual(updated.result.markdown_text, "# 새 변환기\n\n본문")
         self.assertEqual(updated.result.markdown_html, "# 새 변환기\n\n본문")
+
+    def test_worker_passes_document_metadata_to_default_hwpx_converter(self) -> None:
+        with patch.object(self.worker, "enqueue"):
+            record = self.job_service.create_job(
+                file_name="sample.hwpx",
+                content=b"PK\x03\x04",
+                document_metadata={"issuer_agency": "행정안전부"},
+            )
+
+        with patch(
+            "server.app.workers.converter_worker.hwpx_converter.convert_hwpx",
+            return_value="# 제목\n\n행정안전부 보도자료 /",
+        ) as mock_convert, patch(
+            "server.app.workers.converter_worker.opendataloader.render_preview_html",
+            return_value="<h1>제목</h1>",
+        ), patch(
+            "server.app.workers.converter_worker.opendataloader.extract_metadata",
+            return_value=("제목", "행정안전부"),
+        ):
+            self.worker.process(record.job_id)
+
+        self.assertEqual(mock_convert.call_count, 2)
+        for call in mock_convert.call_args_list:
+            self.assertEqual(call.kwargs["document_metadata"], {"issuer_agency": "행정안전부"})
 
     def test_list_jobs_returns_cursor_for_next_page(self) -> None:
         with patch.object(self.worker, "enqueue"):

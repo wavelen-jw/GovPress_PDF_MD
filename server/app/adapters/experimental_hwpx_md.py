@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -46,13 +47,16 @@ def runtime_summary() -> dict[str, object]:
     }
 
 
-def convert_hwpx(path: str | Path) -> str:
+def convert_hwpx(path: str | Path, *, document_metadata: dict[str, object] | None = None) -> str:
     python_bin = _python_bin()
     if not python_bin:
         raise RuntimeError("GOVPRESS_HWPX_MD_PYTHON is not configured")
     timeout = int(os.environ.get("GOVPRESS_HWPX_MD_TIMEOUT_SECONDS", "300"))
+    command = [python_bin, "-m", "govpress_converter", str(path)]
+    if document_metadata:
+        command.extend(["--metadata-json", json.dumps(document_metadata, ensure_ascii=False)])
     result = subprocess.run(
-        [python_bin, "-m", "govpress_converter", str(path)],
+        command,
         check=False,
         capture_output=True,
         text=True,

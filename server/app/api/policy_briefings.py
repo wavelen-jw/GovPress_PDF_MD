@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
+from ..adapters.policy_briefing import _policy_briefing_document_metadata
 from ..adapters.policy_briefing_qc import ensure_dashboard_assets, resolve_dashboard_asset_path
 from ..schemas.policy_briefings import (
     PolicyBriefingAttachmentResponse,
@@ -21,6 +22,7 @@ from ..schemas.policy_briefings import (
 _UPSTREAM_POLICY_BRIEFING_TIMEOUT_DETAIL = (
     "정책브리핑 제공기관 API 응답이 지연되거나 장애 상태입니다. 잠시 후 다시 시도해 주세요."
 )
+_POLICY_BRIEFING_IMPORT_JOB_KEY_VERSION = "metadata-v2"
 
 
 def _describe_policy_briefing_error(exc: Exception) -> str:
@@ -262,9 +264,13 @@ def build_router(
             source="policy-briefing-cache",
             hwpx_table_mode="text",
             converter_engine=payload.converter_engine,
+            document_metadata=_policy_briefing_document_metadata(item),
             client_request_id=None
             if payload.force_reprocess
-            else f"policy-briefing:{payload.converter_engine}:{item.news_item_id}:{downloaded.attachment.file_url}",
+            else (
+                f"policy-briefing:{_POLICY_BRIEFING_IMPORT_JOB_KEY_VERSION}:"
+                f"{payload.converter_engine}:{item.news_item_id}:{downloaded.attachment.file_url}"
+            ),
         )
         return _build_import_response(record, item)
 

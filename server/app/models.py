@@ -52,5 +52,6 @@ class JobRecord:
     result_version: int = 0
     hwpx_table_mode: HwpxTableMode = "text"
     converter_engine: ConverterEngine = "default"
+    document_metadata: dict[str, object] | None = None
     result: JobResult = field(default_factory=JobResult)
     artifacts: JobArtifacts | None = None

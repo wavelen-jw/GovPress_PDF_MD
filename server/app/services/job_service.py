@@ -34,6 +34,7 @@ class JobService:
         source: str = "mobile",
         hwpx_table_mode: HwpxTableMode = "text",
         converter_engine: ConverterEngine = "default",
+        document_metadata: dict[str, object] | None = None,
         client_request_id: str | None = None,
     ) -> JobRecord:
         if client_request_id:
@@ -55,6 +56,7 @@ class JobService:
             converter_engine=converter_engine,
             client_request_id=client_request_id,
             original_pdf_path=original_path,
+            document_metadata=document_metadata,
         )
         if record.job_id == job_id:
             self._worker.enqueue(job_id)
@@ -122,6 +124,7 @@ class JobService:
         source: str = "mobile",
         hwpx_table_mode: HwpxTableMode = "text",
         converter_engine: ConverterEngine = "default",
+        document_metadata: dict[str, object] | None = None,
         client_request_id: str | None = None,
     ) -> JobRecord:
         if client_request_id:
@@ -146,6 +149,7 @@ class JobService:
             converter_engine=converter_engine,
             client_request_id=client_request_id,
             original_pdf_path=original_path,
+            document_metadata=document_metadata,
         )
         if record.job_id == job_id:
             self._worker.enqueue(job_id)
