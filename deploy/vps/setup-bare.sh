@@ -250,9 +250,7 @@ upsert_env_value "$ENV_FILE" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
 upsert_env_value "$ENV_FILE" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "$CONVERTER_ALLOW_LOCAL_FALLBACK"
 upsert_env_value "$ENV_FILE" "GOVPRESS_HWPX_MD_SPEC" "$HWPX_MD_SPEC"
 upsert_env_value "$ENV_FILE" "GOVPRESS_HWPX_MD_PYTHON" "$HWPX_MD_VENV/bin/python"
-if [[ -n "$CONVERTER_MIN_VERSION" ]]; then
-  upsert_env_value "$ENV_FILE" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
-fi
+upsert_env_value "$ENV_FILE" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
 merge_required_origins "$ENV_FILE"
 
 # ── 8. Caddy 설정 ─────────────────────────────────────────────────────────────
