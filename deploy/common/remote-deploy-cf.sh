@@ -227,7 +227,7 @@ PY
   else
     git -C "$converter_root" remote set-url origin "$repo_url"
   fi
-  git -C "$converter_root" fetch --tags origin
+  git -C "$converter_root" fetch --tags --force origin
   if [ -n "$repo_ref" ]; then
     git -C "$converter_root" checkout -f "$repo_ref"
   else
