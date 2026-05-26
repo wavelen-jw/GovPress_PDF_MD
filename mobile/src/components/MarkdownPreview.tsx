@@ -981,7 +981,6 @@ function parseMarkdown(markdown: string): Block[] {
 
     if (/^[-*+]\s+/.test(trimmed) || isOrderedListLine(trimmed)) {
       const ordered = isOrderedListLine(trimmed);
-      const unorderedVisualOffset = !ordered && lastOrderedListLevel !== null ? lastOrderedListLevel + 1 : 0;
       let orderIndex = 0;
       while (index < lines.length) {
         const rawCandidate = lines[index];
@@ -1015,11 +1014,12 @@ function parseMarkdown(markdown: string): Block[] {
         }
         if (!ordered && /^[-*+]\s+/.test(candidate)) {
           const rawText = rawCandidate.replace(/^(\s*[-*+]\s+)/, "");
+          const visualLevelOffset = lastOrderedListLevel !== null && level > lastOrderedListLevel ? 1 : 0;
           blocks.push({
             type: "list_item",
             ordered: false,
             level,
-            visualLevel: level + unorderedVisualOffset,
+            visualLevel: level + visualLevelOffset,
             text: stripHardLineBreakSuffix(rawText).trimEnd(),
             orderIndex,
           });
