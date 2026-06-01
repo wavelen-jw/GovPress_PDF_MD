@@ -1014,12 +1014,11 @@ function parseMarkdown(markdown: string): Block[] {
         }
         if (!ordered && /^[-*+]\s+/.test(candidate)) {
           const rawText = rawCandidate.replace(/^(\s*[-*+]\s+)/, "");
-          const visualLevelOffset = lastOrderedListLevel !== null && level > lastOrderedListLevel ? 1 : 0;
           blocks.push({
             type: "list_item",
             ordered: false,
             level,
-            visualLevel: level + visualLevelOffset,
+            visualLevel: level,
             text: stripHardLineBreakSuffix(rawText).trimEnd(),
             orderIndex,
           });
