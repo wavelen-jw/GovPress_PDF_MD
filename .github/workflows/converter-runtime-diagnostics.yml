@@ -7,6 +7,14 @@ on:
         description: Sample HWPX/PDF path inside this repository checkout
         required: true
         default: artifacts/policy_briefing_benchmark/corpus_latest100/hwpxs/156754095.hwpx
+      include_server_h:
+        description: Include api.govpress.cloud in addition to api2/api4
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 permissions:
   contents: read
@@ -26,15 +34,21 @@ jobs:
           API_KEY: ${{ secrets.GOVPRESS_API_KEY }}
           ADMIN_KEY: ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
           SAMPLE_PATH: ${{ inputs.sample_path }}
+          INCLUDE_SERVER_H: ${{ inputs.include_server_h }}
         run: |
           set -euo pipefail
+          servers=(
+            --server serverW=https://api4.govpress.cloud
+            --server serverV=https://api2.govpress.cloud
+          )
+          if [ "$INCLUDE_SERVER_H" = "true" ]; then
+            servers=(--server serverH=https://api.govpress.cloud "${servers[@]}")
+          fi
           python3 scripts/compare_converter_runtime.py \
             --sample "$SAMPLE_PATH" \
             --api-key "$API_KEY" \
             --admin-key "$ADMIN_KEY" \
-            --server serverH=https://api.govpress.cloud \
-            --server serverW=https://api4.govpress.cloud \
-            --server serverV=https://api2.govpress.cloud \
+            "${servers[@]}" \
             | tee converter-runtime-diagnostics.json
 
       - name: Summarize results
