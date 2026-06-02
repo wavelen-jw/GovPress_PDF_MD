@@ -27,7 +27,7 @@ RUN pip install -r /app/requirements.txt \
     && if [ -n "$GOVPRESS_CONVERTER_SPEC" ] && [ "$GOVPRESS_CONVERTER_SPEC" != "-" ]; then pip install --upgrade --force-reinstall "$GOVPRESS_CONVERTER_SPEC"; fi \
     && HWPX_MD_INSTALL_SPEC="$GOVPRESS_HWPX_MD_SPEC" \
     && if [ -z "$HWPX_MD_INSTALL_SPEC" ] && printf '%s' "$GOVPRESS_CONVERTER_SPEC" | grep -q 'github.com/wavelen-jw/gov-md-converter.git@'; then HWPX_MD_INSTALL_SPEC="$(printf '%s' "$GOVPRESS_CONVERTER_SPEC" | sed 's#github.com/wavelen-jw/gov-md-converter.git@#github.com/wavelen-jw/govpress-hwpx-md.git@#')"; fi \
-    && if [ -n "$HWPX_MD_INSTALL_SPEC" ] && [ "$HWPX_MD_INSTALL_SPEC" != "-" ]; then python -m venv /opt/govpress-hwpx-md-venv && /opt/govpress-hwpx-md-venv/bin/python -m pip install -U pip && /opt/govpress-hwpx-md-venv/bin/python -m pip install --upgrade --force-reinstall "$HWPX_MD_INSTALL_SPEC" && /opt/govpress-hwpx-md-venv/bin/python -c "import importlib.metadata as m; print(m.version('govpress-hwpx-md'))"; fi
+    && if [ -n "$HWPX_MD_INSTALL_SPEC" ] && [ "$HWPX_MD_INSTALL_SPEC" != "-" ]; then python -m venv /opt/govpress-hwpx-md-venv && /opt/govpress-hwpx-md-venv/bin/python -m pip install -U pip && /opt/govpress-hwpx-md-venv/bin/python -m pip install --upgrade --force-reinstall "$HWPX_MD_INSTALL_SPEC" && /opt/govpress-hwpx-md-venv/bin/python -c "import govpress_converter; print(getattr(govpress_converter, '__version__', ''))"; fi
 
 COPY . /app
 
