@@ -4,6 +4,7 @@ from pathlib import Path
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -59,6 +60,31 @@ class ServerApiContractTests(unittest.TestCase):
         self.assertTrue(hasattr(self.app.state, "result_service"))
         self.assertTrue(hasattr(self.app.state, "worker"))
         self.assertTrue(hasattr(self.app.state, "settings"))
+
+    def test_version_endpoint_prefers_deploy_converter_version(self) -> None:
+        with (
+            patch.dict(os.environ, {"CONVERTER_VERSION": "0.3.6"}, clear=False),
+            patch(
+                "server.app.main.experimental_hwpx_md.runtime_summary",
+                return_value={"available": True, "version": "0.3.5"},
+            ),
+        ):
+            response = TestClient(self.app).get("/v1/version")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["converter_version"], "0.3.6")
+
+    def test_version_endpoint_falls_back_to_hwpx_runtime_version(self) -> None:
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("CONVERTER_VERSION", None)
+            with patch(
+                "server.app.main.experimental_hwpx_md.runtime_summary",
+                return_value={"available": True, "version": "0.3.6"},
+            ):
+                response = TestClient(self.app).get("/v1/version")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["converter_version"], "0.3.6")
 
     def test_app_uses_default_operational_settings(self) -> None:
         self.assertEqual(self.app.state.settings.max_upload_bytes, 25_000_000)

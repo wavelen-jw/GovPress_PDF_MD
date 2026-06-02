@@ -18,6 +18,7 @@ CONVERTER_ALLOW_LOCAL_FALLBACK="${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-0}"
 CONVERTER_MIN_VERSION="${GOVPRESS_CONVERTER_MIN_VERSION:-}"
 CONVERTER_VERSION_FILE="$DEPLOY_DIR/deploy/converter.version"
 CONVERTER_SPEC_RESOLVER="$DEPLOY_DIR/deploy/common/resolve_converter_spec.py"
+TRACKED_HWPX_MD_VERSION=""
 REQUIRED_CORS_ORIGINS=(
   "https://govpress.cloud"
   "https://www.govpress.cloud"
@@ -187,6 +188,9 @@ fi
 if [[ -n "$HWPX_MD_SPEC" && -f "$CONVERTER_VERSION_FILE" && -f "$CONVERTER_SPEC_RESOLVER" ]]; then
   HWPX_MD_SPEC="$(python3 "$CONVERTER_SPEC_RESOLVER" --spec "$HWPX_MD_SPEC" --version-file "$CONVERTER_VERSION_FILE")"
 fi
+if [[ -f "$CONVERTER_VERSION_FILE" ]]; then
+  TRACKED_HWPX_MD_VERSION="$(sed -e 's/^v//' "$CONVERTER_VERSION_FILE" | tr -d '\n')"
+fi
 if [[ -z "$CONVERTER_SPEC" || "$CONVERTER_SPEC" = "-" ]]; then
   error "GOVPRESS_CONVERTER_SPEC is required for package-only production installs"
 fi
@@ -251,6 +255,7 @@ upsert_env_value "$ENV_FILE" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "$CONVERT
 upsert_env_value "$ENV_FILE" "GOVPRESS_HWPX_MD_SPEC" "$HWPX_MD_SPEC"
 upsert_env_value "$ENV_FILE" "GOVPRESS_HWPX_MD_PYTHON" "$HWPX_MD_VENV/bin/python"
 upsert_env_value "$ENV_FILE" "GOVPRESS_CONVERTER_MIN_VERSION" "$CONVERTER_MIN_VERSION"
+upsert_env_value "$ENV_FILE" "CONVERTER_VERSION" "${TRACKED_HWPX_MD_VERSION:-$CONVERTER_MIN_VERSION}"
 merge_required_origins "$ENV_FILE"
 
 # ── 8. Caddy 설정 ─────────────────────────────────────────────────────────────

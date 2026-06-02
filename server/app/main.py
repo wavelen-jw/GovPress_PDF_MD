@@ -148,14 +148,20 @@ def create_app(
     @app.get("/v1/version")
     def version_info() -> dict[str, str | None]:
         # Surfaces the deployed API + converter versions to the desktop
-        # client's About modal. CONVERTER_VERSION is injected by the
-        # update-converter-version.yml workflow on each converter bump;
-        # falls back to None when not set so the client can render "—".
+        # client's About modal. CONVERTER_VERSION is the deploy-time
+        # override; the runtime summary keeps the endpoint useful on older
+        # deployments where that env var was not written yet.
         import os
+
+        converter_version = os.environ.get("CONVERTER_VERSION")
+        if not converter_version:
+            summary = experimental_hwpx_md.runtime_summary()
+            runtime_version = summary.get("version")
+            converter_version = runtime_version if isinstance(runtime_version, str) else None
 
         return {
             "api_version": app.version,
-            "converter_version": os.environ.get("CONVERTER_VERSION"),
+            "converter_version": converter_version,
         }
 
     app.state.job_service = job_service

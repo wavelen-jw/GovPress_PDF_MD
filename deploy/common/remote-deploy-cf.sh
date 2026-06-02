@@ -900,6 +900,7 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
   upsert_env_value "$ENV_PATH" "GOVPRESS_HWPX_MD_SPEC" "${HWPX_MD_SPEC:-}"
   upsert_env_value "$ENV_PATH" "GOVPRESS_HWPX_MD_PYTHON" "/opt/govpress-hwpx-md-venv/bin/python"
   upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_MIN_VERSION" "${CONVERTER_MIN_VERSION:-}"
+  upsert_env_value "$ENV_PATH" "CONVERTER_VERSION" "${TRACKED_HWPX_MD_VERSION:-${CONVERTER_MIN_VERSION:-}}"
   if [ -n "${ADMIN_API_KEY:-}" ]; then
     upsert_env_value "$ENV_PATH" "GOVPRESS_ADMIN_API_KEY" "$ADMIN_API_KEY"
   fi
@@ -950,6 +951,7 @@ else
   upsert_env_value "$ENV_PATH" "GOVPRESS_HWPX_MD_SPEC" "${HWPX_MD_SPEC:-}"
   upsert_env_value "$ENV_PATH" "GOVPRESS_HWPX_MD_PYTHON" "$DEPLOY_DIR/.venv-govpress-hwpx-md/bin/python"
   upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_MIN_VERSION" "${CONVERTER_MIN_VERSION:-}"
+  upsert_env_value "$ENV_PATH" "CONVERTER_VERSION" "${TRACKED_HWPX_MD_VERSION:-${CONVERTER_MIN_VERSION:-}}"
   if [ ! -x "$DEPLOY_DIR/.venv/bin/python" ]; then
     echo "baremetal_venv_create=start"
     python3 -m venv "$DEPLOY_DIR/.venv"
