@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -9,11 +10,13 @@ import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 
 REMOTE_CODE = r"""
 import hashlib
 import json
+import base64
 import sys
 import time
 import urllib.error
@@ -85,26 +88,58 @@ def wait_for_completed_job(base_url, api_key, job_id, edit_token):
     raise RuntimeError("job %s did not complete, last_status=%s" % (job_id, last_status))
 
 
-def main():
-    config = json.loads(sys.stdin.read())
-    base_url = config["base_url"].rstrip("/")
-    api_key = config["api_key"]
-    admin_key = config["admin_key"]
-    news_item_id = config["news_item_id"]
-    date = config.get("date")
+def multipart_body(file_name, content):
+    boundary = "govpress-ssh-boundary-%s" % int(time.time() * 1000)
+    body = b"".join([
+        ("--%s\r\n" % boundary).encode(),
+        ('Content-Disposition: form-data; name="file"; filename="%s"\r\n' % file_name).encode(),
+        b"Content-Type: application/octet-stream\r\n\r\n",
+        content,
+        b"\r\n",
+        ("--%s--\r\n" % boundary).encode(),
+    ])
+    return body, "multipart/form-data; boundary=%s" % boundary
 
-    runtime = runtime_probe(base_url, admin_key)
+
+def upload_sample(base_url, api_key, sample):
+    content = base64.b64decode(sample["content_b64"].encode("ascii"))
+    body, content_type = multipart_body(sample["file_name"], content)
+    created = request_json(
+        base_url + "/v1/jobs",
+        headers={"X-API-Key": api_key, "Content-Type": content_type},
+        data=body,
+    )
+    return str(created["job_id"]), str(created["edit_token"])
+
+
+def import_policy_briefing(base_url, api_key, news_item_id, date):
     payload = {"news_item_id": news_item_id, "force_reprocess": True}
     if date:
         payload["date"] = date
-
     created = request_json(
         base_url + "/v1/policy-briefings/import",
         headers={"X-API-Key": api_key, "Content-Type": "application/json"},
         data=json.dumps(payload).encode("utf-8"),
     )
-    job_id = str(created["job_id"])
-    edit_token = str(created["edit_token"])
+    return str(created["job_id"]), str(created["edit_token"])
+
+
+def main():
+    config = json.loads(sys.stdin.read())
+    base_url = config["base_url"].rstrip("/")
+    api_key = config["api_key"]
+    admin_key = config["admin_key"]
+    sample = config.get("sample")
+    news_item_id = config.get("news_item_id")
+    date = config.get("date")
+
+    runtime = runtime_probe(base_url, admin_key)
+    if sample:
+        job_id, edit_token = upload_sample(base_url, api_key, sample)
+        force_reprocess = False
+    else:
+        job_id, edit_token = import_policy_briefing(base_url, api_key, news_item_id, date)
+        force_reprocess = True
     wait_for_completed_job(base_url, api_key, job_id, edit_token)
     result = request_json(
         base_url + "/v1/jobs/%s/result" % job_id,
@@ -122,7 +157,7 @@ def main():
     print(json.dumps({
         "runtime": runtime,
         "job_id": job_id,
-        "force_reprocess": True,
+        "force_reprocess": force_reprocess,
         "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
         "html_sha256": hashlib.sha256(html.encode("utf-8")).hexdigest(),
         "title": result.get("meta", {}).get("title"),
@@ -151,14 +186,31 @@ def _parse_server(raw: str) -> Server:
     return Server(name=name, ssh_target=ssh_target, base_url=base_url.rstrip("/"))
 
 
-def _run_remote(server: Server, *, api_key: str, admin_key: str, news_item_id: str, date: str | None) -> dict[str, object]:
+def _run_remote(
+    server: Server,
+    *,
+    api_key: str,
+    admin_key: str,
+    sample_path: str | None,
+    news_item_id: str | None,
+    date: str | None,
+) -> dict[str, object]:
     config = {
         "base_url": server.base_url,
         "api_key": api_key,
         "admin_key": admin_key,
-        "news_item_id": news_item_id,
-        "date": date,
     }
+    if sample_path is not None:
+        path = Path(sample_path).resolve()
+        if not path.is_file():
+            raise SystemExit(f"sample file not found: {path}")
+        config["sample"] = {
+            "file_name": path.name,
+            "content_b64": base64.b64encode(path.read_bytes()).decode("ascii"),
+        }
+    else:
+        config["news_item_id"] = news_item_id
+        config["date"] = date
     proc = subprocess.run(
         ["ssh", server.ssh_target, "python3 -c " + shlex.quote(REMOTE_CODE)],
         input=json.dumps(config, ensure_ascii=False),
@@ -183,7 +235,8 @@ def _run_remote(server: Server, *, api_key: str, admin_key: str, news_item_id: s
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Compare converter runtime and output hashes through server-local APIs over SSH")
-    parser.add_argument("--policy-briefing-id", required=True, help="Policy briefing news_item_id to import on each server")
+    parser.add_argument("--sample", help="Path to sample HWPX/PDF file")
+    parser.add_argument("--policy-briefing-id", help="Policy briefing news_item_id to import on each server")
     parser.add_argument("--policy-briefing-date", help="Policy briefing date in YYYY-MM-DD format")
     parser.add_argument("--api-key", default=os.environ.get("API_KEY"), help="GovPress API key")
     parser.add_argument("--admin-key", default=os.environ.get("ADMIN_KEY"), help="GovPress admin key")
@@ -204,6 +257,8 @@ def main() -> int:
         raise SystemExit("--api-key or API_KEY is required")
     if not args.admin_key:
         raise SystemExit("--admin-key or ADMIN_KEY is required")
+    if bool(args.sample) == bool(args.policy_briefing_id):
+        raise SystemExit("Provide exactly one of --sample or --policy-briefing-id")
 
     servers = [_parse_server(raw) for raw in args.server]
     results = [
@@ -211,7 +266,8 @@ def main() -> int:
             server,
             api_key=str(args.api_key),
             admin_key=str(args.admin_key),
-            news_item_id=str(args.policy_briefing_id),
+            sample_path=str(args.sample) if args.sample else None,
+            news_item_id=str(args.policy_briefing_id) if args.policy_briefing_id else None,
             date=args.policy_briefing_date,
         )
         for server in servers
@@ -221,10 +277,12 @@ def main() -> int:
         text_hashes = {str(row["text_sha256"]) for row in results}
         html_hashes = {str(row["html_sha256"]) for row in results}
         if len(text_hashes) != 1 or len(html_hashes) != 1:
-            print(json.dumps({"sample": f"policy-briefing:{args.policy_briefing_id}", "results": results}, ensure_ascii=False, indent=2))
+            source = str(Path(args.sample).resolve()) if args.sample else f"policy-briefing:{args.policy_briefing_id}"
+            print(json.dumps({"sample": source, "results": results}, ensure_ascii=False, indent=2))
             raise SystemExit("converter output hash mismatch across servers")
 
-    print(json.dumps({"sample": f"policy-briefing:{args.policy_briefing_id}", "results": results}, ensure_ascii=False, indent=2))
+    source = str(Path(args.sample).resolve()) if args.sample else f"policy-briefing:{args.policy_briefing_id}"
+    print(json.dumps({"sample": source, "results": results}, ensure_ascii=False, indent=2))
     return 0
 
 

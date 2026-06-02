@@ -275,8 +275,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/compare_converter_runtime_via_ssh.py \
-            --policy-briefing-id 156754103 \
-            --policy-briefing-date 2026-04-12 \
+            --sample artifacts/policy_briefing_benchmark/corpus_latest100/hwpxs/156754095.hwpx \
             --require-equal-hashes \
             --server serverW=govpress-smoke-w=http://127.0.0.1:8080 \
             --server serverV=govpress-smoke-v=http://127.0.0.1:8080 \
