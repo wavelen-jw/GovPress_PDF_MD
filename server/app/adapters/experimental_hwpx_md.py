@@ -16,7 +16,13 @@ def _python_bin() -> str:
 def runtime_summary() -> dict[str, object]:
     python_bin = _python_bin()
     if not python_bin:
-        return {"available": False, "version": "", "backend": "unavailable"}
+        return {
+            "available": False,
+            "version": "",
+            "backend": "unavailable",
+            "python": "",
+            "reason": "GOVPRESS_HWPX_MD_PYTHON is not configured",
+        }
     script = (
         "import importlib.metadata as metadata\n"
         "try:\n"
@@ -37,13 +43,22 @@ def runtime_summary() -> dict[str, object]:
             text=True,
             timeout=10,
         )
-    except Exception:
-        return {"available": False, "version": "", "backend": "unavailable"}
+    except Exception as exc:
+        return {
+            "available": False,
+            "version": "",
+            "backend": "unavailable",
+            "python": python_bin,
+            "reason": str(exc),
+        }
     version = (result.stdout or "").strip().lstrip("v")
+    detail = (result.stderr or result.stdout or "").strip()
     return {
         "available": result.returncode == 0 and bool(version),
         "version": version,
         "backend": "subprocess" if result.returncode == 0 else "unavailable",
+        "python": python_bin,
+        "reason": "" if result.returncode == 0 and version else detail[:1000],
     }
 
 
