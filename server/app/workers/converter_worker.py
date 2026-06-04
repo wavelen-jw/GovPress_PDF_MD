@@ -84,13 +84,31 @@ class ConverterWorker:
         except Exception as exc:  # pragma: no cover - exact exceptions vary by runtime
             traceback_text = traceback.format_exc()
             self._logger.exception("Conversion failed for job %s: %s", job_id, exc)
+            error_code = "CONVERSION_FAILED"
+            error_message = "변환 중 오류가 발생했습니다. 파일 형식을 확인하거나 다시 시도해 주세요."
+            if isinstance(exc, experimental_hwpx_md.HwpxMdConversionTimeout):
+                error_code = "CONVERSION_TIMEOUT"
+                error_message = (
+                    "문서 구조가 매우 크거나 복잡해 제한시간 안에 변환하지 못했습니다. "
+                    "예산서·결산서처럼 표와 본문이 많은 HWPX는 처리 시간이 오래 걸릴 수 있습니다."
+                )
+                self._logger.warning(
+                    "HWPX conversion timeout for job %s after %ss: %s",
+                    job_id,
+                    exc.timeout_seconds,
+                    exc.diagnostics,
+                )
             print(
                 f"Conversion failed for job {job_id}: {exc}\n{traceback_text}",
                 flush=True,
             )
             try:
                 (self._storage.results_dir / f"{job_id}.error.log").write_text(
-                    f"{exc}\n{traceback_text}",
+                    (
+                        f"{exc}\n"
+                        f"{getattr(exc, 'diagnostics', '')}\n"
+                        f"{traceback_text}"
+                    ),
                     encoding="utf-8",
                 )
             except Exception:
@@ -99,6 +117,6 @@ class ConverterWorker:
                 job_id,
                 status="failed",
                 progress=100,
-                error_code="CONVERSION_FAILED",
-                error_message="변환 중 오류가 발생했습니다. 파일 형식을 확인하거나 다시 시도해 주세요.",
+                error_code=error_code,
+                error_message=error_message,
             )

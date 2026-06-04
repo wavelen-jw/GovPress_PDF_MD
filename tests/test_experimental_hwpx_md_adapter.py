@@ -31,6 +31,26 @@ class ExperimentalHwpxMdAdapterTests(unittest.TestCase):
         metadata_index = command.index("--metadata-json") + 1
         self.assertIn('"issuer_agency": "행정안전부"', command[metadata_index])
 
+    def test_convert_hwpx_raises_timeout_with_diagnostics(self) -> None:
+        def fake_run(command, **kwargs):
+            raise subprocess.TimeoutExpired(command, timeout=600)
+
+        with patch.dict(
+            os.environ,
+            {
+                "GOVPRESS_HWPX_MD_PYTHON": "/tmp/python",
+                "GOVPRESS_HWPX_MD_TIMEOUT_SECONDS": "600",
+            },
+            clear=False,
+        ):
+            with patch("server.app.adapters.experimental_hwpx_md.subprocess.run", side_effect=fake_run):
+                with patch("server.app.adapters.experimental_hwpx_md._hwpx_diagnostics", return_value="section_count=198"):
+                    with self.assertRaises(experimental_hwpx_md.HwpxMdConversionTimeout) as context:
+                        experimental_hwpx_md.convert_hwpx(Path("/tmp/source.hwpx"))
+
+        self.assertEqual(context.exception.timeout_seconds, 600)
+        self.assertEqual(context.exception.diagnostics, "section_count=198")
+
 
 if __name__ == "__main__":
     unittest.main()

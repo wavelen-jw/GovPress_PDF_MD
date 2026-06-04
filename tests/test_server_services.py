@@ -226,6 +226,31 @@ class ServerServiceTests(unittest.TestCase):
             document_metadata={"issuer_agency": "행정안전부"},
         )
 
+    def test_worker_reports_hwpx_timeout_as_large_document_failure(self) -> None:
+        with patch.object(self.worker, "enqueue"):
+            record = self.job_service.create_job(
+                file_name="large-budget.hwpx",
+                content=b"PK\x03\x04",
+                converter_engine="govpress-hwpx-md",
+            )
+
+        from server.app.adapters.experimental_hwpx_md import HwpxMdConversionTimeout
+
+        timeout = HwpxMdConversionTimeout(timeout_seconds=600, diagnostics="section_count=198")
+        with patch(
+            "server.app.workers.converter_worker.experimental_hwpx_md.convert_hwpx",
+            side_effect=timeout,
+        ):
+            self.worker.process(record.job_id)
+
+        updated = self.repository.get(record.job_id)
+        assert updated is not None
+        self.assertEqual(updated.status, "failed")
+        self.assertEqual(updated.error_code, "CONVERSION_TIMEOUT")
+        self.assertIn("문서 구조가 매우 크거나 복잡해", updated.error_message or "")
+        error_log = self.storage.results_dir / f"{record.job_id}.error.log"
+        self.assertIn("section_count=198", error_log.read_text(encoding="utf-8"))
+
     def test_list_jobs_returns_cursor_for_next_page(self) -> None:
         with patch.object(self.worker, "enqueue"):
             first = self.job_service.create_job(file_name="a.pdf", content=b"%PDF-1.4")
