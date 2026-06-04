@@ -895,6 +895,7 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
     fi
   fi
   normalize_env_placeholder_spec "$ENV_PATH"
+  upsert_env_value "$ENV_PATH" "GOVPRESS_MAX_UPLOAD_BYTES" "25000000"
   upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
   upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "0"
   upsert_env_value "$ENV_PATH" "GOVPRESS_HWPX_MD_SPEC" "${HWPX_MD_SPEC:-}"
@@ -946,6 +947,7 @@ else
   mkdir -p "$(dirname "$ENV_PATH")"
   touch "$ENV_PATH"
   normalize_env_placeholder_spec "$ENV_PATH"
+  upsert_env_value "$ENV_PATH" "GOVPRESS_MAX_UPLOAD_BYTES" "25000000"
   upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
   upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "0"
   upsert_env_value "$ENV_PATH" "GOVPRESS_HWPX_MD_SPEC" "${HWPX_MD_SPEC:-}"
