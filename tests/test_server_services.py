@@ -5,6 +5,7 @@ from datetime import timedelta
 from pathlib import Path
 import tempfile
 import unittest
+import zipfile
 from unittest.mock import patch
 
 from server.app.models import utcnow
@@ -293,6 +294,51 @@ class ServerServiceTests(unittest.TestCase):
         self.assertEqual(claimed.job_id, record.job_id)
         self.assertEqual(claimed.status, "processing")
         self.assertEqual(claimed.progress, 25)
+
+    def test_large_hwpx_is_claimed_only_by_large_queue_worker(self) -> None:
+        hwpx_path = Path(self.temp_dir.name) / "large.hwpx"
+        with zipfile.ZipFile(hwpx_path, "w") as archive:
+            for index in range(81):
+                archive.writestr(f"Contents/section{index}.xml", "<p/>")
+
+        with patch.object(self.worker, "enqueue"):
+            large_record = self.job_service.create_job(
+                file_name="large.hwpx",
+                content=hwpx_path.read_bytes(),
+            )
+            normal_record = self.job_service.create_job(
+                file_name="normal.pdf",
+                content=b"%PDF-1.4",
+            )
+
+        self.assertEqual(large_record.job_queue, "large")
+        self.assertEqual(normal_record.job_queue, "default")
+
+        default_claim = self.repository.claim_next_queued_job("worker-default", job_queue="default")
+        large_claim = self.repository.claim_next_queued_job("worker-large", job_queue="large")
+
+        assert default_claim is not None
+        assert large_claim is not None
+        self.assertEqual(default_claim.job_id, normal_record.job_id)
+        self.assertEqual(large_claim.job_id, large_record.job_id)
+
+    def test_unsplit_worker_claims_large_queue_job(self) -> None:
+        hwpx_path = Path(self.temp_dir.name) / "large.hwpx"
+        with zipfile.ZipFile(hwpx_path, "w") as archive:
+            for index in range(81):
+                archive.writestr(f"Contents/section{index}.xml", "<p/>")
+
+        with patch.object(self.worker, "enqueue"):
+            large_record = self.job_service.create_job(
+                file_name="large.hwpx",
+                content=hwpx_path.read_bytes(),
+            )
+
+        claimed = self.repository.claim_next_queued_job("worker-any")
+
+        assert claimed is not None
+        self.assertEqual(large_record.job_queue, "large")
+        self.assertEqual(claimed.job_id, large_record.job_id)
 
     def test_polling_worker_processes_claimed_job(self) -> None:
         with patch.object(self.worker, "enqueue"):

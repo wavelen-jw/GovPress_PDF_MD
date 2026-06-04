@@ -6,6 +6,7 @@ import threading
 import time
 
 from ..repositories import JobRepository
+from ..models import JobQueue
 from .converter_worker import ConverterWorker
 
 
@@ -17,6 +18,7 @@ class PollingWorker:
         converter: ConverterWorker,
         poll_interval_seconds: float = 1.0,
         concurrency: int = 1,
+        job_queue: JobQueue | None = None,
         worker_id: str | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
@@ -25,6 +27,7 @@ class PollingWorker:
         self._poll_interval_seconds = poll_interval_seconds
         self._worker_id = worker_id or f"{socket.gethostname()}-{threading.get_ident()}"
         self._concurrency = max(1, concurrency)
+        self._job_queue = job_queue
         self._logger = logger or logging.getLogger(__name__)
         self._stop_event = threading.Event()
         self._threads: list[threading.Thread] = []
@@ -51,7 +54,7 @@ class PollingWorker:
         self._threads = []
 
     def run_once(self, worker_id: str | None = None) -> bool:
-        record = self._jobs.claim_next_queued_job(worker_id or self._worker_id)
+        record = self._jobs.claim_next_queued_job(worker_id or self._worker_id, job_queue=self._job_queue)
         if record is None:
             return False
         self._logger.info("Claimed job %s", record.job_id)

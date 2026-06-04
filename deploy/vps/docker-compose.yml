@@ -47,6 +47,7 @@ services:
       --storage-root /data/storage
       --poll-interval 3.0
       --concurrency ${GOVPRESS_WORKER_CONCURRENCY:-1}
+      --large-concurrency ${GOVPRESS_LARGE_WORKER_CONCURRENCY:-0}
     env_file:
       - .env
     environment:

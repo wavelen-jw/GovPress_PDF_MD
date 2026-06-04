@@ -7,7 +7,7 @@ import threading
 from pathlib import Path
 from typing import Protocol
 
-from .models import ConverterEngine, HwpxTableMode, JobArtifacts, JobRecord, JobResult, JobStatus, utcnow
+from .models import ConverterEngine, HwpxTableMode, JobArtifacts, JobQueue, JobRecord, JobResult, JobStatus, utcnow
 
 
 def _isoformat(value: datetime | None) -> str | None:
@@ -42,6 +42,7 @@ def _row_to_record(row: sqlite3.Row) -> JobRecord:
         result_version=row["result_version"],
         hwpx_table_mode=row["hwpx_table_mode"] or "text",
         converter_engine=row["converter_engine"] if "converter_engine" in row.keys() and row["converter_engine"] else "default",
+        job_queue=row["job_queue"] if "job_queue" in row.keys() and row["job_queue"] else "default",
         document_metadata=document_metadata,
         result=JobResult(
             markdown=row["markdown"],
@@ -75,6 +76,7 @@ class JobRepository(Protocol):
         converter_engine: ConverterEngine,
         client_request_id: str | None,
         original_pdf_path: Path,
+        job_queue: JobQueue = "default",
         document_metadata: dict[str, object] | None = None,
     ) -> JobRecord: ...
 
@@ -147,7 +149,7 @@ class JobRepository(Protocol):
 
     def recover_incomplete_jobs(self) -> int: ...
 
-    def claim_next_queued_job(self, worker_id: str) -> JobRecord | None: ...
+    def claim_next_queued_job(self, worker_id: str, *, job_queue: JobQueue | None = None) -> JobRecord | None: ...
 
     def delete(self, job_id: str) -> JobRecord | None: ...
 
@@ -189,6 +191,7 @@ class SQLiteJobRepository:
                     client_request_id TEXT UNIQUE,
                     result_version INTEGER NOT NULL DEFAULT 0,
                     hwpx_table_mode TEXT NOT NULL DEFAULT 'text',
+                    job_queue TEXT NOT NULL DEFAULT 'default',
                     original_pdf_path TEXT NOT NULL,
                     final_markdown_path TEXT,
                     edited_markdown_path TEXT,
@@ -227,6 +230,8 @@ class SQLiteJobRepository:
                 conn.execute("ALTER TABLE jobs ADD COLUMN html_preview_html TEXT")
             if "converter_engine" not in columns:
                 conn.execute("ALTER TABLE jobs ADD COLUMN converter_engine TEXT NOT NULL DEFAULT 'default'")
+            if "job_queue" not in columns:
+                conn.execute("ALTER TABLE jobs ADD COLUMN job_queue TEXT NOT NULL DEFAULT 'default'")
             if "document_metadata" not in columns:
                 conn.execute("ALTER TABLE jobs ADD COLUMN document_metadata TEXT")
             conn.execute(
@@ -256,6 +261,7 @@ class SQLiteJobRepository:
         converter_engine: ConverterEngine,
         client_request_id: str | None,
         original_pdf_path: Path,
+        job_queue: JobQueue = "default",
         document_metadata: dict[str, object] | None = None,
     ) -> JobRecord:
         with self._lock, self._connect() as conn:
@@ -270,13 +276,13 @@ class SQLiteJobRepository:
                 INSERT INTO jobs (
                     job_id, edit_token, file_name, source, status, created_at, updated_at,
                     progress, error_code, error_message, client_request_id, hwpx_table_mode,
-                    converter_engine,
+                    converter_engine, job_queue,
                     result_version, original_pdf_path, final_markdown_path,
                     edited_markdown_path, markdown, html_preview, markdown_text,
                     markdown_html, html_preview_text, html_preview_html, title,
                     department, edited_markdown, saved_at
                     , claimed_by, document_metadata
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job_id,
@@ -292,6 +298,7 @@ class SQLiteJobRepository:
                     client_request_id,
                     hwpx_table_mode,
                     converter_engine,
+                    job_queue,
                     0,
                     str(original_pdf_path),
                     None,
@@ -603,15 +610,18 @@ class SQLiteJobRepository:
             conn.commit()
         return int(cursor.rowcount or 0)
 
-    def claim_next_queued_job(self, worker_id: str) -> JobRecord | None:
+    def claim_next_queued_job(self, worker_id: str, *, job_queue: JobQueue | None = None) -> JobRecord | None:
         with self._lock, self._connect() as conn:
+            queue_clause = "AND job_queue = ?" if job_queue else ""
+            params: tuple[object, ...] = (job_queue,) if job_queue else ()
             row = conn.execute(
-                """
+                f"""
                 SELECT job_id FROM jobs
-                WHERE status = 'queued'
+                WHERE status = 'queued' {queue_clause}
                 ORDER BY created_at ASC, job_id ASC
                 LIMIT 1
-                """
+                """,
+                params,
             ).fetchone()
             if row is None:
                 return None
@@ -681,6 +691,7 @@ class InMemoryJobRepository:
         converter_engine: ConverterEngine,
         client_request_id: str | None,
         original_pdf_path: Path,
+        job_queue: JobQueue = "default",
         document_metadata: dict[str, object] | None = None,
     ) -> JobRecord:
         with self._lock:
@@ -701,6 +712,7 @@ class InMemoryJobRepository:
                 client_request_id=client_request_id,
                 hwpx_table_mode=hwpx_table_mode,
                 converter_engine=converter_engine,
+                job_queue=job_queue,
                 document_metadata=document_metadata,
                 artifacts=JobArtifacts(original_pdf_path=original_pdf_path),
             )
@@ -876,11 +888,13 @@ class InMemoryJobRepository:
                 recovered += 1
         return recovered
 
-    def claim_next_queued_job(self, worker_id: str) -> JobRecord | None:
+    def claim_next_queued_job(self, worker_id: str, *, job_queue: JobQueue | None = None) -> JobRecord | None:
         with self._lock:
             for job_id in self._job_order:
                 record = self._jobs[job_id]
                 if record.status != "queued":
+                    continue
+                if job_queue and record.job_queue != job_queue:
                     continue
                 record.status = "processing"
                 record.progress = 25

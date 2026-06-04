@@ -11,6 +11,7 @@ from ..models import JobStatus
 from ..models import ConverterEngine, HwpxTableMode
 from ..repositories import JobRepository
 from ..workers.converter_worker import ConverterWorker
+from .job_queue_classifier import classify_job_queue
 from .storage_service import StorageService
 
 
@@ -54,6 +55,7 @@ class JobService:
         edit_token = secrets.token_urlsafe(24)
         original_path = self._storage.save_original_pdf(job_id, file_name, content)
         converter_engine = _normalize_converter_engine(file_name, converter_engine)
+        job_queue = classify_job_queue(original_path)
         record = self._repository.create(
             job_id=job_id,
             edit_token=edit_token,
@@ -63,6 +65,7 @@ class JobService:
             converter_engine=converter_engine,
             client_request_id=client_request_id,
             original_pdf_path=original_path,
+            job_queue=job_queue,
             document_metadata=document_metadata,
         )
         if record.job_id == job_id:
@@ -148,6 +151,7 @@ class JobService:
             max_bytes=max_upload_bytes,
         )
         converter_engine = _normalize_converter_engine(file_name, converter_engine)
+        job_queue = classify_job_queue(original_path)
         record = self._repository.create(
             job_id=job_id,
             edit_token=edit_token,
@@ -157,6 +161,7 @@ class JobService:
             converter_engine=converter_engine,
             client_request_id=client_request_id,
             original_pdf_path=original_path,
+            job_queue=job_queue,
             document_metadata=document_metadata,
         )
         if record.job_id == job_id:

@@ -16,6 +16,7 @@ def main() -> int:
     parser.add_argument("--storage-root", type=Path, default=Path(__file__).resolve().parents[1] / "storage")
     parser.add_argument("--poll-interval", type=float, default=1.0)
     parser.add_argument("--concurrency", type=int, default=1)
+    parser.add_argument("--large-concurrency", type=int, default=0)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -23,21 +24,37 @@ def main() -> int:
     jobs = SQLiteJobRepository(storage.root / "jobs.sqlite3")
     jobs.recover_incomplete_jobs()
     converter = ConverterWorker(jobs=jobs, storage=storage, logger=logging.getLogger("govpress.converter"))
-    poller = PollingWorker(
+    split_large_queue = args.large_concurrency > 0
+    default_poller = PollingWorker(
         jobs=jobs,
         converter=converter,
         poll_interval_seconds=args.poll_interval,
         concurrency=args.concurrency,
+        job_queue="default" if split_large_queue else None,
         logger=logging.getLogger("govpress.poller"),
     )
-    poller.start()
+    pollers = [default_poller]
+    if split_large_queue:
+        pollers.append(
+            PollingWorker(
+                jobs=jobs,
+                converter=converter,
+                poll_interval_seconds=args.poll_interval,
+                concurrency=args.large_concurrency,
+                job_queue="large",
+                logger=logging.getLogger("govpress.poller.large"),
+            )
+        )
+    for poller in pollers:
+        poller.start()
     try:
         while True:
             time.sleep(60)
     except KeyboardInterrupt:
         pass
     finally:
-        poller.stop()
+        for poller in pollers:
+            poller.stop()
     return 0
 
 

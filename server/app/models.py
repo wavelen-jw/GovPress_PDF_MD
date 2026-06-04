@@ -9,6 +9,7 @@ from typing import Literal
 JobStatus = Literal["queued", "processing", "completed", "failed"]
 HwpxTableMode = Literal["text", "html"]
 ConverterEngine = Literal["default", "govpress-hwpx-md"]
+JobQueue = Literal["default", "large"]
 
 
 def utcnow() -> datetime:
@@ -52,6 +53,7 @@ class JobRecord:
     result_version: int = 0
     hwpx_table_mode: HwpxTableMode = "text"
     converter_engine: ConverterEngine = "default"
+    job_queue: JobQueue = "default"
     document_metadata: dict[str, object] | None = None
     result: JobResult = field(default_factory=JobResult)
     artifacts: JobArtifacts | None = None
