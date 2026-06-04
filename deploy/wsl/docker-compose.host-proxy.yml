@@ -48,7 +48,7 @@ services:
       python -m server.run_worker
       --storage-root /data/storage
       --poll-interval 3.0
-      --concurrency 1
+      --concurrency ${GOVPRESS_WORKER_CONCURRENCY:-1}
     env_file:
       - .env
     environment:
@@ -59,7 +59,7 @@ services:
       GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK: ${GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK:-0}
       GOVPRESS_HWPX_MD_PYTHON: ${GOVPRESS_HWPX_MD_PYTHON:-/opt/govpress-hwpx-md-venv/bin/python}
       _JAVA_OPTIONS: "-Xms64m -Xmx256m"
-    mem_limit: 512m
+    mem_limit: ${GOVPRESS_WORKER_MEM_LIMIT:-512m}
     volumes:
       - ../../:/app
       - ../../../gov-md-converter:/gov-md-converter

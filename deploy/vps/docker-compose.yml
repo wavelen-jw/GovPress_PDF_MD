@@ -41,12 +41,12 @@ services:
         GOVPRESS_CONVERTER_MIN_VERSION: ${GOVPRESS_CONVERTER_MIN_VERSION:-}
         GOVPRESS_HWPX_MD_SPEC: ${GOVPRESS_HWPX_MD_SPEC:-}
     container_name: govpress-worker
-    # 저성능 서버: 동시 변환 1개, 폴링 간격 3초로 CPU 부하 완화
+    # 서버별 성능에 맞춰 동시 변환 수를 .env에서 조절한다.
     command: >
       python -m server.run_worker
       --storage-root /data/storage
       --poll-interval 3.0
-      --concurrency 1
+      --concurrency ${GOVPRESS_WORKER_CONCURRENCY:-1}
     env_file:
       - .env
     environment:
@@ -55,7 +55,7 @@ services:
       GOVPRESS_HWPX_MD_PYTHON: ${GOVPRESS_HWPX_MD_PYTHON:-/opt/govpress-hwpx-md-venv/bin/python}
       # Java 힙 최대 256 MB로 제한하여 OOM 방지
       _JAVA_OPTIONS: "-Xms64m -Xmx256m"
-    mem_limit: 512m
+    mem_limit: ${GOVPRESS_WORKER_MEM_LIMIT:-512m}
     volumes:
       - ../../:/app
       - ./data/storage:/data/storage
