@@ -40,7 +40,7 @@ def _mask_converter_spec(raw: str | None) -> str:
     return re.sub(r"://([^/@]+)@", "://***@", value)
 
 
-def build_router(settings, verify_admin_api_key) -> APIRouter:
+def build_router(settings, verify_admin_api_key, jobs=None) -> APIRouter:
     router = APIRouter(prefix="/v1/admin/runtime", tags=["admin-runtime"])
 
     @router.get("/converter")
@@ -88,6 +88,29 @@ def build_router(settings, verify_admin_api_key) -> APIRouter:
                 "",
             ),
             "converter_min_version": os.environ.get("GOVPRESS_CONVERTER_MIN_VERSION", ""),
+        }
+
+    @router.get("/queues")
+    def get_queue_runtime(
+        _authorized: None = Depends(partial(verify_admin_api_key, settings)),
+    ) -> dict[str, object]:
+        if jobs is None:
+            return {
+                "available": False,
+                "reason": "job repository is not configured",
+            }
+        return {
+            "available": True,
+            **jobs.queue_stats(),
+            "worker": {
+                "default_concurrency": os.environ.get("GOVPRESS_WORKER_CONCURRENCY", ""),
+                "large_concurrency": os.environ.get("GOVPRESS_LARGE_WORKER_CONCURRENCY", ""),
+            },
+            "large_thresholds": {
+                "zip_bytes": os.environ.get("GOVPRESS_LARGE_HWPX_ZIP_BYTES", "15000000"),
+                "xml_bytes": os.environ.get("GOVPRESS_LARGE_HWPX_XML_BYTES", "80000000"),
+                "section_count": os.environ.get("GOVPRESS_LARGE_HWPX_SECTION_COUNT", "80"),
+            },
         }
 
     return router

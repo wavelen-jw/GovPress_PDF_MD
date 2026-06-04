@@ -151,6 +151,8 @@ class JobRepository(Protocol):
 
     def claim_next_queued_job(self, worker_id: str, *, job_queue: JobQueue | None = None) -> JobRecord | None: ...
 
+    def queue_stats(self) -> dict[str, object]: ...
+
     def delete(self, job_id: str) -> JobRecord | None: ...
 
     def cleanup_old_jobs(
@@ -642,6 +644,55 @@ class SQLiteJobRepository:
                 return None
         return self.get(job_id)
 
+    def queue_stats(self) -> dict[str, object]:
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT job_queue, status, COUNT(*) AS count
+                FROM jobs
+                WHERE status IN ('queued', 'processing')
+                GROUP BY job_queue, status
+                """
+            ).fetchall()
+            oldest_rows = conn.execute(
+                """
+                SELECT job_queue, job_id, file_name, created_at
+                FROM jobs
+                WHERE status = 'queued'
+                ORDER BY created_at ASC, job_id ASC
+                """
+            ).fetchall()
+
+        queues: dict[str, dict[str, object]] = {
+            "default": {"queued": 0, "processing": 0, "oldest_queued": None},
+            "large": {"queued": 0, "processing": 0, "oldest_queued": None},
+        }
+        for row in rows:
+            queue = row["job_queue"] or "default"
+            queues.setdefault(queue, {"queued": 0, "processing": 0, "oldest_queued": None})
+            queues[queue][row["status"]] = row["count"]
+
+        for row in oldest_rows:
+            queue = row["job_queue"] or "default"
+            queues.setdefault(queue, {"queued": 0, "processing": 0, "oldest_queued": None})
+            if queues[queue]["oldest_queued"] is not None:
+                continue
+            queues[queue]["oldest_queued"] = {
+                "job_id": row["job_id"],
+                "file_name": row["file_name"],
+                "created_at": row["created_at"],
+            }
+
+        total_queued = sum(int(queue["queued"]) for queue in queues.values())
+        total_processing = sum(int(queue["processing"]) for queue in queues.values())
+        return {
+            "queues": queues,
+            "total": {
+                "queued": total_queued,
+                "processing": total_processing,
+            },
+        }
+
     def delete(self, job_id: str) -> JobRecord | None:
         existing = self.get(job_id)
         if existing is None:
@@ -901,6 +952,34 @@ class InMemoryJobRepository:
                 record.updated_at = utcnow()
                 return record
         return None
+
+    def queue_stats(self) -> dict[str, object]:
+        queues: dict[str, dict[str, object]] = {
+            "default": {"queued": 0, "processing": 0, "oldest_queued": None},
+            "large": {"queued": 0, "processing": 0, "oldest_queued": None},
+        }
+        with self._lock:
+            for record in sorted(self._jobs.values(), key=lambda item: (item.created_at, item.job_id)):
+                if record.status not in {"queued", "processing"}:
+                    continue
+                queue = record.job_queue or "default"
+                queues.setdefault(queue, {"queued": 0, "processing": 0, "oldest_queued": None})
+                queues[queue][record.status] = int(queues[queue][record.status]) + 1
+                if record.status == "queued" and queues[queue]["oldest_queued"] is None:
+                    queues[queue]["oldest_queued"] = {
+                        "job_id": record.job_id,
+                        "file_name": record.file_name,
+                        "created_at": record.created_at.isoformat(),
+                    }
+        total_queued = sum(int(queue["queued"]) for queue in queues.values())
+        total_processing = sum(int(queue["processing"]) for queue in queues.values())
+        return {
+            "queues": queues,
+            "total": {
+                "queued": total_queued,
+                "processing": total_processing,
+            },
+        }
 
     def delete(self, job_id: str) -> JobRecord | None:
         with self._lock:

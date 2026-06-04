@@ -340,6 +340,35 @@ class ServerServiceTests(unittest.TestCase):
         self.assertEqual(large_record.job_queue, "large")
         self.assertEqual(claimed.job_id, large_record.job_id)
 
+    def test_queue_stats_counts_default_and_large_jobs(self) -> None:
+        hwpx_path = Path(self.temp_dir.name) / "large.hwpx"
+        with zipfile.ZipFile(hwpx_path, "w") as archive:
+            for index in range(81):
+                archive.writestr(f"Contents/section{index}.xml", "<p/>")
+
+        with patch.object(self.worker, "enqueue"):
+            large_record = self.job_service.create_job(
+                file_name="large.hwpx",
+                content=hwpx_path.read_bytes(),
+            )
+            normal_record = self.job_service.create_job(
+                file_name="normal.pdf",
+                content=b"%PDF-1.4",
+            )
+
+        self.repository.claim_next_queued_job("worker-default", job_queue="default")
+        stats = self.repository.queue_stats()
+
+        queues = stats["queues"]
+        assert isinstance(queues, dict)
+        self.assertEqual(queues["default"]["queued"], 0)
+        self.assertEqual(queues["default"]["processing"], 1)
+        self.assertEqual(queues["large"]["queued"], 1)
+        self.assertEqual(queues["large"]["processing"], 0)
+        self.assertEqual(queues["large"]["oldest_queued"]["job_id"], large_record.job_id)
+        self.assertEqual(stats["total"]["queued"], 1)
+        self.assertEqual(stats["total"]["processing"], 1)
+
     def test_polling_worker_processes_claimed_job(self) -> None:
         with patch.object(self.worker, "enqueue"):
             record = self.job_service.create_job(file_name="sample.pdf", content=b"%PDF-1.4")

@@ -111,7 +111,7 @@ def create_app(
     admin_auth_dependency = partial(verify_admin_api_key, settings)
     app.include_router(jobs_api.build_router(job_service, settings, auth_dependency))
     app.include_router(results_api.build_router(result_service, auth_dependency))
-    app.include_router(admin_runtime_api.build_router(settings, verify_admin_api_key))
+    app.include_router(admin_runtime_api.build_router(settings, verify_admin_api_key, repository))
     app.include_router(
         policy_briefings_api.build_router(
             job_service,
