@@ -1,0 +1,157 @@
+name: Clear Server Cache
+
+on:
+  workflow_dispatch:
+
+jobs:
+  clear-v:
+    name: "Clear serverV cache"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Materialize SSH key
+        env:
+          VPS_KEY: ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          KEY_FILE=~/.ssh/deploy_key
+          if printf '%s' "$VPS_KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+            printf '%s\n' "$VPS_KEY" | tr -d '\r' > "$KEY_FILE"
+          else
+            printf '%s' "$VPS_KEY" | tr -d '\r\n ' | base64 -d > "$KEY_FILE"
+          fi
+          chmod 600 "$KEY_FILE"
+          ssh-keygen -y -f "$KEY_FILE" > /dev/null
+
+      - name: Clear cache on serverV
+        env:
+          HOST: ${{ secrets.GOVPRESS_VPS_HOST }}
+          USER: ${{ secrets.GOVPRESS_VPS_USER }}
+          PORT: ${{ vars.GOVPRESS_VPS_PORT || '22' }}
+          DEPLOY_DIR: ${{ vars.GOVPRESS_VPS_DEPLOY_DIR }}
+        run: |
+          set -euo pipefail
+          cat > remote-clear-cache.sh <<'BASH'
+          set -euo pipefail
+          DEPLOY_DIR="$1"
+          for storage_root in \
+            "$DEPLOY_DIR/storage" \
+            "$DEPLOY_DIR/deploy/wsl/data/storage" \
+            "$DEPLOY_DIR/deploy/vps/data/storage"; do
+            if [ ! -d "$storage_root" ]; then
+              continue
+            fi
+            before_results="$(find "$storage_root/results" -maxdepth 1 -type f \( -name '*.md' -o -name '*.error.log' \) 2>/dev/null | wc -l | tr -d ' ')"
+            before_originals="$(find "$storage_root/policy_briefing_cache/originals" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')"
+            before_completed=0
+            if command -v sqlite3 >/dev/null 2>&1 && [ -f "$storage_root/jobs.sqlite3" ]; then
+              before_completed="$(sqlite3 "$storage_root/jobs.sqlite3" "SELECT COUNT(*) FROM jobs WHERE source='policy-briefing-cache' AND status='completed';" || printf '0')"
+            fi
+            rm -f \
+              "$storage_root"/results/*.md \
+              "$storage_root"/results/*.error.log \
+              "$storage_root/policy_briefing_cache/index.json" \
+              "$storage_root"/policy_briefing_cache/originals/* \
+              2>/dev/null || true
+            if command -v sqlite3 >/dev/null 2>&1 && [ -f "$storage_root/jobs.sqlite3" ]; then
+              sqlite3 "$storage_root/jobs.sqlite3" "UPDATE jobs SET status='failed', progress=0, error_code='manual_cache_clear', error_message='Server cache was manually cleared. Re-import to regenerate with the current converter.', client_request_id=NULL, final_markdown_path=NULL, markdown=NULL, html_preview=NULL, markdown_text=NULL, markdown_html=NULL, html_preview_text=NULL, html_preview_html=NULL, title=NULL, department=NULL, updated_at=datetime('now') WHERE source='policy-briefing-cache' AND status='completed';"
+            fi
+            after_results="$(find "$storage_root/results" -maxdepth 1 -type f \( -name '*.md' -o -name '*.error.log' \) 2>/dev/null | wc -l | tr -d ' ')"
+            after_originals="$(find "$storage_root/policy_briefing_cache/originals" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')"
+            after_completed=0
+            if command -v sqlite3 >/dev/null 2>&1 && [ -f "$storage_root/jobs.sqlite3" ]; then
+              after_completed="$(sqlite3 "$storage_root/jobs.sqlite3" "SELECT COUNT(*) FROM jobs WHERE source='policy-briefing-cache' AND status='completed';" || printf '0')"
+            fi
+            printf 'storage=%s results=%s->%s originals=%s->%s completed_jobs=%s->%s\n' \
+              "$storage_root" "$before_results" "$after_results" "$before_originals" "$after_originals" "$before_completed" "$after_completed"
+          done
+          BASH
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "$PORT" -H "$HOST" >> ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes -p "$PORT" "$USER@$HOST" bash -s "$DEPLOY_DIR" < remote-clear-cache.sh
+
+  clear-w:
+    name: "Clear serverW cache"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install cloudflared
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb \
+            -o cloudflared.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: Materialize SSH key
+        env:
+          W_KEY: ${{ secrets.GOVPRESS_W_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          KEY_FILE=~/.ssh/deploy_key
+          if printf '%s' "$W_KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+            printf '%s\n' "$W_KEY" | tr -d '\r' > "$KEY_FILE"
+          else
+            printf '%s' "$W_KEY" | tr -d '\r\n ' | base64 -d > "$KEY_FILE"
+          fi
+          chmod 600 "$KEY_FILE"
+          ssh-keygen -y -f "$KEY_FILE" > /dev/null
+
+      - name: Clear cache on serverW
+        env:
+          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST }}
+          USER: ${{ secrets.GOVPRESS_W_USER }}
+          DEPLOY_DIR: ${{ vars.GOVPRESS_W_DEPLOY_DIR }}
+          CF_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          cat > remote-clear-cache.sh <<'BASH'
+          set -euo pipefail
+          DEPLOY_DIR="$1"
+          for storage_root in \
+            "$DEPLOY_DIR/storage" \
+            "$DEPLOY_DIR/deploy/wsl/data/storage" \
+            "$DEPLOY_DIR/deploy/vps/data/storage"; do
+            if [ ! -d "$storage_root" ]; then
+              continue
+            fi
+            before_results="$(find "$storage_root/results" -maxdepth 1 -type f \( -name '*.md' -o -name '*.error.log' \) 2>/dev/null | wc -l | tr -d ' ')"
+            before_originals="$(find "$storage_root/policy_briefing_cache/originals" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')"
+            before_completed=0
+            if command -v sqlite3 >/dev/null 2>&1 && [ -f "$storage_root/jobs.sqlite3" ]; then
+              before_completed="$(sqlite3 "$storage_root/jobs.sqlite3" "SELECT COUNT(*) FROM jobs WHERE source='policy-briefing-cache' AND status='completed';" || printf '0')"
+            fi
+            rm -f \
+              "$storage_root"/results/*.md \
+              "$storage_root"/results/*.error.log \
+              "$storage_root/policy_briefing_cache/index.json" \
+              "$storage_root"/policy_briefing_cache/originals/* \
+              2>/dev/null || true
+            if command -v sqlite3 >/dev/null 2>&1 && [ -f "$storage_root/jobs.sqlite3" ]; then
+              sqlite3 "$storage_root/jobs.sqlite3" "UPDATE jobs SET status='failed', progress=0, error_code='manual_cache_clear', error_message='Server cache was manually cleared. Re-import to regenerate with the current converter.', client_request_id=NULL, final_markdown_path=NULL, markdown=NULL, html_preview=NULL, markdown_text=NULL, markdown_html=NULL, html_preview_text=NULL, html_preview_html=NULL, title=NULL, department=NULL, updated_at=datetime('now') WHERE source='policy-briefing-cache' AND status='completed';"
+            fi
+            after_results="$(find "$storage_root/results" -maxdepth 1 -type f \( -name '*.md' -o -name '*.error.log' \) 2>/dev/null | wc -l | tr -d ' ')"
+            after_originals="$(find "$storage_root/policy_briefing_cache/originals" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')"
+            after_completed=0
+            if command -v sqlite3 >/dev/null 2>&1 && [ -f "$storage_root/jobs.sqlite3" ]; then
+              after_completed="$(sqlite3 "$storage_root/jobs.sqlite3" "SELECT COUNT(*) FROM jobs WHERE source='policy-briefing-cache' AND status='completed';" || printf '0')"
+            fi
+            printf 'storage=%s results=%s->%s originals=%s->%s completed_jobs=%s->%s\n' \
+              "$storage_root" "$before_results" "$after_results" "$before_originals" "$after_originals" "$before_completed" "$after_completed"
+          done
+          BASH
+          cloudflared access tcp \
+            --hostname "$SSH_HOST" \
+            --url 127.0.0.1:2223 \
+            --service-token-id "$CF_ID" \
+            --service-token-secret "$CF_SECRET" \
+            >/tmp/cloudflared-cache-clear.log 2>&1 &
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            if ss -ltn | grep -q "127.0.0.1:2223"; then
+              break
+            fi
+            sleep 1
+          done
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new -p 2223 "$USER@127.0.0.1" bash -s "$DEPLOY_DIR" < remote-clear-cache.sh
