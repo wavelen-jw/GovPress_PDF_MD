@@ -15,6 +15,17 @@ on:
       - "src/**"
       - "!src/hwpx_qc_*.py"
   workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: "Manual deploy target"
+        type: choice
+        required: false
+        default: all
+        options:
+          - all
+          - serverV
+          - serverW
+          - serverN
 
 concurrency:
   group: vps-deploy
@@ -76,10 +87,29 @@ jobs:
           run_drift=false
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            deploy_v=true
-            deploy_hw=true
-            deploy_n=true
-            run_drift=true
+            manual_target="${{ github.event.inputs.deploy_target }}"
+            manual_target="${manual_target:-all}"
+            case "$manual_target" in
+              all)
+                deploy_v=true
+                deploy_hw=true
+                deploy_n=true
+                run_drift=true
+                ;;
+              serverV)
+                deploy_v=true
+                ;;
+              serverW)
+                deploy_hw=true
+                ;;
+              serverN)
+                deploy_n=true
+                ;;
+              *)
+                echo "Unsupported deploy_target: $manual_target" >&2
+                exit 1
+                ;;
+            esac
           else
             before="${{ github.event.before }}"
             if [[ -z "$before" || "$before" == "0000000000000000000000000000000000000000" ]]; then
