@@ -1,0 +1,107 @@
+# ServerN api5 Handoff (2026-06-16)
+
+목적:
+- 새 서버 `114.110.183.222:10022`를 `serverW`와 동일한 `host_proxy` 구조로 추가
+- 공개 주소는 `https://api5.govpress.cloud`
+- 이후 작업은 `serverV` 세션에서 이어서 진행
+
+현재 상태:
+- 로컬 repo `web`에서 아래 workflow 변경만 반영됨
+  - `.github/workflows/_deploy-server.yml`
+  - `.github/workflows/vps.yml`
+- 변경 내용:
+  - direct SSH reusable workflow가 `compose_file`, `deploy_mode`, `public_probe_url`, `run_policy_probe`를 받도록 확장됨
+  - `deploy-n` job 추가
+  - `converter-drift-smoke`, 실패 알림에 `serverN` 포함
+- `git diff --check` 통과
+
+중요 blocker:
+- 네트워크/포트는 정상
+- `ubuntu@114.110.183.222:10022`는 SSH handshake 성공
+- 하지만 공개키 인증 거부:
+  - `Permission denied (publickey,password,keyboard-interactive)`
+  - 디버그상 클라이언트 key offer까지는 갔고 서버가 거절함
+- 즉 `ubuntu` 계정의 `~/.ssh/authorized_keys` 내용 또는 권한/소유자 문제
+
+서버V에서 먼저 할 일:
+1. `ssh n` 별칭 추가
+2. 새 서버 공개키 인증 문제 해결
+3. 새 서버에 repo/bootstrap
+4. Cloudflare Tunnel 신규 발급 + `api5.govpress.cloud -> http://127.0.0.1:8080`
+5. GitHub repo secret/variable 등록
+6. Actions 또는 수동 배포
+
+`serverV`의 `~/.ssh/config`에 추가할 예시:
+
+```sshconfig
+Host n
+    HostName 114.110.183.222
+    User ubuntu
+    Port 10022
+    ServerAliveInterval 30
+    ServerAliveCountMax 3
+    StrictHostKeyChecking accept-new
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
+```
+
+새 서버에서 확인할 명령:
+
+```bash
+whoami
+ls -ld ~ ~/.ssh ~/.ssh/authorized_keys
+stat -c '%U %G %a %n' ~ ~/.ssh ~/.ssh/authorized_keys
+grep -n 'govpress-manual' ~/.ssh/authorized_keys
+```
+
+권한 복구:
+
+```bash
+sudo chown -R ubuntu:ubuntu /home/ubuntu/.ssh
+chmod 700 /home/ubuntu/.ssh
+chmod 600 /home/ubuntu/.ssh/authorized_keys
+grep -q 'govpress-manual' /home/ubuntu/.ssh/authorized_keys || printf '%s\n' 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFVDg/Ijog5ejIbokxC6qTRRR7qGStkdnUo3nOJpU1f9 govpress-manual' >> /home/ubuntu/.ssh/authorized_keys
+```
+
+로컬 공개키:
+
+```text
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFVDg/Ijog5ejIbokxC6qTRRR7qGStkdnUo3nOJpU1f9 govpress-manual
+```
+
+GitHub repo에 추가할 secret:
+- `GOVPRESS_N_HOST=114.110.183.222`
+- `GOVPRESS_N_USER=ubuntu`
+- `GOVPRESS_N_SSH_KEY=<serverV 또는 Actions에서 쓸 private key>`
+
+GitHub repo에 추가할 variable:
+- `GOVPRESS_N_PORT=10022`
+- `GOVPRESS_N_DEPLOY_DIR=/home/ubuntu/projects/GovPress_PDF_MD`
+- `GOVPRESS_N_BRANCH=web`
+- `GOVPRESS_N_SERVICE=govpress-compose`
+- `GOVPRESS_N_COMPOSE_FILE=deploy/wsl/docker-compose.host-proxy.yml`
+- `GOVPRESS_N_HEALTHCHECK_URL=http://127.0.0.1:8080/health`
+
+서버 bootstrap 목표 상태:
+- repo: `/home/ubuntu/projects/GovPress_PDF_MD`
+- branch: `web`
+- deploy mode: `host_proxy`
+- compose: `deploy/wsl/docker-compose.host-proxy.yml`
+- systemd:
+  - `govpress-compose.service`
+  - `govpress-caddy.service`
+  - `govpress-cloudflared.service`
+  - `govpress-watchdog.timer`
+
+배포 후 기대 검증:
+
+```bash
+curl -i http://127.0.0.1:8013/health
+curl -i http://127.0.0.1:8080/health
+curl -i https://api5.govpress.cloud/health
+```
+
+메모:
+- 기존 `serverW`, `serverV` 설정은 건드리지 않음
+- 새 Tunnel은 기존 `api4` tunnel과 분리해야 함
+- 현재 repo에는 unrelated modified files가 있으므로 commit 시 workflow 2개만 좁게 포함하는 것이 안전함
