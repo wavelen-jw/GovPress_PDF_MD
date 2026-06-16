@@ -117,26 +117,51 @@ docker compose -f deploy/vps/docker-compose.yml up -d --build
 - `govpress-api.service` 재시작 성공
 - `127.0.0.1:8013/health` `200`
 - `deploy/converter.version`과 실제 `distribution_version`, `module_path`, `backend` 일치
-- H/W/V 동일 샘플 변환 결과 hash 일치
+- W/V/N 동일 샘플 변환 결과 hash 일치
+
+## GitHub Actions 배포 SSH 경로
+
+`serverV`의 public `:2222`는 UFW allowlist로 제한합니다. GitHub-hosted runner IP 대역은 매우 넓고 변경되므로 `2222/tcp`를 `0.0.0.0/0`으로 열지 않습니다.
+
+Actions 배포는 Cloudflare Tunnel SSH를 사용합니다.
+
+- hostname: `ssh-v.govpress.cloud`
+- tunnel: `govpress-v-ssh`
+- origin: `ssh://127.0.0.1:2222`
+- user service: `cloudflared-govpress-v-ssh.service`
+- workflow variable: `GOVPRESS_VPS_SSH_HOST=ssh-v.govpress.cloud`
+
+점검:
+
+```bash
+systemctl --user status --no-pager cloudflared-govpress-v-ssh.service
+cloudflared tunnel info govpress-v-ssh
+ssh -o ProxyCommand='cloudflared access ssh --hostname %h' ssh-v.govpress.cloud 'hostname && systemctl is-active govpress-api.service'
+```
+
+GitHub Actions 수동 검증:
+
+1. `Deploy API To Servers` workflow 실행
+2. `deploy_target=serverV` 선택
+3. `서버V (VPS) / deploy` job이 성공해야 함
 
 ## serverV 운영 점검 지시서
 
-`serverV`는 `serverH`, `serverW` 점검용 jump host로 사용합니다. 원칙은 다음과 같습니다.
+`serverV`는 운영 API 서버이자 필요한 경우 다른 서버 점검용 jump host로 사용합니다. 원칙은 다음과 같습니다.
 
 - `serverV`에서는 점검/복구 명령만 수행합니다.
 - 코드 수정, 커밋, 푸시는 로컬 작업 저장소에서 계속 수행합니다.
-- `serverV -> Cloudflare SSH -> serverH/serverW` 경로를 깨는 변경은 금지합니다.
+- `serverV -> Cloudflare SSH -> serverW` 경로와 `serverV` 자체 Cloudflare SSH 배포 경로를 깨는 변경은 금지합니다.
 
 기본 접속:
 
 ```bash
-ssh h
 ssh w
 ```
 
 권장 점검 순서:
 
-1. `serverV`에서 대상 서버 접속
+1. `serverV`에서 대상 서버 접속 (`serverH`는 중단 상태이므로 사용하지 않음)
 2. systemd 상태 확인
 3. Docker 컨테이너 상태 확인
 4. 로컬 `8013`, `8080`, public authenticated API 순서로 probe
@@ -145,7 +170,7 @@ ssh w
 예시:
 
 ```bash
-ssh h
+ssh w
 systemctl status --no-pager govpress-caddy.service govpress-cloudflared.service govpress-watchdog.timer
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 curl -fsS http://127.0.0.1:8013/health
@@ -155,12 +180,12 @@ curl -fsS -H "X-API-Key: $API_KEY" "https://api.govpress.cloud/v1/policy-briefin
 journalctl -u govpress-watchdog.service -n 30 --no-pager
 ```
 
-`serverW`도 동일하고 public hostname만 `api4.govpress.cloud`로 바꿉니다.
+`serverW` public hostname은 `api4.govpress.cloud`입니다.
 
 주의:
 
-- `serverV`에서 H/W를 점검할 때도 direct `:443` SSH를 닫는 변경은 하지 않습니다.
-- H/W 장애 시 먼저 `govpress-watchdog.service`, `govpress-watchdog.timer`, `govpress-caddy.service` 순서로 상태를 확인합니다.
+- `serverV`에서 W를 점검할 때도 direct `:443` SSH를 닫는 변경은 하지 않습니다.
+- W 장애 시 먼저 `govpress-watchdog.service`, `govpress-watchdog.timer`, `govpress-caddy.service` 순서로 상태를 확인합니다.
 - `govpress-watchdog.service`가 `status=127`이면 스크립트 경로/권한 문제를 먼저 의심합니다.
 
 ## `ai.govpress.cloud` 단축 리다이렉트
