@@ -12,6 +12,7 @@ from typing import Any
 DEFAULT_TUNNELS = {
     "serverH": "b73b8bf8-453e-427d-ad76-02dcb3c7448c",
     "serverW": "4390f5bd-3dbe-49f5-ab52-382de7670294",
+    "serverN": "869128a3-0251-4293-acdc-ca6c76e9e387",
 }
 
 
@@ -120,7 +121,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Inspect and optionally clean stale Cloudflare tunnel connectors")
     parser.add_argument(
         "--tunnel",
-        choices=["serverH", "serverW", "all"],
+        choices=["serverH", "serverW", "serverN", "all"],
         default="all",
         help="Tunnel to inspect. Defaults to all managed tunnels.",
     )

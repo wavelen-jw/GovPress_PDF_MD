@@ -105,3 +105,35 @@ curl -i https://api5.govpress.cloud/health
 - 기존 `serverW`, `serverV` 설정은 건드리지 않음
 - 새 Tunnel은 기존 `api4` tunnel과 분리해야 함
 - 현재 repo에는 unrelated modified files가 있으므로 commit 시 workflow 2개만 좁게 포함하는 것이 안전함
+
+
+## 완료 기록
+
+2026-06-16 완료:
+
+- serverV ~/.ssh/config에 Host n 추가 완료
+- 신규 서버 SSH 공개키 인증 복구 완료
+- 운영 계정: ubuntu
+- repo: /home/ubuntu/projects/GovPress_PDF_MD
+- branch/head: web / 5ff95c3
+- deploy mode: host_proxy
+- systemd active:
+  - govpress-compose.service
+  - govpress-caddy.service
+  - govpress-cloudflared.service
+  - govpress-watchdog.timer
+- GitHub GOVPRESS_N_* secret/variable 등록 완료
+- Cloudflare Tunnel:
+  - name: serverN-api5
+  - id: 869128a3-0251-4293-acdc-ca6c76e9e387
+  - DNS: api5.govpress.cloud -> 869128a3-0251-4293-acdc-ca6c76e9e387.cfargotunnel.com
+- 검증:
+  - http://127.0.0.1:8013/health -> 200
+  - http://127.0.0.1:8080/health -> 200
+  - https://api5.govpress.cloud/health -> 200
+
+운영 메모:
+
+- Cloudflare API setup token은 서버나 repo에 저장하지 않음. 작업 후 Cloudflare Dashboard에서 revoke 필요.
+- N 서버에는 tunnel connector token만 deploy/wsl/.env에 저장됨.
+- 웹/앱 서버 설정에는 서버N / https://api5.govpress.cloud 를 추가함.

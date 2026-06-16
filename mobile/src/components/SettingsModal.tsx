@@ -11,6 +11,14 @@ type ServerProbeResult = {
   detail: string;
   converterDetail?: string;
 };
+
+function buildServerStatusState(value: boolean | null): Record<ServerKey, boolean | null> {
+  return Object.fromEntries(SERVER_PRESETS.map((preset) => [preset.key, value])) as Record<ServerKey, boolean | null>;
+}
+
+function buildConverterDetailState(value: string): Record<ServerKey, string> {
+  return Object.fromEntries(SERVER_PRESETS.map((preset) => [preset.key, value])) as Record<ServerKey, string>;
+}
 type HealthConverterPayload = {
   available?: boolean;
   version?: string | null;
@@ -96,14 +104,12 @@ export function SettingsModal({
   onClose: () => void;
   onSave: () => void;
 }) {
-  const [serverStatus, setServerStatus] = useState<Record<ServerKey, boolean | null>>({
-    serverV: null,
-    serverW: null,
-  });
-  const [converterDetails, setConverterDetails] = useState<Record<ServerKey, string>>({
-    serverV: "",
-    serverW: "",
-  });
+  const [serverStatus, setServerStatus] = useState<Record<ServerKey, boolean | null>>(() =>
+    buildServerStatusState(null),
+  );
+  const [converterDetails, setConverterDetails] = useState<Record<ServerKey, string>>(() =>
+    buildConverterDetailState(""),
+  );
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [lastCheckedAt, setLastCheckedAt] = useState<string>("");
 
@@ -156,14 +162,8 @@ export function SettingsModal({
 
   async function refreshServerStatuses(cancelledRef?: { current: boolean }) {
     setCheckingStatus(true);
-    setServerStatus({
-      serverV: null,
-      serverW: null,
-    });
-    setConverterDetails({
-      serverV: "",
-      serverW: "",
-    });
+    setServerStatus(buildServerStatusState(null));
+    setConverterDetails(buildConverterDetailState(""));
     const results = await Promise.all(
       SERVER_PRESETS.map(async (preset) => {
         const result = await probeServerHealth(preset.url, draft.apiKey, SERVER_FALLBACK_TIMEOUT_MS);
@@ -173,14 +173,12 @@ export function SettingsModal({
     if (cancelledRef?.current) {
       return;
     }
-    setServerStatus({
-      serverV: results.find((item) => item.key === "serverV")?.ok ?? null,
-      serverW: results.find((item) => item.key === "serverW")?.ok ?? null,
-    });
-    setConverterDetails({
-      serverV: results.find((item) => item.key === "serverV")?.converterDetail ?? "",
-      serverW: results.find((item) => item.key === "serverW")?.converterDetail ?? "",
-    });
+    setServerStatus(
+      Object.fromEntries(results.map((item) => [item.key, item.ok])) as Record<ServerKey, boolean | null>,
+    );
+    setConverterDetails(
+      Object.fromEntries(results.map((item) => [item.key, item.converterDetail ?? ""])) as Record<ServerKey, string>,
+    );
     setLastCheckedAt(new Date().toLocaleTimeString("ko-KR", { hour12: false }));
     setCheckingStatus(false);
   }
