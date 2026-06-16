@@ -148,3 +148,31 @@ curl -i https://api5.govpress.cloud/health
   - http://127.0.0.1:8080/health -> 200
   - https://api5.govpress.cloud/health -> 200
 
+2026-06-16 SSH 보안 강화:
+
+- Direct SSH `10022/tcp`는 UFW allowlist로 제한함.
+  - `117.111.0.0/16`
+  - `49.168.0.0/16`
+  - `175.121.0.0/16`
+  - `211.235.0.0/16`
+  - 그 외 `10022/tcp`는 deny
+- SSH hardening:
+  - `PasswordAuthentication no`
+  - `KbdInteractiveAuthentication no`
+  - `PubkeyAuthentication yes`
+  - `PermitRootLogin no`
+  - `AllowUsers ubuntu`
+  - `MaxAuthTries 3`
+- Actions/운영 배포용 Cloudflare SSH 경로 추가:
+  - hostname: `ssh-n.govpress.cloud`
+  - tunnel: `govpress-n-ssh`
+  - id: `6a651bed-1c09-49ad-bfae-5e81dcfffc36`
+  - origin: `ssh://127.0.0.1:10022`
+  - user service: `cloudflared-govpress-n-ssh.service`
+- serverV의 `ssh n` alias는 `ssh-n.govpress.cloud` Cloudflare SSH 경유로 전환함.
+- GitHub Actions의 serverN deploy/smoke 경로도 direct SSH에서 Cloudflare SSH로 전환함.
+- 검증:
+  - `ssh n` -> 성공
+  - direct `114.110.183.222:10022` from serverV -> timeout
+  - `https://api5.govpress.cloud/health` -> 200
+
