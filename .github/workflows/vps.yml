@@ -54,11 +54,12 @@ concurrency:
 # WSL 머신이 오프라인이어도 continue-on-error: true 로 전체 워크플로우는
 # 실패하지 않습니다.
 #
-# 서버N (api5.govpress.cloud) — Linux/WSL-style host-proxy, 직접 SSH
-#   Secrets : GOVPRESS_N_HOST, GOVPRESS_N_USER, GOVPRESS_N_SSH_KEY
-#   Variables: GOVPRESS_N_PORT, GOVPRESS_N_DEPLOY_DIR,
-#              GOVPRESS_N_HEALTHCHECK_URL, GOVPRESS_N_BRANCH,
-#              GOVPRESS_N_COMPOSE_FILE
+# 서버N (api5.govpress.cloud) — Linux/WSL-style host-proxy, Cloudflare Tunnel SSH
+#   Secrets : GOVPRESS_N_USER, GOVPRESS_N_SSH_KEY,
+#             CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET (공용)
+#   Variables: GOVPRESS_N_SSH_HOST (e.g. ssh-n.govpress.cloud),
+#              GOVPRESS_N_DEPLOY_DIR, GOVPRESS_N_HEALTHCHECK_URL,
+#              GOVPRESS_N_BRANCH, GOVPRESS_N_COMPOSE_FILE
 # 서버N은 GOVPRESS_N_DEPLOY_DIR 변수가 설정되어 있을 때만 실행됩니다.
 # ────────────────────────────────────────────────────────────────────
 
@@ -213,13 +214,13 @@ jobs:
       policy_briefing_service_key: ${{ secrets.GOVPRESS_POLICY_BRIEFING_SERVICE_KEY }}
 
   deploy-n:
-    name: "서버N (api5, Direct SSH)"
+    name: "서버N (api5, CF Tunnel)"
     needs: detect-targets
     if: ${{ vars.GOVPRESS_N_DEPLOY_DIR != '' && needs.detect-targets.outputs.deploy_n == 'true' }}
-    uses: ./.github/workflows/_deploy-server.yml
+    uses: ./.github/workflows/_deploy-server-cf.yml
     with:
       target_sha:      ${{ github.sha }}
-      port:            ${{ vars.GOVPRESS_N_PORT || '10022' }}
+      ssh_host:        ${{ vars.GOVPRESS_N_SSH_HOST || 'ssh-n.govpress.cloud' }}
       deploy_dir:      ${{ vars.GOVPRESS_N_DEPLOY_DIR }}
       branch:          ${{ vars.GOVPRESS_N_BRANCH || 'web' }}
       service:         ${{ vars.GOVPRESS_N_SERVICE || 'govpress-compose' }}
@@ -231,11 +232,12 @@ jobs:
       deploy_poll_interval_seconds: "5"
       run_policy_probe: "true"
     secrets:
-      host:    ${{ secrets.GOVPRESS_N_HOST }}
-      user:    ${{ secrets.GOVPRESS_N_USER }}
-      ssh_key: ${{ secrets.GOVPRESS_N_SSH_KEY }}
-      converter_spec: ${{ secrets.GOVPRESS_CONVERTER_SPEC }}
-      admin_api_key: ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
+      user:             ${{ secrets.GOVPRESS_N_USER }}
+      ssh_key:          ${{ secrets.GOVPRESS_N_SSH_KEY }}
+      cf_client_id:     ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      cf_client_secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+      converter_spec:   ${{ secrets.GOVPRESS_CONVERTER_SPEC }}
+      admin_api_key:    ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
       policy_briefing_service_key: ${{ secrets.GOVPRESS_POLICY_BRIEFING_SERVICE_KEY }}
 
   converter-drift-smoke:
@@ -291,19 +293,14 @@ jobs:
           VPS_USER: ${{ secrets.GOVPRESS_VPS_USER }}
           W_HOST: ${{ vars.GOVPRESS_W_SSH_HOST }}
           W_USER: ${{ secrets.GOVPRESS_W_USER }}
-          N_HOST: ${{ secrets.GOVPRESS_N_HOST }}
+          N_HOST: ${{ vars.GOVPRESS_N_SSH_HOST || 'ssh-n.govpress.cloud' }}
           N_USER: ${{ secrets.GOVPRESS_N_USER }}
-          N_PORT: ${{ vars.GOVPRESS_N_PORT || '10022' }}
           HAS_SERVER_N: ${{ vars.GOVPRESS_N_DEPLOY_DIR != '' }}
           CF_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh/cm
-          if [[ "$HAS_SERVER_N" == "true" ]]; then
-            ssh-keyscan -p "$N_PORT" -H "$N_HOST" >> ~/.ssh/known_hosts
-          fi
-
           cloudflared access tcp \
             --hostname "$VPS_HOST" \
             --url "127.0.0.1:2224" \
@@ -322,7 +319,22 @@ jobs:
             >/tmp/cloudflared-w.stdout 2>&1 &
           echo $! > ~/cloudflared-w.pid
 
-          for port in 2223 2224; do
+          if [[ "$HAS_SERVER_N" == "true" ]]; then
+            cloudflared access tcp \
+              --hostname "$N_HOST" \
+              --url "127.0.0.1:2225" \
+              --service-token-id "$CF_ID" \
+              --service-token-secret "$CF_SECRET" \
+              --logfile "$HOME/cloudflared-n.log" \
+              >/tmp/cloudflared-n.stdout 2>&1 &
+            echo $! > ~/cloudflared-n.pid
+          fi
+
+          ports=(2223 2224)
+          if [[ "$HAS_SERVER_N" == "true" ]]; then
+            ports+=(2225)
+          fi
+          for port in "${ports[@]}"; do
             for _ in 1 2 3 4 5 6 7 8 9 10; do
               if ss -ltn | grep -q "127.0.0.1:${port}"; then
                 break
@@ -364,13 +376,15 @@ jobs:
           if [[ "$HAS_SERVER_N" == "true" ]]; then
             cat >> ~/.ssh/config << EOF
           Host govpress-smoke-n
-            HostName ${N_HOST}
+            HostName 127.0.0.1
             User ${N_USER}
-            Port ${N_PORT}
+            Port 2225
             IdentityFile ~/.ssh/smoke_n_key
             IdentitiesOnly yes
             BatchMode yes
             StrictHostKeyChecking accept-new
+            ControlMaster no
+            ControlPath none
             ConnectTimeout 20
             ServerAliveInterval 15
             ServerAliveCountMax 6
