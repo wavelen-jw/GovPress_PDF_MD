@@ -137,3 +137,14 @@ curl -i https://api5.govpress.cloud/health
 - Cloudflare API setup token은 서버나 repo에 저장하지 않음. 작업 후 Cloudflare Dashboard에서 revoke 필요.
 - N 서버에는 tunnel connector token만 deploy/wsl/.env에 저장됨.
 - 웹/앱 서버 설정에는 서버N / https://api5.govpress.cloud 를 추가함.
+
+2026-06-16 추가 복구:
+
+- GitHub Actions 직접 배포 경로가 plain `docker`를 호출하므로 `ubuntu`를 `docker` 그룹에 추가함.
+- `deploy/wsl/data/storage`가 root 소유로 생성되어 배포 스크립트의 cache marker 갱신이 실패하던 문제를 `ubuntu:ubuntu` 소유권으로 복구함.
+- N 서버에서 `deploy/common/remote-deploy-cf.sh`를 host_proxy 설정으로 직접 실행해 `deploy-complete` 확인.
+- 최종 검증:
+  - http://127.0.0.1:8013/health -> 200
+  - http://127.0.0.1:8080/health -> 200
+  - https://api5.govpress.cloud/health -> 200
+
