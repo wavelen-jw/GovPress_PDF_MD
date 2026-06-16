@@ -33,9 +33,11 @@ concurrency:
 
 # ── 서버별 시크릿/변수 규칙 ──────────────────────────────────────────
 #
-# 서버V (api2.govpress.cloud) — VPS, 직접 SSH
-#   Secrets : GOVPRESS_VPS_HOST, GOVPRESS_VPS_USER, GOVPRESS_VPS_SSH_KEY
-#   Variables: GOVPRESS_VPS_PORT, GOVPRESS_VPS_DEPLOY_DIR,
+# 서버V (api2.govpress.cloud) — VPS, Cloudflare Tunnel SSH
+#   Secrets : GOVPRESS_VPS_USER, GOVPRESS_VPS_SSH_KEY,
+#             CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET (공용)
+#   Variables: GOVPRESS_VPS_SSH_HOST (e.g. ssh-v.govpress.cloud),
+#              GOVPRESS_VPS_DEPLOY_DIR,
 #              GOVPRESS_VPS_SERVICE, GOVPRESS_VPS_HEALTHCHECK_URL,
 #              GOVPRESS_VPS_BRANCH
 #
@@ -162,22 +164,25 @@ jobs:
     name: "서버V (VPS)"
     needs: detect-targets
     if: ${{ needs.detect-targets.outputs.deploy_v == 'true' }}
-    uses: ./.github/workflows/_deploy-server.yml
+    uses: ./.github/workflows/_deploy-server-cf.yml
     with:
       target_sha:      ${{ github.sha }}
-      port:            ${{ vars.GOVPRESS_VPS_PORT || '22' }}
+      ssh_host:        ${{ vars.GOVPRESS_VPS_SSH_HOST || 'ssh-v.govpress.cloud' }}
       deploy_dir:      ${{ vars.GOVPRESS_VPS_DEPLOY_DIR }}
       branch:          ${{ vars.GOVPRESS_VPS_BRANCH || 'web' }}
       service:         ${{ vars.GOVPRESS_VPS_SERVICE }}
       healthcheck_url: ${{ vars.GOVPRESS_VPS_HEALTHCHECK_URL || 'http://127.0.0.1:8013/health' }}
+      public_probe_url: https://api2.govpress.cloud
       deploy_poll_attempts: "120"
       deploy_poll_interval_seconds: "5"
+      run_policy_probe: "true"
     secrets:
-      host:    ${{ secrets.GOVPRESS_VPS_HOST }}
-      user:    ${{ secrets.GOVPRESS_VPS_USER }}
-      ssh_key: ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
-      converter_spec: ${{ secrets.GOVPRESS_CONVERTER_SPEC }}
-      admin_api_key: ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
+      user:             ${{ secrets.GOVPRESS_VPS_USER }}
+      ssh_key:          ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
+      cf_client_id:     ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      cf_client_secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+      converter_spec:   ${{ secrets.GOVPRESS_CONVERTER_SPEC }}
+      admin_api_key:    ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
       policy_briefing_service_key: ${{ secrets.GOVPRESS_POLICY_BRIEFING_SERVICE_KEY }}
 
   deploy-w:
@@ -282,9 +287,8 @@ jobs:
 
       - name: Configure smoke SSH targets
         env:
-          VPS_HOST: ${{ secrets.GOVPRESS_VPS_HOST }}
+          VPS_HOST: ${{ vars.GOVPRESS_VPS_SSH_HOST || 'ssh-v.govpress.cloud' }}
           VPS_USER: ${{ secrets.GOVPRESS_VPS_USER }}
-          VPS_PORT: ${{ vars.GOVPRESS_VPS_PORT || '22' }}
           W_HOST: ${{ vars.GOVPRESS_W_SSH_HOST }}
           W_USER: ${{ secrets.GOVPRESS_W_USER }}
           N_HOST: ${{ secrets.GOVPRESS_N_HOST }}
@@ -296,10 +300,18 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh/cm
-          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
           if [[ "$HAS_SERVER_N" == "true" ]]; then
             ssh-keyscan -p "$N_PORT" -H "$N_HOST" >> ~/.ssh/known_hosts
           fi
+
+          cloudflared access tcp \
+            --hostname "$VPS_HOST" \
+            --url "127.0.0.1:2224" \
+            --service-token-id "$CF_ID" \
+            --service-token-secret "$CF_SECRET" \
+            --logfile "$HOME/cloudflared-v.log" \
+            >/tmp/cloudflared-v.stdout 2>&1 &
+          echo $! > ~/cloudflared-v.pid
 
           cloudflared access tcp \
             --hostname "$W_HOST" \
@@ -310,7 +322,7 @@ jobs:
             >/tmp/cloudflared-w.stdout 2>&1 &
           echo $! > ~/cloudflared-w.pid
 
-          for port in 2223; do
+          for port in 2223 2224; do
             for _ in 1 2 3 4 5 6 7 8 9 10; do
               if ss -ltn | grep -q "127.0.0.1:${port}"; then
                 break
@@ -321,13 +333,15 @@ jobs:
 
           cat >> ~/.ssh/config << EOF
           Host govpress-smoke-v
-            HostName ${VPS_HOST}
+            HostName 127.0.0.1
             User ${VPS_USER}
-            Port ${VPS_PORT}
+            Port 2224
             IdentityFile ~/.ssh/smoke_v_key
             IdentitiesOnly yes
             BatchMode yes
             StrictHostKeyChecking accept-new
+            ControlMaster no
+            ControlPath none
             ConnectTimeout 20
             ServerAliveInterval 15
             ServerAliveCountMax 6
