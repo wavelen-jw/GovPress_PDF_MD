@@ -64,6 +64,46 @@ WSL Linux 파일시스템 안에 프로젝트를 두는 편이 좋습니다.
 cd /home/wavel/projects/GovPress_PDF_MD/deploy/wsl
 ```
 
+### serverW reset 후 빠른 복구 메모
+
+2026-06-19 기준 serverW는 serverN과 같은 host-proxy 계열 구조를 사용합니다.
+
+- 소스 기준 경로: `/home/wavel/projects/GovPress_PDF_MD`
+- converter 보조 경로: `/home/wavel/projects/gov-md-converter`
+- Docker 컨테이너:
+  - `govpress-api`: `wsl-api`, `127.0.0.1:8013`
+  - `govpress-worker`: `wsl-worker`
+- user systemd:
+  - `govpress-host-proxy.service`: `127.0.0.1:8080 -> 127.0.0.1:8013`
+  - `govpress-cloudflared-api4.service`: `api4.govpress.cloud -> 127.0.0.1:8080`
+- user linger must be enabled:
+
+```bash
+sudo loginctl enable-linger wavel
+```
+
+The api4 tunnel token is stored outside git and must never be committed:
+
+```text
+/home/wavel/projects/GovPress_PDF_MD/deploy/wsl/.env
+/home/wavel/.govpress-run/cloudflared-api4.token
+```
+
+Basic recovery checks:
+
+```bash
+docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' \
+  | grep -E 'govpress-(api|worker)|NAMES'
+
+export XDG_RUNTIME_DIR=/run/user/1000
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+systemctl --user is-active govpress-host-proxy.service govpress-cloudflared-api4.service
+
+curl -fsS -o /dev/null -w 'local_8013=%{http_code}\n' http://127.0.0.1:8013/health
+curl -fsS -o /dev/null -w 'local_8080=%{http_code}\n' http://127.0.0.1:8080/health
+curl -fsS -o /dev/null -w 'api4_public=%{http_code}\n' https://api4.govpress.cloud/health
+```
+
 직접 접속 가능한 서버에서 host-proxy 구조를 즉시 적용하려면:
 
 ```bash
