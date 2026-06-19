@@ -37,7 +37,7 @@ jobs:
 
       - name: Configure SSH over Cloudflare Access
         env:
-          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST }}
+          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST || 'ssh-w.govpress.cloud' }}
           CF_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
@@ -65,7 +65,7 @@ jobs:
       - name: Inspect ServerW edge
         env:
           USERNAME: ${{ secrets.GOVPRESS_W_USER }}
-          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST }}
+          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST || 'ssh-w.govpress.cloud' }}
           DEPLOY_DIR: ${{ vars.GOVPRESS_W_DEPLOY_DIR }}
         run: |
           set -euo pipefail

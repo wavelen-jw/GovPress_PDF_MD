@@ -41,7 +41,7 @@ jobs:
 
       - name: Configure SSH to use Cloudflare Tunnel
         env:
-          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST }}
+          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST || 'ssh-w.govpress.cloud' }}
           CF_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
@@ -57,7 +57,7 @@ jobs:
       - name: Check ServerW paths
         env:
           USER: ${{ secrets.GOVPRESS_W_USER }}
-          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST }}
+          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST || 'ssh-w.govpress.cloud' }}
           DEPLOY_DIR: ${{ vars.GOVPRESS_W_DEPLOY_DIR }}
         run: |
           set -euo pipefail
@@ -91,7 +91,7 @@ jobs:
       - name: Update .env with GOVPRESS_ADMIN_API_KEY
         env:
           USER: ${{ secrets.GOVPRESS_W_USER }}
-          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST }}
+          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST || 'ssh-w.govpress.cloud' }}
           DEPLOY_DIR: ${{ vars.GOVPRESS_W_DEPLOY_DIR }}
           ADMIN_KEY: ${{ secrets.GOVPRESS_ADMIN_API_KEY || 'd2a03584cc0a209ecc3a0e28a1fecdcc13c8a5c9d2955cf989e71631a5cfa739' }}
         run: |
@@ -155,7 +155,7 @@ jobs:
       - name: Restart ServerW service
         env:
           USER: ${{ secrets.GOVPRESS_W_USER }}
-          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST }}
+          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST || 'ssh-w.govpress.cloud' }}
           DEPLOY_DIR: ${{ vars.GOVPRESS_W_DEPLOY_DIR }}
         run: |
           set -euo pipefail

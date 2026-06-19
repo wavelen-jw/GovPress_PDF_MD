@@ -100,7 +100,7 @@ jobs:
 
       - name: Clear cache on serverW
         env:
-          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST }}
+          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST || 'ssh-w.govpress.cloud' }}
           USER: ${{ secrets.GOVPRESS_W_USER }}
           DEPLOY_DIR: ${{ vars.GOVPRESS_W_DEPLOY_DIR }}
           CF_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
