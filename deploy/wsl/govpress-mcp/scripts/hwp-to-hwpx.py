@@ -7,6 +7,8 @@ import os
 import shlex
 import subprocess
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -21,6 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-queue", default=None)
     parser.add_argument("--log-json", default=None)
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--workers", type=int, default=int(os.environ.get("HWP_CONVERT_WORKERS", "1")))
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
@@ -38,12 +41,15 @@ def now_iso() -> str:
     return datetime.now(KST).isoformat(timespec="seconds")
 
 
-def append_jsonl(path: Path | None, row: dict[str, object]) -> None:
+def append_jsonl(path: Path | None, row: dict[str, object], lock: threading.Lock | None = None) -> None:
     if path is None:
         return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+    if lock is None:
+        lock = threading.Lock()
+    with lock:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
 def load_queue(path: Path) -> list[dict[str, str]]:
@@ -83,6 +89,65 @@ def build_command(template: str, input_path: Path, output_path: Path) -> list[st
     return [*shlex.split(template), str(input_path), str(output_path)]
 
 
+
+def convert_one(
+    row: dict[str, str],
+    *,
+    data_root: Path,
+    cmd_template: str,
+    force: bool,
+    dry_run: bool,
+    log_path: Path | None,
+    log_lock: threading.Lock,
+) -> tuple[str, dict[str, str] | None]:
+    hwp_rel = Path(row["hwp_path"])
+    hwp_path = data_root / hwp_rel
+    hwpx_path = hwp_path.with_suffix(".hwpx")
+    event = {
+        "timestamp": now_iso(),
+        "news_item_id": row["news_item_id"],
+        "hwp_path": str(hwp_rel),
+        "hwpx_path": str(hwpx_path.relative_to(data_root)),
+    }
+
+    if hwpx_path.exists() and not force:
+        append_jsonl(log_path, {**event, "status": "exists"}, log_lock)
+        return "exists", row
+    if not hwp_path.exists():
+        append_jsonl(log_path, {**event, "status": "missing_hwp"}, log_lock)
+        return "missing", None
+    if dry_run:
+        append_jsonl(log_path, {**event, "status": "dry_run", "cmd": cmd_template}, log_lock)
+        return "dry_run", None
+
+    hwpx_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = hwpx_path.with_suffix(hwpx_path.suffix + f".tmp.{os.getpid()}.{threading.get_ident()}")
+    tmp_path.unlink(missing_ok=True)
+    cmd = build_command(cmd_template, hwp_path, tmp_path)
+    try:
+        result = subprocess.run(cmd, check=False, capture_output=True, text=False, timeout=180)
+    except Exception as exc:
+        append_jsonl(log_path, {**event, "status": "failed", "error": f"{type(exc).__name__}: {exc}"}, log_lock)
+        return "failed", None
+    if not tmp_path.exists() or tmp_path.stat().st_size == 0:
+        detail = (decode_output(result.stderr) or decode_output(result.stdout)).strip()
+        append_jsonl(
+            log_path,
+            {
+                **event,
+                "status": "failed",
+                "returncode": result.returncode,
+                "detail": detail[-1000:],
+            },
+            log_lock,
+        )
+        tmp_path.unlink(missing_ok=True)
+        return "failed", None
+    tmp_path.replace(hwpx_path)
+    append_jsonl(log_path, {**event, "status": "converted", "bytes": hwpx_path.stat().st_size}, log_lock)
+    return "converted", row
+
+
 def main() -> int:
     args = parse_args()
     data_root = Path(args.data_root)
@@ -104,64 +169,32 @@ def main() -> int:
     rows = load_queue(queue_path)
     if args.limit is not None:
         rows = rows[: args.limit]
+    if args.workers < 1:
+        print("--workers must be >= 1", file=sys.stderr)
+        return 2
 
     output_queue.parent.mkdir(parents=True, exist_ok=True)
     successes: list[dict[str, str]] = []
     stats = {"converted": 0, "exists": 0, "missing": 0, "failed": 0, "dry_run": 0}
+    log_lock = threading.Lock()
 
-    for row in rows:
-        hwp_rel = Path(row["hwp_path"])
-        hwp_path = data_root / hwp_rel
-        hwpx_path = hwp_path.with_suffix(".hwpx")
-        event = {
-            "timestamp": now_iso(),
-            "news_item_id": row["news_item_id"],
-            "hwp_path": str(hwp_rel),
-            "hwpx_path": str(hwpx_path.relative_to(data_root)),
-        }
-
-        if hwpx_path.exists() and not args.force:
-            stats["exists"] += 1
-            successes.append(row)
-            append_jsonl(log_path, {**event, "status": "exists"})
-            continue
-        if not hwp_path.exists():
-            stats["missing"] += 1
-            append_jsonl(log_path, {**event, "status": "missing_hwp"})
-            continue
-        if args.dry_run:
-            stats["dry_run"] += 1
-            append_jsonl(log_path, {**event, "status": "dry_run", "cmd": args.cmd})
-            continue
-
-        hwpx_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = hwpx_path.with_suffix(hwpx_path.suffix + ".tmp")
-        tmp_path.unlink(missing_ok=True)
-        cmd = build_command(args.cmd, hwp_path, tmp_path)
-        try:
-            result = subprocess.run(cmd, check=False, capture_output=True, text=False, timeout=180)
-        except Exception as exc:
-            stats["failed"] += 1
-            append_jsonl(log_path, {**event, "status": "failed", "error": f"{type(exc).__name__}: {exc}"})
-            continue
-        if not tmp_path.exists() or tmp_path.stat().st_size == 0:
-            stats["failed"] += 1
-            detail = (decode_output(result.stderr) or decode_output(result.stdout)).strip()
-            append_jsonl(
-                log_path,
-                {
-                    **event,
-                    "status": "failed",
-                    "returncode": result.returncode,
-                    "detail": detail[-1000:],
-                },
-            )
-            tmp_path.unlink(missing_ok=True)
-            continue
-        tmp_path.replace(hwpx_path)
-        stats["converted"] += 1
-        successes.append(row)
-        append_jsonl(log_path, {**event, "status": "converted", "bytes": hwpx_path.stat().st_size})
+    with ThreadPoolExecutor(max_workers=args.workers) as executor:
+        results = executor.map(
+            lambda row: convert_one(
+                row,
+                data_root=data_root,
+                cmd_template=args.cmd,
+                force=args.force,
+                dry_run=args.dry_run,
+                log_path=log_path,
+                log_lock=log_lock,
+            ),
+            rows,
+        )
+        for status, row in results:
+            stats[status] += 1
+            if row is not None:
+                successes.append(row)
 
     with output_queue.open("w", encoding="utf-8") as handle:
         for row in successes:
