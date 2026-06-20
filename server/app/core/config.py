@@ -4,10 +4,6 @@ from dataclasses import dataclass
 import os
 
 
-DEFAULT_POLICY_BRIEFING_SERVICE_KEY = (
-    "QBvXfTPVvBtw48ic0JvU5iKcvMHFDRZ5Svr/zyzqpUhl+VsJP8vr2uFnX0+XmgqCpHS9sXbI6TYugGmwAvEl8w=="
-)
-
 DEFAULT_CORS_ALLOW_ORIGINS = [
     "https://govpress.cloud",
     "https://www.govpress.cloud",
@@ -51,14 +47,7 @@ def load_settings() -> Settings:
     raw_rate_limit_count = os.environ.get("GOVPRESS_UPLOAD_RATE_LIMIT_COUNT", "12")
     raw_rate_limit_window_seconds = os.environ.get("GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS", "60")
     raw_job_ttl_hours = os.environ.get("GOVPRESS_JOB_TTL_HOURS", "72")
-    allow_policy_briefing_service_key_fallback = _parse_bool(
-        os.environ.get("GOVPRESS_ALLOW_DEFAULT_POLICY_BRIEFING_SERVICE_KEY_FALLBACK"),
-        default=True,
-    )
     configured_policy_briefing_service_key = os.environ.get("GOVPRESS_POLICY_BRIEFING_SERVICE_KEY") or None
-    using_policy_briefing_service_key_fallback = (
-        configured_policy_briefing_service_key is None and allow_policy_briefing_service_key_fallback
-    )
     return Settings(
         api_key=os.environ.get("GOVPRESS_API_KEY") or None,
         admin_api_key=os.environ.get("GOVPRESS_ADMIN_API_KEY") or None,
@@ -68,9 +57,6 @@ def load_settings() -> Settings:
         upload_rate_limit_count=max(int(raw_rate_limit_count), 1),
         upload_rate_limit_window_seconds=max(int(raw_rate_limit_window_seconds), 1),
         job_ttl_hours=max(int(raw_job_ttl_hours), 1),
-        policy_briefing_service_key=(
-            configured_policy_briefing_service_key
-            or (DEFAULT_POLICY_BRIEFING_SERVICE_KEY if allow_policy_briefing_service_key_fallback else None)
-        ),
-        using_policy_briefing_service_key_fallback=using_policy_briefing_service_key_fallback,
+        policy_briefing_service_key=configured_policy_briefing_service_key,
+        using_policy_briefing_service_key_fallback=False,
     )
