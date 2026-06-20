@@ -41,4 +41,5 @@ if [[ -n "${HANCOM_SDK_DIR:-}" ]]; then
   args+=(--sdk-dir "$(wslpath -aw "$HANCOM_SDK_DIR" 2>/dev/null || printf '%s' "$HANCOM_SDK_DIR")")
 fi
 
+cd "/mnt/c/Windows/System32"
 exec "$cmd_bin" "${args[@]}"
