@@ -48,11 +48,12 @@ while [[ "$current" < "$(next_month "$END_MONTH")" ]]; do
   log_event "$current" capacity ok
 
   log_event "$current" ingest start
-  scripts/ingest-recent.sh "$start_date" "$end_date"
+  month_queue="data/fetch-log/hwp-queue-$current.jsonl"
+  HWP_QUEUE_OUTPUT="$month_queue" scripts/ingest-recent.sh "$start_date" "$end_date"
   log_event "$current" ingest ok
 
   log_event "$current" hwp_queue start
-  scripts/process-hwp-queue.sh
+  QUEUE="$month_queue" scripts/process-hwp-queue.sh
   log_event "$current" hwp_queue ok
 
   log_event "$current" archive start

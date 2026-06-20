@@ -4,8 +4,9 @@ Recovered on 2026-06-19 from live Docker container metadata after the WSL reset.
 
 Current operating layout:
 - Hot data stays on WSL ext4: `~/projects/govpress-mcp/data`.
-- D: is used only for encrypted cold archives: `/mnt/d/govpress-mcp-archives`.
-- Raw HWPX/PDF files must not be copied to D: in unpacked form.
+- D: is used only for compressed cold archives: `/mnt/d/govpress-mcp-archives`.
+- Raw HWP/HWPX/PDF files must not be copied to D: in unpacked form. Use monthly `.tar.gz` archives plus `.sha256` manifests.
+- Use `ARCHIVE_ENCRYPT=1` only when an encrypted `.tar.gz.gpg` archive is specifically required.
 - TEI runs on GPU with `ghcr.io/huggingface/text-embeddings-inference:cuda-latest` and `gpus: all`.
 - MCP HTTP is bound to W-local localhost only: `127.0.0.1:8000`.
 
@@ -26,9 +27,15 @@ Hancom HWP SDK queue processing:
 - Start services: `docker compose up -d`
 - Check services: `docker compose ps`
 - Ingest and incrementally index: `scripts/ingest-recent.sh YYYY-MM-DD [YYYY-MM-DD] [LIMIT]`
+- Monthly backfill writes month-scoped HWP queues such as `data/fetch-log/hwp-queue-2021-02.jsonl`; avoid processing the global `hwp-queue.jsonl` for long backfills.
 - Rebuild initial hot index: `scripts/derive-hot.sh --initial`
 - Incremental hot index only: `scripts/derive-hot.sh`
-- Create encrypted cold archive on D: `scripts/archive-cold.sh`
+- Create monthly compressed archive on D: `scripts/archive-month.sh YYYY-MM`
+- Create legacy encrypted monthly archive if needed: `ARCHIVE_ENCRYPT=1 GPG_PASSPHRASE_FILE=~/.govpress-mcp-archive.pass scripts/archive-month.sh YYYY-MM`
+
+Storage policy:
+- Do not use GitHub as the raw archive store. Five years of raw attachments are too large/noisy for normal Git operations and will make clone/fetch/CI expensive.
+- Keep GitHub for code, manifests, and small operational metadata. Keep raw public files in compressed monthly archives on D: or, later, object storage/S3-compatible storage if D: becomes insufficient.
 
 Notes:
 - The upstream API returned HTTP 500 for 2026-06-01 during backfill; retry that date separately later.
