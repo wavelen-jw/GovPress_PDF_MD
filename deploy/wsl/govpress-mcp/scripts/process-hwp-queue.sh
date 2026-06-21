@@ -29,16 +29,21 @@ if [[ -n "$LIMIT" ]]; then
   LIMIT_ARG=(--limit "$LIMIT")
 fi
 
+conversion_rc=0
 scripts/hwp-to-hwpx.py \
   --data-root data \
   --queue "$QUEUE" \
   --output-queue "$CONVERTED_QUEUE" \
   --log-json "$LOG_JSON" \
-  "${LIMIT_ARG[@]}"
+  "${LIMIT_ARG[@]}" || conversion_rc=$?
 
 if [[ ! -s "$CONVERTED_QUEUE" ]]; then
   echo "No converted HWPX entries to process: $CONVERTED_QUEUE" >&2
-  exit 0
+  exit "$conversion_rc"
+fi
+
+if [[ "$conversion_rc" -ne 0 ]]; then
+  echo "Continuing with converted HWPX entries despite conversion failures: rc=$conversion_rc log=$LOG_JSON" >&2
 fi
 
 docker compose run --rm --no-deps \

@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 usage() {
-  echo "Usage: GPG_PASSPHRASE_FILE=~/.govpress-mcp-archive.pass $0 [START_MONTH] [END_MONTH]" >&2
+  echo "Usage: $0 [START_MONTH] [END_MONTH]" >&2
   echo "Example: $0 2021-01 2021-01" >&2
   exit 2
 }
@@ -57,6 +57,7 @@ while [[ "$current" < "$(next_month "$END_MONTH")" ]]; do
   log_event "$current" hwp_queue ok
 
   log_event "$current" archive start
+  scripts/fix-data-permissions.sh
   scripts/archive-month.sh "$current"
   log_event "$current" archive ok
 
