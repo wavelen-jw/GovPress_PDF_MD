@@ -36,6 +36,7 @@ if [[ -n "$LIMIT" ]]; then
   LIMIT_ARG=(--limit "$LIMIT")
 fi
 
+ingest_rc=0
 docker compose run --rm --no-deps \
   --env-from-file "$ENV_FILE" \
   --entrypoint sh \
@@ -49,7 +50,7 @@ docker compose run --rm --no-deps \
   --end-date "$END_DATE" \
   --data-root /app/data \
   "${LIMIT_ARG[@]}" \
-  --log-json "/app/data/fetch-log/bulk-ingest-${STAMP}.jsonl"
+  --log-json "/app/data/fetch-log/bulk-ingest-${STAMP}.jsonl" || ingest_rc=$?
 
 if [[ -n "$HWP_QUEUE_OUTPUT" ]]; then
   scripts/filter-hwp-queue.py \
@@ -59,3 +60,11 @@ if [[ -n "$HWP_QUEUE_OUTPUT" ]]; then
     --end-date "$END_DATE"
 fi
 scripts/derive-hot.sh
+
+if [[ "$ingest_rc" -ne 0 ]]; then
+  if [[ "${ALLOW_PARTIAL_INGEST:-0}" == "1" ]]; then
+    echo "Continuing despite bulk ingest rc=$ingest_rc; review data/fetch-log/bulk-ingest-${STAMP}.jsonl" >&2
+  else
+    exit "$ingest_rc"
+  fi
+fi

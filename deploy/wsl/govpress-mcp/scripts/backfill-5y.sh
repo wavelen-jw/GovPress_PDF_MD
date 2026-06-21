@@ -49,7 +49,7 @@ while [[ "$current" < "$(next_month "$END_MONTH")" ]]; do
 
   log_event "$current" ingest start
   month_queue="data/fetch-log/hwp-queue-$current.jsonl"
-  HWP_QUEUE_OUTPUT="$month_queue" scripts/ingest-recent.sh "$start_date" "$end_date"
+  ALLOW_PARTIAL_INGEST=1 HWP_QUEUE_OUTPUT="$month_queue" scripts/ingest-recent.sh "$start_date" "$end_date"
   log_event "$current" ingest ok
 
   log_event "$current" hwp_queue start
