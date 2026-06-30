@@ -169,7 +169,7 @@ jobs:
           done
           printf 'preflight_exit_code=%s\n' "$preflight_exit" >> ssh-preflight.log
           if [ "$preflight_exit" -ne 0 ]; then
-            tail -n 40 ssh-preflight.log || true
+            tail -n 40 ssh-preflight.log | bash deploy/common/sanitize-actions-log.sh || true
           else
             echo "preflight_ok=1"
           fi
@@ -180,7 +180,7 @@ jobs:
         run: |
           set -euo pipefail
           key_fp="$(cat ssh-key-fingerprint.log 2>/dev/null | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-300)"
-          preflight_tail="$(tail -n 40 ssh-preflight.log 2>/dev/null | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200)"
+          preflight_tail="$(tail -n 40 ssh-preflight.log 2>/dev/null | bash deploy/common/sanitize-actions-log.sh | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200)"
           echo "::warning file=.github,title=cf ssh preflight::key=${key_fp:-unknown}; log=${preflight_tail:-missing}"
 
       - name: Emit cloudflared proxy diagnostics
@@ -188,7 +188,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          proxy_tail="$(tail -n 40 ~/cloudflared-proxy.log 2>/dev/null | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200)"
+          proxy_tail="$(tail -n 40 ~/cloudflared-proxy.log 2>/dev/null | bash deploy/common/sanitize-actions-log.sh | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200)"
           echo "::warning file=.github,title=cloudflared proxy::log=${proxy_tail:-missing}"
 
       - name: Deploy
@@ -233,7 +233,7 @@ jobs:
             launch_exit=$?
             set -e
             printf 'ssh_exit_code=%s\n' "$launch_exit" >> remote-launch.log
-            tail -n 20 remote-launch.log || true
+            tail -n 20 remote-launch.log | bash deploy/common/sanitize-actions-log.sh || true
             if [ "$launch_exit" -eq 0 ] && grep -q '^launch_pid=' remote-launch.log; then
               break
             fi
@@ -254,7 +254,7 @@ jobs:
             poll_exit=$?
             set -e
             printf 'ssh_poll_exit=%s\n' "$poll_exit" >> remote-deploy.log
-            poll_snapshot="$(tr '\n' ' ' < remote-deploy.log | sed 's/  */ /g' | cut -c1-240)"
+            poll_snapshot="$(bash deploy/common/sanitize-actions-log.sh < remote-deploy.log | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-240)"
             if [ "$poll_snapshot" != "$last_poll_snapshot" ]; then
               echo "poll_attempt=${attempt} ${poll_snapshot}"
               last_poll_snapshot="$poll_snapshot"
@@ -296,7 +296,7 @@ jobs:
               deploy_exit=0
             fi
           fi
-          tail -n 200 remote-deploy.log || true
+          tail -n 200 remote-deploy.log | bash deploy/common/sanitize-actions-log.sh || true
           test "$deploy_exit" -eq 0
 
       - name: Summary
@@ -310,7 +310,7 @@ jobs:
             echo "- Deploy mode: \`${{ inputs.deploy_mode }}\`"
             echo ""
             echo '```text'
-            cat remote-deploy.log 2>/dev/null || true
+            bash deploy/common/sanitize-actions-log.sh < remote-deploy.log 2>/dev/null || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -386,6 +386,7 @@ jobs:
           public_policy_probe_body="$(sed -n 's/^public_policy_probe_body=//p' remote-diagnostics.env | tail -n1)"
 
           message="remote_host=${remote_host:-unknown}; deploy_dir=${deploy_dir:-unknown}; git_branch=${git_branch:-unknown}; target_sha=${target_sha:-unknown}; git_head=${git_head:-unknown}; policy_probe_code=${policy_probe_code:-unknown}; policy_probe_body=${policy_probe_body:-unknown}; public_health_probe_code=${public_health_probe_code:-unknown}; public_health_probe_body=${public_health_probe_body:-unknown}; public_policy_probe_code=${public_policy_probe_code:-unknown}; public_policy_probe_body=${public_policy_probe_body:-unknown}"
+          message="$(printf '%s' "$message" | bash deploy/common/sanitize-actions-log.sh)"
           echo "::warning file=.github,title=remote diagnostics::$message"
 
       - name: Emit remote deploy log tail
@@ -398,7 +399,7 @@ jobs:
             exit 0
           fi
 
-          tail_text="$(tail -n 20 remote-deploy.log | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200)"
+          tail_text="$(tail -n 20 remote-deploy.log | bash deploy/common/sanitize-actions-log.sh | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200)"
           echo "::warning file=.github,title=remote deploy log::$tail_text"
 
       - name: Emit SSH client diagnostics
@@ -411,9 +412,9 @@ jobs:
             exit 0
           fi
 
-          ssh_text="$(grep -En 'Offering public key|Authentications that can continue|Permission denied|Connection closed|kex_exchange_identification|ProxyCommand|cloudflared|Authenticated to|Entering interactive session|identity file|Will attempt key|sign_and_send_pubkey|no such identity|Unknown port|Connection timed out|Connection refused' remote-deploy.log | tail -n 20 | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200 || true)"
+          ssh_text="$(grep -En 'Offering public key|Authentications that can continue|Permission denied|Connection closed|kex_exchange_identification|ProxyCommand|cloudflared|Authenticated to|Entering interactive session|identity file|Will attempt key|sign_and_send_pubkey|no such identity|Unknown port|Connection timed out|Connection refused' remote-deploy.log | tail -n 20 | bash deploy/common/sanitize-actions-log.sh | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200 || true)"
           if [ -z "$ssh_text" ]; then
-            ssh_text="$(tail -n 20 remote-deploy.log | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200)"
+            ssh_text="$(tail -n 20 remote-deploy.log | bash deploy/common/sanitize-actions-log.sh | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200)"
           fi
           echo "::warning file=.github,title=ssh client diagnostics::$ssh_text"
 

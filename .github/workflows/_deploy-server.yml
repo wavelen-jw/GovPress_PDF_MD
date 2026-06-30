@@ -148,7 +148,7 @@ jobs:
               deploy_exit=0
             fi
           fi
-          tail -n 200 remote-deploy.log || true
+          tail -n 200 remote-deploy.log | bash deploy/common/sanitize-actions-log.sh || true
           test "$deploy_exit" -eq 0
 
       - name: Summary
@@ -161,7 +161,7 @@ jobs:
             echo "- Host: \`${{ secrets.host }}\`"
             echo ""
             echo '```text'
-            cat remote-deploy.log
+            bash deploy/common/sanitize-actions-log.sh < remote-deploy.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -214,7 +214,7 @@ jobs:
             exit 0
           fi
 
-          tail_text="$(tail -n 20 remote-deploy.log | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200)"
+          tail_text="$(tail -n 20 remote-deploy.log | bash deploy/common/sanitize-actions-log.sh | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1200)"
           echo "::warning file=.github,title=remote deploy log::$tail_text"
 
       - name: Emit remote diagnostics annotation
@@ -236,6 +236,7 @@ jobs:
           health_probe_body="$(sed -n 's/^health_probe_body=//p' remote-diagnostics.env | tail -n1)"
 
           message="remote_host=${remote_host:-unknown}; deploy_dir=${deploy_dir:-unknown}; git_branch=${git_branch:-unknown}; target_sha=${target_sha:-unknown}; git_head=${git_head:-unknown}; health_probe_code=${health_probe_code:-unknown}; health_probe_body=${health_probe_body:-unknown}"
+          message="$(printf '%s' "$message" | bash deploy/common/sanitize-actions-log.sh)"
           echo "::warning file=.github,title=remote diagnostics::$message"
 
       - name: Verify remote deploy result
