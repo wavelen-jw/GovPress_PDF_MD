@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 
 import {
   getFallbackBaseUrls,
+  POLICY_BRIEFING_IMPORT_TIMEOUT_MS,
   POLICY_BRIEFING_LIST_TIMEOUT_MS,
   SERVER_FALLBACK_TIMEOUT_MS,
 } from "../constants";
@@ -188,6 +189,10 @@ function isRetryableUploadError(error: unknown): boolean {
   return false;
 }
 
+function isRetryablePolicyBriefingImportError(error: unknown): boolean {
+  return (error instanceof ApiError && error.status === 404) || isRetryableUploadError(error);
+}
+
 function buildUploadBody(asset: UploadableAsset, hwpxTableMode: HwpxTableMode, converterEngine: ConverterEngine): FormData {
   const form = new FormData();
   form.append("source", "mobile");
@@ -358,7 +363,7 @@ export async function fetchTodayPolicyBriefings(config: AppConfig, date?: string
           method: "GET",
           headers: buildHeaders(config),
         },
-        SERVER_FALLBACK_TIMEOUT_MS,
+        POLICY_BRIEFING_LIST_TIMEOUT_MS,
       );
       if (!response.ok) {
         const detail = parseApiErrorDetail(await response.text());
@@ -495,12 +500,12 @@ export async function importPolicyBriefing(
             ...(fileUrl ? { file_url: fileUrl } : {}),
           }),
         },
-        SERVER_FALLBACK_TIMEOUT_MS,
+        POLICY_BRIEFING_IMPORT_TIMEOUT_MS,
       );
       if (!response.ok) {
         const detail = parseApiErrorDetail(await response.text());
         const error = new ApiError(response.status, detail || `Request failed: ${response.status}`);
-        if (!isRetryableUploadError(error)) {
+        if (!isRetryablePolicyBriefingImportError(error)) {
           throw error;
         }
         throw error;
@@ -512,7 +517,7 @@ export async function importPolicyBriefing(
     } catch (error) {
       const message = normalizePolicyBriefingFailure(error instanceof Error ? error.message : String(error));
       failures.push(`${baseUrl}: ${message}`);
-      if (!isRetryableUploadError(error)) {
+      if (!isRetryablePolicyBriefingImportError(error)) {
         throw error;
       }
     }

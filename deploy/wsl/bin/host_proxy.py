@@ -38,6 +38,38 @@ CORS_RESPONSE_HEADERS = {
 }
 RESPONSE_SKIP_HEADERS = HOP_BY_HOP_HEADERS | CORS_RESPONSE_HEADERS | {"content-length"}
 SEOUL_UTC_OFFSET = timedelta(hours=9)
+MAX_REQUEST_BODY_BYTES = int(os.environ.get("GOVPRESS_HOST_PROXY_MAX_BODY_BYTES", str(100 * 1024 * 1024)))
+
+
+class InvalidRequestBody(ValueError):
+    pass
+
+
+def read_chunked_body(stream, *, max_bytes: int = MAX_REQUEST_BODY_BYTES) -> bytes:
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        size_line = stream.readline(8192)
+        if not size_line.endswith(b"\r\n"):
+            raise InvalidRequestBody("malformed chunk size")
+        try:
+            size = int(size_line[:-2].split(b";", 1)[0], 16)
+        except ValueError as exc:
+            raise InvalidRequestBody("invalid chunk size") from exc
+        if size == 0:
+            while True:
+                trailer = stream.readline(8192)
+                if trailer == b"\r\n":
+                    return b"".join(chunks)
+                if not trailer or not trailer.endswith(b"\r\n"):
+                    raise InvalidRequestBody("malformed chunk trailer")
+        total += size
+        if total > max_bytes:
+            raise InvalidRequestBody("request body exceeds proxy limit")
+        chunk = stream.read(size)
+        if len(chunk) != size or stream.read(2) != b"\r\n":
+            raise InvalidRequestBody("incomplete chunk")
+        chunks.append(chunk)
 
 
 def seoul_today_iso() -> str:
@@ -138,10 +170,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.wfile.write(payload)
 
     def _proxy(self) -> None:
-        body = b""
-        length = self.headers.get("Content-Length")
-        if length:
-            body = self.rfile.read(int(length))
+        try:
+            body = self._read_request_body()
+        except InvalidRequestBody as exc:
+            self.send_error(400, str(exc))
+            return
 
         upstream_headers = {
             key: value
@@ -151,6 +184,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
         upstream_headers["Host"] = UPSTREAM.netloc
         upstream_headers["X-Forwarded-For"] = self.client_address[0]
         upstream_headers["X-Forwarded-Proto"] = "http"
+        if body:
+            upstream_headers["Content-Length"] = str(len(body))
+        else:
+            upstream_headers.pop("Content-Length", None)
 
         conn_cls = http.client.HTTPSConnection if UPSTREAM.scheme == "https" else http.client.HTTPConnection
         conn = conn_cls(UPSTREAM.hostname, UPSTREAM.port, timeout=30)
@@ -175,6 +212,24 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.end_headers()
         if self.command != "HEAD" and payload:
             self.wfile.write(payload)
+
+    def _read_request_body(self) -> bytes:
+        length = self.headers.get("Content-Length")
+        if length:
+            try:
+                size = int(length)
+            except ValueError as exc:
+                raise InvalidRequestBody("invalid content length") from exc
+            if size < 0 or size > MAX_REQUEST_BODY_BYTES:
+                raise InvalidRequestBody("request body exceeds proxy limit")
+            body = self.rfile.read(size)
+            if len(body) != size:
+                raise InvalidRequestBody("incomplete request body")
+            return body
+        transfer_encoding = self.headers.get("Transfer-Encoding", "")
+        if "chunked" in {part.strip().lower() for part in transfer_encoding.split(",")}:
+            return read_chunked_body(self.rfile)
+        return b""
 
     def log_message(self, fmt: str, *args) -> None:
         print(f"{self.address_string()} - - [{self.log_date_time_string()}] {fmt % args}", flush=True)

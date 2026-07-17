@@ -140,7 +140,7 @@ jobs:
                   ;;
                 deploy/wsl/README.md|deploy/wsl/.env.example)
                   ;;
-                .github/workflows/vps.yml|deploy/common/*|requirements.txt|server/*|src/*|deploy/converter.version|scripts/compare_converter_runtime*.py)
+                .github/workflows/vps.yml|deploy/common/*|requirements.txt|server/*|src/*|deploy/converter.version|scripts/compare_converter_runtime*.py|scripts/smoke_policy_briefing_imports.py)
                   deploy_v=true
                   deploy_hw=true
                   deploy_n=true
@@ -455,15 +455,69 @@ jobs:
           PY
           cat _converter_drift_summary.md >> "$GITHUB_STEP_SUMMARY"
 
+  policy-briefing-import-smoke:
+    name: "Policy Briefing Import Smoke"
+    if: ${{ needs.detect-targets.outputs.run_drift == 'true' && needs.deploy-v.result == 'success' && needs.deploy-w.result == 'success' && (vars.GOVPRESS_N_DEPLOY_DIR == '' || needs.deploy-n.result == 'success') }}
+    needs:
+      - detect-targets
+      - deploy-v
+      - deploy-w
+      - deploy-n
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Import every policy briefing for today
+        env:
+          GOVPRESS_API_KEY: ${{ secrets.GOVPRESS_API_KEY }}
+          HAS_SERVER_N: ${{ vars.GOVPRESS_N_DEPLOY_DIR != '' }}
+        run: |
+          set -euo pipefail
+          smoke_cmd=(
+            python3 scripts/smoke_policy_briefing_imports.py
+            --server serverW=https://api4.govpress.cloud
+            --server serverV=https://api2.govpress.cloud
+            --jobs 2
+            --require-equal-inventory
+            --output policy-briefing-import-smoke.json
+          )
+          if [[ "$HAS_SERVER_N" == "true" ]]; then
+            smoke_cmd+=(--server serverN=https://api5.govpress.cloud)
+          fi
+          "${smoke_cmd[@]}"
+
+      - name: Summarize policy briefing imports
+        if: always()
+        run: |
+          if [ ! -f policy-briefing-import-smoke.json ]; then
+            echo "- policy briefing import smoke did not produce output" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("policy-briefing-import-smoke.json").read_text(encoding="utf-8"))
+          summary = payload["summary"]
+          print(f"- date: {payload['date']}")
+          print(f"- inventory equal: {payload['inventory_equal']}")
+          print(f"- imports: {summary['passed']}/{summary['checked']} passed")
+          for catalog in payload["catalogs"]:
+              print(f"- {catalog['server']}: {catalog['hwpx_items']} HWPX items")
+          PY
+
   notify-deploy-failure:
     name: "Notify Deploy Failure"
-    if: ${{ always() && (needs.deploy-v.result == 'failure' || needs.deploy-w.result == 'failure' || needs.deploy-n.result == 'failure' || needs.converter-drift-smoke.result == 'failure') }}
+    if: ${{ always() && (needs.deploy-v.result == 'failure' || needs.deploy-w.result == 'failure' || needs.deploy-n.result == 'failure' || needs.converter-drift-smoke.result == 'failure' || needs.policy-briefing-import-smoke.result == 'failure') }}
     needs:
       - detect-targets
       - deploy-v
       - deploy-w
       - deploy-n
       - converter-drift-smoke
+      - policy-briefing-import-smoke
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -479,7 +533,7 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
           RESULTS_JSON: >-
-            {"serverV":"${{ needs.deploy-v.result }}","serverW":"${{ needs.deploy-w.result }}","serverN":"${{ needs.deploy-n.result }}","converterSmoke":"${{ needs.converter-drift-smoke.result }}"}
+            {"serverV":"${{ needs.deploy-v.result }}","serverW":"${{ needs.deploy-w.result }}","serverN":"${{ needs.deploy-n.result }}","converterSmoke":"${{ needs.converter-drift-smoke.result }}","policyBriefingSmoke":"${{ needs.policy-briefing-import-smoke.result }}"}
         run: |
           set -euo pipefail
           python3 scripts/send_deploy_alert.py \

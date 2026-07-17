@@ -1,15 +1,9 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Protocol
 
-
-def _safe_filename(file_name: str) -> str:
-    """파일명에서 경로 구분자 및 위험 문자를 제거해 path traversal을 방지."""
-    name = Path(file_name).name  # 디렉터리 컴포넌트 제거
-    name = re.sub(r"[^\w\s.\-()]", "_", name)  # 허용 문자 외 치환
-    return name or "document"
+from ..path_names import prefixed_safe_filename
 
 
 class AsyncReadableUpload(Protocol):
@@ -26,7 +20,7 @@ class StorageService:
             directory.mkdir(parents=True, exist_ok=True)
 
     def save_original_file(self, job_id: str, file_name: str, content: bytes) -> Path:
-        path = self.originals_dir / f"{job_id}-{_safe_filename(file_name)}"
+        path = self.originals_dir / prefixed_safe_filename(job_id, file_name)
         path.write_bytes(content)
         return path
 
@@ -42,7 +36,7 @@ class StorageService:
         max_bytes: int,
         chunk_size: int = 1024 * 1024,
     ) -> Path:
-        path = self.originals_dir / f"{job_id}-{_safe_filename(file_name)}"
+        path = self.originals_dir / prefixed_safe_filename(job_id, file_name)
         total = 0
         with path.open("wb") as handle:
             while True:

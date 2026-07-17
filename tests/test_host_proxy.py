@@ -1,12 +1,99 @@
 from __future__ import annotations
 
 import importlib
+import io
 import os
 import unittest
 from unittest import mock
 
 
 class HostProxyTests(unittest.TestCase):
+    def test_proxy_decodes_chunked_post_body_from_edge(self) -> None:
+        import deploy.wsl.bin.host_proxy as host_proxy
+
+        host_proxy = importlib.reload(host_proxy)
+        handler = object.__new__(host_proxy.ProxyHandler)
+        handler.command = "POST"
+        handler.path = "/v1/policy-briefings/import"
+        handler.headers = {
+            "Content-Type": "application/json",
+            "Transfer-Encoding": "chunked",
+            "X-API-Key": "test-key",
+            "Host": "api4.example",
+        }
+        first = b'{"news_item_id":"156771197",'
+        second = b'"date":"2026-07-16"}'
+        payload = first + second
+        handler.rfile = io.BytesIO(
+            f"{len(first):X}\r\n".encode() + first + b"\r\n"
+            + f"{len(second):X};edge=test\r\n".encode() + second + b"\r\n0\r\n\r\n"
+        )
+        handler.wfile = mock.Mock()
+        handler.client_address = ("203.0.113.10", 12345)
+        handler.send_response = mock.Mock()
+        handler.send_header = mock.Mock()
+        handler.end_headers = mock.Mock()
+
+        response = mock.Mock(status=200, reason="OK")
+        response.read.return_value = b'{"job_id":"job_test"}'
+        response.getheaders.return_value = [("Content-Type", "application/json")]
+        connection = mock.Mock()
+        connection.getresponse.return_value = response
+
+        with mock.patch.object(host_proxy, "UPSTREAM", mock.Mock(scheme="http", hostname="127.0.0.1", port=8013, netloc="127.0.0.1:8013")), mock.patch.object(
+            host_proxy.http.client, "HTTPConnection", return_value=connection
+        ):
+            handler._proxy()
+
+        forwarded = connection.request.call_args.kwargs
+        self.assertEqual(forwarded["body"], payload)
+        self.assertEqual(forwarded["headers"]["Content-Length"], str(len(payload)))
+        self.assertNotIn("Transfer-Encoding", forwarded["headers"])
+
+    def test_proxy_forwards_post_body_and_content_type(self) -> None:
+        import deploy.wsl.bin.host_proxy as host_proxy
+
+        host_proxy = importlib.reload(host_proxy)
+        handler = object.__new__(host_proxy.ProxyHandler)
+        handler.command = "POST"
+        handler.path = "/v1/policy-briefings/import"
+        payload = b'{"news_item_id":"156771197","date":"2026-07-16"}'
+        handler.headers = {
+            "Content-Type": "application/json",
+            "Content-Length": str(len(payload)),
+            "X-API-Key": "test-key",
+            "Host": "api4.example",
+        }
+        handler.rfile = io.BytesIO(payload)
+        handler.wfile = mock.Mock()
+        handler.client_address = ("203.0.113.10", 12345)
+        handler.send_response = mock.Mock()
+        handler.send_header = mock.Mock()
+        handler.end_headers = mock.Mock()
+
+        response = mock.Mock()
+        response.status = 200
+        response.reason = "OK"
+        response.read.return_value = b'{"job_id":"job_test"}'
+        response.getheaders.return_value = [("Content-Type", "application/json")]
+        connection = mock.Mock()
+        connection.getresponse.return_value = response
+
+        with mock.patch.object(host_proxy, "UPSTREAM", mock.Mock(scheme="http", hostname="127.0.0.1", port=8013, netloc="127.0.0.1:8013")), mock.patch.object(
+            host_proxy.http.client, "HTTPConnection", return_value=connection
+        ):
+            handler._proxy()
+
+        connection.request.assert_called_once()
+        method, path = connection.request.call_args.args
+        forwarded = connection.request.call_args.kwargs
+        self.assertEqual((method, path), ("POST", "/v1/policy-briefings/import"))
+        self.assertEqual(forwarded["body"], payload)
+        self.assertEqual(forwarded["headers"]["Content-Type"], "application/json")
+        self.assertEqual(forwarded["headers"]["Content-Length"], str(len(payload)))
+        self.assertEqual(forwarded["headers"]["X-API-Key"], "test-key")
+        self.assertEqual(forwarded["headers"]["X-Forwarded-For"], "203.0.113.10")
+
     def test_proxy_filters_upstream_content_length(self) -> None:
         previous_upstream = os.environ.get("GOVPRESS_HOST_PROXY_UPSTREAM")
         os.environ["GOVPRESS_HOST_PROXY_UPSTREAM"] = "http://127.0.0.1:8013"

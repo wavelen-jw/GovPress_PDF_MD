@@ -12,6 +12,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
+from ..path_names import prefixed_safe_filename
+
 
 PRESS_RELEASE_LIST_URL = "https://apis.data.go.kr/1371000/pressReleaseService/pressReleaseList"
 PRESS_RELEASE_VIEW_URL = "https://www.korea.kr/briefing/pressReleaseView.do"
@@ -726,8 +728,7 @@ class PolicyBriefingCache:
         self._index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2))
 
     def _original_path(self, news_item_id: str, file_name: str) -> Path:
-        safe_name = re.sub(r"[^\w\s.\-()]", "_", Path(file_name).name) or "document.hwpx"
-        return self._originals_dir / f"{news_item_id}-{safe_name}"
+        return self._originals_dir / prefixed_safe_filename(news_item_id, file_name)
 
     def _save_original_content(self, news_item_id: str, file_name: str, content: bytes) -> None:
         self._original_path(news_item_id, file_name).write_bytes(content)

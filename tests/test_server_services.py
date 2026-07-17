@@ -47,6 +47,35 @@ class ServerServiceTests(unittest.TestCase):
         self.assertTrue(record.artifacts.original_pdf_path.exists())
         mock_enqueue.assert_called_once_with(record.job_id)
 
+    def test_create_job_truncates_long_utf8_storage_name_without_changing_display_name(self) -> None:
+        file_name = f"{'긴파일명' * 30}.hwpx"
+        with patch.object(self.worker, "enqueue"):
+            record = self.job_service.create_job(file_name=file_name, content=b"PK\x03\x04")
+
+        assert record.artifacts is not None
+        stored_name = record.artifacts.original_pdf_path.name
+        self.assertLessEqual(len(stored_name.encode("utf-8")), 255)
+        self.assertTrue(stored_name.endswith(".hwpx"))
+        self.assertEqual(record.file_name, file_name)
+        self.assertEqual(record.artifacts.original_pdf_path.read_bytes(), b"PK\x03\x04")
+
+    def test_create_job_accepts_policy_briefing_name_one_byte_over_filesystem_limit(self) -> None:
+        file_name = (
+            "(정책기획관-기획재정담당관) 국민의 삶을 바꾸는 농정을 실현하겠습니다  "
+            "하반기 국민체감과제 중심 성과 창출에 주력보도자료(보도시점 7. 16.(목) 업무 보고 종료 시"
+            "(별도 공지)) (1).hwpx"
+        )
+        self.assertEqual(len(f"156771197-{file_name}".encode("utf-8")), 256)
+
+        with patch.object(self.worker, "enqueue"), patch("server.app.services.job_service.uuid.uuid4") as uuid4:
+            uuid4.return_value.hex = "15677119700000000000000000000000"
+            record = self.job_service.create_job(file_name=file_name, content=b"PK\x03\x04")
+
+        assert record.artifacts is not None
+        self.assertLessEqual(len(record.artifacts.original_pdf_path.name.encode("utf-8")), 255)
+        self.assertTrue(record.artifacts.original_pdf_path.name.endswith(".hwpx"))
+        self.assertEqual(record.file_name, file_name)
+
     def test_retry_job_requeues_failed_job(self) -> None:
         with patch.object(self.worker, "enqueue"):
             record = self.job_service.create_job(file_name="sample.pdf", content=b"%PDF-1.4")

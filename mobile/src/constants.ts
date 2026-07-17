@@ -13,6 +13,7 @@ export const BUILD_TAG = "mobile-web-2026-04-20-save-picker-and-table-scroll";
 
 export const SERVER_FALLBACK_TIMEOUT_MS = 8000;
 export const POLICY_BRIEFING_LIST_TIMEOUT_MS = 30000;
+export const POLICY_BRIEFING_IMPORT_TIMEOUT_MS = 60000;
 
 export const SERVER_PRESETS = [
   { key: "serverW", label: "서버W", shortLabel: "서버W", url: "https://api4.govpress.cloud" },
