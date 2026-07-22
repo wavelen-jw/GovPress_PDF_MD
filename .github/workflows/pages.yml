@@ -100,6 +100,11 @@ jobs:
           mkdir -p mobile/dist/assets
           cp ui/assets/social-preview.png mobile/dist/assets/social-preview.png
 
+      - name: Install public download assets
+        run: |
+          mkdir -p mobile/dist/downloads
+          cp -R ui/downloads/. mobile/dist/downloads/
+
       - name: Install landing page as root index
         run: cp ui/landing.html mobile/dist/index.html
 
