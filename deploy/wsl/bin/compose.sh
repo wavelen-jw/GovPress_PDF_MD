@@ -18,16 +18,21 @@ HOME_DIR="${HOME:-$(getent passwd $(id -u) | cut -d: -f6)}"
 DOCKER_CONFIG_DIR="${DOCKER_CONFIG:-$HOME_DIR/.docker}"
 DOCKER_CONFIG_FILE="$DOCKER_CONFIG_DIR/config.json"
 if [[ -f "$DOCKER_CONFIG_FILE" ]] \
-  && grep -q '"credsStore"' "$DOCKER_CONFIG_FILE" \
-  && grep -q '"desktop.exe"' "$DOCKER_CONFIG_FILE" \
-  && ! command -v docker-credential-desktop.exe >/dev/null 2>&1; then
-  export DOCKER_CONFIG="$HOME_DIR/.cache/govpress-docker-config"
-  mkdir -p "$DOCKER_CONFIG"
-  cat > "$DOCKER_CONFIG/config.json" <<'EOF'
+  && grep -q '"credsStore"' "$DOCKER_CONFIG_FILE"; then
+  credential_store="$(sed -n 's/.*"credsStore"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$DOCKER_CONFIG_FILE" | head -n1)"
+  credential_helper="docker-credential-${credential_store}"
+  if [[ -n "$credential_store" ]] \
+    && { ! command -v "$credential_helper" >/dev/null 2>&1 || ! "$credential_helper" list >/dev/null 2>&1; }; then
+    # Docker Desktop's helper can exist in WSL while its Windows vsock endpoint
+    # is unavailable. Public build inputs need no registry credentials.
+    export DOCKER_CONFIG="$HOME_DIR/.cache/govpress-docker-config"
+    mkdir -p "$DOCKER_CONFIG"
+    cat > "$DOCKER_CONFIG/config.json" <<'EOF'
 {
   "auths": {}
 }
 EOF
+  fi
 fi
 
 if [[ $# -eq 0 ]]; then
