@@ -7,6 +7,10 @@ on:
         description: "Publication date (YYYY-MM-DD)"
         required: true
         type: string
+      news_ids:
+        description: "Comma-separated policy briefing news IDs"
+        required: false
+        type: string
   push:
     branches:
       - web
@@ -68,16 +72,18 @@ jobs:
       - name: Export requested HWPX files
         env:
           DATE: ${{ inputs.date || '2019-11-01' }}
+          NEWS_IDS: ${{ inputs.news_ids || '156358639,156358645,156358647,156358648,156358649,156358650,156358651,156358653,156358655,156358657,156358658,156358659,156358660,156358661,156358662,156358703,156358705,156358707,156358709,156358711,156358719,156358722,156358724,156358725,156358727,156358729,156358731,156358733,156358735,156358737,156358739,156358743,156358745,156358746,156358748,156358750,156358752,156358770,156358771,156358772,156358774,156358776,156358778,156358780,156358781,156358782,156358784,156358786,156358788,156358790,156358791,156358797,156358798,156358799,156358800,156358801,156358804,156358805,156358807,156358808,156358809,156358813,156358815,156358817,156358818,156358820,156358832,156358833,156358835,156358837,156358838,156358840,156358841,156358842,156358844,156358846,156358848,156358849,156358850,156358851,156358852,156358854,156358855,156358856,156358858,156358859,156358860,156358872,156358873,156358875,156358876,156358877,156358879,156358892,156358893' }}
           USER: ${{ secrets.GOVPRESS_W_USER }}
           RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
           export_name="/tmp/govpress-hwpx-export-${RUN_ID}.tar.gz"
           ssh -T -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes "$USER@serverw" \
-            bash -s "$DATE" "$export_name" <<'BASH'
+            bash -s "$DATE" "$export_name" "$NEWS_IDS" <<'BASH'
           set -euo pipefail
           date="$1"
           export_name="$2"
+          news_ids="$3"
           [[ "$date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]
           year="${date:0:4}"
           month="${date:5:2}"
@@ -86,12 +92,20 @@ jobs:
           test -r "$archive"
           workdir="$(mktemp -d /tmp/govpress-hwpx-export.XXXXXX)"
           trap 'rm -rf "$workdir"' EXIT
-          mapfile -t entries < <(tar -tzf "$archive" | awk -v prefix="data/raw/${year}/${month}/${day}/" 'index($0, prefix) == 1 && tolower($0) ~ /\.hwpx$/')
+          declare -A available
+          while IFS= read -r entry; do
+            available["$(basename "${entry%.hwpx}")"]="$entry"
+          done < <(tar -tzf "$archive" | awk -v prefix="data/raw/${year}/${month}/" 'index($0, prefix) == 1 && tolower($0) ~ /\.hwpx$/')
+          IFS=, read -r -a requested_ids <<< "$news_ids"
+          entries=()
+          for news_id in "${requested_ids[@]}"; do
+            [[ "$news_id" =~ ^[0-9]+$ ]] || continue
+            [[ -n "${available[$news_id]:-}" ]] && entries+=("${available[$news_id]}")
+          done
           if [ "${#entries[@]}" -eq 0 ]; then
             archive_hwpx_total="$(tar -tzf "$archive" | grep -Eic '\.hwpx$' || true)"
             echo "archive_hwpx_total=${archive_hwpx_total}"
-            echo "month_path_sample:"
-            tar -tzf "$archive" | grep "data/raw/${year}/${month}/" | head -n 20 || true
+            echo "requested_news_ids=${#requested_ids[@]}"
             echo "No HWPX entries for ${date} in ${archive}" >&2
             exit 2
           fi
@@ -100,7 +114,7 @@ jobs:
             cd "$workdir"
             find data/raw -type f -iname '*.hwpx' -print0 | tar --null --files-from=- -czf "$export_name"
           )
-          printf 'exported_hwpx=%s\n' "${#entries[@]}"
+          printf 'exported_hwpx=%s requested_news_ids=%s\n' "${#entries[@]}" "${#requested_ids[@]}"
           BASH
           scp -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes "$USER@serverw:$export_name" serverw-hwpx.tar.gz
           ssh -T -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes "$USER@serverw" "rm -f '$export_name'"
