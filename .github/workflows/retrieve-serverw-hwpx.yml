@@ -1,0 +1,106 @@
+name: Retrieve ServerW HWPX
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Publication date (YYYY-MM-DD)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  retrieve:
+    name: "Retrieve ServerW HWPX"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Install cloudflared
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: Materialize ServerW SSH key
+        env:
+          SSH_KEY: ${{ secrets.GOVPRESS_W_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          if printf '%s' "$SSH_KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+            printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          else
+            printf '%s' "$SSH_KEY" | tr -d '\r\n ' | base64 -d > ~/.ssh/deploy_key
+          fi
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Configure Cloudflare SSH tunnel
+        env:
+          SSH_HOST: ${{ vars.GOVPRESS_W_SSH_HOST || 'ssh-w.govpress.cloud' }}
+          CF_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          cloudflared access tcp \
+            --hostname "$SSH_HOST" \
+            --url 127.0.0.1:2222 \
+            --service-token-id "$CF_ID" \
+            --service-token-secret "$CF_SECRET" \
+            >/tmp/cloudflared-access-tcp.log 2>&1 &
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            ss -ltn | grep -q '127.0.0.1:2222' && break
+            sleep 1
+          done
+          cat >> ~/.ssh/config <<'EOF'
+          Host serverw
+            HostName 127.0.0.1
+            Port 2222
+            StrictHostKeyChecking accept-new
+          EOF
+
+      - name: Export requested HWPX files
+        env:
+          DATE: ${{ inputs.date }}
+          USER: ${{ secrets.GOVPRESS_W_USER }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          export_name="/tmp/govpress-hwpx-export-${RUN_ID}.tar.gz"
+          ssh -T -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes "$USER@serverw" \
+            bash -s "$DATE" "$export_name" <<'BASH'
+          set -euo pipefail
+          date="$1"
+          export_name="$2"
+          [[ "$date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]
+          year="${date:0:4}"
+          month="${date:5:2}"
+          day="${date:8:2}"
+          archive="/mnt/d/govpress-mcp-archives/${year}/govpress-mcp-raw-${year}-${month}.tar.gz"
+          test -r "$archive"
+          workdir="$(mktemp -d /tmp/govpress-hwpx-export.XXXXXX)"
+          trap 'rm -rf "$workdir"' EXIT
+          mapfile -t entries < <(tar -tzf "$archive" | awk -v prefix="data/raw/${year}/${month}/${day}/" 'index($0, prefix) == 1 && tolower($0) ~ /\.hwpx$/')
+          if [ "${#entries[@]}" -eq 0 ]; then
+            echo "No HWPX entries for ${date} in ${archive}" >&2
+            exit 2
+          fi
+          tar -xzf "$archive" -C "$workdir" "${entries[@]}"
+          (
+            cd "$workdir"
+            find data/raw -type f -iname '*.hwpx' -print0 | tar --null --files-from=- -czf "$export_name"
+          )
+          printf 'exported_hwpx=%s\n' "${#entries[@]}"
+          BASH
+          scp -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes "$USER@serverw:$export_name" serverw-hwpx.tar.gz
+          ssh -T -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes "$USER@serverw" "rm -f '$export_name'"
+          tar -tzf serverw-hwpx.tar.gz
+
+      - name: Upload HWPX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: serverw-hwpx-${{ inputs.date }}
+          path: serverw-hwpx.tar.gz
+          if-no-files-found: error
+          retention-days: 3
