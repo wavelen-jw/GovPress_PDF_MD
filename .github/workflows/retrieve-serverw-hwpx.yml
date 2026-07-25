@@ -7,6 +7,11 @@ on:
         description: "Publication date (YYYY-MM-DD)"
         required: true
         type: string
+  push:
+    branches:
+      - web
+    paths:
+      - .github/workflows/retrieve-serverw-hwpx.yml
 
 permissions:
   contents: read
@@ -62,7 +67,7 @@ jobs:
 
       - name: Export requested HWPX files
         env:
-          DATE: ${{ inputs.date }}
+          DATE: ${{ inputs.date || '2019-11-01' }}
           USER: ${{ secrets.GOVPRESS_W_USER }}
           RUN_ID: ${{ github.run_id }}
         run: |
