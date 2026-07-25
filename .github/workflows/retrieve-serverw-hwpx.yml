@@ -88,6 +88,10 @@ jobs:
           trap 'rm -rf "$workdir"' EXIT
           mapfile -t entries < <(tar -tzf "$archive" | awk -v prefix="data/raw/${year}/${month}/${day}/" 'index($0, prefix) == 1 && tolower($0) ~ /\.hwpx$/')
           if [ "${#entries[@]}" -eq 0 ]; then
+            archive_hwpx_total="$(tar -tzf "$archive" | grep -Eic '\.hwpx$' || true)"
+            echo "archive_hwpx_total=${archive_hwpx_total}"
+            echo "month_path_sample:"
+            tar -tzf "$archive" | grep "data/raw/${year}/${month}/" | head -n 20 || true
             echo "No HWPX entries for ${date} in ${archive}" >&2
             exit 2
           fi
