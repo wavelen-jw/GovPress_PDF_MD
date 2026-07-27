@@ -177,4 +177,21 @@ jobs:
             git.exe ls-remote https://github.com/wavelen-jw/GovPress_PDF_MD.git HEAD \
               >/dev/null 2>&1 && echo ok || echo failed
           fi
+          echo
+          echo "== GitHub SSH over 443 =="
+          printf 'ssh_transport='
+          if timeout 20 ssh -T -p 443 -o BatchMode=yes \
+            -o StrictHostKeyChecking=accept-new git@ssh.github.com \
+            >/tmp/github-ssh-probe.log 2>&1; then
+            echo ok
+          elif grep -q 'successfully authenticated' /tmp/github-ssh-probe.log; then
+            echo ok
+          else
+            echo failed
+            sed -n '1,8p' /tmp/github-ssh-probe.log
+          fi
+          printf 'git_ssh_transport='
+          GIT_SSH_COMMAND='ssh -p 443 -o BatchMode=yes -o StrictHostKeyChecking=accept-new' \
+            git ls-remote ssh://git@ssh.github.com:443/wavelen-jw/GovPress_PDF_MD.git HEAD \
+            >/dev/null 2>&1 && echo ok || echo failed
           BASH
