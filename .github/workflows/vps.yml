@@ -203,6 +203,7 @@ jobs:
       deploy_poll_attempts: "120"
       deploy_poll_interval_seconds: "5"
       emit_failure_diagnostics_only: "true"
+      transfer_service_bundle: "true"
       run_policy_probe: "true"
     secrets:
       user:             ${{ secrets.GOVPRESS_W_USER }}

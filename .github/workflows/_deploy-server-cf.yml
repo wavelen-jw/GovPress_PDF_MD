@@ -41,6 +41,10 @@ on:
       emit_failure_diagnostics_only:
         type: string
         default: "false"
+      transfer_service_bundle:
+        # github.com에 직접 연결할 수 없는 호스트에서만 서비스 소스를 SSH로 전달
+        type: string
+        default: "false"
       run_policy_probe:
         type: string
         default: "true"
@@ -176,6 +180,17 @@ jobs:
           else
             echo "preflight_ok=1"
           fi
+
+      - name: Read remote service revision
+        if: ${{ inputs.transfer_service_bundle == 'true' }}
+        env:
+          USER: ${{ secrets.user }}
+          SSH_HOST: ${{ inputs.ssh_host }}
+          DEPLOY_DIR: ${{ inputs.deploy_dir }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=~/.ssh/deploy_key
+          SSH_BASE_OPTS=(-T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes -o ControlMaster=no -o ControlPath=none -o ConnectionAttempts=3 -o ConnectTimeout=20)
           remote_head="$(
             ssh "${SSH_BASE_OPTS[@]}" "$USER@$SSH_HOST" \
               "git -C $(printf '%q' "$DEPLOY_DIR") rev-parse HEAD"
@@ -187,6 +202,7 @@ jobs:
           echo "REMOTE_SERVICE_HEAD=$remote_head" >> "$GITHUB_ENV"
 
       - name: Transfer service revision bundle
+        if: ${{ inputs.transfer_service_bundle == 'true' }}
         env:
           USER: ${{ secrets.user }}
           SSH_HOST: ${{ inputs.ssh_host }}
@@ -239,10 +255,14 @@ jobs:
           CONVERTER_SPEC: ${{ secrets.converter_spec }}
           ADMIN_API_KEY: ${{ secrets.admin_api_key }}
           POLICY_BRIEFING_SERVICE_KEY: ${{ secrets.policy_briefing_service_key }}
-          SERVICE_BUNDLE: /tmp/govpress-service-${{ github.run_id }}.bundle
+          TRANSFER_SERVICE_BUNDLE: ${{ inputs.transfer_service_bundle }}
         run: |
           set -euo pipefail
           KEY_FILE=~/.ssh/deploy_key
+          SERVICE_BUNDLE=""
+          if [ "$TRANSFER_SERVICE_BUNDLE" = "true" ]; then
+            SERVICE_BUNDLE="/tmp/govpress-service-${GITHUB_RUN_ID}.bundle"
+          fi
           # CF access tcp on localhost can occasionally reset or stall reused
           # multiplexed SSH sessions. Use fresh sessions for launch/poll/fetch.
           SSH_BASE_OPTS=(-T -i "$KEY_FILE" -o IdentitiesOnly=yes -o BatchMode=yes -o ControlMaster=no -o ControlPath=none -o ConnectionAttempts=3 -o ConnectTimeout=20)
