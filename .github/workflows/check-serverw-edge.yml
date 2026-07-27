@@ -158,4 +158,23 @@ jobs:
               ls-remote https://github.com/wavelen-jw/GovPress_PDF_MD.git HEAD \
               >/dev/null && echo ok || echo failed
           fi
+          echo
+          echo "== Windows GitHub path =="
+          for windows_tool in cmd.exe powershell.exe curl.exe git.exe wslpath; do
+            if command -v "$windows_tool" >/dev/null 2>&1; then
+              echo "${windows_tool}=available"
+            else
+              echo "${windows_tool}=missing"
+            fi
+          done
+          if command -v curl.exe >/dev/null 2>&1; then
+            printf 'windows_curl='
+            curl.exe -fsSI --connect-timeout 10 --max-time 20 https://github.com/ \
+              >/dev/null 2>&1 && echo ok || echo failed
+          fi
+          if command -v git.exe >/dev/null 2>&1; then
+            printf 'windows_git='
+            git.exe ls-remote https://github.com/wavelen-jw/GovPress_PDF_MD.git HEAD \
+              >/dev/null 2>&1 && echo ok || echo failed
+          fi
           BASH
