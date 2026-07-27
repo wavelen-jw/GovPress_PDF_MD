@@ -96,7 +96,8 @@ jobs:
           sudo lsof -iTCP:8080 -sTCP:LISTEN -n -P || true
           echo
           echo "== cloudflared processes =="
-          pgrep -af cloudflared || true
+          pgrep -af cloudflared \
+            | sed -E 's/(--token )[[:graph:]]+/\1[REDACTED]/g' || true
           echo
           echo "== startup references =="
           grep -Rni "cloudflared" ~/.cloudflared ~/.config/systemd ~/.config/autostart /etc/systemd /etc/profile.d 2>/dev/null | sed -n '1,200p' || true
@@ -121,4 +122,20 @@ jobs:
           echo "== GitHub git HTTP/1.1 =="
           GIT_TERMINAL_PROMPT=0 git -c http.version=HTTP/1.1 \
             ls-remote https://github.com/wavelen-jw/GovPress_PDF_MD.git HEAD || true
+          echo
+          echo "== GitHub alternate endpoints =="
+          for endpoint in api.github.com codeload.github.com objects.githubusercontent.com; do
+            printf '%s=' "$endpoint"
+            curl --http1.1 --connect-timeout 10 --max-time 20 \
+              -fsSI "https://${endpoint}/" >/dev/null \
+              && echo ok || echo failed
+          done
+          echo
+          echo "== GitHub TLS probes =="
+          for tls_version in -tls1_2 -tls1_3; do
+            printf '%s=' "$tls_version"
+            timeout 15 openssl s_client "$tls_version" -brief \
+              -connect github.com:443 -servername github.com </dev/null 2>&1 \
+              | sed -n '1,8p' || true
+          done
           BASH
