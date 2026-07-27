@@ -194,4 +194,17 @@ jobs:
           GIT_SSH_COMMAND='ssh -p 443 -o BatchMode=yes -o StrictHostKeyChecking=accept-new' \
             git ls-remote ssh://git@ssh.github.com:443/wavelen-jw/GovPress_PDF_MD.git HEAD \
             >/dev/null 2>&1 && echo ok || echo failed
+          echo
+          echo "== Container GitHub path =="
+          if docker inspect govpress-api >/dev/null 2>&1; then
+            printf 'container_curl='
+            docker exec govpress-api curl --http1.1 --connect-timeout 10 --max-time 20 \
+              -fsSI https://github.com/ >/dev/null 2>&1 && echo ok || echo failed
+            printf 'container_git='
+            docker exec govpress-api git -c http.version=HTTP/1.1 \
+              ls-remote https://github.com/wavelen-jw/GovPress_PDF_MD.git HEAD \
+              >/dev/null 2>&1 && echo ok || echo failed
+          else
+            echo 'govpress-api=missing'
+          fi
           BASH
