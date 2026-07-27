@@ -251,6 +251,7 @@ curl -i https://api.govpress.cloud/health
 
 다음 규칙은 GitHub Actions `Deploy API To Servers`와 원격 `remote-deploy-cf.sh`가 항상 지켜야 합니다.
 
+- serverW의 `github.com` 직접 접속 차단은 영구적인 회사 네트워크 정책으로 취급합니다. serverW는 Actions runner가 전달한 증분 Git bundle과 `api.github.com` converter archive를 사용해야 하며, serverW에서 직접 `git fetch` 또는 Git spec 설치를 요구하면 안 됩니다. 상세 절차는 [`docs/serverw-restricted-github-deployment.md`](../../docs/serverw-restricted-github-deployment.md)를 따릅니다.
 - 배포 대상은 `branch tip`이 아니라 workflow를 트리거한 정확한 `github.sha`여야 합니다.
 - `host_proxy` 배포는 기존 `govpress-api`/`govpress-worker`를 새 컨테이너가 검증되기 전에 삭제하면 안 됩니다.
 - `host_proxy` 충돌 정리는 `8080`이 우선이지만, `127.0.0.1:8013`을 다른 프로세스가 점유해 새 `govpress-api` 컨테이너 publish가 막히는 경우에는 제한된 root cleanup을 허용합니다.
@@ -292,6 +293,8 @@ curl -i https://api.govpress.cloud/health
 
 특히 아래 변화는 위험합니다.
 
+- serverW의 `transfer_service_bundle: "true"` 제거 또는 serverV/serverN에 해당 경로 강제
+- serverW에서 `github.com` 직접 fetch를 다시 필수화하거나 TLS 검증을 끄는 변경
 - `docker rm -f govpress-api govpress-worker` 재도입
 - `run_compose up -d --build`를 activate 단계에 직접 사용
 - `health_probe_code=200`만으로 success 처리하거나 public `/health`와 authenticated policy probe를 하나의 신호로 섞는 변경
