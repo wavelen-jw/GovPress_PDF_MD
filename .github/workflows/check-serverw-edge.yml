@@ -103,4 +103,22 @@ jobs:
           echo
           echo "== cloudflared logs =="
           sudo journalctl -u govpress-cloudflared.service -n 80 --no-pager || true
+          echo
+          echo "== GitHub egress tools =="
+          git --version
+          curl --version | sed -n '1,2p'
+          openssl version || true
+          echo
+          echo "== GitHub DNS =="
+          getent ahosts github.com | sed -n '1,12p' || true
+          echo
+          echo "== proxy variable names =="
+          env | sed -n 's/^\([^=]*[Pp][Rr][Oo][Xx][Yy][^=]*\)=.*/\1=[SET]/p' | sort || true
+          echo
+          echo "== GitHub curl HTTP/1.1 =="
+          curl --http1.1 --connect-timeout 10 --max-time 30 -fsSIL https://github.com/ | sed -n '1,20p' || true
+          echo
+          echo "== GitHub git HTTP/1.1 =="
+          GIT_TERMINAL_PROMPT=0 git -c http.version=HTTP/1.1 \
+            ls-remote https://github.com/wavelen-jw/GovPress_PDF_MD.git HEAD || true
           BASH
