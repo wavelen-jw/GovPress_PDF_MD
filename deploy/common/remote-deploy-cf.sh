@@ -9,11 +9,33 @@ echo "target_branch=${BRANCH}"
 echo "requested_target_sha=${TARGET_SHA:-}"
 echo "deploy_mode=${DEPLOY_MODE:-compose_proxy}"
 
-if [ -n "${TARGET_SHA:-}" ]; then
-  git -C "$DEPLOY_DIR" fetch origin "$TARGET_SHA" || git -C "$DEPLOY_DIR" fetch origin
-else
-  git -C "$DEPLOY_DIR" fetch origin
-fi
+fetch_deploy_revision() {
+  local attempt fetch_rc=1
+  for attempt in 1 2 3 4; do
+    # Some WSL hosts sporadically terminate GitHub's TLS connection. HTTP/1.1
+    # and a bounded retry make remote deployment resilient without masking a
+    # persistent fetch failure.
+    if [ -n "${TARGET_SHA:-}" ]; then
+      if git -C "$DEPLOY_DIR" -c http.version=HTTP/1.1 fetch --no-tags --prune origin "$TARGET_SHA"; then
+        return 0
+      fi
+      fetch_rc=$?
+      if git -C "$DEPLOY_DIR" -c http.version=HTTP/1.1 fetch --no-tags --prune origin; then
+        return 0
+      fi
+      fetch_rc=$?
+    elif git -C "$DEPLOY_DIR" -c http.version=HTTP/1.1 fetch --no-tags --prune origin; then
+      return 0
+    else
+      fetch_rc=$?
+    fi
+    echo "git_fetch_retry attempt=${attempt} exit_code=${fetch_rc}" >&2
+    sleep $((attempt * 3))
+  done
+  return "$fetch_rc"
+}
+
+fetch_deploy_revision
 # Deploy targets are treated as disposable working trees.
 # Remove local modifications and untracked build artifacts before switching refs,
 # but preserve runtime data, venvs, and existing env files.
