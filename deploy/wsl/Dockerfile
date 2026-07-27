@@ -1,10 +1,12 @@
 FROM python:3.11-slim
 
 ARG GOVPRESS_CONVERTER_SPEC=""
+ARG GOVPRESS_CONVERTER_INSTALL_SPEC=""
 ARG GOVPRESS_CONVERTER_EXTRA_INDEX_URL=""
 ARG GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK="0"
 ARG GOVPRESS_CONVERTER_MIN_VERSION=""
 ARG GOVPRESS_HWPX_MD_SPEC=""
+ARG GOVPRESS_HWPX_MD_INSTALL_SPEC=""
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -21,11 +23,13 @@ RUN apt-get update \
 
 COPY requirements.txt /app/requirements.txt
 COPY deploy/converter.version /tmp/govpress-converter.version
+COPY .deploy-artifacts /tmp/deploy-artifacts
 RUN pip install -r /app/requirements.txt \
     && pip install -U opendataloader-pdf \
     && echo "govpress-converter target: $(cat /tmp/govpress-converter.version)" \
-    && if [ -n "$GOVPRESS_CONVERTER_SPEC" ] && [ "$GOVPRESS_CONVERTER_SPEC" != "-" ]; then pip install --upgrade --force-reinstall "$GOVPRESS_CONVERTER_SPEC"; fi \
-    && HWPX_MD_INSTALL_SPEC="$GOVPRESS_HWPX_MD_SPEC" \
+    && CONVERTER_INSTALL_SPEC="${GOVPRESS_CONVERTER_INSTALL_SPEC:-$GOVPRESS_CONVERTER_SPEC}" \
+    && if [ -n "$CONVERTER_INSTALL_SPEC" ] && [ "$CONVERTER_INSTALL_SPEC" != "-" ]; then pip install --upgrade --force-reinstall "$CONVERTER_INSTALL_SPEC"; fi \
+    && HWPX_MD_INSTALL_SPEC="${GOVPRESS_HWPX_MD_INSTALL_SPEC:-$GOVPRESS_HWPX_MD_SPEC}" \
     && if [ -z "$HWPX_MD_INSTALL_SPEC" ] && printf '%s' "$GOVPRESS_CONVERTER_SPEC" | grep -q 'github.com/wavelen-jw/gov-md-converter.git@'; then HWPX_MD_INSTALL_SPEC="$(printf '%s' "$GOVPRESS_CONVERTER_SPEC" | sed 's#github.com/wavelen-jw/gov-md-converter.git@#github.com/wavelen-jw/govpress-hwpx-md.git@#')"; fi \
     && if [ -n "$HWPX_MD_INSTALL_SPEC" ] && [ "$HWPX_MD_INSTALL_SPEC" != "-" ]; then python -m venv /opt/govpress-hwpx-md-venv && /opt/govpress-hwpx-md-venv/bin/python -m pip install -U pip && /opt/govpress-hwpx-md-venv/bin/python -m pip install --upgrade --force-reinstall "$HWPX_MD_INSTALL_SPEC" && /opt/govpress-hwpx-md-venv/bin/python -c "import govpress_converter; print(getattr(govpress_converter, '__version__', ''))"; fi
 

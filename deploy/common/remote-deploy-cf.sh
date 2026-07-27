@@ -11,6 +11,14 @@ echo "deploy_mode=${DEPLOY_MODE:-compose_proxy}"
 
 fetch_deploy_revision() {
   local attempt fetch_rc=1
+  if [ -n "${SERVICE_BUNDLE:-}" ] && [ -s "$SERVICE_BUNDLE" ]; then
+    if git -C "$DEPLOY_DIR" fetch --no-tags "$SERVICE_BUNDLE" HEAD; then
+      echo "service_revision_source=bundle"
+      rm -f "$SERVICE_BUNDLE"
+      return 0
+    fi
+    echo "service_bundle_fetch=failed" >&2
+  fi
   for attempt in 1 2 3 4; do
     # Some WSL hosts sporadically terminate GitHub's TLS connection. HTTP/1.1
     # and a bounded retry make remote deployment resilient without masking a
@@ -32,6 +40,9 @@ fetch_deploy_revision() {
     echo "git_fetch_retry attempt=${attempt} exit_code=${fetch_rc}" >&2
     sleep $((attempt * 3))
   done
+  if [ -n "${SERVICE_BUNDLE:-}" ]; then
+    rm -f "$SERVICE_BUNDLE"
+  fi
   return "$fetch_rc"
 }
 
@@ -101,6 +112,26 @@ elif [ -n "${HWPX_MD_SPEC:-}" ]; then
   echo "hwpx_md_spec=configured"
 else
   echo "hwpx_md_spec=not_configured"
+fi
+
+CONVERTER_INSTALL_SPEC="${CONVERTER_SPEC:-}"
+HWPX_MD_INSTALL_SPEC="${HWPX_MD_SPEC:-}"
+CONVERTER_SOURCE_ARCHIVE=""
+if [ -n "${COMPOSE_FILE:-}" ] && ! curl --http1.1 --connect-timeout 5 --max-time 15 -fsSI \
+  https://github.com/ >/dev/null 2>&1; then
+  OFFLINE_ARTIFACT_DIR="$DEPLOY_DIR/.deploy-artifacts"
+  mkdir -p "$OFFLINE_ARTIFACT_DIR"
+  CONVERTER_SOURCE_ARCHIVE="$OFFLINE_ARTIFACT_DIR/gov-md-converter.tar.gz"
+  HWPX_MD_SOURCE_ARCHIVE="$OFFLINE_ARTIFACT_DIR/govpress-hwpx-md.tar.gz"
+  python3 "$DEPLOY_DIR/deploy/common/materialize-github-spec.py" \
+    --spec "$CONVERTER_SPEC" \
+    --output "$CONVERTER_SOURCE_ARCHIVE" >/dev/null
+  python3 "$DEPLOY_DIR/deploy/common/materialize-github-spec.py" \
+    --spec "$HWPX_MD_SPEC" \
+    --output "$HWPX_MD_SOURCE_ARCHIVE" >/dev/null
+  CONVERTER_INSTALL_SPEC="/tmp/deploy-artifacts/gov-md-converter.tar.gz"
+  HWPX_MD_INSTALL_SPEC="/tmp/deploy-artifacts/govpress-hwpx-md.tar.gz"
+  echo "converter_package_source=github_api_archive"
 fi
 
 reset_converter_cache_if_version_changed() {
@@ -236,6 +267,15 @@ PY
   repo_ref="$(printf '%s\n' "$parse_output" | sed -n '2p')"
   if [ -z "$repo_url" ]; then
     echo "converter_checkout=skipped_parse_error"
+    return
+  fi
+  if [ -n "${CONVERTER_SOURCE_ARCHIVE:-}" ] && [ -s "$CONVERTER_SOURCE_ARCHIVE" ]; then
+    python3 "$DEPLOY_DIR/deploy/common/sync-source-archive.py" \
+      --archive "$CONVERTER_SOURCE_ARCHIVE" \
+      --destination "$converter_root"
+    echo "converter_checkout_root=$converter_root"
+    echo "converter_checkout_ref=${repo_ref:-archive}"
+    echo "converter_checkout_source=github_api_archive"
     return
   fi
 
@@ -923,8 +963,10 @@ if [ -n "${COMPOSE_FILE:-}" ]; then
   upsert_env_value "$ENV_PATH" "GOVPRESS_LARGE_WORKER_CONCURRENCY" "${GOVPRESS_LARGE_WORKER_CONCURRENCY:-1}"
   upsert_env_value "$ENV_PATH" "GOVPRESS_WORKER_MEM_LIMIT" "${GOVPRESS_WORKER_MEM_LIMIT:-4g}"
   upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_SPEC" "$CONVERTER_SPEC"
+  upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_INSTALL_SPEC" "$CONVERTER_INSTALL_SPEC"
   upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK" "0"
   upsert_env_value "$ENV_PATH" "GOVPRESS_HWPX_MD_SPEC" "${HWPX_MD_SPEC:-}"
+  upsert_env_value "$ENV_PATH" "GOVPRESS_HWPX_MD_INSTALL_SPEC" "$HWPX_MD_INSTALL_SPEC"
   upsert_env_value "$ENV_PATH" "GOVPRESS_HWPX_MD_PYTHON" "/opt/govpress-hwpx-md-venv/bin/python"
   upsert_env_value "$ENV_PATH" "GOVPRESS_CONVERTER_MIN_VERSION" "${CONVERTER_MIN_VERSION:-}"
   upsert_env_value "$ENV_PATH" "CONVERTER_VERSION" "${TRACKED_HWPX_MD_VERSION:-${CONVERTER_MIN_VERSION:-}}"

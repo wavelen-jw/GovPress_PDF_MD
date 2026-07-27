@@ -80,6 +80,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 64
 
       - name: Install cloudflared
         run: |
@@ -149,6 +151,7 @@ jobs:
         env:
           USER: ${{ secrets.user }}
           SSH_HOST: ${{ inputs.ssh_host }}
+          DEPLOY_DIR: ${{ inputs.deploy_dir }}
         run: |
           set -euo pipefail
           KEY_FILE=~/.ssh/deploy_key
@@ -173,6 +176,33 @@ jobs:
           else
             echo "preflight_ok=1"
           fi
+          remote_head="$(
+            ssh "${SSH_BASE_OPTS[@]}" "$USER@$SSH_HOST" \
+              "git -C $(printf '%q' "$DEPLOY_DIR") rev-parse HEAD"
+          )"
+          if ! printf '%s' "$remote_head" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "invalid remote service revision" >&2
+            exit 1
+          fi
+          echo "REMOTE_SERVICE_HEAD=$remote_head" >> "$GITHUB_ENV"
+
+      - name: Transfer service revision bundle
+        env:
+          USER: ${{ secrets.user }}
+          SSH_HOST: ${{ inputs.ssh_host }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=~/.ssh/deploy_key
+          BUNDLE_PATH="/tmp/govpress-service-${GITHUB_RUN_ID}.bundle"
+          git merge-base --is-ancestor "$REMOTE_SERVICE_HEAD" HEAD
+          git bundle create service-revision.bundle HEAD "^${REMOTE_SERVICE_HEAD}"
+          scp -i "$KEY_FILE" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o ControlMaster=no \
+            -o ControlPath=none \
+            -o ConnectTimeout=20 \
+            service-revision.bundle "$USER@$SSH_HOST:$BUNDLE_PATH"
 
       - name: Emit preflight diagnostics
         if: ${{ always() && (inputs.emit_failure_diagnostics_only != 'true' || failure()) }}
@@ -209,6 +239,7 @@ jobs:
           CONVERTER_SPEC: ${{ secrets.converter_spec }}
           ADMIN_API_KEY: ${{ secrets.admin_api_key }}
           POLICY_BRIEFING_SERVICE_KEY: ${{ secrets.policy_briefing_service_key }}
+          SERVICE_BUNDLE: /tmp/govpress-service-${{ github.run_id }}.bundle
         run: |
           set -euo pipefail
           KEY_FILE=~/.ssh/deploy_key
@@ -221,7 +252,7 @@ jobs:
           REMOTE_PATH="${REMOTE_DIR}/remote-deploy.sh"
           REMOTE_LOG="${REMOTE_DIR}/remote-deploy.log"
           REMOTE_STATUS="${REMOTE_DIR}/status.env"
-          LAUNCH_CMD="$(printf "export DEPLOY_DIR=%q BRANCH=%q TARGET_SHA=%q COMPOSE_FILE=%q DEPLOY_MODE=%q SERVICE=%q HEALTHCHECK_URL=%q PUBLIC_PROBE_URL=%q CONVERTER_SPEC=%q ADMIN_API_KEY=%q POLICY_BRIEFING_SERVICE_KEY=%q; remote_dir=%q; remote_path=%q; remote_log=%q; remote_status=%q; mkdir -p \"\$remote_dir\"; rm -f \"\$remote_status\"; cat > \"\$remote_path\" && chmod 700 \"\$remote_path\" && { ( /bin/bash --noprofile --norc \"\$remote_path\" > \"\$remote_log\" 2>&1; rc=\$?; printf 'exit_code=%%s\\n' \"\$rc\" > \"\$remote_status\"; rm -f \"\$remote_path\" ) </dev/null >/dev/null 2>&1 & printf 'launch_pid=%%s\\n' \"\$!\"; }; printf 'remote_log=%%s\\n' \"\$remote_log\"; printf 'remote_status=%%s\\n' \"\$remote_status\"" "$DEPLOY_DIR" "$BRANCH" "$TARGET_SHA" "$COMPOSE_FILE" "$DEPLOY_MODE" "$SERVICE" "$HEALTHCHECK_URL" "$PUBLIC_PROBE_URL" "$CONVERTER_SPEC" "$ADMIN_API_KEY" "$POLICY_BRIEFING_SERVICE_KEY" "$REMOTE_DIR" "$REMOTE_PATH" "$REMOTE_LOG" "$REMOTE_STATUS")"
+          LAUNCH_CMD="$(printf "export DEPLOY_DIR=%q BRANCH=%q TARGET_SHA=%q COMPOSE_FILE=%q DEPLOY_MODE=%q SERVICE=%q HEALTHCHECK_URL=%q PUBLIC_PROBE_URL=%q CONVERTER_SPEC=%q ADMIN_API_KEY=%q POLICY_BRIEFING_SERVICE_KEY=%q SERVICE_BUNDLE=%q; remote_dir=%q; remote_path=%q; remote_log=%q; remote_status=%q; mkdir -p \"\$remote_dir\"; rm -f \"\$remote_status\"; cat > \"\$remote_path\" && chmod 700 \"\$remote_path\" && { ( /bin/bash --noprofile --norc \"\$remote_path\" > \"\$remote_log\" 2>&1; rc=\$?; printf 'exit_code=%%s\\n' \"\$rc\" > \"\$remote_status\"; rm -f \"\$remote_path\" ) </dev/null >/dev/null 2>&1 & printf 'launch_pid=%%s\\n' \"\$!\"; }; printf 'remote_log=%%s\\n' \"\$remote_log\"; printf 'remote_status=%%s\\n' \"\$remote_status\"" "$DEPLOY_DIR" "$BRANCH" "$TARGET_SHA" "$COMPOSE_FILE" "$DEPLOY_MODE" "$SERVICE" "$HEALTHCHECK_URL" "$PUBLIC_PROBE_URL" "$CONVERTER_SPEC" "$ADMIN_API_KEY" "$POLICY_BRIEFING_SERVICE_KEY" "$SERVICE_BUNDLE" "$REMOTE_DIR" "$REMOTE_PATH" "$REMOTE_LOG" "$REMOTE_STATUS")"
           POLL_CMD="$(printf "if [ -f %q ]; then cat %q; fi" "$REMOTE_STATUS" "$REMOTE_STATUS")"
           FETCH_CMD="$(printf "if [ -f %q ]; then cat %q; fi" "$REMOTE_LOG" "$REMOTE_LOG")"
           launch_exit=1
