@@ -229,6 +229,38 @@ class ServerServiceTests(unittest.TestCase):
         self.assertEqual(updated.result.markdown_text, "# 새 변환기\n\n본문")
         self.assertEqual(updated.result.markdown_html, "# 새 변환기\n\n본문")
 
+    def test_worker_uses_policy_api_metadata_instead_of_markdown_extraction(self) -> None:
+        document_metadata = {
+            "metadata_source": "policy-briefing-api",
+            "news_item_id": "156751988",
+            "title": "API 정본 제목",
+            "department": "행정안전부",
+        }
+        with patch.object(self.worker, "enqueue"):
+            record = self.job_service.create_job(
+                file_name="policy.hwpx",
+                content=b"PK\x03\x04",
+                converter_engine="govpress-hwpx-md",
+                document_metadata=document_metadata,
+            )
+
+        with patch(
+            "server.app.workers.converter_worker.experimental_hwpx_md.convert_hwpx",
+            return_value="# 문서 추출 제목\n\n보도자료 /",
+        ), patch(
+            "server.app.workers.converter_worker.opendataloader.render_preview_html",
+            return_value="<h1>문서 추출 제목</h1>",
+        ), patch(
+            "server.app.workers.converter_worker.opendataloader.extract_metadata",
+            return_value=("문서 추출 제목", None),
+        ):
+            self.worker.process(record.job_id)
+
+        updated = self.repository.get(record.job_id)
+        assert updated is not None
+        self.assertEqual(updated.result.title, "API 정본 제목")
+        self.assertEqual(updated.result.department, "행정안전부")
+
     def test_hwpx_jobs_use_new_converter_even_when_default_requested(self) -> None:
         with patch.object(self.worker, "enqueue"):
             record = self.job_service.create_job(

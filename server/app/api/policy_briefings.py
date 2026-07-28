@@ -22,7 +22,7 @@ from ..schemas.policy_briefings import (
 _UPSTREAM_POLICY_BRIEFING_TIMEOUT_DETAIL = (
     "정책브리핑 제공기관 API 응답이 지연되거나 장애 상태입니다. 잠시 후 다시 시도해 주세요."
 )
-_POLICY_BRIEFING_IMPORT_JOB_KEY_VERSION = "metadata-v2"
+_POLICY_BRIEFING_IMPORT_JOB_KEY_VERSION = "metadata-v3"
 
 
 def _describe_policy_briefing_error(exc: Exception) -> str:

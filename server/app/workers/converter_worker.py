@@ -44,7 +44,7 @@ class ConverterWorker:
                     document_metadata=record.document_metadata,
                 )
                 html_preview = opendataloader.render_preview_html(markdown)
-                title, department = opendataloader.extract_metadata(markdown)
+                title, department = _resolve_result_metadata(markdown, record.document_metadata)
                 final_path = self._storage.save_generated_markdown(job_id, markdown)
                 self._jobs.save_result(
                     job_id,
@@ -120,3 +120,16 @@ class ConverterWorker:
                 error_code=error_code,
                 error_message=error_message,
             )
+
+
+def _resolve_result_metadata(
+    markdown: str,
+    document_metadata: dict[str, object] | None,
+) -> tuple[str | None, str | None]:
+    extracted_title, extracted_department = opendataloader.extract_metadata(markdown)
+    metadata = document_metadata or {}
+    if metadata.get("metadata_source") != "policy-briefing-api":
+        return extracted_title, extracted_department
+    title = str(metadata.get("title") or "").strip() or extracted_title
+    department = str(metadata.get("department") or "").strip() or extracted_department
+    return title, department

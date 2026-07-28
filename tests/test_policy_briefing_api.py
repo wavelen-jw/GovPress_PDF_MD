@@ -23,6 +23,7 @@ from server.app.adapters.policy_briefing import (
     _build_attachment_request_headers,
     _inject_policy_briefing_department,
     _looks_like_html_error,
+    policy_briefing_api_metadata,
 )
 from server.app.main import create_app
 
@@ -438,6 +439,63 @@ class PolicyBriefingApiTests(unittest.TestCase):
         kwargs = self.convert_hwpx_mock.call_args_list[0].kwargs
         self.assertEqual(kwargs["document_metadata"]["issuer_agency"], "행정안전부")
         self.assertEqual(kwargs["document_metadata"]["departmentName"], "행정안전부")
+        self.assertEqual(kwargs["document_metadata"]["metadata_source"], "policy-briefing-api")
+        self.assertEqual(kwargs["document_metadata"]["news_item_id"], "156700001")
+        self.assertEqual(len(kwargs["document_metadata"]["attachments"]), 3)
+
+    def test_policy_briefing_cache_stores_api_metadata_as_authority(self) -> None:
+        cache = PolicyBriefingCache(
+            client=self.client_stub,
+            cache_dir=Path(self.temp_dir.name) / "policy_briefing_api_metadata_cache",
+        )
+        cached = cache.warm_item(self.client_stub.items[0])
+
+        self.assertEqual(cached.title, "오늘 보도자료 테스트")
+        self.assertEqual(cached.department, "행정안전부")
+        self.assertEqual(cached.api_metadata, policy_briefing_api_metadata(self.client_stub.items[0]))
+
+    def test_policy_briefing_cache_rerenders_stale_api_metadata_without_redownload(self) -> None:
+        cache = PolicyBriefingCache(
+            client=self.client_stub,
+            cache_dir=Path(self.temp_dir.name) / "policy_briefing_stale_metadata_cache",
+        )
+        original_item = self.client_stub.items[0]
+        cache.warm_item(original_item)
+        download_count = len(self.client_stub.download_calls)
+        updated_item = replace(
+            original_item,
+            title="API에서 정정된 제목",
+            department="국무조정실",
+        )
+
+        refreshed = cache.warm_item(updated_item)
+
+        self.assertEqual(len(self.client_stub.download_calls), download_count)
+        self.assertEqual(refreshed.title, "API에서 정정된 제목")
+        self.assertEqual(refreshed.department, "국무조정실")
+        self.assertEqual(self.convert_hwpx_mock.call_count, 4)
+
+    def test_policy_briefing_cache_redownloads_when_api_attachment_changes(self) -> None:
+        cache = PolicyBriefingCache(
+            client=self.client_stub,
+            cache_dir=Path(self.temp_dir.name) / "policy_briefing_changed_attachment_cache",
+        )
+        original_item = self.client_stub.items[0]
+        cache.warm_item(original_item)
+        changed_attachment = replace(
+            original_item.primary_hwpx,
+            file_url="https://example.test/files/revised-briefing.hwpx",
+        )
+        assert changed_attachment is not None
+        updated_item = replace(
+            original_item,
+            attachments=(changed_attachment, *original_item.attachments[1:]),
+        )
+        before = len(self.client_stub.download_calls)
+
+        cache.warm_item(updated_item)
+
+        self.assertEqual(len(self.client_stub.download_calls), before + 1)
 
     def test_import_policy_briefing_is_idempotent_for_same_source(self) -> None:
         first = self.client.post(

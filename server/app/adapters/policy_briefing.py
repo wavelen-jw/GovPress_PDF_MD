@@ -28,6 +28,8 @@ _PRESS_RELEASE_VIEW_DATE_RE = re.compile(
 )
 _CATALOG_REFRESH_INTERVAL_SECONDS = 3600
 _ATTACHMENT_HTML_PREFIXES = (b"<!doctype html", b"<html", b"<?xml")
+POLICY_BRIEFING_METADATA_SCHEMA_VERSION = 1
+POLICY_BRIEFING_METADATA_SOURCE = "policy-briefing-api"
 
 
 def _normalize_policy_briefing_title(text: str) -> str:
@@ -144,6 +146,7 @@ class PolicyBriefingCachedDocument:
     title: str | None
     department: str | None
     cached_at: str
+    api_metadata: dict[str, object]
     original_content: bytes | None = None
 
 
@@ -451,6 +454,11 @@ class PolicyBriefingCache:
             title=str(payload.get("title")) if payload.get("title") is not None else None,
             department=str(payload.get("department")) if payload.get("department") is not None else None,
             cached_at=str(payload.get("cached_at", "")),
+            api_metadata=(
+                dict(payload["api_metadata"])
+                if isinstance(payload.get("api_metadata"), dict)
+                else {}
+            ),
             original_content=self._load_original_content(news_item_id, file_name),
         )
 
@@ -467,6 +475,7 @@ class PolicyBriefingCache:
         original_content: bytes,
         file_name: str | None = None,
     ) -> PolicyBriefingCachedDocument:
+        canonical_metadata = policy_briefing_api_metadata(item)
         cached = PolicyBriefingCachedDocument(
             news_item_id=item.news_item_id,
             file_name=file_name or (item.primary_hwpx.file_name if item.primary_hwpx else ""),
@@ -474,9 +483,10 @@ class PolicyBriefingCache:
             markdown_html=markdown_html,
             html_preview_text=html_preview_text,
             html_preview_html=html_preview_html,
-            title=title,
-            department=department,
+            title=item.title.strip() or title,
+            department=item.department.strip() or department,
             cached_at=datetime.now(UTC).isoformat(),
+            api_metadata=canonical_metadata,
             original_content=original_content,
         )
         self._save_original_content(cached.news_item_id, cached.file_name, original_content)
@@ -490,6 +500,7 @@ class PolicyBriefingCache:
             "title": cached.title,
             "department": cached.department,
             "cached_at": cached.cached_at,
+            "api_metadata": cached.api_metadata,
         }
         self._save_index(index)
         return cached
@@ -606,8 +617,19 @@ class PolicyBriefingCache:
 
     def warm_item(self, item: PolicyBriefingItem, *, notice_on_download_error: bool = True) -> PolicyBriefingCachedDocument:
         cached = self.get(item.news_item_id)
-        if cached is not None and cached.original_content:
+        metadata_is_current = cached is not None and _api_metadata_matches_item(cached.api_metadata, item)
+        if cached is not None and cached.original_content and metadata_is_current:
             return cached
+        if (
+            cached is not None
+            and cached.original_content
+            and _cached_source_matches_item(cached, item)
+        ):
+            return self._convert_and_save(
+                item=item,
+                content=cached.original_content,
+                file_name=cached.file_name,
+            )
         if item.primary_hwpx is None:
             fallback_name = item.primary_pdf.file_name if item.primary_pdf else f"{item.title}.hwpx"
             return self._build_missing_hwpx_notice(
@@ -632,7 +654,7 @@ class PolicyBriefingCache:
                 file_name=downloaded.attachment.file_name,
                 detail="국정브리핑 첨부는 .hwpx 확장자이지만 실제로는 HWP 형식입니다.",
             )
-        if cached is not None:
+        if cached is not None and metadata_is_current:
             self._save_original_content(item.news_item_id, cached.file_name, downloaded.content)
             return PolicyBriefingCachedDocument(
                 news_item_id=cached.news_item_id,
@@ -644,14 +666,28 @@ class PolicyBriefingCache:
                 title=cached.title,
                 department=cached.department,
                 cached_at=cached.cached_at,
+                api_metadata=cached.api_metadata,
                 original_content=downloaded.content,
             )
 
+        return self._convert_and_save(
+            item=item,
+            content=downloaded.content,
+            file_name=downloaded.attachment.file_name,
+        )
+
+    def _convert_and_save(
+        self,
+        *,
+        item: PolicyBriefingItem,
+        content: bytes,
+        file_name: str,
+    ) -> PolicyBriefingCachedDocument:
         from . import hwpx_converter, opendataloader
 
         with tempfile.NamedTemporaryFile(suffix=".hwpx", delete=False) as handle:
             temp_path = Path(handle.name)
-            handle.write(downloaded.content)
+            handle.write(content)
         try:
             document_metadata = _policy_briefing_document_metadata(item)
             markdown_text = hwpx_converter.convert_hwpx(
@@ -671,16 +707,16 @@ class PolicyBriefingCache:
         markdown_html = _inject_policy_briefing_department(markdown_html, item.department)
         html_preview_text = opendataloader.render_preview_html(markdown_text)
         html_preview_html = opendataloader.render_preview_html(markdown_html)
-        title, department = opendataloader.extract_metadata(markdown_text)
         return self.save(
             item=item,
+            file_name=file_name,
             markdown_text=markdown_text,
             markdown_html=markdown_html,
             html_preview_text=html_preview_text,
             html_preview_html=html_preview_html,
-            title=title,
-            department=department,
-            original_content=downloaded.content,
+            title=item.title or None,
+            department=item.department or None,
+            original_content=content,
         )
 
     def warm_item_with_catalog_retry(
@@ -841,18 +877,59 @@ def _inject_policy_briefing_department(markdown: str, department: str | None) ->
 
 
 def _policy_briefing_document_metadata(item: PolicyBriefingItem) -> dict[str, object]:
-    department = item.department.strip()
-    title = item.title.strip()
+    canonical = policy_briefing_api_metadata(item)
+    department = str(canonical["department"])
+    title = str(canonical["title"])
     return {
         "issuer_agency": department,
         "department": department,
         "departmentName": department,
         "title": title,
+        **canonical,
         "document_metadata": {
             "issuer_agency": department,
             "title": title,
+            **canonical,
         },
     }
+
+
+def policy_briefing_api_metadata(item: PolicyBriefingItem) -> dict[str, object]:
+    return {
+        "metadata_schema_version": POLICY_BRIEFING_METADATA_SCHEMA_VERSION,
+        "metadata_source": POLICY_BRIEFING_METADATA_SOURCE,
+        "news_item_id": item.news_item_id.strip(),
+        "title": item.title.strip(),
+        "department": item.department.strip(),
+        "approve_date": item.approve_date.strip(),
+        "original_url": item.original_url.strip(),
+        "attachments": [
+            {
+                "file_name": attachment.file_name.strip(),
+                "file_url": attachment.file_url.strip(),
+            }
+            for attachment in item.attachments
+        ],
+    }
+
+
+def _api_metadata_matches_item(metadata: dict[str, object], item: PolicyBriefingItem) -> bool:
+    return metadata == policy_briefing_api_metadata(item)
+
+
+def _cached_source_matches_item(
+    cached: PolicyBriefingCachedDocument,
+    item: PolicyBriefingItem,
+) -> bool:
+    primary = item.primary_hwpx
+    attachments = cached.api_metadata.get("attachments")
+    if primary is None or not isinstance(attachments, list):
+        return False
+    expected = {
+        "file_name": primary.file_name.strip(),
+        "file_url": primary.file_url.strip(),
+    }
+    return any(attachment == expected for attachment in attachments)
 
 
 def _deserialize_item(payload: dict[str, object]) -> PolicyBriefingItem:
