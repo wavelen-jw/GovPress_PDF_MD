@@ -51,7 +51,9 @@ documents record `metadata_source=policy-briefing-api` and
 and page counts remains document content and does not replace API metadata.
 
 The live vector workspace is `/home/wavel/projects/govpress-mcp` on serverW.
-Copy `scripts/migrate-api-metadata.py` there and run a month in dry-run mode:
+Copy `scripts/migrate-api-metadata.py` there and run a month in dry-run mode.
+The month scope is driven by Markdown already present under `data/md/YYYY/MM`;
+API-only items that have never been vectorized are not migration candidates.
 
 ```bash
 set -a
@@ -72,15 +74,23 @@ The manifest is written under
 
 - `unchanged`: all stores already use the API values.
 - `metadata_only`: patch frontmatter, SQLite, and Qdrant payload without TEI.
-- `rerender_reembed`: the H1 or explicit agency press label conflicts with the
-  API; selectively reconvert and re-embed only these IDs.
+- `rerender_reembed`: the Markdown frontmatter cannot be parsed safely;
+  selectively reconvert and re-embed only these IDs.
 - `deferred`: the API item or published Markdown is unavailable.
+
+An API headline or agency that differs from the source document's H1 or press
+label is recorded as `body_differences`. It is not a conversion failure: the
+API owns catalog metadata while the HWPX body remains source document content.
 
 After reviewing the manifest, add `--apply-metadata-only`. The tool creates an
 online SQLite backup and a Qdrant collection snapshot first. It preserves the
-Markdown body, verifies target rows and point counts, updates
+candidate Markdown files in a tar snapshot, applies updates in small batches,
+verifies exact body bytes, vector hashes, target rows, point counts, and
+canonical Qdrant payloads, updates
 `indexed_docs` to prevent unnecessary incremental embedding, and writes
 `YYYY-MM-rerender-reembed.ids` for the selective conversion pipeline.
+The recovery pointers are written with status `ready` before any metadata is
+changed, then finalized as `completed` or `failed`.
 
 Acceptance checks:
 
@@ -91,3 +101,69 @@ Acceptance checks:
 - `metadata_only` body and vector SHA-256 values must remain unchanged.
 - A second run must classify the migrated item as `unchanged`.
 - Reference document `156751988` must resolve to `행정안전부`.
+
+### Whole-corpus metadata overwrite
+
+Use the overwrite mode when an existing vector corpus was built before API
+metadata became authoritative. It does not compare every current field and
+does not reconvert or re-embed documents. It inventories local Markdown,
+fetches each API date once into a resumable monthly cache, and classifies only
+whether each document can be updated safely:
+
+- `eligible`: API metadata and all three storage records exist.
+- `vectorization_required`: Markdown and SQLite can receive API metadata, but
+  no Qdrant point exists yet.
+- `deferred`: the official API has no matching item.
+- `invalid`: Markdown, SQLite, or Qdrant structure is incomplete.
+
+Persistent API failures are cached as `failed_days`; unresolved documents in
+those months use `api_metadata_unavailable_after_day_failure` instead of being
+silently treated as ordinary API omissions. A failed day does not stop the
+remaining corpus preflight.
+
+Run preflight first:
+
+```bash
+docker compose run --rm \
+  -e GOVPRESS_POLICY_BRIEFING_SERVICE_KEY \
+  -v "$PWD/scripts:/work/scripts:ro" \
+  mcp python /work/scripts/migrate-api-metadata.py \
+  --overwrite-all 2014-01 2026-07 \
+  --data-root /app/data \
+  --db /app/data/govpress.db \
+  --qdrant-url http://qdrant:6333 \
+  --output-dir /app/data/fetch-log/metadata-migration/full-api-overwrite \
+  --jobs 8 \
+  --bulk-batch-size 250
+```
+
+Review `bulk-overwrite-manifest.jsonl`, then repeat the same command with
+`--apply-overwrite`. The output directory is the resume checkpoint and must
+not be reused for a different date or ID scope.
+
+For a subset follow-up, pass `--api-cache-dir` pointing to the first run's
+`api-cache`. A cached superset is reused when it already contains every
+requested ID, avoiding repeated official API calls.
+
+The apply run creates one SQLite backup and one Qdrant snapshot for the entire
+scope. Markdown recovery stores only the original frontmatter plus body hashes,
+not duplicate copies of every document. Markdown is rewritten with bounded
+parallelism, SQLite is updated from one temporary staging table, and Qdrant
+payloads are updated through batched point operations. Verification performs
+one final Qdrant scan and checks all Markdown and SQLite metadata, body hashes,
+target point counts, and a deterministic vector sample.
+
+This path updates metadata only. Any `invalid` document that requires
+reconversion or re-embedding must be handed to the improved vectorization
+workflow in the server V task; this migration must not invoke an ad hoc
+embedding path.
+
+The preflight writes `server-v-vectorization.ids`, `invalid.ids`, and
+`api-deferred.ids` automatically. For IDs with no Qdrant points, server V uses
+`scripts/derive-targeted-pipeline.py` directly in sequential 250-document
+batches (`TEI=64`, `inflight=4`, `prepare_workers=8`, `Qdrant=512`). Do not use
+`finalize-archive-month.sh`, because its archive cleanup is unrelated to this
+backfill. Before starting, the targeted pipeline must preserve the API-owned
+Qdrant payload fields from Markdown frontmatter: `title`, `original_url`,
+`metadata_source`, `metadata_schema_version`, `attachments`, and
+`attachments_json`.
