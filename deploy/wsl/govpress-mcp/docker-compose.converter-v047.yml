@@ -1,0 +1,6 @@
+services:
+  mcp:
+    image: ${GOVPRESS_MCP_CONVERTER_IMAGE:-govpress-mcp-converter:0.4.7-c2960871}
+    environment:
+      GOVPRESS_HWPX_MD_PYTHON: /opt/govpress-hwpx-md-venv/bin/python
+      GOVPRESS_HWPX_MD_EXPECTED_VERSION: "0.4.7"
