@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import mimetypes
 import os
+from pathlib import Path
 import socket
 from datetime import UTC, datetime, timedelta
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 
 LISTEN_HOST = os.environ.get("GOVPRESS_HOST_PROXY_LISTEN_HOST", "127.0.0.1")
@@ -39,6 +41,38 @@ CORS_RESPONSE_HEADERS = {
 RESPONSE_SKIP_HEADERS = HOP_BY_HOP_HEADERS | CORS_RESPONSE_HEADERS | {"content-length"}
 SEOUL_UTC_OFFSET = timedelta(hours=9)
 MAX_REQUEST_BODY_BYTES = int(os.environ.get("GOVPRESS_HOST_PROXY_MAX_BODY_BYTES", str(100 * 1024 * 1024)))
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+UI_ROOT = (REPOSITORY_ROOT / "ui").resolve()
+APP_ROOT = (REPOSITORY_ROOT / "mobile" / "dist").resolve()
+DIRECTORY_PAGES = frozenset({"benchmark-policy-briefing", "hardest-policy-briefings"})
+
+
+def contained_file(root: Path, relative_path: str) -> Path | None:
+    candidate = (root / relative_path).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return None
+    return candidate if candidate.is_file() else None
+
+
+def static_file_for_path(request_target: str) -> Path | None:
+    path = unquote(urlsplit(request_target).path)
+    if path in {"/", "/landing.html"}:
+        return contained_file(UI_ROOT, "landing.html")
+    for prefix in ("/app/", "/GovPress_PDF_MD/app/"):
+        if path.startswith(prefix):
+            return contained_file(APP_ROOT, path[len(prefix):] or "index.html")
+    relative = path.lstrip("/")
+    direct = contained_file(UI_ROOT, relative)
+    if direct is not None:
+        return direct
+    parts = [part for part in relative.split("/") if part]
+    if len(parts) == 1 and parts[0] in DIRECTORY_PAGES:
+        return contained_file(UI_ROOT, f"{parts[0]}.html")
+    if len(parts) == 2 and parts[0] in DIRECTORY_PAGES:
+        return contained_file(UI_ROOT, parts[1])
+    return None
 
 
 class InvalidRequestBody(ValueError):
@@ -108,11 +142,15 @@ class ProxyHandler(BaseHTTPRequestHandler):
         if self.path == "/health":
             self._health(include_body=True)
             return
+        if self._serve_static(include_body=True):
+            return
         self._proxy()
 
     def do_HEAD(self) -> None:
         if self.path == "/health":
             self._health(include_body=False)
+            return
+        if self._serve_static(include_body=False):
             return
         self._proxy()
 
@@ -132,6 +170,32 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         self._proxy()
+
+    def _serve_static(self, *, include_body: bool) -> bool:
+        if self.path == "/app":
+            self.send_response(308, "Permanent Redirect")
+            self.send_header("Location", "/app/")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return True
+        static_file = static_file_for_path(self.path)
+        if static_file is None:
+            return False
+        try:
+            payload = static_file.read_bytes()
+        except OSError:
+            self.send_error(500, "static file unavailable")
+            return True
+        content_type, _ = mimetypes.guess_type(static_file.name)
+        self.send_response(200, "OK")
+        self.send_header("Content-Type", content_type or "application/octet-stream")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "public, max-age=300")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        if include_body:
+            self.wfile.write(payload)
+        return True
 
     def _health(self, *, include_body: bool) -> None:
         try:

@@ -8,6 +8,27 @@ from unittest import mock
 
 
 class HostProxyTests(unittest.TestCase):
+    def test_static_routes_resolve_only_public_service_files(self) -> None:
+        import deploy.wsl.bin.host_proxy as host_proxy
+
+        host_proxy = importlib.reload(host_proxy)
+        self.assertEqual(
+            host_proxy.static_file_for_path("/").name,
+            "landing.html",
+        )
+        self.assertEqual(
+            host_proxy.static_file_for_path("/app/").name,
+            "index.html",
+        )
+        self.assertEqual(
+            host_proxy.static_file_for_path(
+                "/GovPress_PDF_MD/app/_expo/static/js/web/AppEntry-45b8351326937a39cc38d9987793d220.js"
+            ).name,
+            "AppEntry-45b8351326937a39cc38d9987793d220.js",
+        )
+        self.assertIsNone(
+            host_proxy.static_file_for_path("/app/%2e%2e/ui/landing.html")
+        )
     def test_proxy_decodes_chunked_post_body_from_edge(self) -> None:
         import deploy.wsl.bin.host_proxy as host_proxy
 
