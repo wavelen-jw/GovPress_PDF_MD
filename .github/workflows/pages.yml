@@ -163,6 +163,9 @@ jobs:
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
+          token: ${{ secrets.GOV_MD_CONVERTER_REPO_TOKEN }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -180,6 +183,13 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Restore custom domain
+        env:
+          GH_TOKEN: ${{ secrets.GOV_MD_CONVERTER_REPO_TOKEN }}
+        run: |
+          gh api --method PUT "repos/${GITHUB_REPOSITORY}/pages" \
+            -f cname=govpress.cloud
 
       - name: Add deployment metadata summary
         run: |
