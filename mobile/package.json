@@ -13,7 +13,8 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:markdown-core": "node --experimental-strip-types --test src/lib/markdownCore.test.mts"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.3.4",
