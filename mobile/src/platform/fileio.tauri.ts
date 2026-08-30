@@ -72,6 +72,8 @@ function inferMimeType(ext: string): string | undefined {
       return "text/markdown";
     case "pdf":
       return "application/pdf";
+    case "hwp":
+      return "application/x-hwp";
     case "hwpx":
       return "application/vnd.hancom.hwpx";
     default:

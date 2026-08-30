@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>읽힘 — 정부문서를 사람도 AI도 읽게 한다</title>
-  <meta name="description" content="HWPX를 Markdown으로 변환합니다.">
+  <meta name="description" content="HWP와 HWPX를 Markdown으로 변환합니다.">
   <meta property="og:site_name" content="읽힘">
   <meta property="og:type" content="website">
   <meta property="og:title" content="읽힘 — 정부문서를 사람도 AI도 읽게 한다">
-  <meta property="og:description" content="HWPX를 Markdown으로 변환합니다.">
+  <meta property="og:description" content="HWP와 HWPX를 Markdown으로 변환합니다.">
   <meta property="og:url" content="https://govpress.cloud/">
   <meta property="og:image" content="https://govpress.cloud/assets/social-preview.png">
   <meta property="og:image:width" content="1200">
@@ -16,7 +16,7 @@
   <meta property="og:image:type" content="image/png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="읽힘 — 정부문서를 사람도 AI도 읽게 한다">
-  <meta name="twitter:description" content="HWPX를 Markdown으로 변환합니다.">
+  <meta name="twitter:description" content="HWP와 HWPX를 Markdown으로 변환합니다.">
   <meta name="twitter:image" content="https://govpress.cloud/assets/social-preview.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/app/icons/favicon-32.png?v=20260501-logo5">
   <link rel="apple-touch-icon" href="/app/icons/apple-touch-icon.png?v=20260501-logo5">
@@ -167,7 +167,7 @@
   <div class="drop-overlay" id="landing-drop-overlay" aria-hidden="true">
     <div class="drop-card">
       <strong>파일을 놓으면 바로 변환합니다</strong>
-      <span>PDF, HWPX, Markdown 파일을 지원합니다.</span>
+      <span>PDF, HWP, HWPX, Markdown 파일을 지원합니다.</span>
     </div>
   </div>
 
@@ -621,7 +621,7 @@
       </h2>
       <p class="text-gray-400 mb-12 text-[1.05rem] leading-relaxed"
          data-aos="fade-up" data-aos-delay="100">
-        PDF, HWPX, 보도자료 HTML을<br>
+        PDF, HWP, HWPX, 보도자료 HTML을<br>
         사람도 AI도 읽기 좋은 Markdown으로 변환합니다.
       </p>
 
@@ -758,7 +758,7 @@
 
     const filePicker = document.createElement('input');
     filePicker.type = 'file';
-    filePicker.accept = '.pdf,.hwpx,.md';
+    filePicker.accept = '.pdf,.hwp,.hwpx,.md';
     filePicker.style.display = 'none';
     document.body.appendChild(filePicker);
 
@@ -784,7 +784,7 @@
         return false;
       }
       const name = (file.name || '').toLowerCase();
-      return name.endsWith('.pdf') || name.endsWith('.hwpx') || name.endsWith('.md');
+      return name.endsWith('.pdf') || name.endsWith('.hwp') || name.endsWith('.hwpx') || name.endsWith('.md');
     }
 
     function hasLandingFilePayload(transfer) {

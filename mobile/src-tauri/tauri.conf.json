@@ -41,7 +41,7 @@
       "icons/icon.ico"
     ],
     "category": "Productivity",
-    "shortDescription": "정부 보도자료(HWPX/PDF)를 Markdown으로 변환·편집",
+    "shortDescription": "정부 보도자료(HWP/HWPX/PDF)를 Markdown으로 변환·편집",
     "longDescription": "정부 보도자료를 Markdown으로 변환하고 편집·내보내는 데스크탑 앱. 변환은 govpress.cloud API를 통해 서버에서 처리됩니다.",
     "publisher": "wavelen-jw",
     "fileAssociations": [
@@ -50,6 +50,12 @@
         "mimeType": "text/markdown",
         "description": "Markdown 문서",
         "role": "Editor"
+      },
+      {
+        "ext": ["hwp"],
+        "mimeType": "application/x-hwp",
+        "description": "HWP 한글 문서",
+        "role": "Viewer"
       },
       {
         "ext": ["hwpx"],

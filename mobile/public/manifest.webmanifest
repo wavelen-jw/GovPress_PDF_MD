@@ -1,7 +1,7 @@
 {
   "name": "읽힘 — 정부문서를 사람도 AI도 읽게 한다",
   "short_name": "읽힘",
-  "description": "정부문서.hwpx를 Markdown으로 변환합니다",
+  "description": "정부문서 HWP/HWPX를 Markdown으로 변환합니다",
   "start_url": "./?editor=1",
   "scope": "./",
   "display": "standalone",

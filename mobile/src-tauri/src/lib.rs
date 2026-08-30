@@ -17,7 +17,7 @@ fn argv_to_files(argv: Vec<String>) -> Vec<String> {
         .filter(|arg| !arg.starts_with("--"))
         .filter(|arg| {
             let lower = arg.to_lowercase();
-            lower.ends_with(".md") || lower.ends_with(".pdf") || lower.ends_with(".hwpx")
+            lower.ends_with(".md") || lower.ends_with(".pdf") || lower.ends_with(".hwp") || lower.ends_with(".hwpx")
         })
         .collect()
 }

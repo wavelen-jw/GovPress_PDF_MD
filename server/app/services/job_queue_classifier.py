@@ -18,7 +18,16 @@ def _int_env(name: str, default: int) -> int:
 
 
 def classify_job_queue(file_path: Path) -> JobQueue:
-    if file_path.suffix.lower() != ".hwpx":
+    suffix = file_path.suffix.lower()
+    if suffix == ".hwp":
+        bytes_threshold = _int_env("GOVPRESS_LARGE_HWP_BYTES", 15_000_000)
+        try:
+            if bytes_threshold and file_path.stat().st_size >= bytes_threshold:
+                return "large"
+        except OSError:
+            pass
+        return "default"
+    if suffix != ".hwpx":
         return "default"
 
     zip_bytes_threshold = _int_env("GOVPRESS_LARGE_HWPX_ZIP_BYTES", 15_000_000)

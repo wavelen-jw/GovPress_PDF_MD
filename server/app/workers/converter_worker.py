@@ -38,8 +38,8 @@ class ConverterWorker:
         try:
             file_path = str(record.artifacts.original_pdf_path)
             ext = Path(file_path).suffix.lower()
-            if ext == ".hwpx":
-                markdown = experimental_hwpx_md.convert_hwpx(
+            if ext in {".hwp", ".hwpx"}:
+                markdown = experimental_hwpx_md.convert_document(
                     file_path,
                     document_metadata=record.document_metadata,
                 )
@@ -90,10 +90,10 @@ class ConverterWorker:
                 error_code = "CONVERSION_TIMEOUT"
                 error_message = (
                     "문서 구조가 매우 크거나 복잡해 제한시간 안에 변환하지 못했습니다. "
-                    "예산서·결산서처럼 표와 본문이 많은 HWPX는 처리 시간이 오래 걸릴 수 있습니다."
+                    "예산서·결산서처럼 표와 본문이 많은 HWP/HWPX는 처리 시간이 오래 걸릴 수 있습니다."
                 )
                 self._logger.warning(
-                    "HWPX conversion timeout for job %s after %ss: %s",
+                    "HWP/HWPX conversion timeout for job %s after %ss: %s",
                     job_id,
                     exc.timeout_seconds,
                     exc.diagnostics,

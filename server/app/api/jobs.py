@@ -50,9 +50,9 @@ def build_router(job_service, settings, verify_api_key) -> APIRouter:
                 )
                 raise HTTPException(status_code=403, detail="Turnstile verification failed")
         file_name = file.filename or "document.pdf"
-        _ALLOWED_EXTENSIONS = {".pdf", ".hwpx"}
+        _ALLOWED_EXTENSIONS = {".pdf", ".hwp", ".hwpx"}
         if Path(file_name).suffix.lower() not in _ALLOWED_EXTENSIONS:
-            raise HTTPException(status_code=400, detail="PDF 또는 HWPX 파일만 지원합니다.")
+            raise HTTPException(status_code=400, detail="PDF, HWP 또는 HWPX 파일만 지원합니다.")
         try:
             record = await job_service.create_job_from_upload(
                 file_name=file_name,

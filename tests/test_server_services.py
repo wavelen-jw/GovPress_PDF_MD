@@ -208,7 +208,7 @@ class ServerServiceTests(unittest.TestCase):
             )
 
         with patch(
-            "server.app.workers.converter_worker.experimental_hwpx_md.convert_hwpx",
+            "server.app.workers.converter_worker.experimental_hwpx_md.convert_document",
             return_value="# 새 변환기\n\n본문",
         ) as mock_convert, patch(
             "server.app.workers.converter_worker.opendataloader.render_preview_html",
@@ -245,7 +245,7 @@ class ServerServiceTests(unittest.TestCase):
             )
 
         with patch(
-            "server.app.workers.converter_worker.experimental_hwpx_md.convert_hwpx",
+            "server.app.workers.converter_worker.experimental_hwpx_md.convert_document",
             return_value="# 문서 추출 제목\n\n보도자료 /",
         ), patch(
             "server.app.workers.converter_worker.opendataloader.render_preview_html",
@@ -272,7 +272,7 @@ class ServerServiceTests(unittest.TestCase):
 
         self.assertEqual(record.converter_engine, "govpress-hwpx-md")
         with patch(
-            "server.app.workers.converter_worker.experimental_hwpx_md.convert_hwpx",
+            "server.app.workers.converter_worker.experimental_hwpx_md.convert_document",
             return_value="# 제목\n\n행정안전부 보도자료 /",
         ) as mock_convert, patch(
             "server.app.workers.converter_worker.opendataloader.render_preview_html",
@@ -288,6 +288,46 @@ class ServerServiceTests(unittest.TestCase):
             document_metadata={"issuer_agency": "행정안전부"},
         )
 
+    def test_hwp_jobs_use_rhwp_backed_converter(self) -> None:
+        with patch.object(self.worker, "enqueue"):
+            record = self.job_service.create_job(
+                file_name="sample.hwp",
+                content=b"HWP Document File",
+                converter_engine="default",
+            )
+
+        self.assertEqual(record.converter_engine, "govpress-hwpx-md")
+        with patch(
+            "server.app.workers.converter_worker.experimental_hwpx_md.convert_document",
+            return_value="# HWP 제목\n\n본문",
+        ) as mock_convert, patch(
+            "server.app.workers.converter_worker.opendataloader.render_preview_html",
+            return_value="<h1>HWP 제목</h1><p>본문</p>",
+        ), patch(
+            "server.app.workers.converter_worker.opendataloader.extract_metadata",
+            return_value=("HWP 제목", None),
+        ):
+            self.worker.process(record.job_id)
+
+        mock_convert.assert_called_once_with(
+            str(record.artifacts.original_pdf_path),
+            document_metadata=None,
+        )
+        updated = self.repository.get(record.job_id)
+        assert updated is not None
+        self.assertEqual(updated.status, "completed")
+        self.assertEqual(updated.result.markdown, "# HWP 제목\n\n본문")
+
+    def test_large_hwp_uses_large_queue(self) -> None:
+        with patch.dict("os.environ", {"GOVPRESS_LARGE_HWP_BYTES": "8"}, clear=False):
+            with patch.object(self.worker, "enqueue"):
+                record = self.job_service.create_job(
+                    file_name="large.hwp",
+                    content=b"HWP Document File",
+                )
+
+        self.assertEqual(record.job_queue, "large")
+
     def test_worker_reports_hwpx_timeout_as_large_document_failure(self) -> None:
         with patch.object(self.worker, "enqueue"):
             record = self.job_service.create_job(
@@ -300,7 +340,7 @@ class ServerServiceTests(unittest.TestCase):
 
         timeout = HwpxMdConversionTimeout(timeout_seconds=600, diagnostics="section_count=198")
         with patch(
-            "server.app.workers.converter_worker.experimental_hwpx_md.convert_hwpx",
+            "server.app.workers.converter_worker.experimental_hwpx_md.convert_document",
             side_effect=timeout,
         ):
             self.worker.process(record.job_id)
