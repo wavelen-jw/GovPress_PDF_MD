@@ -14,14 +14,14 @@ deploy/wsl/bin/install_web_direct_deploy.sh --deploy-now
 ```
 
 The installer copies a stable deployer and GitHub source materializer to
-`/home/wavel/.govpress-web/bin`. It also installs a user crontab entry that
-checks the private repository's `web` branch every five minutes. The deployer uses a lock, so
-manual and scheduled deployments cannot overlap.
+`/home/wavel/.govpress-web/bin`. It does not install a scheduler. Production
+changes are deployed only when the deploy command is run explicitly. The
+deployer uses a lock so concurrent manual deployments cannot overlap.
 
 The default source mode uses the existing server W SSH key to fetch the private
 repository. Verify it with `git ls-remote git@github.com:wavelen-jw/GovPress_PDF_MD.git refs/heads/web`. An API fallback is available by setting
 `GOVPRESS_WEB_SOURCE_MODE=api`; in that mode provide `GITHUB_TOKEN` through the
-scheduler environment without placing it in the repository or command output.
+invoking environment without placing it in the repository or command output.
 
 ## Safety model
 
@@ -62,5 +62,5 @@ GOVPRESS_WEB_EXPECT_SHA=<40-character-commit-sha> \
 deploy/wsl/bin/deploy_web_direct.sh deploy web
 ```
 
-This option is intended for controlled recovery and testing. Scheduled
-production deployment always resolves the private repository's `web` ref.
+This option is intended for controlled recovery and testing. Production
+deployment occurs only through an explicitly invoked deploy command.

@@ -6,7 +6,7 @@ REPOSITORY_ROOT=$(cd -- "$SCRIPT_DIR/../../.." && pwd)
 STATE_ROOT="${GOVPRESS_WEB_STATE_ROOT:-/home/wavel/.govpress-web}"
 SERVE_ROOT="${GOVPRESS_WEB_SERVE_ROOT:-/home/wavel/GovPress_PDF_MD}"
 INTERVAL="${GOVPRESS_WEB_CRON_INTERVAL:-*/5 * * * *}"
-INSTALL_CRON=1
+INSTALL_CRON=0
 DEPLOY_NOW=0
 
 for argument in "$@"; do
