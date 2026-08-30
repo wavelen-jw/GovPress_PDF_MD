@@ -70,8 +70,6 @@ function inferMimeType(ext: string): string | undefined {
   switch (ext) {
     case "md":
       return "text/markdown";
-    case "pdf":
-      return "application/pdf";
     case "hwp":
       return "application/x-hwp";
     case "hwpx":
@@ -269,7 +267,7 @@ const tauriImpl: FileIoImpl = {
 
 function looksLikeOpenableFile(arg: string): boolean {
   const ext = extensionOf(arg);
-  return ext === "md" || ext === "pdf" || ext === "hwpx";
+  return ext === "md" || ext === "hwp" || ext === "hwpx";
 }
 
 export const pickFileForOpen = tauriImpl.pickFileForOpen;

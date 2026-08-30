@@ -167,7 +167,7 @@
   <div class="drop-overlay" id="landing-drop-overlay" aria-hidden="true">
     <div class="drop-card">
       <strong>파일을 놓으면 바로 변환합니다</strong>
-      <span>PDF, HWP, HWPX, Markdown 파일을 지원합니다.</span>
+      <span>HWP, HWPX, Markdown 파일을 지원합니다.</span>
     </div>
   </div>
 
@@ -207,7 +207,7 @@
         <div class="flex items-center gap-3">
           <span class="fmt-tag">HWPX</span>
           <span class="text-white/25 text-lg font-thin">·</span>
-          <span class="fmt-tag">PDF</span>
+          <span class="fmt-tag">HWP</span>
           <span class="text-white/25 text-lg font-thin">·</span>
           <span class="fmt-tag">HTML API를</span>
         </div>
@@ -621,7 +621,7 @@
       </h2>
       <p class="text-gray-400 mb-12 text-[1.05rem] leading-relaxed"
          data-aos="fade-up" data-aos-delay="100">
-        PDF, HWP, HWPX, 보도자료 HTML을<br>
+        HWP, HWPX, 보도자료 HTML을<br>
         사람도 AI도 읽기 좋은 Markdown으로 변환합니다.
       </p>
 
@@ -758,7 +758,7 @@
 
     const filePicker = document.createElement('input');
     filePicker.type = 'file';
-    filePicker.accept = '.pdf,.hwp,.hwpx,.md';
+    filePicker.accept = '.hwp,.hwpx,.md';
     filePicker.style.display = 'none';
     document.body.appendChild(filePicker);
 
@@ -784,7 +784,7 @@
         return false;
       }
       const name = (file.name || '').toLowerCase();
-      return name.endsWith('.pdf') || name.endsWith('.hwp') || name.endsWith('.hwpx') || name.endsWith('.md');
+      return name.endsWith('.hwp') || name.endsWith('.hwpx') || name.endsWith('.md');
     }
 
     function hasLandingFilePayload(transfer) {
@@ -812,8 +812,7 @@
         }
         const type = (item.type || '').toLowerCase();
         return !type
-          || type === 'application/pdf'
-          || type.includes('hwpx')
+          || type.includes('hwp')
           || type === 'text/markdown'
           || type === 'text/plain';
       });

@@ -202,10 +202,16 @@ function buildUploadBody(asset: UploadableAsset, hwpxTableMode: HwpxTableMode, c
   if (Platform.OS === "web" && webFile) {
     form.append("file", webFile);
   } else {
+    const lowerName = asset.name.toLowerCase();
+    const fallbackMimeType = lowerName.endsWith(".hwp")
+      ? "application/x-hwp"
+      : lowerName.endsWith(".hwpx")
+        ? "application/vnd.hancom.hwpx"
+        : "application/octet-stream";
     form.append("file", {
       uri: asset.uri,
       name: asset.name,
-      type: asset.mimeType || (asset.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream"),
+      type: asset.mimeType || fallbackMimeType,
     } as unknown as Blob);
   }
   return form;

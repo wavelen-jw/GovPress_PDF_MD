@@ -783,7 +783,7 @@ export default function App(): React.JSX.Element {
         return false;
       }
       const name = file.name.toLowerCase();
-      return name.endsWith(".pdf") || isHangulDocumentName(name) || name.endsWith(".md");
+      return isHangulDocumentName(name) || name.endsWith(".md");
     }
 
     function hasFilePayload(event: DragEvent): boolean {
@@ -822,7 +822,7 @@ export default function App(): React.JSX.Element {
           return false;
         }
         const type = (item.type || "").toLowerCase();
-        return type === "application/pdf" || type.includes("hwp") || type === "text/markdown" || type === "text/plain";
+        return type.includes("hwp") || type === "text/markdown" || type === "text/plain";
       });
     }
 
@@ -869,7 +869,7 @@ export default function App(): React.JSX.Element {
       setDragOverlayVisible(false);
       const file = Array.from(event.dataTransfer?.files || []).find((candidate) => isSupportedFile(candidate));
       if (!file) {
-        setNotice("PDF, HWP, HWPX, Markdown 파일만 업로드할 수 있습니다.");
+        setNotice("HWP, HWPX, Markdown 파일만 업로드할 수 있습니다.");
         return;
       }
       const asset: WebDropAsset = {
@@ -899,7 +899,7 @@ export default function App(): React.JSX.Element {
     if (!notice) {
       return;
     }
-    if (notice === "PDF 업로드 중..." || notice === "HWP 업로드 중..." || notice === "HWPX 업로드 중...") {
+    if (notice === "HWP 업로드 중..." || notice === "HWPX 업로드 중...") {
       return;
     }
     const timer = setTimeout(() => {
@@ -1128,12 +1128,12 @@ export default function App(): React.JSX.Element {
       await openLocalMarkdown(asset);
       return;
     }
-    if (!lowerName.endsWith(".pdf") && !isHangulDocumentName(lowerName)) {
-      setNotice("PDF, HWP, HWPX 또는 Markdown 파일만 열 수 있습니다.");
+    if (!isHangulDocumentName(lowerName)) {
+      setNotice("HWP, HWPX 또는 Markdown 파일만 열 수 있습니다.");
       return;
     }
     setBusy(true);
-    const uploadFormat = lowerName.endsWith(".hwp") ? "HWP" : lowerName.endsWith(".hwpx") ? "HWPX" : "PDF";
+    const uploadFormat = lowerName.endsWith(".hwp") ? "HWP" : "HWPX";
     setNotice(uploadFormat + " 업로드 중...");
     try {
       const { job, resolvedBaseUrl } = await uploadPdf(config, asset, hwpxTableMode);
@@ -1180,8 +1180,8 @@ export default function App(): React.JSX.Element {
   async function handlePickPdf(): Promise<void> {
     try {
       const picked = await pickFileForOpen({
-        extensions: ["pdf", "hwp", "hwpx", "md"],
-        mimeTypes: ["application/pdf", "application/x-hwp", "application/vnd.hancom.hwpx", "application/octet-stream", "text/markdown"],
+        extensions: ["hwp", "hwpx", "md"],
+        mimeTypes: ["application/x-hwp", "application/vnd.hancom.hwpx", "application/octet-stream", "text/markdown"],
       });
       if (!picked) {
         return;
@@ -1720,7 +1720,7 @@ export default function App(): React.JSX.Element {
     try {
       const documentTitle = result?.meta.title || selectedJob.file_name;
       const shareBody = `# ${documentTitle}\n\n${selectedVariant.markdown}`;
-      const outputName = selectedJob.file_name.replace(/\.(pdf|hwpx)$/i, ".md");
+      const outputName = selectedJob.file_name.replace(/\.(hwp|hwpx)$/i, ".md");
       const ok = await shareTextFile({
         fileName: outputName.endsWith(".md") ? outputName : `${outputName}.md`,
         content: shareBody,
@@ -1741,7 +1741,7 @@ export default function App(): React.JSX.Element {
       return;
     }
     const content = editorText || selectedVariant.markdown || "";
-    const outputName = selectedJob.file_name.replace(/\.(pdf|hwpx)$/i, ".md");
+    const outputName = selectedJob.file_name.replace(/\.(hwp|hwpx)$/i, ".md");
     const normalizedName = outputName.endsWith(".md") ? outputName : `${outputName}.md`;
 
     const saveResult = await saveTextFileAs(normalizedName, content, "text/markdown");
@@ -2423,7 +2423,7 @@ export default function App(): React.JSX.Element {
         <View pointerEvents="none" style={styles.dragOverlay}>
           <View style={styles.dragOverlayCard}>
             <Text style={styles.dragOverlayEyebrow}>DROP TO CONVERT</Text>
-            <Text style={styles.dragOverlayTitle}>PDF, HWP, HWPX, Markdown 파일을 놓으세요</Text>
+            <Text style={styles.dragOverlayTitle}>HWP, HWPX, Markdown 파일을 놓으세요</Text>
             <Text style={styles.dragOverlayBody}>드래그앤드롭으로 바로 업로드하고 결과를 편집기와 미리보기에서 확인할 수 있습니다.</Text>
           </View>
         </View>
