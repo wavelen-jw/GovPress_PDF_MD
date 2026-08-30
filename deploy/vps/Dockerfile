@@ -5,6 +5,8 @@ ARG GOVPRESS_CONVERTER_EXTRA_INDEX_URL=""
 ARG GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK="0"
 ARG GOVPRESS_CONVERTER_MIN_VERSION=""
 ARG GOVPRESS_HWPX_MD_SPEC=""
+ARG RHWP_VERSION="0.8.4"
+ARG RHWP_LINUX_X86_64_SHA256="d2f015447147a840b3a587e8e9bedd75973fb2e0a60eac37b08cad9e34cdac54"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -18,6 +20,15 @@ WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends default-jre-headless curl git \
     && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    archive="/tmp/rhwp-v${RHWP_VERSION}-linux-x86_64.tar.gz"; \
+    curl -fsSL "https://github.com/edwardkim/rhwp/releases/download/v${RHWP_VERSION}/rhwp-v${RHWP_VERSION}-linux-x86_64.tar.gz" -o "$archive"; \
+    echo "${RHWP_LINUX_X86_64_SHA256}  $archive" | sha256sum -c -; \
+    tar -xzf "$archive" -C /tmp; \
+    install -m 0755 /tmp/rhwp/rhwp /usr/local/bin/rhwp; \
+    rm -rf "$archive" /tmp/rhwp; \
+    rhwp --version
 
 COPY requirements.txt /app/requirements.txt
 COPY deploy/converter.version /tmp/govpress-converter.version

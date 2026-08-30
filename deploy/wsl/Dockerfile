@@ -6,6 +6,8 @@ ARG GOVPRESS_CONVERTER_EXTRA_INDEX_URL=""
 ARG GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK="0"
 ARG GOVPRESS_CONVERTER_MIN_VERSION=""
 ARG GOVPRESS_HWPX_MD_SPEC=""
+ARG RHWP_VERSION="0.8.4"
+ARG RHWP_LINUX_X86_64_SHA256="d2f015447147a840b3a587e8e9bedd75973fb2e0a60eac37b08cad9e34cdac54"
 ARG GOVPRESS_HWPX_MD_INSTALL_SPEC=""
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -21,9 +23,19 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends default-jre-headless curl git \
     && rm -rf /var/lib/apt/lists/*
 
+COPY .deploy-artifacts /tmp/deploy-artifacts
+RUN set -eux; \
+    archive="/tmp/rhwp-v${RHWP_VERSION}-linux-x86_64.tar.gz"; \
+    offline_archive="/tmp/deploy-artifacts/rhwp-v${RHWP_VERSION}-linux-x86_64.tar.gz"; \
+    if [ -f "$offline_archive" ]; then cp "$offline_archive" "$archive"; else curl -fsSL "https://github.com/edwardkim/rhwp/releases/download/v${RHWP_VERSION}/rhwp-v${RHWP_VERSION}-linux-x86_64.tar.gz" -o "$archive"; fi; \
+    echo "${RHWP_LINUX_X86_64_SHA256}  $archive" | sha256sum -c -; \
+    tar -xzf "$archive" -C /tmp; \
+    install -m 0755 /tmp/rhwp/rhwp /usr/local/bin/rhwp; \
+    rm -rf "$archive" /tmp/rhwp; \
+    rhwp --version
+
 COPY requirements.txt /app/requirements.txt
 COPY deploy/converter.version /tmp/govpress-converter.version
-COPY .deploy-artifacts /tmp/deploy-artifacts
 RUN pip install -r /app/requirements.txt \
     && pip install -U opendataloader-pdf \
     && echo "govpress-converter target: $(cat /tmp/govpress-converter.version)" \

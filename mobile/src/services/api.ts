@@ -205,7 +205,7 @@ function buildUploadBody(asset: UploadableAsset, hwpxTableMode: HwpxTableMode, c
     form.append("file", {
       uri: asset.uri,
       name: asset.name,
-      type: asset.mimeType || "application/pdf",
+      type: asset.mimeType || (asset.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream"),
     } as unknown as Blob);
   }
   return form;

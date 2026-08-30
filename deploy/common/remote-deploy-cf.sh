@@ -123,12 +123,17 @@ if [ -n "${COMPOSE_FILE:-}" ] && ! curl --http1.1 --connect-timeout 5 --max-time
   mkdir -p "$OFFLINE_ARTIFACT_DIR"
   CONVERTER_SOURCE_ARCHIVE="$OFFLINE_ARTIFACT_DIR/gov-md-converter.tar.gz"
   HWPX_MD_SOURCE_ARCHIVE="$OFFLINE_ARTIFACT_DIR/govpress-hwpx-md.tar.gz"
+  RHWP_SOURCE_ARCHIVE="$OFFLINE_ARTIFACT_DIR/rhwp-v0.8.4-linux-x86_64.tar.gz"
   python3 "$DEPLOY_DIR/deploy/common/materialize-github-spec.py" \
     --spec "$CONVERTER_SPEC" \
     --output "$CONVERTER_SOURCE_ARCHIVE" >/dev/null
   python3 "$DEPLOY_DIR/deploy/common/materialize-github-spec.py" \
     --spec "$HWPX_MD_SPEC" \
     --output "$HWPX_MD_SOURCE_ARCHIVE" >/dev/null
+  python3 "$DEPLOY_DIR/deploy/common/materialize-rhwp-release.py" \
+    --version "0.8.4" \
+    --sha256 "d2f015447147a840b3a587e8e9bedd75973fb2e0a60eac37b08cad9e34cdac54" \
+    --output "$RHWP_SOURCE_ARCHIVE" >/dev/null
   CONVERTER_INSTALL_SPEC="/tmp/deploy-artifacts/gov-md-converter.tar.gz"
   HWPX_MD_INSTALL_SPEC="/tmp/deploy-artifacts/govpress-hwpx-md.tar.gz"
   echo "converter_package_source=github_api_archive"

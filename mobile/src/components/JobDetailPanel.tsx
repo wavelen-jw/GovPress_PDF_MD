@@ -243,7 +243,7 @@ export function JobDetailPanel({
       return false;
     }
     const name = file.name.toLowerCase();
-    return name.endsWith(".pdf") || name.endsWith(".hwpx") || name.endsWith(".md");
+    return name.endsWith(".pdf") || name.endsWith(".hwp") || name.endsWith(".hwpx") || name.endsWith(".md");
   }
 
   function hasFileDropPayload(transfer: DataTransfer | null | undefined): boolean {

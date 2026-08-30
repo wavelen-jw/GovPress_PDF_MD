@@ -16,7 +16,8 @@ class ServerApiContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_dir.cleanup)
-        self.app = create_app(Path(self.temp_dir.name))
+        with patch.dict(os.environ, {"GOVPRESS_API_KEY": "test-key"}, clear=False):
+            self.app = create_app(Path(self.temp_dir.name))
 
     def tearDown(self) -> None:
         self.app.state.worker.stop()
@@ -43,6 +44,25 @@ class ServerApiContractTests(unittest.TestCase):
         self.assertIn("post", jobs_ops)
         self.assertEqual(jobs_ops["post"]["operationId"], "create_job_v1_jobs_post")
         self.assertIn("security", jobs_ops["post"])
+
+    def test_upload_accepts_hwp_and_routes_to_new_converter(self) -> None:
+        client = TestClient(self.app)
+        headers = {"X-API-Key": self.app.state.settings.api_key} if self.app.state.settings.api_key else {}
+
+        response = client.post(
+            "/v1/jobs",
+            headers=headers,
+            files={"file": ("sample.hwp", b"HWP Document File", "application/x-hwp")},
+            data={"source": "mobile"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["file_name"], "sample.hwp")
+        self.assertEqual(payload["converter_engine"], "govpress-hwpx-md")
+        record = self.app.state.job_service.get_job(payload["job_id"], payload["edit_token"])
+        self.assertIsNotNone(record)
+        self.assertTrue(record.artifacts.original_pdf_path.name.endswith(".hwp"))
 
     def test_openapi_contains_expected_result_operations(self) -> None:
         schema = self.app.openapi()

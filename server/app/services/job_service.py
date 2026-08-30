@@ -16,7 +16,7 @@ from .storage_service import StorageService
 
 
 def _normalize_converter_engine(file_name: str, converter_engine: ConverterEngine) -> ConverterEngine:
-    if Path(file_name).suffix.lower() == ".hwpx":
+    if Path(file_name).suffix.lower() in {".hwp", ".hwpx"}:
         return "govpress-hwpx-md"
     return converter_engine
 

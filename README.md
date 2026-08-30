@@ -32,11 +32,11 @@
 
 ## 핵심 흐름
 
-`HWPX / PDF / HTML API` → `Markdown`
+`HWP / HWPX / PDF / HTML API` → `Markdown`
 
 ## 할 수 있는 일
 
-- PDF/HWPX 보도자료를 Markdown으로 변환
+- HWP/HWPX/PDF 보도자료를 Markdown으로 변환
 - Markdown을 다시 열어 수정하고 미리보기로 확인
 - 정책브리핑 보도자료 목록을 불러와 바로 열기
 - Markdown 파일로 저장, 복사, 공유
@@ -46,7 +46,7 @@
 ## 사용하는 방법
 
 1. 서비스에 접속합니다.
-2. `파일 열기`로 PDF, HWPX, Markdown 파일을 엽니다.
+2. `파일 열기`로 PDF, HWP, HWPX, Markdown 파일을 엽니다.
 3. 또는 `정책브리핑` 목록에서 보도자료를 불러옵니다.
 4. 변환 결과를 확인하고 필요한 부분을 수정합니다.
 5. Markdown 파일로 저장하거나 복사합니다.
@@ -55,6 +55,7 @@
 
 - 변환 결과는 초안입니다. 공개 전에는 제목, 표, 목록, 숫자, 링크를 한 번 더 확인하는 것이 좋습니다.
 - 정책브리핑 목록 기능은 공공데이터포털(`data.go.kr`)의 `pressReleaseService` Open API를 사용합니다.
+- HWP 변환은 고정된 RHWP 바이너리의 export-hwpx로 HWPX를 만든 뒤 동일한 HWPX 변환기를 사용합니다.
 - PDF 변환 과정에서는 [OpenDataLoader PDF](https://github.com/opendataloader-project/opendataloader-pdf)를 PDF → JSON 추출에 활용합니다.
 - 이 서비스의 개발과 개선 과정에는 생성형 AI가 활용되었습니다.
 

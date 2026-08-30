@@ -380,7 +380,7 @@ function getPolicyBriefingDate(item: PolicyBriefingItem): string {
 function getPolicyBriefingHwpxAttachments(item: PolicyBriefingItem): PolicyBriefingAttachment[] {
   const attachments = (item.attachments || []).filter((attachment) => {
     const extension = attachment.extension || (attachment.file_name.includes(".") ? `.${attachment.file_name.split(".").pop()}` : "");
-    return attachment.is_hwpx || extension.toLowerCase() === ".hwpx";
+    return attachment.is_hwpx || [".hwp", ".hwpx"].includes(extension.toLowerCase());
   });
   if (attachments.length > 0) {
     return attachments;
@@ -410,7 +410,7 @@ function getPolicyBriefingAttachmentLabel(attachment: PolicyBriefingAttachment):
   if (attachment.is_appendix) {
     return "별첨";
   }
-  return name.replace(/\.hwpx$/i, "").replace(/^\d{6,8}[\s_-]*/, "").slice(0, 16) || "HWPX";
+  return name.replace(/\.hwpx?$/i, "").replace(/^\d{6,8}[\s_-]*/, "").slice(0, 16) || "HWPX";
 }
 
 function getPolicyBriefingImportKey(item: PolicyBriefingItem, attachment?: PolicyBriefingAttachment): string {
@@ -419,6 +419,11 @@ function getPolicyBriefingImportKey(item: PolicyBriefingItem, attachment?: Polic
 
 function getPolicyBriefingPrimaryAttachment(item: PolicyBriefingItem, attachments: PolicyBriefingAttachment[]): PolicyBriefingAttachment | undefined {
   return attachments.find((attachment) => attachment.file_url === item.file_url) || attachments[0];
+}
+
+function isHangulDocumentName(name: string): boolean {
+  const lowerName = name.toLowerCase();
+  return lowerName.endsWith(".hwp") || lowerName.endsWith(".hwpx");
 }
 
 export default function App(): React.JSX.Element {
@@ -544,7 +549,7 @@ export default function App(): React.JSX.Element {
     policyBriefingWarning,
   ]);
   const htmlVariantState: "ready" | "pending" | "unavailable" = useMemo(() => {
-    if (!selectedJob || !selectedJob.file_name.toLowerCase().endsWith(".hwpx")) {
+    if (!selectedJob || !isHangulDocumentName(selectedJob.file_name)) {
       return "unavailable";
     }
     if (!result) {
@@ -557,7 +562,7 @@ export default function App(): React.JSX.Element {
   }, [loadedTableMode, result, selectedJob]);
   const needsHtmlVariant =
     !!selectedJob &&
-    selectedJob.file_name.toLowerCase().endsWith(".hwpx") &&
+    isHangulDocumentName(selectedJob.file_name) &&
     hasAsyncTableVariants &&
     htmlVariantState === "pending";
   const sectionHeadings = useMemo(() => extractSectionHeadings(editorText), [editorText]);
@@ -778,7 +783,7 @@ export default function App(): React.JSX.Element {
         return false;
       }
       const name = file.name.toLowerCase();
-      return name.endsWith(".pdf") || name.endsWith(".hwpx") || name.endsWith(".md");
+      return name.endsWith(".pdf") || isHangulDocumentName(name) || name.endsWith(".md");
     }
 
     function hasFilePayload(event: DragEvent): boolean {
@@ -817,7 +822,7 @@ export default function App(): React.JSX.Element {
           return false;
         }
         const type = (item.type || "").toLowerCase();
-        return type === "application/pdf" || type.includes("hwpx") || type === "text/markdown" || type === "text/plain";
+        return type === "application/pdf" || type.includes("hwp") || type === "text/markdown" || type === "text/plain";
       });
     }
 
@@ -864,7 +869,7 @@ export default function App(): React.JSX.Element {
       setDragOverlayVisible(false);
       const file = Array.from(event.dataTransfer?.files || []).find((candidate) => isSupportedFile(candidate));
       if (!file) {
-        setNotice("PDF, HWPX, Markdown 파일만 업로드할 수 있습니다.");
+        setNotice("PDF, HWP, HWPX, Markdown 파일만 업로드할 수 있습니다.");
         return;
       }
       const asset: WebDropAsset = {
@@ -894,7 +899,7 @@ export default function App(): React.JSX.Element {
     if (!notice) {
       return;
     }
-    if (notice === "PDF 업로드 중..." || notice === "HWPX 업로드 중...") {
+    if (notice === "PDF 업로드 중..." || notice === "HWP 업로드 중..." || notice === "HWPX 업로드 중...") {
       return;
     }
     const timer = setTimeout(() => {
@@ -956,7 +961,7 @@ export default function App(): React.JSX.Element {
           startTransition(() => {
             setResult(resultPayload);
             if (isNewJob) {
-              setLoadedTableMode(payload.file_name.toLowerCase().endsWith(".hwpx") ? hwpxTableMode : "text");
+              setLoadedTableMode(isHangulDocumentName(payload.file_name) ? hwpxTableMode : "text");
               setSelectedTableMode("text");
               setEditorText(resultPayload.markdown || "");
               setEditorSelection({ start: 0, end: 0 });
@@ -1123,12 +1128,13 @@ export default function App(): React.JSX.Element {
       await openLocalMarkdown(asset);
       return;
     }
-    if (!lowerName.endsWith(".pdf") && !lowerName.endsWith(".hwpx")) {
-      setNotice("PDF, HWPX 또는 Markdown 파일만 열 수 있습니다.");
+    if (!lowerName.endsWith(".pdf") && !isHangulDocumentName(lowerName)) {
+      setNotice("PDF, HWP, HWPX 또는 Markdown 파일만 열 수 있습니다.");
       return;
     }
     setBusy(true);
-    setNotice(lowerName.endsWith(".hwpx") ? "HWPX 업로드 중..." : "PDF 업로드 중...");
+    const uploadFormat = lowerName.endsWith(".hwp") ? "HWP" : lowerName.endsWith(".hwpx") ? "HWPX" : "PDF";
+    setNotice(uploadFormat + " 업로드 중...");
     try {
       const { job, resolvedBaseUrl } = await uploadPdf(config, asset, hwpxTableMode);
       if (resolvedBaseUrl !== config.baseUrl) {
@@ -1174,8 +1180,8 @@ export default function App(): React.JSX.Element {
   async function handlePickPdf(): Promise<void> {
     try {
       const picked = await pickFileForOpen({
-        extensions: ["pdf", "hwpx", "md"],
-        mimeTypes: ["application/pdf", "application/octet-stream", "text/markdown"],
+        extensions: ["pdf", "hwp", "hwpx", "md"],
+        mimeTypes: ["application/pdf", "application/x-hwp", "application/vnd.hancom.hwpx", "application/octet-stream", "text/markdown"],
       });
       if (!picked) {
         return;
@@ -1317,7 +1323,7 @@ export default function App(): React.JSX.Element {
   async function handleImportPolicyBriefing(item: PolicyBriefingItem, attachment?: PolicyBriefingAttachment): Promise<void> {
     setImportingPolicyBriefingKey(getPolicyBriefingImportKey(item, attachment));
     setBusy(true);
-    setNotice("정책브리핑 HWPX를 가져오는 중...");
+    setNotice("정책브리핑 한글 문서를 가져오는 중...");
     try {
       await loadBriefingByNewsItemId(item.news_item_id, getPolicyBriefingDate(item), attachment?.file_url);
     } catch (error) {
@@ -2417,7 +2423,7 @@ export default function App(): React.JSX.Element {
         <View pointerEvents="none" style={styles.dragOverlay}>
           <View style={styles.dragOverlayCard}>
             <Text style={styles.dragOverlayEyebrow}>DROP TO CONVERT</Text>
-            <Text style={styles.dragOverlayTitle}>PDF, HWPX, Markdown 파일을 놓으세요</Text>
+            <Text style={styles.dragOverlayTitle}>PDF, HWP, HWPX, Markdown 파일을 놓으세요</Text>
             <Text style={styles.dragOverlayBody}>드래그앤드롭으로 바로 업로드하고 결과를 편집기와 미리보기에서 확인할 수 있습니다.</Text>
           </View>
         </View>

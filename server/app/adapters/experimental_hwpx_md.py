@@ -21,9 +21,39 @@ def _python_bin() -> str:
     return os.environ.get("GOVPRESS_HWPX_MD_PYTHON", DEFAULT_PYTHON).strip()
 
 
-def _hwpx_diagnostics(path: str | Path) -> str:
+def _rhwp_bin() -> str:
+    return os.environ.get("GOVPRESS_RHWP_BIN", "rhwp").strip()
+
+
+def _rhwp_summary() -> dict[str, object]:
+    binary = _rhwp_bin()
+    if not binary:
+        return {"available": False, "binary": "", "version": "", "reason": "GOVPRESS_RHWP_BIN is empty"}
+    try:
+        result = subprocess.run(
+            [binary, "--version"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except Exception as exc:
+        return {"available": False, "binary": binary, "version": "", "reason": str(exc)}
+    version = (result.stdout or "").strip()
+    detail = (result.stderr or result.stdout or "").strip()
+    return {
+        "available": result.returncode == 0 and bool(version),
+        "binary": binary,
+        "version": version,
+        "reason": "" if result.returncode == 0 and version else detail[:1000],
+    }
+
+
+def _document_diagnostics(path: str | Path) -> str:
     try:
         file_path = Path(path)
+        if file_path.suffix.lower() == ".hwp":
+            return f"hwp_bytes={file_path.stat().st_size}"
         with zipfile.ZipFile(file_path) as archive:
             infos = archive.infolist()
             xml_infos = [item for item in infos if item.filename.endswith(".xml")]
@@ -51,12 +81,15 @@ def _hwpx_diagnostics(path: str | Path) -> str:
 
 def runtime_summary() -> dict[str, object]:
     python_bin = _python_bin()
+    rhwp = _rhwp_summary()
     if not python_bin:
         return {
             "available": False,
             "version": "",
             "backend": "unavailable",
             "python": "",
+            "hwp_available": False,
+            "rhwp": rhwp,
             "reason": "GOVPRESS_HWPX_MD_PYTHON is not configured",
         }
     script = (
@@ -85,6 +118,8 @@ def runtime_summary() -> dict[str, object]:
             "version": "",
             "backend": "unavailable",
             "python": python_bin,
+            "hwp_available": False,
+            "rhwp": rhwp,
             "reason": str(exc),
         }
     version = (result.stdout or "").strip().lstrip("v")
@@ -94,11 +129,13 @@ def runtime_summary() -> dict[str, object]:
         "version": version,
         "backend": "subprocess" if result.returncode == 0 else "unavailable",
         "python": python_bin,
+        "hwp_available": result.returncode == 0 and bool(version) and bool(rhwp["available"]),
+        "rhwp": rhwp,
         "reason": "" if result.returncode == 0 and version else detail[:1000],
     }
 
 
-def convert_hwpx(path: str | Path, *, document_metadata: dict[str, object] | None = None) -> str:
+def convert_document(path: str | Path, *, document_metadata: dict[str, object] | None = None) -> str:
     python_bin = _python_bin()
     if not python_bin:
         raise RuntimeError("GOVPRESS_HWPX_MD_PYTHON is not configured")
@@ -115,9 +152,15 @@ def convert_hwpx(path: str | Path, *, document_metadata: dict[str, object] | Non
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
-        diagnostics = _hwpx_diagnostics(path)
+        diagnostics = _document_diagnostics(path)
         raise HwpxMdConversionTimeout(timeout_seconds=timeout, diagnostics=diagnostics) from exc
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip()
         raise RuntimeError(f"govpress-hwpx-md failed: {detail or result.returncode}")
     return result.stdout
+
+
+def convert_hwpx(path: str | Path, *, document_metadata: dict[str, object] | None = None) -> str:
+    """Backward-compatible HWPX adapter."""
+
+    return convert_document(path, document_metadata=document_metadata)

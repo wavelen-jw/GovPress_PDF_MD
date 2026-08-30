@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import hashlib
 import tarfile
 from pathlib import Path
 
@@ -16,6 +17,7 @@ def _load_helper(name: str, filename: str):
 
 
 materialize = _load_helper("materialize_github_spec", "materialize-github-spec.py")
+materialize_rhwp = _load_helper("materialize_rhwp_release", "materialize-rhwp-release.py")
 sync_source = _load_helper("sync_source_archive", "sync-source-archive.py")
 
 
@@ -54,3 +56,17 @@ def test_sync_archive_preserves_runtime_exports(tmp_path: Path) -> None:
     assert (destination / "exports" / "result.json").exists()
     assert not (destination / "stale.py").exists()
     assert (destination / "package" / "__init__.py").exists()
+
+
+
+def test_rhwp_release_archive_validation_and_checksum(tmp_path: Path) -> None:
+    archive_path = tmp_path / "rhwp.tar.gz"
+    with tarfile.open(archive_path, "w:gz") as archive:
+        payload = b"binary"
+        info = tarfile.TarInfo("rhwp/rhwp")
+        info.size = len(payload)
+        archive.addfile(info, io.BytesIO(payload))
+
+    checksum = hashlib.sha256(archive_path.read_bytes()).hexdigest()
+    materialize_rhwp._verify_checksum(archive_path, checksum)
+    materialize_rhwp._validate_archive(archive_path)
