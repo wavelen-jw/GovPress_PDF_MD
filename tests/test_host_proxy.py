@@ -8,6 +8,70 @@ from unittest import mock
 
 
 class HostProxyTests(unittest.TestCase):
+    def test_options_allows_pages_preview_origin(self) -> None:
+        with mock.patch.dict(
+            os.environ,
+            {
+                "GOVPRESS_CORS_ALLOW_ORIGINS": "https://govpress.cloud",
+                "GOVPRESS_CORS_ALLOW_ORIGIN_REGEX": (
+                    r"^https://(?:[a-z0-9-]+\.)?readhim-web\.pages\.dev$"
+                ),
+            },
+        ):
+            import deploy.wsl.bin.host_proxy as host_proxy
+
+            host_proxy = importlib.reload(host_proxy)
+            handler = object.__new__(host_proxy.ProxyHandler)
+            handler.path = "/v1/jobs"
+            handler.headers = {
+                "Origin": "https://preview-04d7ae780de1.readhim-web.pages.dev",
+            }
+            handler.send_response = mock.Mock()
+            handler.send_header = mock.Mock()
+            handler.end_headers = mock.Mock()
+
+            handler.do_OPTIONS()
+
+        handler.send_response.assert_called_once_with(204, "No Content")
+        self.assertIn(
+            mock.call(
+                "Access-Control-Allow-Origin",
+                "https://preview-04d7ae780de1.readhim-web.pages.dev",
+            ),
+            handler.send_header.call_args_list,
+        )
+        self.assertIn(mock.call("Vary", "Origin"), handler.send_header.call_args_list)
+
+    def test_options_rejects_lookalike_pages_origin(self) -> None:
+        with mock.patch.dict(
+            os.environ,
+            {
+                "GOVPRESS_CORS_ALLOW_ORIGINS": "https://govpress.cloud",
+                "GOVPRESS_CORS_ALLOW_ORIGIN_REGEX": (
+                    r"^https://(?:[a-z0-9-]+\.)?readhim-web\.pages\.dev$"
+                ),
+            },
+        ):
+            import deploy.wsl.bin.host_proxy as host_proxy
+
+            host_proxy = importlib.reload(host_proxy)
+            handler = object.__new__(host_proxy.ProxyHandler)
+            handler.path = "/v1/jobs"
+            handler.headers = {
+                "Origin": "https://preview.readhim-web.pages.dev.example.com",
+            }
+            handler.send_response = mock.Mock()
+            handler.send_header = mock.Mock()
+            handler.end_headers = mock.Mock()
+
+            handler.do_OPTIONS()
+
+        handler.send_response.assert_called_once_with(403, "Forbidden")
+        self.assertNotIn(
+            "Access-Control-Allow-Origin",
+            [call.args[0] for call in handler.send_header.call_args_list],
+        )
+
     def test_static_routes_resolve_only_public_service_files(self) -> None:
         import deploy.wsl.bin.host_proxy as host_proxy
 
