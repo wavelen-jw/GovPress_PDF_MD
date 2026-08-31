@@ -4,6 +4,7 @@ from __future__ import annotations
 import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
+import re
 import socket
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit
@@ -16,6 +17,27 @@ UPSTREAM = urlsplit(UPSTREAM_BASE)
 HEALTHCHECK_API_KEY = (
     os.environ.get("GOVPRESS_HOST_PROXY_HEALTH_API_KEY", "").strip()
     or os.environ.get("GOVPRESS_API_KEY", "").strip()
+)
+DEFAULT_CORS_ALLOW_ORIGINS = {
+    "https://govpress.cloud",
+    "https://www.govpress.cloud",
+    "https://wavelen-jw.github.io",
+}
+CORS_ALLOW_ORIGINS = {
+    item.strip()
+    for item in os.environ.get(
+        "GOVPRESS_CORS_ALLOW_ORIGINS",
+        ",".join(sorted(DEFAULT_CORS_ALLOW_ORIGINS)),
+    ).split(",")
+    if item.strip()
+}
+DEFAULT_CORS_ALLOW_ORIGIN_REGEX = r"^https://(?:[a-z0-9-]+\.)?readhim-web\.pages\.dev$"
+_cors_allow_origin_regex = os.environ.get(
+    "GOVPRESS_CORS_ALLOW_ORIGIN_REGEX",
+    DEFAULT_CORS_ALLOW_ORIGIN_REGEX,
+).strip()
+CORS_ALLOW_ORIGIN_REGEX = (
+    re.compile(_cors_allow_origin_regex) if _cors_allow_origin_regex else None
 )
 HOP_BY_HOP_HEADERS = {
     "connection",
@@ -43,6 +65,12 @@ MAX_REQUEST_BODY_BYTES = int(os.environ.get("GOVPRESS_HOST_PROXY_MAX_BODY_BYTES"
 
 class InvalidRequestBody(ValueError):
     pass
+
+
+def cors_origin_allowed(origin: str) -> bool:
+    if origin in CORS_ALLOW_ORIGINS:
+        return True
+    return bool(CORS_ALLOW_ORIGIN_REGEX and CORS_ALLOW_ORIGIN_REGEX.fullmatch(origin))
 
 
 def read_chunked_body(stream, *, max_bytes: int = MAX_REQUEST_BODY_BYTES) -> bytes:
@@ -99,10 +127,20 @@ def request_upstream(path: str, headers: dict[str, str] | None = None, *, timeou
 class ProxyHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
-    def _send_cors_headers(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
+    def _allowed_cors_origin(self) -> str | None:
+        headers = getattr(self, "headers", {})
+        origin = headers.get("Origin", "").strip()
+        return origin if origin and cors_origin_allowed(origin) else None
+
+    def _send_cors_headers(self, origin: str | None = None) -> bool:
+        origin = origin or self._allowed_cors_origin()
+        if origin is None:
+            return False
+        self.send_header("Access-Control-Allow-Origin", origin)
+        self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Methods", "GET, HEAD, POST, PATCH, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, X-API-Key, X-Admin-Key, X-Edit-Token")
+        return True
 
     def do_GET(self) -> None:
         if self.path == "/health":
@@ -127,8 +165,14 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self) -> None:
         if self.path == "/health" or self.path.startswith("/v1/"):
+            origin = self._allowed_cors_origin()
+            if origin is None:
+                self.send_response(403, "Forbidden")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             self.send_response(204, "No Content")
-            self._send_cors_headers()
+            self._send_cors_headers(origin)
             self.end_headers()
             return
         self._proxy()

@@ -15,12 +15,15 @@ DEFAULT_CORS_ALLOW_ORIGINS = [
     "http://127.0.0.1:8013",
 ]
 
+DEFAULT_CORS_ALLOW_ORIGIN_REGEX = r"^https://(?:[a-z0-9-]+\.)?readhim-web\.pages\.dev$"
+
 
 @dataclass(frozen=True)
 class Settings:
     api_key: str | None
     admin_api_key: str | None
     cors_allow_origins: list[str]
+    cors_allow_origin_regex: str | None
     max_upload_bytes: int
     turnstile_secret_key: str | None
     upload_rate_limit_count: int
@@ -42,6 +45,13 @@ def _parse_bool(raw: str | None, *, default: bool) -> bool:
     return raw.strip().lower() not in {"0", "false", "no", "off"}
 
 
+def _parse_origin_regex(raw: str | None) -> str | None:
+    if raw is None:
+        return DEFAULT_CORS_ALLOW_ORIGIN_REGEX
+    normalized = raw.strip()
+    return normalized or None
+
+
 def load_settings() -> Settings:
     raw_upload_bytes = os.environ.get("GOVPRESS_MAX_UPLOAD_BYTES", "25000000")
     raw_rate_limit_count = os.environ.get("GOVPRESS_UPLOAD_RATE_LIMIT_COUNT", "12")
@@ -52,6 +62,9 @@ def load_settings() -> Settings:
         api_key=os.environ.get("GOVPRESS_API_KEY") or None,
         admin_api_key=os.environ.get("GOVPRESS_ADMIN_API_KEY") or None,
         cors_allow_origins=_parse_origins(os.environ.get("GOVPRESS_CORS_ALLOW_ORIGINS")),
+        cors_allow_origin_regex=_parse_origin_regex(
+            os.environ.get("GOVPRESS_CORS_ALLOW_ORIGIN_REGEX")
+        ),
         max_upload_bytes=max(int(raw_upload_bytes), 1),
         turnstile_secret_key=os.environ.get("GOVPRESS_TURNSTILE_SECRET_KEY") or None,
         upload_rate_limit_count=max(int(raw_rate_limit_count), 1),

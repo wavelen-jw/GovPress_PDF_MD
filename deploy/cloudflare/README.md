@@ -47,6 +47,10 @@ deploy/cloudflare/pages_manual.sh preview
 
 미리보기 URL에서 `/`, `/app/`, HWP/HWPX/MD 업로드 UI와 API CORS를 확인한다.
 
+API는 `readhim-web.pages.dev`와 그 1단계 미리보기 하위 도메인만 정규식으로 허용한다.
+다른 Pages 프로젝트나 `pages.dev` 전체를 허용하지 않는다. 정규식은
+`GOVPRESS_CORS_ALLOW_ORIGIN_REGEX`로 재정의하거나 빈 값으로 비활성화할 수 있다.
+
 ## 4. 운영 배포
 
 운영 배포는 정확한 커밋 SHA 확인값이 일치해야 실행된다.

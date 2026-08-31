@@ -8,7 +8,10 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from server.app.core.config import DEFAULT_CORS_ALLOW_ORIGINS
+from server.app.core.config import (
+    DEFAULT_CORS_ALLOW_ORIGIN_REGEX,
+    DEFAULT_CORS_ALLOW_ORIGINS,
+)
 from server.app.main import create_app
 
 
@@ -109,6 +112,7 @@ class ServerApiContractTests(unittest.TestCase):
     def test_app_uses_default_operational_settings(self) -> None:
         self.assertEqual(self.app.state.settings.max_upload_bytes, 25_000_000)
         self.assertEqual(self.app.state.settings.cors_allow_origins, DEFAULT_CORS_ALLOW_ORIGINS)
+        self.assertEqual(self.app.state.settings.cors_allow_origin_regex, DEFAULT_CORS_ALLOW_ORIGIN_REGEX)
         self.assertEqual(self.app.state.settings.upload_rate_limit_count, 12)
         self.assertEqual(self.app.state.settings.upload_rate_limit_window_seconds, 60)
         self.assertEqual(self.app.state.settings.job_ttl_hours, 72)
@@ -119,6 +123,7 @@ class ServerApiContractTests(unittest.TestCase):
         previous = {
             "GOVPRESS_API_KEY": os.environ.get("GOVPRESS_API_KEY"),
             "GOVPRESS_CORS_ALLOW_ORIGINS": os.environ.get("GOVPRESS_CORS_ALLOW_ORIGINS"),
+            "GOVPRESS_CORS_ALLOW_ORIGIN_REGEX": os.environ.get("GOVPRESS_CORS_ALLOW_ORIGIN_REGEX"),
             "GOVPRESS_MAX_UPLOAD_BYTES": os.environ.get("GOVPRESS_MAX_UPLOAD_BYTES"),
             "GOVPRESS_UPLOAD_RATE_LIMIT_COUNT": os.environ.get("GOVPRESS_UPLOAD_RATE_LIMIT_COUNT"),
             "GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS": os.environ.get("GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS"),
@@ -128,6 +133,7 @@ class ServerApiContractTests(unittest.TestCase):
         try:
             os.environ["GOVPRESS_API_KEY"] = "secret-key"
             os.environ["GOVPRESS_CORS_ALLOW_ORIGINS"] = "https://m.example.com, https://admin.example.com"
+            os.environ["GOVPRESS_CORS_ALLOW_ORIGIN_REGEX"] = r"^https://preview-[a-z0-9]+\.example\.com$"
             os.environ["GOVPRESS_MAX_UPLOAD_BYTES"] = "1234"
             os.environ["GOVPRESS_UPLOAD_RATE_LIMIT_COUNT"] = "5"
             os.environ["GOVPRESS_UPLOAD_RATE_LIMIT_WINDOW_SECONDS"] = "30"
@@ -146,12 +152,43 @@ class ServerApiContractTests(unittest.TestCase):
             app.state.settings.cors_allow_origins,
             ["https://m.example.com", "https://admin.example.com"],
         )
+        self.assertEqual(
+            app.state.settings.cors_allow_origin_regex,
+            r"^https://preview-[a-z0-9]+\.example\.com$",
+        )
         self.assertEqual(app.state.settings.max_upload_bytes, 1234)
         self.assertEqual(app.state.settings.upload_rate_limit_count, 5)
         self.assertEqual(app.state.settings.upload_rate_limit_window_seconds, 30)
         self.assertEqual(app.state.settings.job_ttl_hours, 24)
         self.assertEqual(app.state.settings.policy_briefing_service_key, "policy-key")
         self.assertFalse(app.state.settings.using_policy_briefing_service_key_fallback)
+
+    def test_pages_preview_origin_is_allowed(self) -> None:
+        response = TestClient(self.app).options(
+            "/health",
+            headers={
+                "Origin": "https://preview-04d7ae780de1.readhim-web.pages.dev",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers.get("access-control-allow-origin"),
+            "https://preview-04d7ae780de1.readhim-web.pages.dev",
+        )
+
+    def test_pages_preview_origin_regex_rejects_lookalike_domain(self) -> None:
+        response = TestClient(self.app).options(
+            "/health",
+            headers={
+                "Origin": "https://preview.readhim-web.pages.dev.example.com",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn("access-control-allow-origin", response.headers)
 
     def test_app_never_uses_policy_service_key_fallback(self) -> None:
         previous = {
