@@ -148,8 +148,8 @@ class OpenClawOpsTests(unittest.TestCase):
     def test_parse_server_presets_reads_mobile_constants(self) -> None:
         presets, primary_key = parse_server_presets(self.repo_root / "mobile" / "src" / "constants.ts")
         self.assertEqual(primary_key, "serverW")
-        self.assertEqual(presets[0].key, "serverH")
-        self.assertEqual(presets[0].url, "https://api.govpress.cloud")
+        self.assertEqual([preset.key for preset in presets], ["serverW", "serverN"])
+        self.assertEqual(presets[1].url, "https://api5.govpress.cloud")
 
     def test_ensure_qc_work_branch_creates_and_reuses_daily_branch(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -185,15 +185,14 @@ class OpenClawOpsTests(unittest.TestCase):
     def test_build_server_status_reports_failover_candidate(self) -> None:
         with mock.patch("scripts.openclaw_ops._fetch_health") as mocked_fetch:
             mocked_fetch.side_effect = [
-                {"ok": True, "status": 200, "endpoint": "https://api.govpress.cloud/health", "body": "ok"},
                 {"ok": False, "status": 502, "endpoint": "https://api4.govpress.cloud/health", "error": "bad gateway"},
-                {"ok": True, "status": 200, "endpoint": "https://api2.govpress.cloud/health", "body": "ok"},
+                {"ok": True, "status": 200, "endpoint": "https://api5.govpress.cloud/health", "body": "ok"},
             ]
             payload = build_server_status()
         self.assertEqual(payload["primary_key"], "serverW")
         self.assertFalse(payload["primary_healthy"])
         self.assertTrue(payload["mismatch"])
-        self.assertEqual(payload["recommended_url"], "https://api.govpress.cloud")
+        self.assertEqual(payload["recommended_url"], "https://api5.govpress.cloud")
 
     def test_cli_telegram_dispatch_suppresses_stdout_for_dm(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

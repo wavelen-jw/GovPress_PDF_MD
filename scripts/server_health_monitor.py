@@ -185,7 +185,7 @@ def resolve_servers() -> list[dict[str, str]]:
         return presets
     return [
         {"key": "serverW", "label": "서버W", "url": "https://api4.govpress.cloud"},
-        {"key": "serverV", "label": "서버V", "url": "https://api2.govpress.cloud"},
+        {"key": "serverN", "label": "서버N", "url": "https://api5.govpress.cloud"},
     ]
 
 

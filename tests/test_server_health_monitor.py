@@ -215,9 +215,9 @@ class ServerHealthMonitorTests(unittest.TestCase):
             [
                 {
                     "type": "degraded",
-                    "server": "serverV",
-                    "label": "서버V",
-                    "url": "https://api2.govpress.cloud",
+                    "server": "serverN",
+                    "label": "서버N",
+                    "url": "https://api5.govpress.cloud",
                     "checked_at": "2026-04-14T00:09:00Z",
                     "detail": "timed out",
                     "consecutive_failures": 1,
@@ -241,7 +241,7 @@ class ServerHealthMonitorTests(unittest.TestCase):
                 },
             ]
         )
-        self.assertIn("DEGRADED 서버V", message)
+        self.assertIn("DEGRADED 서버N", message)
         self.assertIn("DOWN 서버H", message)
         self.assertIn("RECOVERED 서버W", message)
 

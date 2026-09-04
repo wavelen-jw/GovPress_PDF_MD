@@ -1494,8 +1494,7 @@ def parse_server_presets(constants_path: Path = MOBILE_CONSTANTS_PATH) -> tuple[
     if not presets:
         presets = [
             ServerPreset(key="serverW", label="서버W", url="https://api4.govpress.cloud"),
-            ServerPreset(key="serverH", label="서버H", url="https://api.govpress.cloud"),
-            ServerPreset(key="serverV", label="서버V", url="https://api2.govpress.cloud"),
+            ServerPreset(key="serverN", label="서버N", url="https://api5.govpress.cloud"),
         ]
     return presets, primary_key
 

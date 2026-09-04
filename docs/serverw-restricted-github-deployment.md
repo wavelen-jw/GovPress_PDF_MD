@@ -45,8 +45,8 @@ serverW에만 offline source transfer를 적용한다.
 - `deploy/wsl/Dockerfile`
   - 로컬 배포 artifact 설치
 
-serverV와 serverN은 직접 GitHub fetch가 가능하므로 bundle 전달을 사용하지
-않는다. serverW 제약을 공통 경로에 강제해 다른 서버를 변경하지 않는다.
+serverN은 직접 GitHub fetch가 가능하므로 bundle 전달을 사용하지 않는다.
+serverW 제약을 공통 경로에 강제해 serverN을 변경하지 않는다.
 
 ## 인증 정보
 
@@ -117,4 +117,4 @@ curl -sS --connect-timeout 5 --max-time 20 \
 - `github.com` 실패를 무제한 retry로 가리기
 - TLS 검증 비활성화
 - 배포 토큰 또는 converter spec을 Actions 로그에 출력
-- serverV/serverN에 serverW 전용 bundle 전달을 무조건 적용
+- serverN에 serverW 전용 bundle 전달을 무조건 적용

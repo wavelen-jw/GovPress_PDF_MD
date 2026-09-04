@@ -1,5 +1,10 @@
 # VPS 배포 (저성능 서버)
 
+> 운영 상태(2026-09-05): `serverV`는 단계적 퇴역 대상입니다.
+> 신규 배포·키 추가·단축 URL 배포에는 이 서버를 사용하지 않습니다.
+> 아래 serverV 항목은 롤백 창 동안의 역사적 참고이며,
+> 실제 절차와 완료 기록은 `docs/server-v-retirement.md`를 따릅니다.
+
 Ubuntu 24.04 / 1 vCPU / 1 GB RAM 기준 배포 가이드입니다.
 
 ## 서버 스펙 기준 튜닝 요약
@@ -79,7 +84,6 @@ CLOUDFLARE_TUNNEL_TOKEN=실제-터널-토큰
 - bare-metal 설치/재배포 스크립트는 `https://govpress.cloud`, `https://www.govpress.cloud`, `https://wavelen-jw.github.io`를 `GOVPRESS_CORS_ALLOW_ORIGINS`에 자동 보정합니다.
 - 프로덕션은 `GOVPRESS_CONVERTER_ALLOW_LOCAL_FALLBACK=0` 고정입니다.
 - 배포 후 `distribution_version`, `module_path`, `backend`를 검사하고 package backend가 아니면 실패 처리합니다.
-- `serverV`는 bare-metal이라 `127.0.0.1:8013`을 systemd 밖의 수동 `uvicorn`이 점유할 수 있습니다. 재배포 시에는 `govpress-api.service`의 MainPID가 아닌 `8013` listener를 먼저 정리한 뒤 재시작해야 합니다.
 
 수정 후 재시작:
 
@@ -117,9 +121,9 @@ docker compose -f deploy/vps/docker-compose.yml up -d --build
 - `govpress-api.service` 재시작 성공
 - `127.0.0.1:8013/health` `200`
 - `deploy/converter.version`과 실제 `distribution_version`, `module_path`, `backend` 일치
-- W/V/N 동일 샘플 변환 결과 hash 일치
+- W/N 동일 샘플 변환 결과 hash 일치
 
-## GitHub Actions 배포 SSH 경로
+## GitHub Actions 배포 SSH 경로 (serverV 레거시)
 
 `serverV`의 public `:2222`는 UFW allowlist로 제한합니다. GitHub-hosted runner IP 대역은 매우 넓고 변경되므로 `2222/tcp`를 `0.0.0.0/0`으로 열지 않습니다.
 
@@ -139,56 +143,24 @@ cloudflared tunnel info govpress-v-ssh
 ssh -o ProxyCommand='cloudflared access ssh --hostname %h' ssh-v.govpress.cloud 'hostname && systemctl is-active govpress-api.service'
 ```
 
-GitHub Actions 수동 검증:
+퇴역 브랜치에서는 `deploy_target=serverV`와 V 배포 job을 제거합니다.
+GitHub Actions에서 serverV를 수동 선택하는 경로는 더 이상 제공하지 않습니다.
 
-1. `Deploy API To Servers` workflow 실행
-2. `deploy_target=serverV` 선택
-3. `서버V (VPS) / deploy` job이 성공해야 함
+롤백 과정에서 V 배포 자동화가 꼭 필요하면 퇴역 커밋을 되돌린 뒤
+기존 workflow를 복구하고, 복구 사유를 runbook에 기록합니다.
 
-## serverV 운영 점검 지시서
+## serverV 운영 점검 지시서 (롤백 창 전용)
 
-`serverV`는 운영 API 서버이자 필요한 경우 다른 서버 점검용 jump host로 사용합니다. 원칙은 다음과 같습니다.
+관찰 및 롤백 창의 serverV는 대기 자산이며 일상 운영이나 다른 서버의
+jump host로 사용하지 않습니다.
 
-- `serverV`에서는 점검/복구 명령만 수행합니다.
-- 코드 수정, 커밋, 푸시는 로컬 작업 저장소에서 계속 수행합니다.
-- `serverV -> Cloudflare SSH -> serverW` 경로와 `serverV` 자체 Cloudflare SSH 배포 경로를 깨는 변경은 금지합니다.
+- 평상시 점검은 W와 N에 직접 접속합니다.
+- `ssh-v.govpress.cloud`와 V 자격증명은 빠른 롤백 창이 끝날 때까지
+  유지합니다.
+- V 자체의 롤백 점검과 재기동은 `docs/server-v-retirement.md`의
+  순서를 따릅니다.
 
-기본 접속:
-
-```bash
-ssh w
-```
-
-권장 점검 순서:
-
-1. `serverV`에서 대상 서버 접속 (`serverH`는 중단 상태이므로 사용하지 않음)
-2. systemd 상태 확인
-3. Docker 컨테이너 상태 확인
-4. 로컬 `8013`, `8080`, public authenticated API 순서로 probe
-5. 필요시 `journalctl`로 직전 오류 확인
-
-예시:
-
-```bash
-ssh w
-systemctl status --no-pager govpress-caddy.service govpress-cloudflared.service govpress-watchdog.timer
-docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
-curl -fsS http://127.0.0.1:8013/health
-curl -fsS http://127.0.0.1:8080/health
-API_KEY=$(grep -E '^GOVPRESS_API_KEY=' ~/GovPress_PDF_MD/deploy/wsl/.env | cut -d= -f2-)
-curl -fsS -H "X-API-Key: $API_KEY" "https://api.govpress.cloud/v1/policy-briefings/today?date=2026-04-21"
-journalctl -u govpress-watchdog.service -n 30 --no-pager
-```
-
-`serverW` public hostname은 `api4.govpress.cloud`입니다.
-
-주의:
-
-- `serverV`에서 W를 점검할 때도 direct `:443` SSH를 닫는 변경은 하지 않습니다.
-- W 장애 시 먼저 `govpress-watchdog.service`, `govpress-watchdog.timer`, `govpress-caddy.service` 순서로 상태를 확인합니다.
-- `govpress-watchdog.service`가 `status=127`이면 스크립트 경로/권한 문제를 먼저 의심합니다.
-
-## `ai.govpress.cloud` 단축 리다이렉트
+## `ai.govpress.cloud` 단축 리다이렉트 (레거시)
 
 구성:
 

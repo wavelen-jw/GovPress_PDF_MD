@@ -11,8 +11,12 @@ import urllib.request
 from pathlib import Path
 
 
+USER_AGENT = "GovPress-Converter-Diagnostics/1.0"
+
+
 def _request_json(url: str, *, headers: dict[str, str], data: bytes | None = None) -> dict[str, object]:
-    request = urllib.request.Request(url, headers=headers, data=data)
+    request_headers = {"Accept": "application/json", "User-Agent": USER_AGENT, **headers}
+    request = urllib.request.Request(url, headers=request_headers, data=data)
     with urllib.request.urlopen(request, timeout=120) as response:
         return json.load(response)
 

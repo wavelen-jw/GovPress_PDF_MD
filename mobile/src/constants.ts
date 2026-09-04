@@ -18,7 +18,6 @@ export const POLICY_BRIEFING_IMPORT_TIMEOUT_MS = 60000;
 export const SERVER_PRESETS = [
   { key: "serverW", label: "서버W", shortLabel: "서버W", url: "https://api4.govpress.cloud" },
   { key: "serverN", label: "서버N", shortLabel: "서버N", url: "https://api5.govpress.cloud" },
-  { key: "serverV", label: "서버V", shortLabel: "서버V", url: "https://api2.govpress.cloud" },
 ] as const;
 
 export const PRIMARY_SERVER_KEY = "serverW" as const;

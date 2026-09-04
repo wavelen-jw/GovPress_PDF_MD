@@ -45,8 +45,11 @@
 - `serverW`
   - public: `https://api4.govpress.cloud`
   - ingress: `api4.govpress.cloud -> http://127.0.0.1:8080`
-- `serverV`
-  - public: `https://api2.govpress.cloud`
+- `serverN`
+  - public: `https://api5.govpress.cloud`
+  - ingress: `api5.govpress.cloud -> http://127.0.0.1:8080`
+- 기존 클라이언트 호환용 `api2.govpress.cloud`는 serverW의 동일 API origin을 가리키며
+  신규 서버 프리셋에는 노출하지 않습니다.
 
 ## 권장 디렉터리
 
@@ -293,7 +296,7 @@ curl -i https://api.govpress.cloud/health
 
 특히 아래 변화는 위험합니다.
 
-- serverW의 `transfer_service_bundle: "true"` 제거 또는 serverV/serverN에 해당 경로 강제
+- serverW의 `transfer_service_bundle: "true"` 제거 또는 serverN에 해당 경로 강제
 - serverW에서 `github.com` 직접 fetch를 다시 필수화하거나 TLS 검증을 끄는 변경
 - `docker rm -f govpress-api govpress-worker` 재도입
 - `run_compose up -d --build`를 activate 단계에 직접 사용
@@ -336,6 +339,7 @@ curl -i http://127.0.0.1:8013/health
 curl -i http://127.0.0.1:8080/health
 curl -i -H 'X-API-Key: <API_KEY>' https://api.govpress.cloud/health
 curl -i -H 'X-API-Key: <API_KEY>' https://api4.govpress.cloud/health
+# 기존 클라이언트 호환 별칭
 curl -i -H 'X-API-Key: <API_KEY>' https://api2.govpress.cloud/health
 python3 scripts/openclaw_ops.py --json server-status
 ```
@@ -524,8 +528,8 @@ GovPress 작업 파일:
 - `serverW`는 API 안정성 우선이라 direct SSH `443`을 즉시 제거하지 않습니다.
 - 다만 direct `443` SSH는 임시 운영 경로로만 두고, 최종 목표는 Cloudflare SSH 전환입니다.
 - 현재 serverW tunnel ingress에는 `ssh-work.govpress.cloud -> tcp://host.docker.internal:443`가 연결되어 있습니다.
-- 현재 `serverV -> Cloudflare SSH -> serverH/serverW` 운영 경로가 이미 사용 중이므로, 이 경로를 깨는 변경은 금지합니다.
-- 따라서 `443` direct 노출 제거는 먼저 Cloudflare SSH origin을 `public 443` 의존이 없는 내부 포트/loopback 경로로 옮기고, `serverV`에서 실접속 재검증을 끝낸 뒤에만 진행합니다.
+- GitHub Actions와 운영 단말의 Cloudflare SSH 경로를 깨는 변경은 금지합니다.
+- `443` direct 노출 제거는 Cloudflare SSH origin을 내부 포트/loopback 경로로 옮기고 운영 단말에서 실접속 재검증을 끝낸 뒤에만 진행합니다.
 - `serverW`는 현재 WSL sshd가 `22022`에서 뜨고, Windows 쪽 `443` 포워딩 계층을 통해 외부/Cloudflare SSH가 들어오는 구조일 가능성이 높습니다. 이 계층을 먼저 분리하지 않으면 `443` 차단이 Cloudflare SSH도 함께 끊을 수 있습니다.
 - direct `443`을 닫기 전에 반드시 Cloudflare SSH 접속을 실제 운영 단말에서 검증합니다.
 - `sshd`는 최소 설정만 허용합니다.

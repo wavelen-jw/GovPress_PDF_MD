@@ -23,7 +23,6 @@ on:
         default: all
         options:
           - all
-          - serverV
           - serverW
           - serverN
 
@@ -32,14 +31,6 @@ concurrency:
   cancel-in-progress: true
 
 # ── 서버별 시크릿/변수 규칙 ──────────────────────────────────────────
-#
-# 서버V (api2.govpress.cloud) — VPS, Cloudflare Tunnel SSH
-#   Secrets : GOVPRESS_VPS_USER, GOVPRESS_VPS_SSH_KEY,
-#             CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET (공용)
-#   Variables: GOVPRESS_VPS_SSH_HOST (e.g. ssh-v.govpress.cloud),
-#              GOVPRESS_VPS_DEPLOY_DIR,
-#              GOVPRESS_VPS_SERVICE, GOVPRESS_VPS_HEALTHCHECK_URL,
-#              GOVPRESS_VPS_BRANCH
 #
 # 서버W (api4.govpress.cloud) — WSL, Cloudflare Tunnel SSH
 #   Secrets : GOVPRESS_W_USER, GOVPRESS_W_SSH_KEY,
@@ -68,7 +59,6 @@ jobs:
     name: "Detect Deploy Targets"
     runs-on: ubuntu-latest
     outputs:
-      deploy_v: ${{ steps.detect.outputs.deploy_v }}
       deploy_hw: ${{ steps.detect.outputs.deploy_hw }}
       deploy_n: ${{ steps.detect.outputs.deploy_n }}
       run_drift: ${{ steps.detect.outputs.run_drift }}
@@ -84,7 +74,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          deploy_v=false
           deploy_hw=false
           deploy_n=false
           run_drift=false
@@ -94,13 +83,9 @@ jobs:
             manual_target="${manual_target:-all}"
             case "$manual_target" in
               all)
-                deploy_v=true
                 deploy_hw=true
                 deploy_n=true
                 run_drift=true
-                ;;
-              serverV)
-                deploy_v=true
                 ;;
               serverW)
                 deploy_hw=true
@@ -126,7 +111,6 @@ jobs:
               [[ -n "$path" ]] || continue
               case "$path" in
                 .github/workflows/_deploy-server.yml)
-                  deploy_v=true
                   deploy_n=true
                   ;;
                 deploy/wsl/Dockerfile|\
@@ -141,7 +125,6 @@ jobs:
                 deploy/wsl/README.md|deploy/wsl/.env.example)
                   ;;
                 .github/workflows/vps.yml|deploy/common/*|requirements.txt|server/*|src/*|deploy/converter.version|scripts/compare_converter_runtime*.py|scripts/smoke_policy_briefing_imports.py)
-                  deploy_v=true
                   deploy_hw=true
                   deploy_n=true
                   run_drift=true
@@ -149,42 +132,16 @@ jobs:
               esac
             done < <(git diff --name-only "$before" "$GITHUB_SHA")
 
-            if [[ "$deploy_v" == true && "$deploy_hw" == true ]]; then
+            if [[ "$deploy_hw" == true && "$deploy_n" == true ]]; then
               run_drift=true
             fi
           fi
 
           {
-            echo "deploy_v=$deploy_v"
             echo "deploy_hw=$deploy_hw"
             echo "deploy_n=$deploy_n"
             echo "run_drift=$run_drift"
           } >> "$GITHUB_OUTPUT"
-
-  deploy-v:
-    name: "서버V (VPS)"
-    needs: detect-targets
-    if: ${{ needs.detect-targets.outputs.deploy_v == 'true' }}
-    uses: ./.github/workflows/_deploy-server-cf.yml
-    with:
-      target_sha:      ${{ github.sha }}
-      ssh_host:        ${{ vars.GOVPRESS_VPS_SSH_HOST || 'ssh-v.govpress.cloud' }}
-      deploy_dir:      ${{ vars.GOVPRESS_VPS_DEPLOY_DIR }}
-      branch:          ${{ vars.GOVPRESS_VPS_BRANCH || 'web' }}
-      service:         ${{ vars.GOVPRESS_VPS_SERVICE }}
-      healthcheck_url: ${{ vars.GOVPRESS_VPS_HEALTHCHECK_URL || 'http://127.0.0.1:8013/health' }}
-      public_probe_url: https://api2.govpress.cloud
-      deploy_poll_attempts: "120"
-      deploy_poll_interval_seconds: "5"
-      run_policy_probe: "true"
-    secrets:
-      user:             ${{ secrets.GOVPRESS_VPS_USER }}
-      ssh_key:          ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
-      cf_client_id:     ${{ secrets.CF_ACCESS_CLIENT_ID }}
-      cf_client_secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-      converter_spec:   ${{ secrets.GOVPRESS_CONVERTER_SPEC }}
-      admin_api_key:    ${{ secrets.GOVPRESS_ADMIN_API_KEY }}
-      policy_briefing_service_key: ${{ secrets.GOVPRESS_POLICY_BRIEFING_SERVICE_KEY }}
 
   deploy-w:
     name: "서버W (WSL, CF Tunnel)"
@@ -243,10 +200,9 @@ jobs:
 
   converter-drift-smoke:
     name: "Converter Drift Smoke"
-    if: ${{ needs.detect-targets.outputs.run_drift == 'true' && needs.deploy-v.result == 'success' && needs.deploy-w.result == 'success' && (vars.GOVPRESS_N_DEPLOY_DIR == '' || needs.deploy-n.result == 'success') }}
+    if: ${{ needs.detect-targets.outputs.run_drift == 'true' && needs.deploy-w.result == 'success' && (vars.GOVPRESS_N_DEPLOY_DIR == '' || needs.deploy-n.result == 'success') }}
     needs:
       - detect-targets
-      - deploy-v
       - deploy-w
       - deploy-n
     runs-on: ubuntu-latest
@@ -264,7 +220,6 @@ jobs:
 
       - name: Materialize smoke SSH keys
         env:
-          VPS_KEY: ${{ secrets.GOVPRESS_VPS_SSH_KEY }}
           W_KEY: ${{ secrets.GOVPRESS_W_SSH_KEY }}
           N_KEY: ${{ secrets.GOVPRESS_N_SSH_KEY }}
           HAS_SERVER_N: ${{ vars.GOVPRESS_N_DEPLOY_DIR != '' }}
@@ -282,7 +237,6 @@ jobs:
             chmod 600 "$path"
             ssh-keygen -y -f "$path" > /dev/null
           }
-          write_key "$VPS_KEY" ~/.ssh/smoke_v_key
           write_key "$W_KEY" ~/.ssh/smoke_w_key
           if [[ "$HAS_SERVER_N" == "true" ]]; then
             write_key "$N_KEY" ~/.ssh/smoke_n_key
@@ -290,8 +244,6 @@ jobs:
 
       - name: Configure smoke SSH targets
         env:
-          VPS_HOST: ${{ vars.GOVPRESS_VPS_SSH_HOST || 'ssh-v.govpress.cloud' }}
-          VPS_USER: ${{ secrets.GOVPRESS_VPS_USER }}
           W_HOST: ${{ vars.GOVPRESS_W_SSH_HOST || 'ssh-w.govpress.cloud' }}
           W_USER: ${{ secrets.GOVPRESS_W_USER }}
           N_HOST: ${{ vars.GOVPRESS_N_SSH_HOST || 'ssh-n.govpress.cloud' }}
@@ -302,14 +254,6 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh/cm
-          cloudflared access tcp \
-            --hostname "$VPS_HOST" \
-            --url "127.0.0.1:2224" \
-            --service-token-id "$CF_ID" \
-            --service-token-secret "$CF_SECRET" \
-            --logfile "$HOME/cloudflared-v.log" \
-            >/tmp/cloudflared-v.stdout 2>&1 &
-          echo $! > ~/cloudflared-v.pid
 
           cloudflared access tcp \
             --hostname "$W_HOST" \
@@ -331,7 +275,7 @@ jobs:
             echo $! > ~/cloudflared-n.pid
           fi
 
-          ports=(2223 2224)
+          ports=(2223)
           if [[ "$HAS_SERVER_N" == "true" ]]; then
             ports+=(2225)
           fi
@@ -345,20 +289,6 @@ jobs:
           done
 
           cat >> ~/.ssh/config << EOF
-          Host govpress-smoke-v
-            HostName 127.0.0.1
-            User ${VPS_USER}
-            Port 2224
-            IdentityFile ~/.ssh/smoke_v_key
-            IdentitiesOnly yes
-            BatchMode yes
-            StrictHostKeyChecking accept-new
-            ControlMaster no
-            ControlPath none
-            ConnectTimeout 20
-            ServerAliveInterval 15
-            ServerAliveCountMax 6
-
           Host govpress-smoke-w
             HostName 127.0.0.1
             User ${W_USER}
@@ -392,7 +322,6 @@ jobs:
           EOF
           fi
 
-          ssh govpress-smoke-v "exit 0"
           ssh govpress-smoke-w "exit 0"
           if [[ "$HAS_SERVER_N" == "true" ]]; then
             ssh govpress-smoke-n "exit 0"
@@ -411,7 +340,6 @@ jobs:
             --sample artifacts/policy_briefing_benchmark/corpus_latest100/hwpxs/156754095.hwpx
             --require-equal-hashes
             --server serverW=govpress-smoke-w=http://127.0.0.1:8080
-            --server serverV=govpress-smoke-v=http://127.0.0.1:8080
           )
           if [[ "$HAS_SERVER_N" == "true" ]]; then
             compare_cmd+=(--server serverN=govpress-smoke-n=http://127.0.0.1:8080)
@@ -458,10 +386,9 @@ jobs:
 
   policy-briefing-import-smoke:
     name: "Policy Briefing Import Smoke"
-    if: ${{ needs.detect-targets.outputs.run_drift == 'true' && needs.deploy-v.result == 'success' && needs.deploy-w.result == 'success' && (vars.GOVPRESS_N_DEPLOY_DIR == '' || needs.deploy-n.result == 'success') }}
+    if: ${{ needs.detect-targets.outputs.run_drift == 'true' && needs.deploy-w.result == 'success' && (vars.GOVPRESS_N_DEPLOY_DIR == '' || needs.deploy-n.result == 'success') }}
     needs:
       - detect-targets
-      - deploy-v
       - deploy-w
       - deploy-n
     runs-on: ubuntu-latest
@@ -479,7 +406,6 @@ jobs:
           smoke_cmd=(
             python3 scripts/smoke_policy_briefing_imports.py
             --server serverW=https://api4.govpress.cloud
-            --server serverV=https://api2.govpress.cloud
             --jobs 2
             --require-equal-inventory
             --output policy-briefing-import-smoke.json
@@ -511,10 +437,9 @@ jobs:
 
   notify-deploy-failure:
     name: "Notify Deploy Failure"
-    if: ${{ always() && (needs.deploy-v.result == 'failure' || needs.deploy-w.result == 'failure' || needs.deploy-n.result == 'failure' || needs.converter-drift-smoke.result == 'failure' || needs.policy-briefing-import-smoke.result == 'failure') }}
+    if: ${{ always() && (needs.deploy-w.result == 'failure' || needs.deploy-n.result == 'failure' || needs.converter-drift-smoke.result == 'failure' || needs.policy-briefing-import-smoke.result == 'failure') }}
     needs:
       - detect-targets
-      - deploy-v
       - deploy-w
       - deploy-n
       - converter-drift-smoke
@@ -534,7 +459,7 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
           RESULTS_JSON: >-
-            {"serverV":"${{ needs.deploy-v.result }}","serverW":"${{ needs.deploy-w.result }}","serverN":"${{ needs.deploy-n.result }}","converterSmoke":"${{ needs.converter-drift-smoke.result }}","policyBriefingSmoke":"${{ needs.policy-briefing-import-smoke.result }}"}
+            {"serverW":"${{ needs.deploy-w.result }}","serverN":"${{ needs.deploy-n.result }}","converterSmoke":"${{ needs.converter-drift-smoke.result }}","policyBriefingSmoke":"${{ needs.policy-briefing-import-smoke.result }}"}
         run: |
           set -euo pipefail
           python3 scripts/send_deploy_alert.py \
