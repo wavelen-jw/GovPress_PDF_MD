@@ -7,7 +7,6 @@ import os
 DEFAULT_CORS_ALLOW_ORIGINS = [
     "https://govpress.cloud",
     "https://www.govpress.cloud",
-    "https://ai.govpress.cloud",
     "https://wavelen-jw.github.io",
     "http://localhost:19006",
     "http://127.0.0.1:19006",

@@ -1,6 +1,6 @@
 # Server V retirement runbook
 
-Status: canary passed; production api2 cutover pending
+Status: api2 cutover passed; 24-hour observation started at 2026-09-05 00:42 KST
 
 Started: 2026-09-05 (Asia/Seoul)
 
@@ -15,8 +15,7 @@ passes.
   points to the same W origin as api4.govpress.cloud.
 - api2 must not use an HTTP redirect because uploads and authenticated POST
   requests must keep their method and headers.
-- ai.govpress.cloud moves to a Cloudflare edge redirect. It no longer depends
-  on the server V shortener.
+- ai.govpress.cloud is unused and its DNS record and repository implementation are deleted.
 - ssh-v.govpress.cloud and all V credentials stay available through the
   rollback window.
 - A stopped V server is a short rollback measure, not a cost-saving state.
@@ -50,7 +49,7 @@ passes.
 - [x] Remove V-only SSH-key, cache, and shortener workflow paths.
 - [x] Update OpenClaw and health-monitor fallbacks to W/N.
 - [x] Pass focused Python tests and workflow syntax checks.
-- [ ] Push a branch and review the complete diff.
+- [x] Push a branch and review the complete diff.
 - [ ] Merge only after the api2 canary passes.
 
 ## Gate 2: file backup
@@ -98,15 +97,16 @@ Backup evidence recorded on 2026-09-05:
 3. Repoint api2.govpress.cloud from govpress-api-naver to the W application
    origin through the compatibility ingress tunnel.
 4. Repeat the same checks on api2.govpress.cloud.
-5. Move ai.govpress.cloud to a Cloudflare Single Redirect with a valid target.
+5. Delete the unused ai.govpress.cloud DNS record and repository implementation.
 6. Keep the old V tunnel definitions intact for rollback.
 
 Pass conditions:
 
-- [ ] api4, api5, api2-canary, and api2 health all return 200.
+- [x] api4, api5, api2-canary, and api2 health all return 200.
 - [x] W/N report govpress-hwpx-md v0.4.10.
 - [x] Conversion output hashes match across W/N.
-- [ ] A real authenticated upload succeeds through api2.
+- [x] A real authenticated upload succeeds through api2.
+- [x] ai.govpress.cloud has no DNS record or deployment path.
 - [ ] The scheduled monitor and W/N deploy workflows pass.
 
 Canary evidence recorded on 2026-09-05:
@@ -122,6 +122,19 @@ Canary evidence recorded on 2026-09-05:
 - W and N both reported govpress-hwpx-md v0.4.10 and completed the same valid
   sample with hashes identical to the canary result.
 - Mobile TypeScript type checking passed.
+
+Cutover evidence recorded on 2026-09-05:
+
+- api2 DNS moved to govpress-w-ssh at 00:42 KST.
+- api2 returned health 200, CORS preflight 204, and unauthenticated upload 401.
+- An authenticated HWPX job completed through api2 and matched api4 hashes.
+- Before cutover, V local API ports accepted TCP but timed out; its database
+  integrity was ok with zero total and active jobs.
+- The unused ai.govpress.cloud CNAME was deleted through the Cloudflare API;
+  an exact-name API query then returned zero records.
+- A temporary W redirect service and ingress prepared before the deletion
+  decision were removed.
+- Do not stop V before 2026-09-06 00:42 KST and before CI gates pass.
 
 ## Gate 4: drain and stop
 
@@ -143,11 +156,15 @@ Rollback immediately if an old client fails, an authenticated api2 conversion
 fails, W/N deployment or smoke tests fail, required V-only data is found, or
 W/N capacity becomes unsafe.
 
-1. Start V in Naver Cloud.
-2. Verify the V API and SSH services.
-3. Repoint api2.govpress.cloud to govpress-api-naver.
-4. Revert the retirement PR if V deployment automation is required.
-5. Record the trigger before resuming the observation window.
+1. Verify api4 and the W compatibility tunnel before changing DNS.
+2. For a W ingress regression, restore the W config backup named
+   govpress-w-ssh.yml.bak-retire-v-ai-20260905 and restart the connector.
+3. If W is unavailable, add api2 to N, test it through a canary hostname, and
+   only then route api2 to the serverN-api5 tunnel.
+4. Use V only as a last resort: start or repair it and pass an authenticated
+   conversion before routing api2 back to govpress-api-naver.
+5. Revert the retirement PR if V deployment automation is required.
+6. Record the trigger before resuming the observation window.
 
 ## Gate 5: irreversible cleanup
 

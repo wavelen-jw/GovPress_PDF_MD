@@ -26,7 +26,6 @@ const DEPRECATED_SERVER_URLS = new Set(["https://api.govpress.cloud"]);
 const HOSTED_WEB_HOSTNAMES = new Set([
   "govpress.cloud",
   "www.govpress.cloud",
-  "ai.govpress.cloud",
 ]);
 
 export function primaryServerUrl(): string {
