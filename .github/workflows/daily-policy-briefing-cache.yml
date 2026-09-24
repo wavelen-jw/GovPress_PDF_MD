@@ -1,0 +1,29 @@
+name: Daily Policy Briefing Cache
+
+on:
+  schedule:
+    - cron: "15 13 * * *" # 22:15 Asia/Seoul
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-policy-briefing-cache
+  cancel-in-progress: false
+
+jobs:
+  refresh-and-alert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GOVPRESS_API_KEY: ${{ secrets.GOVPRESS_API_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Refresh today's catalog and alert on failure
+        run: python scripts/check_daily_policy_briefing_cache.py
