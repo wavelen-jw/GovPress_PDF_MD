@@ -31,12 +31,18 @@ and `served_stale`. Failures send one Telegram alert using the existing
 fails if delivery is not confirmed. The API key is sent only in an HTTP header.
 Neither key is printed or written to the repository.
 
-Verify an activated workflow with a manual dispatch and inspect its result,
-then check the next scheduled run. Repository Actions are enabled and the bot
-secrets exist, but the previously scheduled QC and health workflows have **no
-runs after July 30, 2026**. A schedule declaration alone does not prove the
-notification is operating. This workflow must be present on the default `web`
-branch before it can run; deployment of the API service is a separate operation.
+The workflow is active on the default `web` branch. A manual run on September
+24, 2026 reached Server W through the SSH tunnel, received `HTTP 502: HTTP
+Error 400: Bad Request` from its policy catalog, and logged `telegram_sent`.
+The job fails by design when the source fails. The next scheduled run must
+still be checked: the older scheduled QC and health workflows have **no runs
+after July 30, 2026** despite being active. A manual dispatch proves the
+failure/alert path, not the schedule. Deployment of the API service is a
+separate operation.
+
+The Cloudflare-hosted web bundle uses Server W as its default and Server N as
+the next fallback. Retired Server V remains as a legacy choice in the bundle,
+but Server W's direct upstream failure does not depend on V or web hosting.
 
 The source API replacement remains necessary to restore current-day browsing.
 This monitor detects the outage and prevents silent cache failure; it cannot
