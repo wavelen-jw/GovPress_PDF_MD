@@ -90,6 +90,8 @@ type PolicyBriefingServerHealthStatus = {
 };
 
 const POLICY_BRIEFING_RECENT_DAYS = 7;
+const POLICY_BRIEFING_SHUTDOWN_NOTICE_URL =
+  "https://www.data.go.kr/bbs/ntc/selectNotice.do?originId=NOTICE_0000000004771";
 
 const LANDING_ACTION_STORAGE_KEY = "govpress:landing-action";
 const LANDING_UPLOAD_DB = "govpress-landing";
@@ -1194,96 +1196,6 @@ export default function App(): React.JSX.Element {
 
   async function handleOpenPolicyBriefings(): Promise<void> {
     setPolicyBriefingVisible(true);
-    setPolicyBriefingLoading(true);
-    setPolicyBriefingError(null);
-    setPolicyBriefingWarning(null);
-    setPolicyBriefingLastRefreshedAt(null);
-    setPolicyBriefingServedStale(false);
-    setPolicyBriefingAnyFetchFailure(false);
-    setPolicyBriefingServerStatuses([]);
-    setPolicyBriefingServerHealthStatuses([]);
-    setPolicyBriefingQuery("");
-    try {
-      const today = new Date();
-      const dates = Array.from({ length: POLICY_BRIEFING_RECENT_DAYS }, (_, i) => {
-        const d = new Date(today);
-        d.setDate(d.getDate() - i);
-        return d.toISOString().slice(0, 10); // YYYY-MM-DD
-      });
-      const latestDate = dates[0];
-      const [healthStatusResults, directStatusResults] = await Promise.all([
-        Promise.all(
-          SERVER_PRESETS.map(async (preset) => {
-            const result = await probeServerHealthStatus(preset.url, config.apiKey, SERVER_FALLBACK_TIMEOUT_MS);
-            return {
-              key: preset.key,
-              label: preset.label,
-              url: preset.url,
-              ok: result.ok,
-              detail: result.detail,
-            } satisfies PolicyBriefingServerHealthStatus;
-          }),
-        ),
-        Promise.all(
-          SERVER_PRESETS.map(async (preset) => {
-            try {
-              const result = await fetchTodayPolicyBriefingsDirect(
-                { ...config, baseUrl: preset.url },
-                preset.url,
-                latestDate,
-              );
-              const warning = result.warning
-                ? normalizePolicyBriefingStatusMessage(result.warning)
-                : null;
-              const freshest = result.last_refreshed_at || null;
-              return {
-                key: preset.key,
-                label: preset.label,
-                url: preset.url,
-                anyFetchFailure: false,
-                servedStale: !!result.served_stale,
-                warning,
-                error: null,
-                lastRefreshedAt: freshest,
-              } satisfies PolicyBriefingServerStatus;
-            } catch (error) {
-              const normalizedError = normalizePolicyBriefingStatusMessage(
-                error instanceof Error ? error.message : String(error),
-              );
-              const errorMessage = normalizedError || `최근 날짜(${latestDate}) 요청 실패`;
-              return {
-                key: preset.key,
-                label: preset.label,
-                url: preset.url,
-                anyFetchFailure: true,
-                servedStale: false,
-                warning: null,
-                error: errorMessage,
-                lastRefreshedAt: null,
-              } satisfies PolicyBriefingServerStatus;
-            }
-          }),
-        ),
-      ]);
-      setPolicyBriefingServerHealthStatuses(healthStatusResults);
-      setPolicyBriefingServerStatuses(directStatusResults);
-      const recentPayload = await fetchRecentPolicyBriefings(config, POLICY_BRIEFING_RECENT_DAYS);
-      const dedupedItems = dedupePolicyBriefings(recentPayload.items);
-      setPolicyBriefings(dedupedItems);
-      setPolicyBriefingError(null);
-      setPolicyBriefingServedStale(!!recentPayload.served_stale);
-      setPolicyBriefingLastRefreshedAt(recentPayload.last_refreshed_at || null);
-      setPolicyBriefingAnyFetchFailure(false);
-      const warningMessage = recentPayload.warning
-        ? normalizePolicyBriefingStatusMessage(recentPayload.warning)
-        : null;
-      setPolicyBriefingWarning(warningMessage);
-      setNotice(warningMessage ? null : `정책브리핑 목록 갱신 완료 — ${dedupedItems.length}건`);
-    } catch (error) {
-      showError("정책브리핑을 불러오지 못했습니다.", error);
-    } finally {
-      setPolicyBriefingLoading(false);
-    }
   }
 
   async function loadBriefingByNewsItemId(newsItemId: string, date?: string, attachmentFileUrl?: string): Promise<void> {
@@ -1378,15 +1290,7 @@ export default function App(): React.JSX.Element {
 
     async function hydrateLandingIntent(): Promise<void> {
       if (action.type === "open-briefing-by-id") {
-        setBusy(true);
-        setNotice("공유된 보도자료를 불러오는 중...");
-        try {
-          await loadBriefingByNewsItemId(action.newsItemId, action.date);
-        } catch (error) {
-          showError("공유된 보도자료를 불러오지 못했습니다.", error);
-        } finally {
-          setBusy(false);
-        }
+        await handleOpenPolicyBriefings();
         return;
       }
       if (action.type === "open-policy-briefings") {
@@ -2177,242 +2081,32 @@ export default function App(): React.JSX.Element {
       <Modal visible={policyBriefingVisible} animationType="slide" transparent onRequestClose={() => setPolicyBriefingVisible(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <View style={styles.policyBriefingHeader}>
-              <Text style={styles.modalTitle}>정책브리핑 보도자료</Text>
-              <Pressable
-                onPress={() => setPolicyBriefingStatusVisible(true)}
-                style={styles.policyBriefingStatusInlineRow}
-              >
-                <Text style={styles.policyBriefingMetaText}>{policyBriefings.length}건 · 최근 {POLICY_BRIEFING_RECENT_DAYS}일</Text>
-                <Text style={styles.policyBriefingMetaText}>|</Text>
-                <Text style={styles.policyBriefingMetaText}>문체부 API</Text>
-                <View
-                  style={[
-                    styles.policyBriefingStatusDot,
-                    policyBriefingLoading
-                      ? styles.policyBriefingStatusDotChecking
-                      : policyBriefingError || policyBriefingAnyFetchFailure || policyBriefingServedStale || policyBriefingWarning
-                        ? styles.policyBriefingStatusDotDegraded
-                        : styles.policyBriefingStatusDotHealthy,
-                  ]}
-                />
-              </Pressable>
-            </View>
-            {/* Search bar */}
-            <View style={styles.policyBriefingSearchRow}>
-              <TextInput
-                style={styles.policyBriefingSearchInput}
-                placeholder="제목 또는 보도기관 검색…"
-                placeholderTextColor="rgba(255,255,255,0.28)"
-                value={policyBriefingQuery}
-                onChangeText={setPolicyBriefingQuery}
-                autoCorrect={false}
-                autoCapitalize="none"
-                clearButtonMode="while-editing"
-              />
-            </View>
-            <ScrollView style={styles.policyBriefingList} contentContainerStyle={styles.policyBriefingListContent}>
-              {policyBriefingLoading ? (
-                <View style={styles.policyBriefingEmptyState}>
-                  <ActivityIndicator size="small" color="#7b664f" />
-                  <Text style={styles.emptyState}>목록을 불러오는 중입니다.</Text>
-                </View>
-              ) : null}
-              {!policyBriefingLoading && groupedPolicyBriefings.length === 0 ? (
-                <View style={styles.policyBriefingEmptyState}>
-                  <Text style={styles.emptyState}>
-                    {policyBriefingQuery
-                      ? "검색 결과가 없습니다."
-                      : policyBriefingError || "HWPX 보도자료가 없거나 불러오기에 실패했습니다."}
-                  </Text>
-                </View>
-              ) : null}
-              {!policyBriefingLoading
-                ? groupedPolicyBriefings.map(([dateKey, items]) => (
-                    <View key={dateKey}>
-                      <View style={styles.policyBriefingDateSep}>
-                        <View style={styles.policyBriefingDateLine} />
-                        <Text style={styles.policyBriefingDateLabel}>{formatKoreanDate(dateKey)}</Text>
-                        <View style={styles.policyBriefingDateLine} />
-                      </View>
-                      {items.map((item) => {
-                        const attachments = getPolicyBriefingHwpxAttachments(item);
-                        const primaryAttachment = getPolicyBriefingPrimaryAttachment(item, attachments);
-                        const active = attachments.some((attachment) => importingPolicyBriefingKey === getPolicyBriefingImportKey(item, attachment));
-                        const approvedTime = formatPolicyBriefingTime(item.approve_date);
-                        const hasHwpx = attachments.length > 0 || item.has_hwpx === true;
-                        return (
-                          <View
-                            key={item.news_item_id}
-                            style={styles.policyBriefingRow}
-                          >
-                            <View style={styles.policyBriefingRowBody}>
-                              <Text style={styles.policyBriefingTitle}>{item.title}</Text>
-                              <Text style={styles.policyBriefingMetaText}>
-                                {item.department}
-                                {approvedTime ? ` · ${approvedTime}` : ""}
-                                {primaryAttachment?.file_name ? ` · ${primaryAttachment.file_name}` : ""}
-                              </Text>
-                              {attachments.length > 1 ? (
-                                <View style={styles.policyBriefingAttachmentRow}>
-                                  {attachments.map((attachment) => {
-                                    const attachmentActive = importingPolicyBriefingKey === getPolicyBriefingImportKey(item, attachment);
-                                    return (
-                                      <Pressable
-                                        key={attachment.file_url || attachment.file_name}
-                                        style={[
-                                          styles.policyBriefingAttachmentButton,
-                                          attachment.file_url === primaryAttachment?.file_url && styles.policyBriefingAttachmentButtonPrimary,
-                                        ]}
-                                        onPress={() => void handleImportPolicyBriefing(item, attachment)}
-                                        disabled={!!importingPolicyBriefingKey}
-                                      >
-                                        <Text style={styles.policyBriefingAttachmentButtonLabel}>
-                                          {attachmentActive ? "불러오는 중" : getPolicyBriefingAttachmentLabel(attachment)}
-                                        </Text>
-                                      </Pressable>
-                                    );
-                                  })}
-                                </View>
-                              ) : item.has_appendix_hwpx ? (
-                                <Text style={styles.policyBriefingAppendix}>별도 HWPX 포함</Text>
-                              ) : null}
-                            </View>
-                            {hasHwpx ? (
-                              <View style={styles.policyBriefingRowAction}>
-                                {active ? (
-                                  <ActivityIndicator size="small" color="#7b664f" />
-                                ) : attachments.length > 1 ? (
-                                  <Text style={styles.loadMoreLabel}>선택</Text>
-                                ) : (
-                                  <Pressable
-                                    style={styles.policyBriefingSingleLoadButton}
-                                    onPress={primaryAttachment ? () => void handleImportPolicyBriefing(item, primaryAttachment) : undefined}
-                                    disabled={!primaryAttachment || !!importingPolicyBriefingKey}
-                                  >
-                                    <Text style={styles.loadMoreLabel}>불러오기</Text>
-                                  </Pressable>
-                                )}
-                              </View>
-                            ) : null}
-                          </View>
-                        );
-                      })}
-                    </View>
-                  ))
-                : null}
-            </ScrollView>
-            <View style={styles.modalActions}>
-              <Pressable onPress={() => setPolicyBriefingVisible(false)} style={styles.secondaryButton}>
-                <Text style={styles.secondaryButtonLabel}>닫기</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={policyBriefingStatusVisible}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setPolicyBriefingStatusVisible(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>정책브리핑 API 상태</Text>
+            <Text style={styles.modalTitle}>정책브리핑 보도자료 연동 종료</Text>
             <Text style={styles.modalHint}>
-              서버 연결 상태와 정책브리핑 제공기관 조회 상태를 구분해서 보여줍니다.
+              문화체육관광부가 정책브리핑 보도자료 OpenAPI 제공을 중단했습니다.
             </Text>
-            <View style={styles.resultMetaCard}>
-              <Text style={styles.resultMetaEyebrow}>정책브리핑 현재 상태</Text>
-              <Text style={styles.resultMetaBody}>{policyBriefingStatusSummary}</Text>
-            </View>
-            <View style={styles.resultMetaCard}>
-              <Text style={styles.resultMetaEyebrow}>최근 {POLICY_BRIEFING_RECENT_DAYS}일 조회</Text>
-              <Text style={styles.resultMetaBody}>
-                {policyBriefingAnyFetchFailure ? "일부 날짜 요청 실패" : "실패 없음"}
-              </Text>
-              <Text style={styles.resultMetaBody}>
-                {policyBriefingServedStale ? "캐시 제공됨" : "실시간 응답"}
-              </Text>
-              <Text style={styles.resultMetaBody}>
-                {policyBriefingLastRefreshedAt
-                  ? `마지막 갱신: ${policyBriefingLastRefreshedAt}`
-                  : "마지막 갱신 시각 없음"}
-              </Text>
-            </View>
-            {policyBriefingServerHealthStatuses.length > 0 ? (
-              <View style={styles.resultMetaCard}>
-                <Text style={styles.resultMetaEyebrow}>서버 연결 상태 (/health)</Text>
-                <Text style={styles.resultMetaBody}>
-                  이 표시는 각 서버의 기본 API 연결 상태만 나타냅니다.
-                </Text>
-                {policyBriefingServerHealthStatuses.map((status) => (
-                  <View key={status.key} style={styles.resultMetaRow}>
-                    <Text style={styles.resultMetaEyebrow}>
-                      {status.label} · {status.ok ? "정상" : "실패"}
-                    </Text>
-                    <Text style={styles.resultMetaBody}>{status.ok ? `서버 응답 정상 · ${status.detail}` : status.detail}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-            {policyBriefingServerStatuses.length > 0 ? (
-              <View style={styles.resultMetaCard}>
-                <Text style={styles.resultMetaEyebrow}>서버별 정책브리핑 조회 상태</Text>
-                {policyBriefingServerStatuses.map((status) => {
-                  const statusLabel = status.error
-                    ? "실패"
-                    : status.anyFetchFailure
-                      ? "부분 실패"
-                      : status.servedStale || status.warning
-                        ? "주의"
-                        : "정상";
-                  return (
-                    <View key={status.key} style={styles.resultMetaRow}>
-                      <Text style={styles.resultMetaEyebrow}>
-                        {status.label} · {statusLabel}
-                      </Text>
-                      <Text style={styles.resultMetaBody}>
-                        {status.error
-                          ? status.error
-                          : status.anyFetchFailure
-                            ? `최근 ${POLICY_BRIEFING_RECENT_DAYS}일 조회 중 일부 날짜 요청 실패`
-                            : status.servedStale
-                              ? "캐시 제공됨"
-                              : status.warning || "정상"}
-                      </Text>
-                      <Text style={styles.resultMetaBody}>
-                        {status.lastRefreshedAt
-                          ? `마지막 갱신: ${status.lastRefreshedAt}`
-                          : "마지막 갱신 시각 없음"}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
-            ) : null}
-            {policyBriefingWarning ? (
-              <View style={styles.resultMetaCard}>
-                <Text style={styles.resultMetaEyebrow}>경고</Text>
-                <Text style={styles.resultMetaBody}>{policyBriefingWarning}</Text>
-              </View>
-            ) : null}
-            {policyBriefingError ? (
-              <View style={styles.resultMetaCard}>
-                <Text style={styles.resultMetaEyebrow}>오류</Text>
-                <Text style={styles.resultMetaBody}>{policyBriefingError}</Text>
-              </View>
-            ) : null}
+            <Text style={styles.modalHint}>
+              생성·관리 기관이 별도로 있어 저작권 권리관계와 이용허락 여부를 확인하기 어렵다는 이유입니다.
+              공지에서는 각 부처 홈페이지를 대체 경로로 안내합니다.
+            </Text>
+            <Text style={styles.modalHint}>
+              보도자료 자동 조회·가져오기는 이용할 수 없습니다. 직접 보유한 HWP/HWPX·PDF 파일의 변환은 계속 가능합니다.
+            </Text>
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => void Linking.openURL(POLICY_BRIEFING_SHUTDOWN_NOTICE_URL)}
+              style={styles.secondaryButton}
+            >
+              <Text style={styles.secondaryButtonLabel}>공공데이터포털 공식 공지 보기</Text>
+            </Pressable>
             <View style={styles.modalActions}>
-              <Pressable onPress={() => setPolicyBriefingStatusVisible(false)} style={styles.primaryButton}>
+              <Pressable onPress={() => setPolicyBriefingVisible(false)} style={styles.primaryButton}>
                 <Text style={styles.primaryButtonLabel}>닫기</Text>
               </Pressable>
             </View>
           </View>
         </View>
       </Modal>
-
       {busy ? (
         <View style={styles.busyOverlay}>
           <ActivityIndicator size="large" color="#fff7ee" />

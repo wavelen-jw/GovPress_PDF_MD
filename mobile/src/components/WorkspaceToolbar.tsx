@@ -85,11 +85,11 @@ export function WorkspaceToolbar({
       <Pressable
         style={[styles.tbarBtn, isDarkMode && styles.tbarBtnDark]}
         onPress={onOpenPolicyBriefings}
-        accessibilityLabel="보도자료"
-        {...webTitle("보도자료")}
+        accessibilityLabel="보도자료 연동 종료 안내"
+        {...webTitle("보도자료 연동 종료 안내")}
       >
         <Text style={[styles.tbarBtnLabel, isDarkMode && styles.tbarBtnLabelDark]}>
-          ☰ 보도자료
+          ☰ 보도자료 안내
         </Text>
       </Pressable>
 

@@ -209,7 +209,7 @@
           <span class="text-white/25 text-lg font-thin">·</span>
           <span class="fmt-tag">HWP</span>
           <span class="text-white/25 text-lg font-thin">·</span>
-          <span class="fmt-tag">HTML API를</span>
+          <span class="fmt-tag">PDF를</span>
         </div>
         <div class="flex items-center gap-2">
           <span class="text-white/50 text-xl font-light">→</span>
@@ -227,10 +227,10 @@
             <path d="M2.5 7.5h10M8.5 3.5l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
-        <a href="./app/?editor=1"
-           data-app-action="policy-briefings"
+        <a href="https://www.data.go.kr/bbs/ntc/selectNotice.do?originId=NOTICE_0000000004771"
+           target="_blank" rel="noopener noreferrer"
            class="cta-btn inline-flex items-center gap-2 border border-white/22 text-white/70 hover:text-white hover:border-white/45 font-semibold px-6 py-4 rounded-lg text-[0.88rem]">
-          <span>📰</span> 정책브리핑 읽기
+          보도자료 API 중단 공지
         </a>
         <a href="./hardest-policy-briefings/"
            class="cta-btn inline-flex items-center gap-2 border border-white/22 text-white/70 hover:text-white hover:border-white/45 font-semibold px-6 py-4 rounded-lg text-[0.88rem]">
@@ -327,7 +327,7 @@
               <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
               <span class="w-2.5 h-2.5 rounded-full bg-green-400"></span>
             </div>
-            <span class="text-[0.62rem] font-mono text-gray-700 font-semibold">문체부 보도자료 API 응답</span>
+            <span class="text-[0.62rem] font-mono text-gray-700 font-semibold">과거 보도자료 API 응답 예시</span>
           </div>
           <pre class="language-html" style="border-radius:0;"><code class="language-html">&lt;div id="articleBody"
   class="article_body"&gt;
@@ -621,21 +621,19 @@
       </h2>
       <p class="text-gray-400 mb-12 text-[1.05rem] leading-relaxed"
          data-aos="fade-up" data-aos-delay="100">
-        HWP, HWPX, 보도자료 HTML을<br>
+        PDF, HWP, HWPX 파일을<br>
         사람도 AI도 읽기 좋은 Markdown으로 변환합니다.
       </p>
 
-      <!-- 정책브리핑 callout -->
-      <div class="inline-flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-5 py-3.5 mb-10 shadow-sm"
+      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-white border border-gray-200 rounded-lg px-5 py-3.5 mb-10 shadow-sm text-left max-w-2xl mx-auto"
            data-aos="fade-up" data-aos-delay="150">
-        <span class="text-lg">📰</span>
-        <div class="text-left">
-          <p class="text-xs font-bold text-ink">오늘의 정책브리핑 바로 읽기</p>
-          <p class="text-[0.68rem] text-gray-400 mt-0.5">정책브리핑 보도자료를 실시간으로 Markdown 변환해서 제공</p>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-bold text-ink">정책브리핑 보도자료 자동 연동 종료</p>
+          <p class="text-xs text-gray-600 mt-1 leading-relaxed">문화체육관광부가 저작권 권리관계와 이용허락 여부를 확인하기 어려워 보도자료 OpenAPI 제공을 중단했습니다. 공지는 각 부처 홈페이지를 대체 경로로 안내합니다. 직접 보유한 문서 파일의 변환은 계속 가능합니다.</p>
         </div>
-        <a href="./app/?editor=1"
-           data-app-action="policy-briefings"
-           class="ml-2 text-[0.72rem] font-bold text-green-600 hover:text-green-700 whitespace-nowrap">정책브리핑 읽기 →</a>
+        <a href="https://www.data.go.kr/bbs/ntc/selectNotice.do?originId=NOTICE_0000000004771"
+           target="_blank" rel="noopener noreferrer"
+           class="text-xs font-bold text-green-700 hover:text-green-800 whitespace-nowrap">공식 공지 보기 →</a>
       </div>
 
       <div data-aos="fade-up" data-aos-delay="200">
@@ -881,14 +879,6 @@
         if (action === 'convert') {
           filePicker.click();
           return;
-        }
-        if (action === 'policy-briefings') {
-          try {
-            await navigateToApp('open-policy-briefings');
-          } catch (error) {
-            console.error(error);
-            window.location.href = APP_URL + '&intent=policy-briefings';
-          }
         }
       });
     });
