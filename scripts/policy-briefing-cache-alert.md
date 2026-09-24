@@ -21,8 +21,10 @@
 ## Daily refresh and alert
 
 `.github/workflows/daily-policy-briefing-cache.yml` runs at 22:15 KST and may
-also be dispatched manually. It calls Server W's authenticated `today` API for
-the current Seoul date. This request refreshes the server's catalog when due.
+also be dispatched manually. It opens an encrypted SSH tunnel to Server W and
+calls the authenticated local `today` API for the current Seoul date. The
+public API URL is blocked for GitHub runners by a browser-signature rule and
+cannot be used for this monitor. The request refreshes the catalog when due.
 The check rejects HTTP errors, missing or mismatched dates, incomplete responses
 and `served_stale`. Failures send one Telegram alert using the existing
 `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` repository secrets; the workflow

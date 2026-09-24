@@ -5,16 +5,11 @@ from datetime import datetime
 from html import escape
 import json
 import os
-from pathlib import Path
 import sys
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 API_BASE_URL = "https://api4.govpress.cloud"
 
@@ -41,8 +36,11 @@ def check_daily_catalog(target_date: str, *, base_url: str = API_BASE_URL) -> in
     api_key = os.environ.get("GOVPRESS_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("GOVPRESS_API_KEY is not configured")
-    if not base_url.startswith("https://"):
-        raise ValueError("The policy briefing API URL must use HTTPS")
+    parsed_url = urlsplit(base_url)
+    if parsed_url.scheme != "https" and not (
+        parsed_url.scheme == "http" and parsed_url.hostname in ("127.0.0.1", "localhost")
+    ):
+        raise ValueError("The policy briefing API URL must use HTTPS or a local SSH tunnel")
     url = f"{base_url.rstrip('/')}/v1/policy-briefings/today?{urlencode({'date': target_date})}"
     request = Request(url, headers={"X-API-Key": api_key, "Accept": "application/json"})
     try:
@@ -68,7 +66,10 @@ def check_daily_catalog(target_date: str, *, base_url: str = API_BASE_URL) -> in
 def main() -> int:
     target_date = datetime.now(ZoneInfo("Asia/Seoul")).date().isoformat()
     try:
-        item_count = check_daily_catalog(target_date)
+        item_count = check_daily_catalog(
+            target_date,
+            base_url=os.environ.get("GOVPRESS_POLICY_BRIEFING_CHECK_URL", API_BASE_URL),
+        )
     except Exception as exc:
         reason = f"{type(exc).__name__}: {exc}"
         run_url = ""

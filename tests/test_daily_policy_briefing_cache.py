@@ -23,6 +23,17 @@ def test_daily_check_accepts_fresh_catalog_and_sends_api_key_only_in_header(monk
     assert monitor.check_daily_catalog("2026-09-24") == 1
 
 
+def test_daily_check_accepts_local_ssh_tunnel_only(monkeypatch):
+    monkeypatch.setenv("GOVPRESS_API_KEY", "test-key")
+    monkeypatch.setattr(monitor, "urlopen", lambda *args, **kwargs: BytesIO(json.dumps({
+        "date": "2026-09-24", "items": [], "last_refreshed_at": "2026-09-24T13:00:00+00:00",
+        "served_stale": False,
+    }).encode()))
+    assert monitor.check_daily_catalog("2026-09-24", base_url="http://127.0.0.1:18013") == 0
+    with pytest.raises(ValueError, match="SSH tunnel"):
+        monitor.check_daily_catalog("2026-09-24", base_url="http://api4.govpress.cloud")
+
+
 @pytest.mark.parametrize("payload", [
     {"date": "2026-09-24", "items": [], "last_refreshed_at": "x", "served_stale": True},
     {"date": "2026-09-23", "items": [], "last_refreshed_at": "x", "served_stale": False},
@@ -36,7 +47,7 @@ def test_daily_check_rejects_stale_or_incomplete_catalog(monkeypatch, payload):
 
 
 def test_failed_refresh_sends_telegram_and_exits_nonzero(monkeypatch):
-    monkeypatch.setattr(monitor, "check_daily_catalog", lambda date: (_ for _ in ()).throw(RuntimeError("HTTP 502")))
+    monkeypatch.setattr(monitor, "check_daily_catalog", lambda date, **kwargs: (_ for _ in ()).throw(RuntimeError("HTTP 502")))
     sent = []
     monkeypatch.setattr(monitor, "send_telegram", lambda message: sent.append(message))
     assert monitor.main() == 1
@@ -45,7 +56,7 @@ def test_failed_refresh_sends_telegram_and_exits_nonzero(monkeypatch):
 
 
 def test_failed_refresh_reports_telegram_delivery_failure(monkeypatch):
-    monkeypatch.setattr(monitor, "check_daily_catalog", lambda date: (_ for _ in ()).throw(RuntimeError("HTTP 502")))
+    monkeypatch.setattr(monitor, "check_daily_catalog", lambda date, **kwargs: (_ for _ in ()).throw(RuntimeError("HTTP 502")))
     monkeypatch.setattr(monitor, "send_telegram", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("bot unavailable")))
     assert monitor.main() == 2
 
