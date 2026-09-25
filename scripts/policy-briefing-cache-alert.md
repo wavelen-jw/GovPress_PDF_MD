@@ -1,4 +1,4 @@
-# Policy briefing source outage and daily alert
+# Policy briefing source withdrawal and retired alert
 
 ## Observed outage window
 
@@ -22,26 +22,15 @@
   today's policy catalog and returns 502 when that catalog fails. Historical
   cached lists still work (September 14 returned 77 items over the public API).
 
-## Manual refresh and alert
+## Monitoring decision
 
-`.github/workflows/daily-policy-briefing-cache.yml` is manual-only since the
-source API was formally withdrawn; scheduled failures would repeatedly alert
-without an actionable recovery. When dispatched, it opens an encrypted SSH tunnel to Server W and
-calls the authenticated local `today` API for the current Seoul date. The
-public API URL is blocked for GitHub runners by a browser-signature rule and
-cannot be used for this monitor. The request refreshes the catalog when due.
-The check rejects HTTP errors, missing or mismatched dates, incomplete responses
-and `served_stale`. Failures send one Telegram alert using the existing
-`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` repository secrets; the workflow
-fails if delivery is not confirmed. The API key is sent only in an HTTP header.
-Neither key is printed or written to the repository.
-
-The workflow is available on the default `web` branch. A manual run on September
-24, 2026 reached Server W through the SSH tunnel, received `HTTP 502: HTTP
-Error 400: Bad Request` from its policy catalog, and logged `telegram_sent`.
-The job fails by design when the source fails. Daily scheduling was removed
-after the official notice was verified. Deployment of the API service is a
-separate operation.
+The daily cache checker and its Telegram workflow were retired after the
+provider's withdrawal notice was confirmed. The scheduled policy-briefing QC
+workflow and its Telegram notification were also disabled. Manual historical
+QC remains available without a Telegram alert. The general server monitor now
+checks the converter version endpoint instead of the withdrawn catalog; its
+scheduled runs do not send Telegram messages. Deployment-failure alerts for
+other services remain separate.
 
 The Cloudflare-hosted web bundle uses Server W as its default and Server N as
 the next fallback. Retired Server V remains as a legacy choice in the bundle,

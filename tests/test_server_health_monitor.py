@@ -257,17 +257,11 @@ class ServerHealthMonitorTests(unittest.TestCase):
 
     def test_build_probe_request_defaults_to_public_health(self) -> None:
         endpoint, request = build_probe_request("https://api.govpress.cloud")
-        self.assertEqual(endpoint, "https://api.govpress.cloud/health")
+        self.assertEqual(endpoint, "https://api.govpress.cloud/v1/version")
         self.assertEqual(request.get_full_url(), endpoint)
         self.assertIsNone(request.get_header("X-API-Key"))
 
-    def test_build_probe_request_uses_authenticated_policy_probe_when_requested(self) -> None:
-        endpoint, request = build_probe_request("https://api.govpress.cloud", api_key="secret-key", path="policy")
-        self.assertIn("/v1/policy-briefings/today?date=", endpoint)
-        self.assertEqual(request.get_full_url(), endpoint)
-        self.assertEqual(request.get_header("X-api-key"), "secret-key")
-
-    def test_fetch_health_checks_public_health_and_authenticated_policy_probe(self) -> None:
+    def test_fetch_health_checks_converter_without_policy_probe(self) -> None:
         class FakeResponse:
             status = 200
 
@@ -286,12 +280,10 @@ class ServerHealthMonitorTests(unittest.TestCase):
         with mock.patch("scripts.server_health_monitor.urlopen") as mocked_urlopen:
             mocked_urlopen.side_effect = [
                 FakeResponse(b'{"status":"ok"}'),
-                FakeResponse(b'{"items":[]}'),
             ]
-            result = fetch_health("https://api.govpress.cloud", timeout=1, api_key="secret-key")
+            result = fetch_health("https://api.govpress.cloud", timeout=1)
 
         self.assertTrue(result["ok"])
-        self.assertEqual(result["detail"], "health=HTTP 200 policy=HTTP 200")
+        self.assertEqual(result["detail"], "health=HTTP 200")
         requested_urls = [call.args[0].get_full_url() for call in mocked_urlopen.call_args_list]
-        self.assertEqual(requested_urls[0], "https://api.govpress.cloud/health")
-        self.assertIn("/v1/policy-briefings/today?date=", requested_urls[1])
+        self.assertEqual(requested_urls, ["https://api.govpress.cloud/v1/version"])

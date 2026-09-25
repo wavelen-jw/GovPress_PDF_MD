@@ -22,13 +22,6 @@ on:
         required: false
         default: true
         type: boolean
-      send_telegram_on_failure:
-        description: "Send a Telegram alert when QC requires review."
-        required: false
-        default: true
-        type: boolean
-  schedule:
-    - cron: "15 4 * * *"
 
 permissions:
   contents: read
@@ -47,9 +40,6 @@ jobs:
       EXPORT_LIMIT: ${{ inputs.limit || '5' }}
       QC_ROOT: ${{ inputs.qc_root || 'tests/qc_samples' }}
       OPEN_ISSUE_ON_FAILURE: ${{ inputs.open_issue_on_failure != false }}
-      SEND_TELEGRAM_ON_FAILURE: ${{ inputs.send_telegram_on_failure != false }}
-      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
     steps:
       - name: Check out GovPress_PDF_MD
@@ -190,14 +180,6 @@ jobs:
               core.setOutput('issue_url', created.data.html_url);
               core.summary.addRaw(`Created issue #${created.data.number}\n`).write();
             }
-
-      - name: Send Telegram alert
-        if: always() && steps.evaluate.outputs.exit_code != '0' && env.SEND_TELEGRAM_ON_FAILURE == 'true' && env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
-        run: |
-          python "${GOV_MD_CONVERTER_ROOT}/scripts/send_policy_briefing_qc_telegram.py" \
-            "${{ steps.evaluate.outputs.report_path }}" \
-            --dashboard-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            --issue-url "${{ steps.create-or-update-qc-issue.outputs.issue_url }}"
 
       - name: Fail when QC requires review
         if: always()
